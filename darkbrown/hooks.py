@@ -1,0 +1,6 @@
+app_name = "darkbrown"
+app_title = "DarkBrown"
+app_publisher = "DarkBrown RealEstate"
+app_description = "Dark Brown Real Estate — MD dashboard and custom tooling"
+app_email = "admin@darkbrown.qa"
+app_license = "MIT"
