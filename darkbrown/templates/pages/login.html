@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sign in · Darkbrown Real Estate</title>
+  <link rel="icon" href="/assets/darkbrown/images/logo.png">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500;1,600&family=Mulish:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="/assets/darkbrown/css/login.css">
+
+  <script>
+    window.csrf_token = "{{ csrf_token }}";
+    window.frappe = window.frappe || {};
+    frappe.boot = frappe.boot || {};
+  </script>
+</head>
+<body>
+
+  <div class="db-login-wrap">
+
+    <!-- LEFT PANEL (hidden on mobile via CSS) -->
+    <div class="db-left-panel">
+      <div class="db-left-bg"></div>
+      <img src="/assets/darkbrown/images/logo_watermark.png" class="db-watermark" alt="">
+      <svg class="db-ring db-ring-tl" width="400" height="400" viewBox="0 0 400 400" fill="none">
+        <circle cx="200" cy="200" r="198" stroke="#C9A86A" stroke-width="1.2"/>
+        <circle cx="200" cy="200" r="148" stroke="#C9A86A" stroke-width=".7"/>
+      </svg>
+
+      <div class="db-brand-row">
+        <img src="/assets/darkbrown/images/logo.png" class="db-brand-logo" alt="Darkbrown Real Estate">
+        <div>
+          <div class="db-brand-name">Darkbrown</div>
+          <div class="db-brand-sub">Real Estate</div>
+        </div>
+      </div>
+
+      <div class="db-headline-block">
+        <div class="db-headline">Manage your<br><em>portfolio</em><br>with clarity.</div>
+        <div class="db-gold-rule"></div>
+        <div class="db-subcopy">One platform for your entire organisation — properties, tenants, finance, and operations, all in one place.</div>
+      </div>
+
+      <div class="db-copyright">© {{ frappe.utils.now_datetime().year }} Darkbrown Real Estate · All rights reserved</div>
+    </div>
+
+    <!-- RIGHT PANEL / MOBILE HERO -->
+    <div class="db-right-panel">
+
+      <!-- Mobile-only hero (hidden on desktop via CSS) -->
+      <div class="db-mobile-hero">
+        <img src="/assets/darkbrown/images/logo_watermark.png" class="db-mobile-watermark" alt="">
+        <svg class="db-ring db-mobile-ring" width="220" height="220" viewBox="0 0 220 220" fill="none">
+          <circle cx="130" cy="130" r="128" stroke="#C9A86A" stroke-width="1"/>
+          <circle cx="130" cy="130" r="90" stroke="#C9A86A" stroke-width=".6"/>
+        </svg>
+        <div class="db-mobile-headline-block">
+          <div class="db-mobile-headline">Welcome<br><em>back.</em></div>
+          <div class="db-mobile-subcopy">Sign in to your account</div>
+        </div>
+        <div class="db-hero-fade"></div>
+      </div>
+
+      <svg class="db-ring db-ring-right-top" width="340" height="340" viewBox="0 0 340 340" fill="none">
+        <circle cx="170" cy="170" r="168" stroke="#C9A86A" stroke-width="1.2"/>
+        <circle cx="170" cy="170" r="120" stroke="#C9A86A" stroke-width=".7"/>
+        <circle cx="170" cy="170" r="72" stroke="#C9A86A" stroke-width=".5"/>
+      </svg>
+      <svg class="db-ring db-ring-right-bottom" width="220" height="220" viewBox="0 0 220 220" fill="none">
+        <circle cx="110" cy="110" r="108" stroke="#C9A86A" stroke-width="1"/>
+        <circle cx="110" cy="110" r="70" stroke="#C9A86A" stroke-width=".6"/>
+      </svg>
+
+      <div class="db-form-col">
+
+        <!-- Desktop-only heading -->
+        <div class="db-form-heading">
+          <div class="db-welcome">Welcome back</div>
+          <div class="db-welcome-sub">Sign in to your account</div>
+        </div>
+
+        <div class="db-card">
+          <form id="db-login-form" novalidate>
+
+            <div class="db-field">
+              <label for="db-email">Email address</label>
+              <div class="db-input-wrap">
+                <svg class="db-input-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"></rect><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"></path></svg>
+                <input id="db-email" name="usr" type="email" placeholder="you@darkbrown.com" autocomplete="username" required>
+              </div>
+            </div>
+
+            <div class="db-field">
+              <label for="db-password">Password</label>
+              <div class="db-input-wrap">
+                <svg class="db-input-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+                <input id="db-password" name="pwd" type="password" placeholder="••••••••••" autocomplete="current-password" required>
+                <button type="button" id="db-toggle-pass" class="db-eye-btn" aria-label="Show password">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                </button>
+              </div>
+            </div>
+
+            <div class="db-row-between">
+              <label class="db-remember">
+                <input type="checkbox" id="db-remember" name="remember">
+                <span>Remember me</span>
+              </label>
+              <a href="/login#forgot-password" id="db-forgot-link" class="db-forgot-link">
+                <span class="db-forgot-full">Forgot password?</span>
+                <span class="db-forgot-short">Forgot?</span>
+              </a>
+            </div>
+
+            <div id="db-error" class="db-error" hidden></div>
+
+            <button type="submit" id="db-submit" class="db-submit-btn">
+              <span class="db-btn-label">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path><polyline points="10 17 15 12 10 7"></polyline><line x1="15" y1="12" x2="3" y2="12"></line></svg>
+                Sign in
+              </span>
+              <span class="db-btn-spinner" hidden></span>
+            </button>
+
+          </form>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <script src="/assets/darkbrown/js/login.js"></script>
+</body>
+</html>
