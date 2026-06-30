@@ -21,12 +21,16 @@
   var LOGO = "/assets/darkbrown/images/darkbrown-logo.png";
 
   function build() {
+    // Fast guard: if already built, do nothing (prevents observer loop).
+    if (document.querySelector(".db-login-shell")) return true;
+
     // Find Frappe's native login card.
     var card = document.querySelector(".page-card");
     if (!card) return false;
 
-    // Avoid double-building.
-    if (document.querySelector(".db-login-shell")) return true;
+    // Pause observing while we move DOM around, so our own changes
+    // don't re-trigger the observer mid-build.
+    if (window.__dbObserver) window.__dbObserver.disconnect();
 
     document.body.classList.add("darkbrown-login");
 
@@ -124,26 +128,48 @@
       document.body.appendChild(shell);
     }
 
+    // Resume observing in case Frappe re-renders later.
+    if (window.__dbObserver && document.body) {
+      window.__dbObserver.observe(document.body, { childList: true, subtree: true });
+    }
+
     return true;
   }
 
-  // Frappe renders login client-side; retry until the card exists.
-  var tries = 0;
-  var timer = setInterval(function () {
-    tries++;
-    if (build() || tries > 100) clearInterval(timer);
-  }, 100);
+  // ── Trigger strategy ──
+  // Frappe is a SPA and injects the login card asynchronously, sometimes
+  // re-rendering it. A timed retry is unreliable; instead watch the DOM
+  // and build the moment the card appears (and re-build if Frappe replaces it).
 
-  document.addEventListener("DOMContentLoaded", build);
+  function tryBuild() {
+    try { build(); } catch (e) { /* never let an error halt the observer */ }
+  }
 
-  // Frappe is a SPA — the login card can appear after a hash change
-  // (e.g. navigating to #login) without a full reload. Re-attempt build
-  // on hash changes and keep a light watcher running.
-  window.addEventListener("hashchange", function () {
-    tries = 0;
-    var t2 = setInterval(function () {
-      tries++;
-      if (build() || tries > 50) clearInterval(t2);
-    }, 100);
+  // 1) Observe the whole document for the card being added.
+  var observer = new MutationObserver(function () {
+    tryBuild();
+  });
+  window.__dbObserver = observer;
+
+  function startObserving() {
+    if (document.body) {
+      observer.observe(document.body, { childList: true, subtree: true });
+      tryBuild();
+    }
+  }
+
+  if (document.body) {
+    startObserving();
+  } else {
+    document.addEventListener("DOMContentLoaded", startObserving);
+  }
+
+  // 2) Also rebuild on hash changes (e.g. → #login) and after full load.
+  window.addEventListener("hashchange", tryBuild);
+  window.addEventListener("load", tryBuild);
+
+  // 3) Safety: a few delayed attempts in case the observer starts late.
+  [200, 600, 1200, 2500].forEach(function (ms) {
+    setTimeout(tryBuild, ms);
   });
 })();
