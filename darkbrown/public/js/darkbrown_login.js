@@ -8,11 +8,15 @@
 (function () {
   "use strict";
 
-  // Run only on the login route.
+  // Run only on the login route. Frappe may serve it as either
+  // /login (path) or /#login (hash) — handle both.
   function isLoginPage() {
-    return location.pathname.replace(/\/$/, "") === "/login";
+    var path = location.pathname.replace(/\/$/, "");
+    var hash = (location.hash || "").replace(/^#/, "");
+    return path === "/login" || hash === "login" ||
+           // also catch the bare root that renders the login card
+           !!document.querySelector(".page-card");
   }
-  if (!isLoginPage()) return;
 
   var LOGO = "/assets/darkbrown/images/darkbrown-logo.png";
 
@@ -25,6 +29,33 @@
     if (document.querySelector(".db-login-shell")) return true;
 
     document.body.classList.add("darkbrown-login");
+
+    // Hide Frappe's standalone splash logo + "Login to Frappe" heading.
+    // These live OUTSIDE .page-card, so CSS alone can miss them depending
+    // on Frappe's markup version — hide defensively here too.
+    var splashSelectors = [
+      ".page-card-head",
+      ".login-content > .text-center",
+      ".for-login .page-card-head",
+      "[data-page-route='login'] img.app-logo",
+    ];
+    splashSelectors.forEach(function (sel) {
+      document.querySelectorAll(sel).forEach(function (el) {
+        el.style.display = "none";
+      });
+    });
+    // Hide any element whose text is exactly the Frappe login heading,
+    // and the bare app logo above it, if they sit outside the card.
+    document.querySelectorAll("h1, h2, h3, .navbar-brand, .app-logo, img").forEach(function (el) {
+      var txt = (el.textContent || "").trim();
+      if (/^Login to Frappe$/i.test(txt)) {
+        el.style.display = "none";
+        var prev = el.previousElementSibling;
+        if (prev && (prev.tagName === "IMG" || prev.querySelector && prev.querySelector("img"))) {
+          prev.style.display = "none";
+        }
+      }
+    });
 
     // ── Build shell ──
     var shell = document.createElement("div");
@@ -100,8 +131,19 @@
   var tries = 0;
   var timer = setInterval(function () {
     tries++;
-    if (build() || tries > 60) clearInterval(timer);
+    if (build() || tries > 100) clearInterval(timer);
   }, 100);
 
   document.addEventListener("DOMContentLoaded", build);
+
+  // Frappe is a SPA — the login card can appear after a hash change
+  // (e.g. navigating to #login) without a full reload. Re-attempt build
+  // on hash changes and keep a light watcher running.
+  window.addEventListener("hashchange", function () {
+    tries = 0;
+    var t2 = setInterval(function () {
+      tries++;
+      if (build() || tries > 50) clearInterval(t2);
+    }, 100);
+  });
 })();
