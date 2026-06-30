@@ -1,0 +1,310 @@
+/* ════════════════════════════════════════════════════════════════
+   Darkbrown Real Estate — Login Page Theme
+   Injected on /login via web_include_css.
+   Restyles Frappe's native login page into the branded two-panel
+   design WITHOUT replacing any of Frappe's auth markup, so login,
+   forgot-password, email-link and SSO all keep working.
+   ════════════════════════════════════════════════════════════════ */
+
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500;1,600&family=Mulish:wght@400;500;600;700&display=swap');
+
+:root {
+  --db-brand-deep:   #3E2723;
+  --db-brand-medium: #4E342E;
+  --db-gold:         #C9A86A;
+  --db-cream-bg:     #FAF8F5;
+  --db-cream-hero:   #F4EDE6;
+  --db-surface:      #FFFFFF;
+  --db-border-light: #ECE3D6;
+  --db-border-input: #E8DECF;
+  --db-text-primary:   #3E2723;
+  --db-text-secondary: #9C8C7E;
+  --db-text-label:     #5D4037;
+  --db-text-muted:     #C4B5A8;
+}
+
+/* Only apply on the login page (body gets .darkbrown-login from our JS) */
+body.darkbrown-login {
+  background: var(--db-cream-bg) !important;
+  font-family: 'Mulish', sans-serif !important;
+  margin: 0;
+}
+
+/* Hide Frappe's default top navbar ("Home") on the login screen */
+body.darkbrown-login .navbar,
+body.darkbrown-login header.sticky-top,
+body.darkbrown-login .web-footer,
+body.darkbrown-login footer {
+  display: none !important;
+}
+
+/* ─── Two-panel shell injected by JS ─── */
+.db-login-shell {
+  display: flex;
+  align-items: stretch;
+  min-height: 100vh;
+  width: 100%;
+}
+
+/* ── LEFT BRAND PANEL ── */
+.db-left {
+  flex: 0 0 52%;
+  background: #FFFFFF;
+  border-right: 1px solid var(--db-gold);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 52px 56px;
+  position: relative;
+  overflow: hidden;
+}
+.db-left::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(160deg, #FFFFFF 55%, var(--db-cream-hero) 100%);
+  pointer-events: none;
+}
+.db-left .db-watermark {
+  position: absolute;
+  width: 500px;
+  height: 500px;
+  object-fit: contain;
+  right: -80px;
+  bottom: -50px;
+  opacity: .055;
+  pointer-events: none;
+  user-select: none;
+  z-index: 0;
+}
+.db-left .db-arc {
+  position: absolute;
+  left: -80px;
+  top: -60px;
+  opacity: .06;
+  pointer-events: none;
+  z-index: 0;
+}
+.db-brandmark {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  position: relative;
+  z-index: 1;
+}
+.db-brandmark img { width: 48px; height: 48px; object-fit: contain; flex-shrink: 0; }
+.db-brandmark .db-bn1,
+.db-brandmark .db-bn2 {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.1;
+}
+.db-brandmark .db-bn1 { color: var(--db-brand-deep); }
+.db-brandmark .db-bn2 { color: var(--db-text-secondary); }
+
+.db-hero { position: relative; z-index: 1; }
+.db-hero-head {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 54px;
+  font-weight: 600;
+  line-height: 1.07;
+  color: var(--db-brand-deep);
+  letter-spacing: -.5px;
+  margin-bottom: 20px;
+}
+.db-hero-head em { color: var(--db-gold); font-style: italic; }
+.db-hero-rule { width: 48px; height: 2px; background: var(--db-gold); border-radius: 2px; margin-bottom: 20px; }
+.db-hero-tag {
+  font-size: 14px;
+  color: var(--db-text-secondary);
+  line-height: 1.7;
+  max-width: 340px;
+}
+.db-foot {
+  font-size: 11px;
+  color: var(--db-text-muted);
+  line-height: 1.5;
+  position: relative;
+  z-index: 1;
+}
+
+/* ── RIGHT FORM PANEL ── */
+.db-right {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: var(--db-cream-bg);
+  position: relative;
+  overflow: hidden;
+}
+.db-right .db-arc-tr { position: absolute; right: -60px; top: -60px; opacity: .045; pointer-events: none; z-index: 0; }
+.db-right .db-arc-bl { position: absolute; left: -40px; bottom: -40px; opacity: .03; pointer-events: none; z-index: 0; }
+
+/* This is where Frappe's actual <div class="page-card"> gets moved into */
+.db-form-slot {
+  width: 100%;
+  max-width: 420px;
+  padding: 40px 24px;
+  position: relative;
+  z-index: 1;
+}
+.db-form-heading { margin-bottom: 32px; }
+.db-form-heading .db-h1 {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 38px;
+  font-weight: 600;
+  color: var(--db-brand-deep);
+  letter-spacing: -.3px;
+  line-height: 1.08;
+}
+.db-form-heading .db-h2 {
+  font-size: 13px;
+  color: var(--db-text-secondary);
+  margin-top: 7px;
+}
+
+/* ─── Restyle Frappe's native page-card into the branded card ─── */
+body.darkbrown-login .page-card {
+  background: var(--db-surface) !important;
+  border: 1px solid var(--db-border-light) !important;
+  border-top: 2px solid var(--db-gold) !important;
+  border-radius: 14px !important;
+  padding: 28px 28px 24px !important;
+  box-shadow: 0 4px 20px rgba(62,39,35,.07) !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  margin: 0 !important;
+}
+
+/* Hide Frappe's own logo + "Login to Frappe" head inside the card —
+   our left panel + right heading replace it */
+body.darkbrown-login .page-card .page-card-head {
+  display: none !important;
+}
+
+/* Form fields */
+body.darkbrown-login .page-card .form-control,
+body.darkbrown-login .page-card input[type="text"],
+body.darkbrown-login .page-card input[type="email"],
+body.darkbrown-login .page-card input[type="password"] {
+  background: var(--db-cream-bg) !important;
+  border: 1px solid var(--db-border-input) !important;
+  border-radius: 9px !important;
+  padding: 13px 14px !important;
+  font-family: 'Mulish', sans-serif !important;
+  font-size: 14px !important;
+  color: var(--db-text-primary) !important;
+  height: auto !important;
+  box-shadow: none !important;
+  transition: border-color .2s, box-shadow .2s, background .2s !important;
+}
+body.darkbrown-login .page-card input::placeholder { color: var(--db-text-muted) !important; }
+body.darkbrown-login .page-card .form-control:focus,
+body.darkbrown-login .page-card input:focus {
+  border-color: var(--db-gold) !important;
+  box-shadow: 0 0 0 3px rgba(201,168,106,.15) !important;
+  background: #FFFFFF !important;
+  outline: none !important;
+}
+body.darkbrown-login input:-webkit-autofill {
+  -webkit-box-shadow: 0 0 0 100px #FFFFFF inset !important;
+  -webkit-text-fill-color: var(--db-text-primary) !important;
+  caret-color: var(--db-text-primary);
+}
+
+/* Field labels */
+body.darkbrown-login .page-card label,
+body.darkbrown-login .page-card .control-label {
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  color: var(--db-text-label) !important;
+  letter-spacing: .07em !important;
+  text-transform: uppercase !important;
+  margin-bottom: 7px !important;
+}
+
+/* Primary "Login" button */
+body.darkbrown-login .page-card .btn-login,
+body.darkbrown-login .page-card .btn-primary {
+  width: 100% !important;
+  background: var(--db-brand-deep) !important;
+  color: var(--db-cream-hero) !important;
+  border: none !important;
+  border-radius: 9px !important;
+  padding: 14px !important;
+  font-family: 'Mulish', sans-serif !important;
+  font-size: 14px !important;
+  font-weight: 700 !important;
+  letter-spacing: .05em !important;
+  box-shadow: none !important;
+  transition: background .2s, transform .12s !important;
+}
+body.darkbrown-login .page-card .btn-login:hover,
+body.darkbrown-login .page-card .btn-primary:hover {
+  background: var(--db-brand-medium) !important;
+  transform: translateY(-1px);
+}
+body.darkbrown-login .page-card .btn-login:active,
+body.darkbrown-login .page-card .btn-primary:active {
+  transform: translateY(0);
+}
+
+/* Secondary buttons (Login with Frappe Cloud / Email Link) */
+body.darkbrown-login .page-card .btn-default,
+body.darkbrown-login .page-card .social-login-buttons .btn,
+body.darkbrown-login .page-card .login-with-email-link {
+  background: #FFFFFF !important;
+  border: 1px solid var(--db-border-input) !important;
+  border-radius: 9px !important;
+  padding: 13px !important;
+  color: var(--db-text-label) !important;
+  font-weight: 600 !important;
+  font-size: 13.5px !important;
+  box-shadow: 0 2px 8px rgba(62,39,35,.05) !important;
+  transition: border-color .2s, box-shadow .2s !important;
+}
+body.darkbrown-login .page-card .btn-default:hover,
+body.darkbrown-login .page-card .social-login-buttons .btn:hover,
+body.darkbrown-login .page-card .login-with-email-link:hover {
+  border-color: var(--db-gold) !important;
+  box-shadow: 0 2px 12px rgba(62,39,35,.1) !important;
+}
+
+/* Links: Forgot password / sign-up */
+body.darkbrown-login .page-card a {
+  color: var(--db-gold) !important;
+  font-weight: 600 !important;
+  text-decoration: none !important;
+}
+body.darkbrown-login .page-card a:hover { color: var(--db-brand-deep) !important; }
+
+/* "or" divider text */
+body.darkbrown-login .page-card .text-muted,
+body.darkbrown-login .page-card .login-divider {
+  color: var(--db-text-muted) !important;
+}
+
+/* ════════════════ MOBILE (≤ 800px) ════════════════ */
+@media (max-width: 800px) {
+  .db-login-shell { flex-direction: column; }
+  .db-left {
+    flex: none;
+    border-right: none;
+    padding: 100px 24px 72px;
+    background: var(--db-cream-hero);
+    justify-content: flex-start;
+  }
+  .db-left::before { background: none; }
+  .db-left .db-watermark { width: 240px; height: 240px; right: -20px; bottom: -10px; opacity: .07; }
+  /* hide the small brandmark + footer on mobile hero; keep hero copy */
+  .db-left .db-brandmark,
+  .db-left .db-foot { display: none; }
+  .db-left .db-hero-head { font-size: 42px; line-height: 1.05; }
+  .db-right { padding: 28px 20px 32px; margin-top: -8px; }
+  .db-form-slot { padding: 0; max-width: 100%; }
+  .db-form-heading { display: none; } /* hero already says "Welcome back" */
+  body.darkbrown-login .page-card { padding: 22px 20px 20px !important; }
+}
