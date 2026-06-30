@@ -166,6 +166,21 @@ body.darkbrown-login footer {
   margin-top: 7px;
 }
 
+/* When we move Frappe's login container into our right-panel slot,
+   strip its own centering/width so our slot controls layout. */
+body.darkbrown-login .db-form-slot .login-content,
+body.darkbrown-login .db-form-slot #page-login,
+body.darkbrown-login .db-form-slot .page-content {
+  min-height: 0 !important;
+  height: auto !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  display: block !important;
+  background: transparent !important;
+}
+
 /* ─── Restyle Frappe's native page-card into the branded card ─── */
 body.darkbrown-login .page-card {
   background: var(--db-surface) !important;
