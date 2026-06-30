@@ -20,12 +20,34 @@
 
   var LOGO = "/assets/darkbrown/images/darkbrown-logo.png";
 
+  // Pick the correct login card. Frappe renders MULTIPLE .page-card
+  // elements (login, forgot-password, email-login, signup) and toggles
+  // them by route. We must grab the LOGIN one specifically — preferring
+  // the one inside .for-login, else the first visible card.
+  function findLoginCard() {
+    // Preferred: the card inside Frappe's login wrapper.
+    var forLogin = document.querySelector(".for-login .page-card, .login-content .for-login");
+    if (forLogin) {
+      var c = forLogin.classList && forLogin.classList.contains("page-card")
+        ? forLogin
+        : forLogin.querySelector(".page-card");
+      if (c) return c;
+    }
+    // Fallback: first card that is actually visible on screen.
+    var cards = document.querySelectorAll(".page-card");
+    for (var i = 0; i < cards.length; i++) {
+      var el = cards[i];
+      if (el.offsetParent !== null) return el; // visible
+    }
+    return cards.length ? cards[0] : null;
+  }
+
   function build() {
     // Fast guard: if already built, do nothing (prevents observer loop).
     if (document.querySelector(".db-login-shell")) return true;
 
-    // Find Frappe's native login card.
-    var card = document.querySelector(".page-card");
+    // Find Frappe's native (visible) login card.
+    var card = findLoginCard();
     if (!card) return false;
 
     // Pause observing while we move DOM around, so our own changes
@@ -113,17 +135,25 @@
 
     slot.appendChild(heading);
 
-    // Move Frappe's real card into our slot (keeps all event handlers).
-    var cardParent = card.parentNode;
-    slot.appendChild(card);
+    // Move Frappe's login UI into our slot. Prefer moving the whole
+    // container that holds ALL the cards (login / forgot / email-link),
+    // so route-toggling between those flows keeps working. Fall back to
+    // moving just the login card if no container is found.
+    var container =
+      document.querySelector(".login-content") ||
+      document.querySelector("#page-login .page-content") ||
+      card.parentNode;
+
+    var containerParent = container.parentNode;
+    slot.appendChild(container);
     right.appendChild(slot);
 
     shell.appendChild(left);
     shell.appendChild(right);
 
-    // Mount the shell where the card used to live (or on body).
-    if (cardParent && cardParent.appendChild) {
-      cardParent.appendChild(shell);
+    // Mount the shell where the container used to live (or on body).
+    if (containerParent && containerParent.appendChild) {
+      containerParent.appendChild(shell);
     } else {
       document.body.appendChild(shell);
     }
