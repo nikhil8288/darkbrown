@@ -185,6 +185,17 @@ body.darkbrown-login .page-card .page-card-head {
   display: none !important;
 }
 
+/* Hide Frappe's standalone splash logo + heading that render ABOVE the
+   card (outside .page-card) on some Frappe versions / the #login route */
+body.darkbrown-login .page-card-head,
+body.darkbrown-login .login-content > .text-center:first-child,
+body.darkbrown-login .for-login > .text-center,
+body.darkbrown-login .splash,
+body.darkbrown-login img.app-logo,
+body.darkbrown-login .navbar-brand img {
+  display: none !important;
+}
+
 /* Form fields */
 body.darkbrown-login .page-card .form-control,
 body.darkbrown-login .page-card input[type="text"],
