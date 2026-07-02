@@ -90,3 +90,13 @@ def handle_building_cost_center_delete(doc, method=None):
     else:
         frappe.delete_doc("Cost Center", cc, ignore_permissions=True, force=True)
         frappe.db.commit()
+
+def sync_building_cost_center_after_rename(doc, method, old_name, new_name, merge=False):
+    company = frappe.defaults.get_user_default("Company") or "DarkBrown RealEstate"
+    abbr = frappe.get_cached_value("Company", company, "abbr")
+    old_cc = f"{old_name} - {abbr}"
+    new_cc = f"{new_name} - {abbr}"
+
+    if frappe.db.exists("Cost Center", old_cc) and not frappe.db.exists("Cost Center", new_cc):
+        frappe.rename_doc("Cost Center", old_cc, new_cc, force=True)
+        frappe.db.set_value("Cost Center", new_cc, "cost_center_name", new_name)
