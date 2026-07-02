@@ -5,4 +5,4 @@ app_description = "Dark Brown Real Estate — MD dashboard and custom tooling"
 app_email = "admin@darkbrown.qa"
 app_license = "MIT"
 
-
+on_session_creation = "darkbrown.auth.on_session_creation"
