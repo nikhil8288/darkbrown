@@ -31,7 +31,20 @@
 var state = { tab:'overview', tf:'month', vw:1440, navOpen:false, forceMobile:false, dismissed:[],
     pfView:'buildings', pfSort:'margin', pfFilter:'all', pfExpanded:'', unitFilter:'all', tnFilter:'all', finView:'pnl' };
 var H = [];
+var LIVE = null;
 function _h(fn){ return typeof fn === 'function' ? (H.push(fn) - 1) : ''; }
+function _csrf(){ return (window.frappe && frappe.csrf_token) || ''; }
+async function loadLive(){
+  try {
+    var opt = {headers:{'X-Frappe-CSRF-Token': _csrf()}};
+    var res = await Promise.all([
+      fetch('/api/method/darkbrown.api.md_dashboard.get_portfolio', opt).then(function(r){return r.json();}),
+      fetch('/api/method/darkbrown.api.md_dashboard.get_tenants', opt).then(function(r){return r.json();})
+    ]);
+    LIVE = { pf: res[0].message, tn: res[1].message };
+    render();
+  } catch(e){ console.error('live data failed', e); }
+}
 function setState(patch){
   var p = typeof patch === 'function' ? patch(state) : patch;
   Object.assign(state, p);
@@ -141,6 +154,8 @@ function renderVals(){
 
     // ---------- health cards ----------
     const same = (o) => ({ today:o, month:o, quarter:o, year:o });
+    const _ov = (LIVE && LIVE.pf.strip) || null;
+    const _tv = (LIVE && LIVE.tn.strip) || null;
     const cardDefs = [
       // 1 Net Margin = (Income - Head-lease) / Income
       { icon:'trendUp', t:'teal', label:'Net Margin', drill:'finance', dl:'Finance', tf:{
@@ -171,16 +186,23 @@ function renderVals(){
         value:'QAR 8.45M', sub:'risk-adj · next 90d · gross 9.2M less bounce risk', chip:'30/60/90d', chipTone:'neutral' },
       // 6 Occupancy
       { icon:'percent', t:'purple', label:'Occupancy', drill:'portfolio', dl:'Portfolio',
-        tf: same({v:'88.6%',s:'567 of 640 units let',d:'+1.8 pts',up:1,good:1}) },
+        tf: same(_ov
+          ? {v:_ov.occupancy.toFixed(1)+'%', s:(_ov.units-_ov.vacant)+' of '+_ov.units+' units let', d:'live', up:1, good:1}
+          : {v:'88.6%',s:'567 of 640 units let',d:'+1.8 pts',up:1,good:1}) },
       // 7 Vacant Units + QAR bleed
-      { icon:'home', t:'orange', label:'Vacant Units', drill:'portfolio', dl:'Portfolio', tf:{
+      { icon:'home', t:'orange', label:'Vacant Units', drill:'portfolio', dl:'Portfolio',
+        tf: _ov
+          ? same({v:String(_ov.vacant), s:'QAR '+_ov.bleed.toFixed(2)+'M bleed/mo · head-lease on empty', d:'live', up:0, good:1})
+          : {
         today:{v:'73',s:'QAR 31K bleed today · head-lease on empty',d:'-11',up:0,good:1},
         month:{v:'73',s:'QAR 0.9M bleed this month',d:'-11',up:0,good:1},
         quarter:{v:'73',s:'QAR 2.7M bleed this quarter',d:'-11',up:0,good:1},
         year:{v:'73',s:'QAR 10.4M bleed this year',d:'-11',up:0,good:1} } },
       // 8 Expiring Contracts — FIXED ≤90d, tenancies at risk
       { icon:'calendar', t:'red', label:'Expiring Contracts', drill:'tenants', dl:'Leasing', fixed:1,
-        value:'38 at risk', sub:'1 landlord bldg = 30 tenancies · 5 subleases · ≤90d', chip:'≤90d', chipTone:'warn' },
+        value: _tv ? (_tv.expiring + ' at risk') : '38 at risk',
+        sub: _tv ? 'tenant agreements ending within 90 days' : '1 landlord bldg = 30 tenancies · 5 subleases · ≤90d',
+        chip:'≤90d', chipTone:'warn' },
       // 9 Deal Pipeline — signed only, drills to Finance (commission)
       { icon:'tag', t:'green', label:'Deal Pipeline', drill:'finance', dl:'Finance', tf:{
         today:{v:'2 signed',s:'QAR 18K commission today',d:'+2',up:1,good:1},
@@ -217,10 +239,10 @@ function renderVals(){
     });
 
     // ---------- per-building margin (ranked best -> worst) ----------
-    const perBuilding = [
+    const perBuilding = ((LIVE && LIVE.pf.buildings.map(b=>[b[0],b[1],b[2]])) || [
       ['West Bay Plaza', 1.42, 0.95], ['The Pearl Residency', 1.10, 0.78],
       ['Al Sadd Tower', 0.98, 0.71], ['Lusail Office Block', 0.74, 0.58], ['Msheireb Retail', 0.58, 0.61],
-    ].map(b => { const m = (b[1]-b[2])/b[1]*100; return { name:b[0], inc:b[1], hl:b[2], m }; })
+    ]).map(b => { const m = b[1] ? (b[1]-b[2])/b[1]*100 : 0; return { name:b[0], inc:b[1], hl:b[2], m }; })
      .sort((a,b)=> b.m - a.m)
      .map(b => {
        const col = b.m>=25 ? tint.green[0] : (b.m>=10 ? tint.orange[0] : tint.red[0]);
@@ -318,7 +340,7 @@ function renderVals(){
     const unitFilterSet=(f)=>setState({unitFilter:f});
     const stCol={ Occupied:tint.green, Vacant:tint.red, Notice:tint.orange, Maintenance:tint.blue };
     const vacBucket=(d)=> d==null?null:(d<=30?{l:'0\u201330d',c:tint.green[0]}:(d<=60?{l:'31\u201360d',c:tint.orange[0]}:(d<=90?{l:'61\u201390d',c:'#A85A2C'}:{l:'90+d',c:tint.red[0]})));
-    const unitMaster=[
+    const unitMaster = (LIVE && LIVE.pf.units) || [
       ['West Bay Plaza','U-1410','Occupied','Qatar Petroleum Svcs',18.5,null,'Furnished','Office',''],
       ['West Bay Plaza','U-0908','Notice','Gulf Trading LLC',16.0,null,'Furnished','Office','31 Jul 2026'],
       ['West Bay Plaza','U-1602','Vacant','',17.0,12,'Unfurnished','Office',''],
@@ -336,7 +358,7 @@ function renderVals(){
       ['Msheireb Retail','R-09','Vacant','',8.0,132,'Unfurnished','Retail',''],
       ['Msheireb Retail','R-02','Maintenance','',9.0,null,'Unfurnished','Retail',''],
     ];
-    const mkUnit=(u)=>{ const b=vacBucket(u[5]); const sc=stCol[u[2]];
+    const mkUnit=(u)=>{ const b=vacBucket(u[5]); const sc=stCol[u[2]] || stCol.Occupied;
       return { bldg:u[0], unit:u[1], status:u[2], statusCol:sc[0], statusBg:sc[1],
         tenant:u[3]||(u[2]==='Maintenance'?'Off-market':'Available'), rent:'QAR '+u[4].toFixed(1)+'K',
         furnish:u[6], type:u[7], moveOut:u[8], vacDays:u[5],
@@ -348,7 +370,7 @@ function renderVals(){
     const unitFilters=unitChips.map(c=>({label:c[1], onClick:()=>unitFilterSet(c[0]),
       style:'border:1px solid '+(S.unitFilter===c[0]?'#2E6B57':'#D9C9B5')+';background:'+(S.unitFilter===c[0]?'rgba(46,107,87,.20)':'#FFFFFF')+';color:'+(S.unitFilter===c[0]?'#2E7D6A':'#6B5648')+';border-radius:7px;padding:5px 11px;font-size:11.5px;font-weight:600;font-family:inherit;cursor:pointer;white-space:nowrap'}));
 
-    const bRaw=[
+    const bRaw = (LIVE && LIVE.pf.buildings) || [
       ['West Bay Plaza',1.42,0.95,160,6,'12 Mar 2027',0,0],
       ['The Pearl Residency',1.10,0.78,180,20,'30 Nov 2026',0,0],
       ['Al Sadd Tower',0.98,0.71,120,12,'31 Aug 2026',30,0],
@@ -382,9 +404,12 @@ function renderVals(){
         style:'border:none;background:'+(S.pfSort===c[0]?'#3E2723':'transparent')+';color:'+(S.pfSort===c[0]?'#F4EDE6':'#9A8775')+';border-radius:6px;padding:5px 11px;font-size:11.5px;font-weight:600;font-family:inherit;cursor:pointer'}));
     const pfViewBtns=[['buildings','Buildings'],['units','Units']].map(c=>({label:c[1], onClick:()=>pfSet(c[0]),
       style:'border:none;border-radius:6px;padding:7px 16px;font-size:12.5px;font-weight:600;font-family:inherit;cursor:pointer;'+(S.pfView===c[0]?'background:#3E2723;color:#F4EDE6;box-shadow:0 2px 6px rgba(62,39,35,.18)':'background:transparent;color:#9A8775')}));
+    const _ps = (LIVE && LIVE.pf.strip) || null;
     const pfStrip=[
-      {k:'Buildings',v:'5',tag:''},{k:'Units',v:'640',tag:''},
-      {k:'Occupancy',v:'88.6%',tag:'live'},{k:'Vacant + bleed',v:'73 \u00b7 QAR 0.9M',tag:'live'},
+      {k:'Buildings',v: _ps ? String(_ps.buildings) : '5',tag:''},
+      {k:'Units',v: _ps ? String(_ps.units) : '640',tag:''},
+      {k:'Occupancy',v: _ps ? _ps.occupancy.toFixed(1)+'%' : '88.6%',tag:'live'},
+      {k:'Vacant + bleed',v: _ps ? (_ps.vacant+' \u00b7 QAR '+_ps.bleed.toFixed(2)+'M') : '73 \u00b7 QAR 0.9M',tag:'live'},
       {k:'Net margin',v:tfMarginPct[S.tf],tag:'period'},
     ].map(s=>({...s, tagStyle: s.tag==='live'?'color:#1E7E58;background:rgba(46,107,87,.22)':(s.tag==='period'?'color:#2E7D6A;background:rgba(46,107,87,.20)':'')}));
     const showPortfolio=S.tab==='portfolio'; const pfBuildings=S.pfView==='buildings'; const pfUnits=S.pfView==='units';
@@ -392,7 +417,7 @@ function renderVals(){
     // ================= TENANTS DATA =================
     const tnFilterSet=(f)=>setState({tnFilter:f});
     const agCol={ Active:tint.green, Grace:tint.orange, Expiring:tint.orange, Lapsed:tint.red };
-    const tnRaw=[
+    const tnRaw = (LIVE && LIVE.tn.tenants) || [
       ['Qatar Petroleum Svcs','West Bay \u00b7 U-1410',18.5,'Active','current',0,0,'Mar 2022',4.62],
       ['Doha Bank','Al Sadd \u00b7 9F',41.0,'Active','current',0,0,'Jun 2019',14.2],
       ['Ooredoo','Msheireb \u00b7 R-04',27.0,'Active','current',0,0,'Sep 2021',5.80],
@@ -415,30 +440,35 @@ function renderVals(){
     const tnFilterChips=[['all','All'],['arrears','In arrears'],['bounce','Bounce history'],['expiring','Expiring'],['lapsed','Lapsed / M2M']]
       .map(c=>({label:c[1], onClick:()=>tnFilterSet(c[0]),
         style:'border:1px solid '+(S.tnFilter===c[0]?'#2E6B57':'#D9C9B5')+';background:'+(S.tnFilter===c[0]?'rgba(46,107,87,.20)':'#FFFFFF')+';color:'+(S.tnFilter===c[0]?'#2E7D6A':'#6B5648')+';border-radius:7px;padding:5px 11px;font-size:11.5px;font-weight:600;font-family:inherit;cursor:pointer;white-space:nowrap'}));
-    const tnStrip=[
+    const _ts = (LIVE && LIVE.tn.strip) || null;
+    const tnStrip= _ts ? [
+      {k:'Active tenants',v:String(_ts.active)},{k:'Expiring soon',v:String(_ts.expiring)},
+      {k:'In arrears',v:'\u2014'},{k:'Grace / lapsed',v:String(_ts.lapsed)},
+      {k:'On notice',v:String(_ts.notice)},
+    ] : [
       {k:'Active tenants',v:'567'},{k:'Expiring soon',v:'23'},{k:'In arrears',v:'46'},
       {k:'Grace / lapsed',v:'9'},{k:'Out + on notice',v:'7 + 12'},
     ];
-    const agExpiring=[
+    const agExpiring=((LIVE && LIVE.tn.expiring) || [
       ['R. Haddad','Pearl \u00b7 B-22','15 Jul 2026','21 days','red'],
       ['Al Faisal Intl','Al Sadd \u00b7 7F-310','28 Jul 2026','34 days','orange'],
       ['Kahramaa Sub','West Bay \u00b7 U-1108','11 Aug 2026','48 days','orange'],
-    ].map(a=>({name:a[0],loc:a[1],date:a[2],days:a[3],col:tint[a[4]][0],bg:tint[a[4]][1]}));
-    const agOther=[
+    ]).map(a=>({name:a[0],loc:a[1],date:a[2],days:a[3],col:tint[a[4]][0],bg:tint[a[4]][1]}));
+    const agOther=((LIVE && LIVE.tn.other) || [
       ['Gulf Trading LLC','Grace period \u00b7 7 days left','orange'],
       ['S. Ibrahim','Month-to-month \u00b7 no current contract','red'],
       ['Bright Co Retail','Lapsed 12 days ago','red'],
-    ].map(a=>({name:a[0],note:a[1],col:tint[a[2]][0],bg:tint[a[2]][1]}));
+    ]).map(a=>({name:a[0],note:a[1],col:tint[a[2]][0],bg:tint[a[2]][1]}));
     const churnOut=[
       ['Khan Traders','Pearl \u00b7 B-05','Non-renewal'],
       ['M. Saleh','Lusail \u00b7 L-09','Relocation'],
       ['Bright Co Retail','Msheireb \u00b7 R-07','Eviction'],
     ].map(c=>({name:c[0],loc:c[1],reason:c[2]}));
-    const churnNotice=[
+    const churnNotice=((LIVE && LIVE.tn.notice) || [
       ['Gulf Trading LLC','West Bay \u00b7 U-0908','31 Jul 2026','Non-renewal'],
       ['R. Haddad','Pearl \u00b7 B-08','05 Jul 2026','Relocation'],
       ['Vodafone Qatar','Lusail \u00b7 L-03','15 Aug 2026','Downsizing'],
-    ].map(c=>({name:c[0],loc:c[1],date:c[2],reason:c[3]}));
+    ]).map(c=>({name:c[0],loc:c[1],date:c[2],reason:c[3]}));
     const showTenants=S.tab==='tenants';
 
     // ================= FINANCE DATA =================
@@ -1304,6 +1334,7 @@ root.addEventListener('click', function(e){
 window.addEventListener('resize', function(){ setState({ vw: window.innerWidth }); });
 state.vw = window.innerWidth;
 render();
+loadLive();
 /* ---- live-data hook (Phase 2) ----
    Each whitelisted endpoint returns {"live": false} until wired to DocTypes.
    When live, fetch here and merge into the data constants inside renderVals:
