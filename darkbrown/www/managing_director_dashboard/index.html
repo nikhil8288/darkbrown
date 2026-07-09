@@ -192,7 +192,7 @@ function renderVals(){
       // 7 Vacant Units + QAR bleed
       { icon:'home', t:'orange', label:'Vacant Units', drill:'portfolio', dl:'Portfolio',
         tf: _ov
-          ? same({v:String(_ov.vacant), s:'QAR '+_ov.bleed.toFixed(2)+'M bleed/mo · head-lease on empty', d:'live', up:0, good:1})
+          ? same({v:String(_ov.vacant), s:'QAR '+_ov.bleed.toFixed(1)+'K bleed/mo · head-lease on empty', d:'live', up:0, good:1})
           : {
         today:{v:'73',s:'QAR 31K bleed today · head-lease on empty',d:'-11',up:0,good:1},
         month:{v:'73',s:'QAR 0.9M bleed this month',d:'-11',up:0,good:1},
@@ -240,15 +240,15 @@ function renderVals(){
 
     // ---------- per-building margin (ranked best -> worst) ----------
     const perBuilding = ((LIVE && LIVE.pf.buildings.map(b=>[b[0],b[1],b[2]])) || [
-      ['West Bay Plaza', 1.42, 0.95], ['The Pearl Residency', 1.10, 0.78],
-      ['Al Sadd Tower', 0.98, 0.71], ['Lusail Office Block', 0.74, 0.58], ['Msheireb Retail', 0.58, 0.61],
+      ['West Bay Plaza', 1420, 950], ['The Pearl Residency', 1100, 780],
+      ['Al Sadd Tower', 980, 710], ['Lusail Office Block', 740, 580], ['Msheireb Retail', 580, 610],
     ]).map(b => { const m = b[1] ? (b[1]-b[2])/b[1]*100 : 0; return { name:b[0], inc:b[1], hl:b[2], m }; })
      .sort((a,b)=> b.m - a.m)
      .map(b => {
        const col = b.m>=25 ? tint.green[0] : (b.m>=10 ? tint.orange[0] : tint.red[0]);
        const bg  = b.m>=25 ? tint.green[1] : (b.m>=10 ? tint.orange[1] : tint.red[1]);
        return { name:b.name, marginPct:(b.m>=0?'+':'') + b.m.toFixed(1) + '%',
-         spread:'QAR ' + b.inc.toFixed(2) + 'M income · ' + b.hl.toFixed(2) + 'M lease',
+         spread:'QAR ' + b.inc.toFixed(1) + 'K income · ' + b.hl.toFixed(1) + 'K lease',
          barW: Math.max(4, Math.min(100, b.m)) + '%', col,
          pillStyle:'flex-shrink:0;font-size:12.5px;font-weight:700;padding:3px 10px;border-radius:7px;color:'+col+';background:'+bg };
      });
@@ -371,18 +371,18 @@ function renderVals(){
       style:'border:1px solid '+(S.unitFilter===c[0]?'#2E6B57':'#D9C9B5')+';background:'+(S.unitFilter===c[0]?'rgba(46,107,87,.20)':'#FFFFFF')+';color:'+(S.unitFilter===c[0]?'#2E7D6A':'#6B5648')+';border-radius:7px;padding:5px 11px;font-size:11.5px;font-weight:600;font-family:inherit;cursor:pointer;white-space:nowrap'}));
 
     const bRaw = (LIVE && LIVE.pf.buildings) || [
-      ['West Bay Plaza',1.42,0.95,160,6,'12 Mar 2027',0,0],
-      ['The Pearl Residency',1.10,0.78,180,20,'30 Nov 2026',0,0],
-      ['Al Sadd Tower',0.98,0.71,120,12,'31 Aug 2026',30,0],
-      ['Lusail Office Block',0.74,0.58,100,18,'18 Jan 2027',0,8],
-      ['Msheireb Retail',0.58,0.61,80,17,'05 Oct 2026',0,14],
+      ['West Bay Plaza',1420,950,160,6,'12 Mar 2027',0,0],
+      ['The Pearl Residency',1100,780,180,20,'30 Nov 2026',0,0],
+      ['Al Sadd Tower',980,710,120,12,'31 Aug 2026',30,0],
+      ['Lusail Office Block',740,580,100,18,'18 Jan 2027',0,8],
+      ['Msheireb Retail',580,610,80,17,'05 Oct 2026',0,14],
     ];
     const tfMarginPct={today:'28.4%',month:'28.2%',quarter:'28.1%',year:'28.0%'};
     let buildings=bRaw.map(b=>{ const m=(b[1]-b[2])/b[1]*100; const occ=(b[3]-b[4])/b[3]*100; const expSoon=['31 Aug 2026','05 Oct 2026'].indexOf(b[5])>=0;
       const mcol = m>=25?tint.green:(m>=10?tint.orange:tint.red);
       const ocol = occ>=85?tint.green:(occ>=75?tint.orange:tint.red);
       return { name:b[0], m, occ, vacant:b[4], let:b[3]-b[4], total:b[3], expiry:b[5], atRisk:b[6], leak:b[7], expSoon,
-        incText:'QAR '+b[1].toFixed(2)+'M', hlText:'QAR '+b[2].toFixed(2)+'M',
+        incText:'QAR '+b[1].toFixed(1)+'K', hlText:'QAR '+b[2].toFixed(1)+'K',
         marginText:(m>=0?'+':'')+m.toFixed(1)+'%', mCol:mcol[0],
         marginPill:'flex-shrink:0;font-size:13px;font-weight:700;padding:3px 11px;border-radius:8px;color:'+mcol[0]+';background:'+mcol[1],
         occText:occ.toFixed(1)+'%', occW:occ.toFixed(0)+'%', occCol:ocol[0],
@@ -409,7 +409,7 @@ function renderVals(){
       {k:'Buildings',v: _ps ? String(_ps.buildings) : '5',tag:''},
       {k:'Units',v: _ps ? String(_ps.units) : '640',tag:''},
       {k:'Occupancy',v: _ps ? _ps.occupancy.toFixed(1)+'%' : '88.6%',tag:'live'},
-      {k:'Vacant + bleed',v: _ps ? (_ps.vacant+' \u00b7 QAR '+_ps.bleed.toFixed(2)+'M') : '73 \u00b7 QAR 0.9M',tag:'live'},
+      {k:'Vacant + bleed',v: _ps ? (_ps.vacant+' \u00b7 QAR '+_ps.bleed.toFixed(1)+'K') : '73 \u00b7 QAR 0.9M',tag:'live'},
       {k:'Net margin',v:tfMarginPct[S.tf],tag:'period'},
     ].map(s=>({...s, tagStyle: s.tag==='live'?'color:#1E7E58;background:rgba(46,107,87,.22)':(s.tag==='period'?'color:#2E7D6A;background:rgba(46,107,87,.20)':'')}));
     const showPortfolio=S.tab==='portfolio'; const pfBuildings=S.pfView==='buildings'; const pfUnits=S.pfView==='units';
