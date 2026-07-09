@@ -168,8 +168,8 @@ def get_portfolio():
 
         building_rows.append([
             bname,
-            round(agg["income"] / 1_000_000.0, 4),    # QAR M
-            round(headlease / 1_000_000.0, 4),        # QAR M
+            round(agg["income"] / 1000.0, 1),         # QAR K
+            round(headlease / 1000.0, 1),             # QAR K
             agg["total"],
             agg["vacant"],
             expiry,
@@ -193,12 +193,12 @@ def get_portfolio():
             "units": total_units,
             "vacant": total_vacant,
             "occupancy": round(occ, 1),
-            # Bleed = head-lease carried on units earning nothing.
+            # Bleed = head-lease carried on units earning nothing, QAR K.
             "bleed": round(sum(
                 flt(contracts[b[0]].total_owner_rent) * (b[4] / b[3])
                 for b in building_rows
                 if b[0] in contracts and b[3]
-            ) / 1_000_000.0, 2),
+            ) / 1000.0, 1),
         },
     }
 
