@@ -121,6 +121,8 @@ def get_portfolio():
         # Actual rent if let, asking rent if not.
         rent = flt(lease.monthly_rent) if lease else flt(u.monthly_rent)
         tenant = tenant_names.get(lease.tenant, "") if lease else ""
+        if lease and not tenant:
+            tenant = "(unlinked tenant)"
         move_out = ""
         if status == "Notice" and lease:
             move_out = frappe.utils.formatdate(lease.end_date, "dd MMM yyyy")
@@ -229,9 +231,17 @@ def get_tenants():
     tn_rows, expiring, other, notice = [], [], [], []
     active = expiring_soon = 0
 
+    unit_no = {
+        u.name: (u.unit_no or u.unit_name or u.name)
+        for u in frappe.get_all("Unit", fields=["name", "unit_no", "unit_name"])
+    }
+
     for a in agreements:
-        name = cust.get(a.tenant, a.tenant)
-        loc = "%s · %s" % (a.building or "", a.unit or "")
+        # Orphan agreement: Customer link is null or deleted. Skip it.
+        name = cust.get(a.tenant)
+        if not name:
+            continue
+        loc = "%s · %s" % (a.building or "", unit_no.get(a.unit, a.unit or ""))
         days = _days_until(a.end_date)
 
         if a.status == "Active":
