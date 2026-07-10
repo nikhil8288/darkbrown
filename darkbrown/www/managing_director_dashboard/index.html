@@ -32,18 +32,22 @@ var state = { tab:'overview', tf:'month', vw:1440, navOpen:false, forceMobile:fa
     pfView:'buildings', pfSort:'margin', pfFilter:'all', pfExpanded:'', unitFilter:'all', tnFilter:'all', finView:'pnl' };
 var H = [];
 var LIVE = null;
+var LOADING = true;
 function _h(fn){ return typeof fn === 'function' ? (H.push(fn) - 1) : ''; }
 function _csrf(){ return (window.frappe && frappe.csrf_token) || ''; }
 async function loadLive(){
   try {
-    var opt = {headers:{'X-Frappe-CSRF-Token': _csrf()}};
-    var res = await Promise.all([
-      fetch('/api/method/darkbrown.api.md_dashboard.get_portfolio', opt).then(function(r){return r.json();}),
-      fetch('/api/method/darkbrown.api.md_dashboard.get_tenants', opt).then(function(r){return r.json();})
-    ]);
-    LIVE = { pf: res[0].message, tn: res[1].message };
-    render();
-  } catch(e){ console.error('live data failed', e); }
+    var r = await fetch('/api/method/darkbrown.api.md_dashboard.get_all',
+      {headers:{'X-Frappe-CSRF-Token': _csrf()}});
+    var j = await r.json();
+    if(!j.message) throw new Error('empty payload');
+    LIVE = j.message;
+  } catch(e){
+    console.error('MD dashboard: live data unavailable', e);
+    LIVE = null;
+  }
+  LOADING = false;
+  render();
 }
 function setState(patch){
   var p = typeof patch === 'function' ? patch(state) : patch;
@@ -139,13 +143,9 @@ function renderVals(){
 
     // ---------- alerts ----------
     const sev = { high:tint.red, warn:tint.orange, info:tint.blue };
-    const alertDefs = [
-      ['arrears','high','invoice','Arrears up 4.5% — QAR 1.14M across 46 tenants','finance','Finance'],
-      ['pdc','high','dollar','PDC cheque bounced — Al Mana Group, QAR 32K','finance','Finance'],
-      ['exp','warn','calendar','2 subleases expire within 14 days','tenants','Leasing'],
-      ['appr','warn','check','5 items pending your approval','finance','Finance'],
-      ['land','info','building','Al Sadd Tower head-lease renews in 68 days','portfolio','Portfolio'],
-    ];
+    // Live alerts are derived server-side. An empty array is a real answer:
+    // it renders the "All clear" banner rather than falling back to mock.
+    const alertDefs = _AL ? _AL.alerts : [];
     const alerts = alertDefs.filter(a => S.dismissed.indexOf(a[0]) === -1).map(a => ({
       msg:a[3], iconPath:ic[a[2]], col:sev[a[1]][0], bg:sev[a[1]][1], drillLabel:a[5],
       onClick:()=>drillTo(a[4]),
@@ -154,62 +154,59 @@ function renderVals(){
 
     // ---------- health cards ----------
     const same = (o) => ({ today:o, month:o, quarter:o, year:o });
-    const _ov = (LIVE && LIVE.pf.strip) || null;
-    const _tv = (LIVE && LIVE.tn.strip) || null;
+    const _PF = LIVE && LIVE.portfolio, _TN = LIVE && LIVE.tenants;
+    const _FI = LIVE && LIVE.finance,   _HI = LIVE && LIVE.history;
+    const _MT = LIVE && LIVE.maintenance, _AL = LIVE && LIVE.alerts;
+    const _AP = LIVE && LIVE.approvals;
+    const _ov = (_PF && _PF.strip) || null;
+    const _tv = (_TN && _TN.strip) || null;
+    const _finLive = !!(_FI && _FI.live);
     const cardDefs = [
-      // 1 Net Margin = (Income - Head-lease) / Income
-      { icon:'trendUp', t:'teal', label:'Net Margin', drill:'finance', dl:'Finance', tf:{
-        today:{v:'QAR 46K',s:'28.4% margin · income − head-lease',d:'+5.1%',up:1,good:1},
-        month:{v:'QAR 1.36M',s:'28.2% margin · income − head-lease',d:'+9.4%',up:1,good:1},
-        quarter:{v:'QAR 4.02M',s:'28.1% margin · income − head-lease',d:'+7.8%',up:1,good:1},
-        year:{v:'QAR 15.9M',s:'28.0% margin · income − head-lease',d:'+14.2%',up:1,good:1} } },
+      // 1 Net Margin -- live GL once invoices post; zero before that.
+      { icon:'trendUp', t:'teal', label:'Net Margin', drill:'finance', dl:'Finance', fixed:1,
+        value: finLiveVal(_FI && _FI.pnl && _FI.pnl.margin, 'QAR 0.0K'),
+        sub: _finLive ? (_FI.pnl.pct+' margin \u00b7 income \u2212 head-lease') : ('ledger starts '+((_FI&&_FI.since)||'2026-07-01')),
+        chip: _finLive ? 'live' : 'awaiting data', chipTone: _finLive ? 'neutral' : 'warn' },
       // 2 Rental Income
-      { icon:'dollar', t:'green', label:'Rental Income', drill:'finance', dl:'Finance', tf:{
-        today:{v:'QAR 162K',s:'billed to tenants today',d:'+3.2%',up:1,good:1},
-        month:{v:'QAR 4.82M',s:'billed this month',d:'+6.2%',up:1,good:1},
-        quarter:{v:'QAR 14.31M',s:'billed this quarter',d:'+5.4%',up:1,good:1},
-        year:{v:'QAR 56.8M',s:'billed FY to date',d:'+12.6%',up:1,good:1} } },
+      { icon:'dollar', t:'green', label:'Rental Income', drill:'finance', dl:'Finance', fixed:1,
+        value: finLiveVal(_FI && _FI.pnl && _FI.pnl.income, 'QAR 0.0K'),
+        sub: _finLive ? 'billed to tenants this period' : 'first billing run: day 5',
+        chip: _finLive ? 'live' : 'awaiting data', chipTone: _finLive ? 'neutral' : 'warn' },
       // 3 Head-lease Cost
-      { icon:'building', t:'purple', label:'Head-lease Cost', drill:'finance', dl:'Finance', tf:{
-        today:{v:'QAR 116K',s:'owed to landlords today',d:'+2.8%',up:1,good:0},
-        month:{v:'QAR 3.46M',s:'owed to landlords',d:'+4.1%',up:1,good:0},
-        quarter:{v:'QAR 10.29M',s:'owed to landlords',d:'+3.9%',up:1,good:0},
-        year:{v:'QAR 40.9M',s:'owed to landlords',d:'+11.0%',up:1,good:0} } },
+      { icon:'building', t:'purple', label:'Head-lease Cost', drill:'finance', dl:'Finance', fixed:1,
+        value: finLiveVal(_FI && _FI.pnl && _FI.pnl.hl, 'QAR 0.0K'),
+        sub: _finLive ? 'owed to landlords this period' : 'first billing run: day 5',
+        chip: _finLive ? 'live' : 'awaiting data', chipTone: _finLive ? 'neutral' : 'warn' },
       // 4 Collected vs Billed
-      { icon:'check', t:'blue', label:'Collected vs Billed', drill:'finance', dl:'Finance', tf:{
-        today:{nd:1,s:'not posted yet today'},
-        month:{v:'85%',s:'QAR 4.10M of 4.82M',d:'+2.0 pts',up:1,good:1},
-        quarter:{v:'83%',s:'QAR 11.9M of 14.31M',d:'+1.4 pts',up:1,good:1},
-        year:{v:'86%',s:'QAR 48.9M of 56.8M',d:'+3.1 pts',up:1,good:1} } },
-      // 5 Forward PDC Cash — FIXED 30/60/90d horizon, risk-adjusted
+      { icon:'check', t:'blue', label:'Collected vs Billed', drill:'finance', dl:'Finance', fixed:1,
+        value: _finLive ? _FI.pnl.coll : '\u2014',
+        sub: _finLive ? 'receipts against invoices' : 'no invoices posted yet',
+        chip: _finLive ? 'live' : 'no data', chipTone:'neutral' },
+      // 5 Forward PDC Cash
       { icon:'clock', t:'teal', label:'Forward PDC Cash', drill:'finance', dl:'Finance', fixed:1,
-        value:'QAR 8.45M', sub:'risk-adj · next 90d · gross 9.2M less bounce risk', chip:'30/60/90d', chipTone:'neutral' },
-      // 6 Occupancy
+        value: (_FI && _FI.pdc_forward && _FI.pdc_forward.length) ? _FI.pdc_forward[_FI.pdc_forward.length-1][2] : '\u2014',
+        sub: (_FI && _FI.pdc_forward && _FI.pdc_forward.length) ? 'risk-adj \u00b7 next 90d' : 'no cheques recorded yet',
+        chip:'30/60/90d', chipTone:'neutral' },
+      // 6 Occupancy -- live from portfolio
       { icon:'percent', t:'purple', label:'Occupancy', drill:'portfolio', dl:'Portfolio',
         tf: same(_ov
           ? {v:_ov.occupancy.toFixed(1)+'%', s:(_ov.units-_ov.vacant)+' of '+_ov.units+' units let', d:'live', up:1, good:1}
           : {v:'88.6%',s:'567 of 640 units let',d:'+1.8 pts',up:1,good:1}) },
-      // 7 Vacant Units + QAR bleed
+      // 7 Vacant Units + bleed
       { icon:'home', t:'orange', label:'Vacant Units', drill:'portfolio', dl:'Portfolio',
         tf: _ov
-          ? same({v:String(_ov.vacant), s:'QAR '+_ov.bleed.toFixed(1)+'K bleed/mo · head-lease on empty', d:'live', up:0, good:1})
-          : {
-        today:{v:'73',s:'QAR 31K bleed today · head-lease on empty',d:'-11',up:0,good:1},
-        month:{v:'73',s:'QAR 0.9M bleed this month',d:'-11',up:0,good:1},
-        quarter:{v:'73',s:'QAR 2.7M bleed this quarter',d:'-11',up:0,good:1},
-        year:{v:'73',s:'QAR 10.4M bleed this year',d:'-11',up:0,good:1} } },
-      // 8 Expiring Contracts — FIXED ≤90d, tenancies at risk
+          ? same({v:String(_ov.vacant), s:'QAR '+_ov.bleed.toFixed(1)+'K bleed/mo \u00b7 head-lease on empty', d:'live', up:0, good:1})
+          : same({v:'73',s:'QAR 0.9M bleed this month',d:'-11',up:0,good:1}) },
+      // 8 Expiring Contracts
       { icon:'calendar', t:'red', label:'Expiring Contracts', drill:'tenants', dl:'Leasing', fixed:1,
         value: _tv ? (_tv.expiring + ' at risk') : '38 at risk',
-        sub: _tv ? 'tenant agreements ending within 90 days' : '1 landlord bldg = 30 tenancies · 5 subleases · ≤90d',
-        chip:'≤90d', chipTone:'warn' },
-      // 9 Deal Pipeline — signed only, drills to Finance (commission)
-      { icon:'tag', t:'green', label:'Deal Pipeline', drill:'finance', dl:'Finance', tf:{
-        today:{v:'2 signed',s:'QAR 18K commission today',d:'+2',up:1,good:1},
-        month:{v:'14 signed',s:'QAR 0.42M commission earned',d:'+5',up:1,good:1},
-        quarter:{v:'38 signed',s:'QAR 1.18M commission earned',d:'+8',up:1,good:1},
-        year:{v:'142 signed',s:'QAR 4.30M commission earned',d:'+22',up:1,good:1} } },
+        sub: _tv ? 'tenant agreements ending within 90 days' : '\u2264 90 days',
+        chip:'\u226490d', chipTone:'warn' },
+      // 9 Deal Pipeline -- needs a Leads doctype; honest zero until then.
+      { icon:'tag', t:'green', label:'Deal Pipeline', drill:'tenants', dl:'Leasing', fixed:1,
+        value:'\u2014', sub:'no leasing pipeline tracked yet', chip:'phase 3', chipTone:'neutral' },
     ];
+    function finLiveVal(v, zero){ return _finLive && v ? v : zero; }
     const cardGridStyle = isMobile
       ? 'display:grid;grid-template-columns:1fr 1fr;gap:10px'
       : 'display:grid;grid-template-columns:repeat(3,1fr);gap:14px';
@@ -239,7 +236,7 @@ function renderVals(){
     });
 
     // ---------- per-building margin (ranked best -> worst) ----------
-    const perBuilding = ((LIVE && LIVE.pf.buildings.map(b=>[b[0],b[1],b[2]])) || [
+    const perBuilding = ((_finLive && _FI.per_building.length ? _FI.per_building : (_PF && _PF.buildings.map(b=>[b[0],b[1],b[2]]))) || [
       ['West Bay Plaza', 1420, 950], ['The Pearl Residency', 1100, 780],
       ['Al Sadd Tower', 980, 710], ['Lusail Office Block', 740, 580], ['Msheireb Retail', 580, 610],
     ]).map(b => { const m = b[1] ? (b[1]-b[2])/b[1]*100 : 0; return { name:b[0], inc:b[1], hl:b[2], m }; })
@@ -254,10 +251,23 @@ function renderVals(){
      });
 
     // ---------- overview chart ----------
-    const chartEmpty = (S.tf === 'today');
-    const chartSub = chartEmpty ? 'Awaiting today\u2019s billing run' :
-      (S.tf === 'year' ? 'QAR M per month · FY to date' : 'QAR M per month · last 6 months');
-    const chartLabels = ['Jan','Feb','Mar','Apr','May','Jun'];
+    // Trend chart: last 6 periods of the imported manual books. Live GL
+    // months will append once invoices post.
+    const _hist6 = (_HI && _HI.live) ? _HI.months.slice(-6) : [];
+    const chartEmpty = _hist6.length === 0;
+    const chartSub = chartEmpty ? 'No history imported yet'
+      : 'QAR K per period \u00b7 manual books \u00b7 grey = income, green = kept after owner rent';
+    const chartLabels = _hist6.map(m=>m.label.replace(' 20',' \u2019'));
+    const _cMax = _hist6.length ? Math.max(..._hist6.map(m=>m.income)) : 1;
+    const chartBarsData = _hist6.map((m,i)=>{
+      const x = 52 + i*83;
+      const hInc = Math.max(6, m.income/_cMax*120);
+      const hKept = Math.max(4, Math.max(0,(m.income-m.owner))/_cMax*120);
+      return { x:String(x), incY:String(Math.round(150-hInc)), incH:String(Math.round(hInc)),
+        keptY:String(Math.round(150-hKept)), keptH:String(Math.round(hKept)),
+        col:(m.income? (m.income-m.owner)/m.income : 0) < 0.15 ? '#9A7A2E' : '#2E6B57',
+        lump:m.lump };
+    });
 
     // ---------- pool (maintenance only now; portfolio/tenants/finance are dedicated) ----------
     const spanDefs = {
@@ -272,13 +282,10 @@ function renderVals(){
     const poolGridStyle = 'display:grid;grid-template-columns:repeat(12,1fr);gap:' + (isMobile ? '12px' : '16px') + ';align-items:start';
 
     // ---------- pool data ----------
-    const approvals = [
-      ['Lease Agreement','LA-2026-00142','Sublease · West Bay Plaza · Unit 1410','QAR 18.5K/mo','2h ago','green','tag'],
-      ['Landlord Payment','PE-2026-00871','Head-lease rent · Al Sadd Tower','QAR 412K','4h ago','teal','dollar'],
-      ['Rent Discount','SO-2026-01093','12% on Unit B-908 · above policy','QAR 26K','5h ago','red','invoice'],
-      ['Deposit Refund','JV-2026-00455','Tenant exit · Pearl Residency B-22','QAR 45K','1d ago','purple','dollar'],
-      ['Maintenance PO','PO-2026-00231','AC overhaul · Lusail Office Block','QAR 78K','1d ago','orange','cart'],
-    ].map(a => ({ type:a[0], ref:a[1], detail:a[2], amount:a[3], age:a[4], tintCol:tint[a[5]][0], tintBg:tint[a[5]][1], iconPath:ic[a[6]] }));
+    const approvals = (_AP ? _AP.approvals : [])
+      .map(a => ({ type:a[0], ref:a[1], detail:a[2], amount:a[3], age:a[4], tintCol:tint[a[5]][0], tintBg:tint[a[5]][1], iconPath:ic[a[6]] }));
+    const approvalCount = _AP ? _AP.count : 0;
+    const hasApprovals = approvals.length > 0;
 
     const bookingHeadStyle = 'display:grid;grid-template-columns:1.6fr 1fr auto auto;gap:14px;padding:0 4px 9px;font-size:10.5px;font-weight:600;letter-spacing:.4px;text-transform:uppercase;color:#857260;border-bottom:1px solid #EAE0D2';
     const bookingRowStyle = 'display:grid;grid-template-columns:1.6fr 1fr auto auto;gap:14px;align-items:center;padding:11px 4px;border-bottom:1px solid #EAE0D2;cursor:pointer;transition:background .12s';
@@ -303,8 +310,9 @@ function renderVals(){
     const funnel = [['Enquiries','248','100%','#2E7D6A'],['Viewings','132','53%','#1E7E58'],['Offers','64','26%','#9A7A2E'],['Negotiation','38','15%','#9A7A2E'],['Signed','31','12%','#1E7E58']]
       .map(f => ({ stage:f[0], count:f[1], w:f[2], col:f[3] }));
 
-    const receivables = [['Current','QAR 4.30M','100%','#1E7E58'],['1–30 days','QAR 0.62M','42%','#9A7A2E'],['31–60 days','QAR 0.31M','26%','#A85A2C'],['60+ days','QAR 0.21M','18%','#BC512B']]
+    const receivables = (_FI ? _FI.receivables : [])
       .map(r => ({ bucket:r[0], amount:r[1], w:r[2], col:r[3] }));
+    const hasArrears = _finLive && receivables.some(r => r.amount !== 'QAR 0.0K');
 
     const expiries = [
       ['Al Sadd Tower','Head Lease','31 Aug 2026','68 days','Renew Due','orange'],
@@ -316,22 +324,19 @@ function renderVals(){
 
     // ---------- maintenance ----------
     const maintKpiGridStyle = 'display:grid;grid-template-columns:repeat(' + (isMobile ? 2 : 4) + ',1fr);gap:' + (isMobile ? '10px' : '14px');
+    const _mk = _MT ? _MT.kpis : [0,0,'—',0];
     const maintKpiCards = [
-      ['wrench','blue','24','Open Requests'], ['clock','red','6','Overdue'],
-      ['check','green','2.4d','Avg Resolution'], ['calendar','orange','9','Preventive Due'],
+      ['wrench','blue',String(_mk[0]),'Open Requests'], ['clock','red',String(_mk[1]),'Overdue'],
+      ['check','green',String(_mk[2]),'Avg Resolution'], ['calendar','orange',String(_mk[3]),'Preventive Due'],
     ].map(m => ({ iconPath:ic[m[0]], tint:tint[m[1]][0], tintBg:tint[m[1]][1], value:m[2], label:m[3] }));
 
     const maintHeadStyle = 'display:grid;grid-template-columns:1.8fr auto auto auto;gap:12px;padding:0 4px 9px;font-size:10.5px;font-weight:600;letter-spacing:.4px;text-transform:uppercase;color:#857260;border-bottom:1px solid #EAE0D2';
     const maintRowStyle = 'display:grid;grid-template-columns:1.8fr auto auto auto;gap:12px;align-items:center;padding:11px 4px;border-bottom:1px solid #EAE0D2;cursor:pointer;transition:background .12s';
-    const maintRequests = [
-      ['West Bay Plaza · U-1410','AC not cooling','High','red','In Progress','blue','2h'],
-      ['Al Sadd Tower · 9F','Lift inspection due','Medium','orange','Open','orange','1d'],
-      ['Pearl Residency · B-22','Water leakage','High','red','Open','red','3h'],
-      ['Lusail Office · L-07','Lighting fault','Low','blue','Scheduled','purple','2d'],
-      ['Msheireb Retail · R-04','Glass door repair','Medium','orange','Resolved','green','4d'],
-    ].map(r => ({ loc:r[0], issue:r[1], priority:r[2], priCol:tint[r[3]][0], priBg:tint[r[3]][1], status:r[4], statusCol:tint[r[5]][0], statusBg:tint[r[5]][1], age:r[6] }));
+    const maintRequests = (_MT ? _MT.requests : [])
+      .map(r => ({ loc:r[0], issue:r[1], priority:r[2], priCol:tint[r[3]][0], priBg:tint[r[3]][1], status:r[4], statusCol:tint[r[5]][0], statusBg:tint[r[5]][1], age:r[6] }));
+    const hasMaint = maintRequests.length > 0;
 
-    const maintByBldg = [['West Bay Plaza','8','100%','#BC512B'],['Al Sadd Tower','6','75%','#9A7A2E'],['Pearl Residency','5','62%','#9A7A2E'],['Lusail Office','3','38%','#2E7D6A'],['Msheireb Retail','2','25%','#2E7D6A']]
+    const maintByBldg = (_MT ? _MT.by_building : [])
       .map(m => ({ name:m[0], count:m[1], w:m[2], col:m[3] }));
 
     // ================= PORTFOLIO DATA =================
@@ -340,7 +345,7 @@ function renderVals(){
     const unitFilterSet=(f)=>setState({unitFilter:f});
     const stCol={ Occupied:tint.green, Vacant:tint.red, Notice:tint.orange, Maintenance:tint.blue };
     const vacBucket=(d)=> d==null?null:(d<=30?{l:'0\u201330d',c:tint.green[0]}:(d<=60?{l:'31\u201360d',c:tint.orange[0]}:(d<=90?{l:'61\u201390d',c:'#A85A2C'}:{l:'90+d',c:tint.red[0]})));
-    const unitMaster = (LIVE && LIVE.pf.units) || [
+    const unitMaster = (_PF && _PF.units) || [
       ['West Bay Plaza','U-1410','Occupied','Qatar Petroleum Svcs',18.5,null,'Furnished','Office',''],
       ['West Bay Plaza','U-0908','Notice','Gulf Trading LLC',16.0,null,'Furnished','Office','31 Jul 2026'],
       ['West Bay Plaza','U-1602','Vacant','',17.0,12,'Unfurnished','Office',''],
@@ -370,7 +375,7 @@ function renderVals(){
     const unitFilters=unitChips.map(c=>({label:c[1], onClick:()=>unitFilterSet(c[0]),
       style:'border:1px solid '+(S.unitFilter===c[0]?'#2E6B57':'#D9C9B5')+';background:'+(S.unitFilter===c[0]?'rgba(46,107,87,.20)':'#FFFFFF')+';color:'+(S.unitFilter===c[0]?'#2E7D6A':'#6B5648')+';border-radius:7px;padding:5px 11px;font-size:11.5px;font-weight:600;font-family:inherit;cursor:pointer;white-space:nowrap'}));
 
-    const bRaw = (LIVE && LIVE.pf.buildings) || [
+    const bRaw = (_PF && _PF.buildings) || [
       ['West Bay Plaza',1420,950,160,6,'12 Mar 2027',0,0],
       ['The Pearl Residency',1100,780,180,20,'30 Nov 2026',0,0],
       ['Al Sadd Tower',980,710,120,12,'31 Aug 2026',30,0],
@@ -378,6 +383,9 @@ function renderVals(){
       ['Msheireb Retail',580,610,80,17,'05 Oct 2026',0,14],
     ];
     const tfMarginPct={today:'28.4%',month:'28.2%',quarter:'28.1%',year:'28.0%'};
+    // Portfolio-wide margin from live data: sum(income) - sum(head-lease) over sum(income).
+    // Not time-sliced -- it's a snapshot of the current rent roll, so the same for every tf.
+    const _liveMargin = _ov ? _ov.margin : null;
     let buildings=bRaw.map(b=>{ const m=(b[1]-b[2])/b[1]*100; const occ=(b[3]-b[4])/b[3]*100; const expSoon=['31 Aug 2026','05 Oct 2026'].indexOf(b[5])>=0;
       const mcol = m>=25?tint.green:(m>=10?tint.orange:tint.red);
       const ocol = occ>=85?tint.green:(occ>=75?tint.orange:tint.red);
@@ -404,20 +412,20 @@ function renderVals(){
         style:'border:none;background:'+(S.pfSort===c[0]?'#3E2723':'transparent')+';color:'+(S.pfSort===c[0]?'#F4EDE6':'#9A8775')+';border-radius:6px;padding:5px 11px;font-size:11.5px;font-weight:600;font-family:inherit;cursor:pointer'}));
     const pfViewBtns=[['buildings','Buildings'],['units','Units']].map(c=>({label:c[1], onClick:()=>pfSet(c[0]),
       style:'border:none;border-radius:6px;padding:7px 16px;font-size:12.5px;font-weight:600;font-family:inherit;cursor:pointer;'+(S.pfView===c[0]?'background:#3E2723;color:#F4EDE6;box-shadow:0 2px 6px rgba(62,39,35,.18)':'background:transparent;color:#9A8775')}));
-    const _ps = (LIVE && LIVE.pf.strip) || null;
+    const _ps = _ov;
     const pfStrip=[
       {k:'Buildings',v: _ps ? String(_ps.buildings) : '5',tag:''},
       {k:'Units',v: _ps ? String(_ps.units) : '640',tag:''},
       {k:'Occupancy',v: _ps ? _ps.occupancy.toFixed(1)+'%' : '88.6%',tag:'live'},
       {k:'Vacant + bleed',v: _ps ? (_ps.vacant+' \u00b7 QAR '+_ps.bleed.toFixed(1)+'K') : '73 \u00b7 QAR 0.9M',tag:'live'},
-      {k:'Net margin',v:tfMarginPct[S.tf],tag:'period'},
+      {k:'Net margin',v: _liveMargin!=null ? _liveMargin.toFixed(1)+'%' : tfMarginPct[S.tf], tag: _liveMargin!=null ? 'live' : 'period'},
     ].map(s=>({...s, tagStyle: s.tag==='live'?'color:#1E7E58;background:rgba(46,107,87,.22)':(s.tag==='period'?'color:#2E7D6A;background:rgba(46,107,87,.20)':'')}));
     const showPortfolio=S.tab==='portfolio'; const pfBuildings=S.pfView==='buildings'; const pfUnits=S.pfView==='units';
 
     // ================= TENANTS DATA =================
     const tnFilterSet=(f)=>setState({tnFilter:f});
     const agCol={ Active:tint.green, Grace:tint.orange, Expiring:tint.orange, Lapsed:tint.red };
-    const tnRaw = (LIVE && LIVE.tn.tenants) || [
+    const tnRaw = (_TN && _TN.tenants) || [
       ['Qatar Petroleum Svcs','West Bay \u00b7 U-1410',18.5,'Active','current',0,0,'Mar 2022',4.62],
       ['Doha Bank','Al Sadd \u00b7 9F',41.0,'Active','current',0,0,'Jun 2019',14.2],
       ['Ooredoo','Msheireb \u00b7 R-04',27.0,'Active','current',0,0,'Sep 2021',5.80],
@@ -440,7 +448,7 @@ function renderVals(){
     const tnFilterChips=[['all','All'],['arrears','In arrears'],['bounce','Bounce history'],['expiring','Expiring'],['lapsed','Lapsed / M2M']]
       .map(c=>({label:c[1], onClick:()=>tnFilterSet(c[0]),
         style:'border:1px solid '+(S.tnFilter===c[0]?'#2E6B57':'#D9C9B5')+';background:'+(S.tnFilter===c[0]?'rgba(46,107,87,.20)':'#FFFFFF')+';color:'+(S.tnFilter===c[0]?'#2E7D6A':'#6B5648')+';border-radius:7px;padding:5px 11px;font-size:11.5px;font-weight:600;font-family:inherit;cursor:pointer;white-space:nowrap'}));
-    const _ts = (LIVE && LIVE.tn.strip) || null;
+    const _ts = _tv;
     const tnStrip= _ts ? [
       {k:'Active tenants',v:String(_ts.active)},{k:'Expiring soon',v:String(_ts.expiring)},
       {k:'In arrears',v:'\u2014'},{k:'Grace / lapsed',v:String(_ts.lapsed)},
@@ -449,22 +457,22 @@ function renderVals(){
       {k:'Active tenants',v:'567'},{k:'Expiring soon',v:'23'},{k:'In arrears',v:'46'},
       {k:'Grace / lapsed',v:'9'},{k:'Out + on notice',v:'7 + 12'},
     ];
-    const agExpiring=((LIVE && LIVE.tn.expiring) || [
+    const agExpiring=((_TN && _TN.expiring) || [
       ['R. Haddad','Pearl \u00b7 B-22','15 Jul 2026','21 days','red'],
       ['Al Faisal Intl','Al Sadd \u00b7 7F-310','28 Jul 2026','34 days','orange'],
       ['Kahramaa Sub','West Bay \u00b7 U-1108','11 Aug 2026','48 days','orange'],
     ]).map(a=>({name:a[0],loc:a[1],date:a[2],days:a[3],col:tint[a[4]][0],bg:tint[a[4]][1]}));
-    const agOther=((LIVE && LIVE.tn.other) || [
+    const agOther=((_TN && _TN.other) || [
       ['Gulf Trading LLC','Grace period \u00b7 7 days left','orange'],
       ['S. Ibrahim','Month-to-month \u00b7 no current contract','red'],
       ['Bright Co Retail','Lapsed 12 days ago','red'],
     ]).map(a=>({name:a[0],note:a[1],col:tint[a[2]][0],bg:tint[a[2]][1]}));
-    const churnOut=[
+    const churnOut=((_TN && _TN.churn_out) || [
       ['Khan Traders','Pearl \u00b7 B-05','Non-renewal'],
       ['M. Saleh','Lusail \u00b7 L-09','Relocation'],
       ['Bright Co Retail','Msheireb \u00b7 R-07','Eviction'],
-    ].map(c=>({name:c[0],loc:c[1],reason:c[2]}));
-    const churnNotice=((LIVE && LIVE.tn.notice) || [
+    ]).map(c=>({name:c[0],loc:c[1],reason:c[2]}));
+    const churnNotice=((_TN && _TN.notice) || [
       ['Gulf Trading LLC','West Bay \u00b7 U-0908','31 Jul 2026','Non-renewal'],
       ['R. Haddad','Pearl \u00b7 B-08','05 Jul 2026','Relocation'],
       ['Vodafone Qatar','Lusail \u00b7 L-03','15 Aug 2026','Downsizing'],
@@ -477,52 +485,40 @@ function renderVals(){
     const finViewBtns=[['pnl','P&L'],['receivables','Receivables'],['pdc','PDC'],['payables','Payables']]
       .map(c=>({label:c[1], onClick:()=>finSet(c[0]),
         style:'border:none;border-radius:6px;padding:7px 16px;font-size:12.5px;font-weight:600;font-family:inherit;cursor:pointer;white-space:nowrap;flex-shrink:0;transition:all .15s;'+(isMobile?'flex:1;':'')+(S.finView===c[0]?'background:#3E2723;color:#F4EDE6;box-shadow:0 2px 6px rgba(62,39,35,.18);':'background:transparent;color:#9A8775;')}));
-    const finPnlMap={
-      today:{income:'QAR 162K',hl:'QAR 116K',margin:'QAR 46K',pct:'28.4%',coll:'\u2014',comm:'QAR 18K',commP:'QAR 0'},
-      month:{income:'QAR 4.82M',hl:'QAR 3.46M',margin:'QAR 1.36M',pct:'28.2%',coll:'QAR 4.10M \u00b7 85%',comm:'QAR 0.42M',commP:'QAR 0.18M'},
-      quarter:{income:'QAR 14.31M',hl:'QAR 10.29M',margin:'QAR 4.02M',pct:'28.1%',coll:'QAR 11.9M \u00b7 83%',comm:'QAR 1.18M',commP:'QAR 0.46M'},
-      year:{income:'QAR 56.8M',hl:'QAR 40.9M',margin:'QAR 15.9M',pct:'28.0%',coll:'QAR 48.9M \u00b7 86%',comm:'QAR 4.30M',commP:'QAR 1.20M'},
-    };
-    const finPnl=finPnlMap[S.tf]||finPnlMap.month;
-    const recvDetail=[
-      ['Gulf Trading LLC','West Bay \u00b7 U-0908','QAR 32.0K','12 Apr 2026',3,'+QAR 4.1K'],
-      ['R. Haddad','Pearl \u00b7 B-22','QAR 19.6K','02 May 2026',1,'+QAR 2.0K'],
-      ['Khan Traders','Pearl \u00b7 B-05','QAR 14.2K','20 Mar 2026',2,'+QAR 1.8K'],
-      ['M. Saleh','Lusail \u00b7 L-09','QAR 8.4K','28 Apr 2026',0,'+QAR 1.1K'],
-      ['Bright Co Retail','Msheireb \u00b7 R-07','QAR 6.0K','15 May 2026',1,'\u2212QAR 0.4K'],
-    ].map(r=>({name:r[0],loc:r[1],amount:r[2],oldest:r[3],bounce:r[4],hasBounce:r[4]>0,bounceText:r[4]+'\u00d7',margin:r[5],marginNeg:r[5].indexOf('\u2212')===0,marginCol:r[5].indexOf('\u2212')===0?'#BC512B':'#1E7E58'}));
-    const pdcForward=[
-      ['30 days','QAR 3.10M','QAR 2.85M'],['60 days','QAR 3.40M','QAR 3.15M'],
-      ['90 days','QAR 2.70M','QAR 2.45M'],['Total','QAR 9.20M','QAR 8.45M'],
-    ].map((p,i)=>({horizon:p[0],gross:p[1],radj:p[2],isTotal:i===3}));
+    // The API slices by timeframe server-side. Until invoices exist every
+    // figure is a real zero, which is the correct thing to show.
+    const _zeroPnl={income:'QAR 0.0K',hl:'QAR 0.0K',margin:'QAR 0.0K',pct:'0.0%',coll:'\u2014',comm:'QAR 0.0K',commP:'QAR 0.0K'};
+    const finPnl=(_FI && _FI.pnl) || _zeroPnl;
+    const finSince=(_FI && _FI.since) || '2026-07-01';
+    const recvDetail=(_FI ? _FI.recv_detail : [])
+      .map(r=>({name:r[0],loc:r[1],amount:r[2],oldest:r[3],bounce:r[4],hasBounce:r[4]>0,bounceText:r[4]+'\u00d7',margin:r[5],marginNeg:false,marginCol:'#1E7E58'}));
+    const hasRecvDetail = recvDetail.length > 0;
+    const pdcForward=(_FI ? _FI.pdc_forward : [])
+      .map((p,i,arr)=>({horizon:p[0],gross:p[1],radj:p[2],isTotal:i===arr.length-1}));
+    const hasPdc = pdcForward.length > 0;
     const chqCol={ Cleared:tint.green, Deposited:tint.blue, Pending:tint.orange, Bounced:tint.red, Replaced:tint.purple };
-    const cheques=[
-      ['Qatar Petroleum Svcs','in','QAR 18.5K','28 Jun','Cleared'],
-      ['Doha Bank','in','QAR 41.0K','02 Jul','Deposited'],
-      ['Al Mana Group','in','QAR 32.0K','25 Jun','Bounced'],
-      ['Ooredoo','in','QAR 27.0K','05 Jul','Pending'],
-      ['Gulf Trading LLC','in','QAR 16.0K','30 Jun','Replaced'],
-      ['\u2192 West Bay Plaza (landlord)','out','QAR 95.0K','01 Jul','Pending'],
-      ['\u2192 Pearl Residency (landlord)','out','QAR 78.0K','03 Jul','Deposited'],
-    ].map(c=>({name:c[0],dir:c[1],dirCol:c[1]==='in'?tint.teal[0]:tint.orange[0],amount:c[2],due:c[3],status:c[4],statusCol:chqCol[c[4]][0],statusBg:chqCol[c[4]][1]}));
-    const payLandlord=[
-      ['West Bay Plaza','QAR 0.95M','01 Jul 2026'],['The Pearl Residency','QAR 0.78M','03 Jul 2026'],
-      ['Al Sadd Tower','QAR 0.71M','05 Jul 2026'],['Lusail Office Block','QAR 0.58M','07 Jul 2026'],
-      ['Msheireb Retail','QAR 0.61M','10 Jul 2026'],
-    ].map(p=>({name:p[0],amount:p[1],due:p[2]}));
+    const cheques=(_FI ? _FI.cheques : [])
+      .map(c=>({name:c[0],dir:c[1],dirCol:c[1]==='in'?tint.teal[0]:tint.orange[0],amount:c[2],due:c[3],status:c[4],
+        statusCol:(chqCol[c[4]]||tint.blue)[0],statusBg:(chqCol[c[4]]||tint.blue)[1]}));
+    const hasCheques = cheques.length > 0;
+    const payLandlord=(_FI ? _FI.pay_landlord : [])
+      .map(p=>({name:p[0],amount:p[1],due:p[2]}));
+    const hasPayables = payLandlord.length > 0;
     // liquidity running balance (risk-adjusted inflow)
-    const liqRaw=[ ['24 Jun',0.85,0.20],['01 Jul',0.40,1.73],['08 Jul',0.35,1.29],['15 Jul',1.60,0.61],['22 Jul',1.50,0.30],['29 Jul',1.40,0.25],['05 Aug',1.30,1.70],['12 Aug',1.45,0.40] ];
-    let liqRun=1.20; const liq=liqRaw.map(w=>{ liqRun += w[1]-w[2]; return { wk:w[0], inV:w[1], outV:w[2], run:liqRun, neg:liqRun<0 }; });
-    const liqMin=Math.min(...liq.map(l=>l.run)); const liqMax=Math.max(...liq.map(l=>l.run), 0);
+    // Weekly cashflow needs cheque dates; nothing rendered until PDC data exists.
+    const liqRaw = [];
+    const hasLiq = false;
+    let liqRun=0; const liq=liqRaw.map(w=>{ liqRun += w[1]-w[2]; return { wk:w[0], inV:w[1], outV:w[2], run:liqRun, neg:liqRun<0 }; });
+    const liqMin=liq.length?Math.min(...liq.map(l=>l.run)):0; const liqMax=liq.length?Math.max(...liq.map(l=>l.run),0):1;
     const liqShortfall=liq.find(l=>l.neg);
     // build polyline points for running balance (viewBox 0 0 560 160, zero line mid)
     const lqTop=18, lqBot=142, lqRange=(liqMax-liqMin)||1;
     const lqY=(v)=> lqTop + (liqMax - v)/lqRange*(lqBot-lqTop);
-    const lqStep=520/(liq.length-1);
+    const lqStep=liq.length>1?520/(liq.length-1):520;
     const liqPts=liq.map((l,i)=>(20+i*lqStep).toFixed(0)+','+lqY(l.run).toFixed(0)).join(' ');
     const liqZeroY=lqY(0).toFixed(0);
     const liqDots=liq.map((l,i)=>({cx:(20+i*lqStep).toFixed(0), cy:lqY(l.run).toFixed(0), col:l.neg?tint.red[0]:tint.green[0], wk:l.wk, run:(l.run>=0?'+':'\u2212')+'QAR '+Math.abs(l.run).toFixed(2)+'M', lx:(20+i*lqStep).toFixed(0)}));
-    const liqForward=[['30 days','QAR 3.63M'],['60 days','QAR 3.55M'],['90 days','QAR 3.48M']].map(p=>({horizon:p[0],amount:p[1]}));
+    const liqForward=[];
     const showFinance=S.tab==='finance';
     const finPnlBars=true;
 
@@ -549,7 +545,9 @@ function renderVals(){
       finPnl, recvDetail, pdcForward, cheques, payLandlord,
       liq, liqPts, liqZeroY, liqDots, liqShortfall, liqForward,
       alerts, alertCount: alerts.length, showAlerts: alerts.length>0, showHealthy: alerts.length===0,
-      chartEmpty, chartBars: !chartEmpty, chartSub, chartLabels, perBuilding,
+      chartEmpty, chartBars: !chartEmpty, chartBarsData, chartSub, chartLabels, perBuilding,
+      hasLiq, hasPdc, hasCheques, hasPayables, hasRecvDetail, hasMaint, hasApprovals, approvalCount, hasArrears, finLive:_finLive, finSince,
+      isLoading: LOADING,
       goFinance: ()=>drillTo('finance'),
       approvals, bookings, projects, funnel, receivables, expiries,
       bookingHeadStyle, bookingRowStyle,
@@ -562,7 +560,7 @@ function renderVals(){
   }
 function tpl(V){
   var _k = V; /* destructured below */
-  const {rootStyle,appStyle,sidebarStyle,mainStyle,contentStyle,innerStyle,h1Style,isMobile,toggleNav,closeNav,setDesktop,setMobile,vpDesktopStyle,vpMobileStyle,subtitle,nav,tabs,timeframes,tfWrapStyle,cardGridStyle,cards,showOverview,poolActive,poolGridStyle,spanStyle,showPortfolio,pfViewBtns,pfBuildings,pfUnits,pfStrip,pfFilterChips,pfSortChips,buildings,units,unitFilters,showTenants,tnStrip,tnFilterChips,tenants,agExpiring,agOther,churnOut,churnNotice,showFinance,finNavStyle,finViewBtns,finIsPnl,finIsRecv,finIsPdc,finIsPay,finPnl,recvDetail,pdcForward,cheques,payLandlord,liq,liqPts,liqZeroY,liqDots,liqShortfall,liqForward,alerts,alertCount,showAlerts,showHealthy,chartEmpty,chartBars,chartSub,chartLabels,perBuilding,goFinance,approvals,bookings,projects,funnel,receivables,expiries,bookingHeadStyle,bookingRowStyle,maintKpiGridStyle,maintKpiCards,maintHeadStyle,maintRowStyle,maintRequests,maintByBldg,showSalesTrend,showCollected,showApprovals,showBookings,showProjects,showFunnel,showReceivables,showExpiries,showMaintKpis,showMaintList,showMaintByBldg} = V;
+  const {rootStyle,appStyle,sidebarStyle,mainStyle,contentStyle,innerStyle,h1Style,isMobile,toggleNav,closeNav,setDesktop,setMobile,vpDesktopStyle,vpMobileStyle,subtitle,nav,tabs,timeframes,tfWrapStyle,cardGridStyle,cards,showOverview,poolActive,poolGridStyle,spanStyle,showPortfolio,pfViewBtns,pfBuildings,pfUnits,pfStrip,pfFilterChips,pfSortChips,buildings,units,unitFilters,showTenants,tnStrip,tnFilterChips,tenants,agExpiring,agOther,churnOut,churnNotice,showFinance,finNavStyle,finViewBtns,finIsPnl,finIsRecv,finIsPdc,finIsPay,finPnl,recvDetail,pdcForward,cheques,payLandlord,liq,liqPts,liqZeroY,liqDots,liqShortfall,liqForward,alerts,alertCount,showAlerts,showHealthy,chartEmpty,chartBars,chartBarsData,chartSub,chartLabels,perBuilding,hasLiq,hasPdc,hasCheques,hasPayables,hasRecvDetail,hasMaint,hasApprovals,approvalCount,hasArrears,finLive,finSince,isLoading,goFinance,approvals,bookings,projects,funnel,receivables,expiries,bookingHeadStyle,bookingRowStyle,maintKpiGridStyle,maintKpiCards,maintHeadStyle,maintRowStyle,maintRequests,maintByBldg,showSalesTrend,showCollected,showApprovals,showBookings,showProjects,showFunnel,showReceivables,showExpiries,showMaintKpis,showMaintList,showMaintByBldg} = V;
   return `
 
 <div style="${rootStyle}">
@@ -597,7 +595,7 @@ function tpl(V){
           <div style="margin-bottom:14px">
             <div style="display:flex;align-items:center;gap:10px">
               <h1 style="${h1Style}">Managing Director</h1>
-              <span style="font-size:11px;font-weight:600;color:#1E7E58;background:rgba(46,107,87,.18);border:1px solid rgba(95,184,154,.35);padding:2px 9px;border-radius:20px">Live</span>
+              ${(isLoading)?`<span style="font-size:11px;font-weight:600;color:#9A7A2E;background:rgba(201,168,106,.18);border:1px solid rgba(201,168,106,.35);padding:2px 9px;border-radius:20px">Loading\u2026</span>`:(LIVE?`<span style="font-size:11px;font-weight:600;color:#1E7E58;background:rgba(46,107,87,.18);border:1px solid rgba(95,184,154,.35);padding:2px 9px;border-radius:20px">Live</span>`:`<span style="font-size:11px;font-weight:600;color:#BC512B;background:rgba(224,138,102,.18);border:1px solid rgba(224,138,102,.35);padding:2px 9px;border-radius:20px">Offline \u00b7 sample data</span>`)}
             </div>
             <p style="color:#8C7A68;font-size:12.5px;margin-top:5px">${subtitle}</p>
           </div>
@@ -725,12 +723,9 @@ function tpl(V){
                   <text x="6" y="22" font-size="9" fill="#857260">QAR M</text>
                   <line x1="40" y1="46" x2="545" y2="46" stroke="#9A7A2E" stroke-width="1.3" stroke-dasharray="5 5" opacity="0.6"></line>
                   <text x="541" y="42" text-anchor="end" font-size="9" fill="#9A7A2E">Target</text>
-                  <rect x="52" y="62" width="44" height="88" rx="4" fill="#D9C9B5"></rect><rect x="52" y="74" width="44" height="76" rx="4" fill="#2E6B57"></rect>
-                  <rect x="135" y="46" width="44" height="104" rx="4" fill="#D9C9B5"></rect><rect x="135" y="58" width="44" height="92" rx="4" fill="#2E6B57"></rect>
-                  <rect x="218" y="78" width="44" height="72" rx="4" fill="#D9C9B5"></rect><rect x="218" y="90" width="44" height="60" rx="4" fill="#9A7A2E"></rect>
-                  <rect x="301" y="34" width="44" height="116" rx="4" fill="#D9C9B5"></rect><rect x="301" y="46" width="44" height="104" rx="4" fill="#2E6B57"></rect>
-                  <rect x="384" y="54" width="44" height="96" rx="4" fill="#D9C9B5"></rect><rect x="384" y="66" width="44" height="84" rx="4" fill="#2E6B57"></rect>
-                  <rect x="467" y="30" width="44" height="120" rx="4" fill="#D9C9B5"></rect><rect x="467" y="42" width="44" height="108" rx="4" fill="#1E7E58"></rect>
+                  ${(chartBarsData).map((b)=>`
+                    <rect x="${b.x}" y="${b.incY}" width="44" height="${b.incH}" rx="4" fill="#D9C9B5"></rect><rect x="${b.x}" y="${b.keptY}" width="44" height="${b.keptH}" rx="4" fill="${b.col}"></rect>
+                  `).join("")}
                   <line x1="34" y1="150" x2="545" y2="150" stroke="#D9C9B5" stroke-width="1.2"></line>
                 </svg>
                 <div style="display:flex;justify-content:space-between;margin-top:6px;padding:0 0 0 40px;font-size:10.5px;color:#857260">
@@ -742,9 +737,10 @@ function tpl(V){
             <!-- PENDING APPROVAL (overview) -->
             <div style="background:#FFFFFF;border:1px solid #EAE0D2;border-radius:12px;padding:18px 4px 8px 18px;margin-top:18px">
               <div style="display:flex;align-items:center;justify-content:space-between;padding-right:14px;margin-bottom:14px">
-                <div style="display:flex;align-items:center;gap:9px"><div style="font-family:'Cormorant Garamond',serif;font-size:18px;font-weight:600;letter-spacing:.2px">Pending Your Approval</div><span style="font-size:10.5px;font-weight:700;color:#9A7A2E;background:rgba(201,168,106,.18);border-radius:20px;padding:1px 8px">5</span></div>
+                <div style="display:flex;align-items:center;gap:9px"><div style="font-family:'Cormorant Garamond',serif;font-size:18px;font-weight:600;letter-spacing:.2px">Pending Your Approval</div><span style="font-size:10.5px;font-weight:700;color:#9A7A2E;background:rgba(201,168,106,.18);border-radius:20px;padding:1px 8px">${approvalCount}</span></div>
                 <div data-h="${_h(goFinance)}" style="display:flex;align-items:center;gap:3px;font-size:11.5px;color:#2E7D6A;font-weight:550;cursor:pointer">View all<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"></path></svg></div>
               </div>
+              ${(!hasApprovals)?`<div style="padding:14px 4px 4px;font-size:12px;color:#857260">Nothing waiting on you. Draft invoices appear here when the billing run creates them.</div>`:""}
               <div style="display:flex;flex-direction:column">
                 ${(approvals).map((a)=>`
                   <div class="hovA" style="display:flex;align-items:center;gap:12px;padding:11px 14px 11px 4px;border-bottom:1px solid #EAE0D2;cursor:pointer;border-radius:6px;transition:background .12s">
@@ -763,6 +759,7 @@ function tpl(V){
                 <div data-h="${_h(goFinance)}" style="display:flex;align-items:center;gap:3px;font-size:11px;color:#2E7D6A;font-weight:550;cursor:pointer">Finance<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"></path></svg></div>
               </div>
               <div style="font-size:11.5px;color:#8C7A68;margin-bottom:16px">Tenant outstanding by bucket</div>
+              ${(!hasArrears)?`<div style="padding:10px 0 4px;font-size:12px;color:#857260">No arrears on the books \u2014 ledger starts ${finSince}. Buckets fill as invoices fall due.</div>`:""}
               <div style="display:flex;flex-direction:column;gap:14px">
                 ${(receivables).map((r)=>`
                   <div>
@@ -975,15 +972,12 @@ function tpl(V){
                   <div style="font-size:11.5px;color:#8C7A68;margin-top:2px;margin-bottom:14px">${finPnl.coll} collected</div>
                   <svg viewBox="0 0 560 200" style="width:100%;height:auto;display:block">
                     <line x1="20" y1="46" x2="545" y2="46" stroke="#857260" stroke-width="1.3" stroke-dasharray="5 5" opacity="0.4"></line>
-                    <rect x="34" y="62" width="46" height="88" rx="4" fill="#D9C9B5"></rect><rect x="34" y="74" width="46" height="76" rx="4" fill="#2E6B57"></rect>
-                    <rect x="122" y="46" width="46" height="104" rx="4" fill="#D9C9B5"></rect><rect x="122" y="58" width="46" height="92" rx="4" fill="#2E6B57"></rect>
-                    <rect x="210" y="78" width="46" height="72" rx="4" fill="#D9C9B5"></rect><rect x="210" y="90" width="46" height="60" rx="4" fill="#9A7A2E"></rect>
-                    <rect x="298" y="34" width="46" height="116" rx="4" fill="#D9C9B5"></rect><rect x="298" y="46" width="46" height="104" rx="4" fill="#2E6B57"></rect>
-                    <rect x="386" y="54" width="46" height="96" rx="4" fill="#D9C9B5"></rect><rect x="386" y="66" width="46" height="84" rx="4" fill="#2E6B57"></rect>
-                    <rect x="474" y="30" width="46" height="120" rx="4" fill="#D9C9B5"></rect><rect x="474" y="42" width="46" height="108" rx="4" fill="#1E7E58"></rect>
+                    ${(chartBarsData).map((b)=>`
+                    <rect x="${b.x}" y="${b.incY}" width="46" height="${b.incH}" rx="4" fill="#D9C9B5"></rect><rect x="${b.x}" y="${b.keptY}" width="46" height="${b.keptH}" rx="4" fill="${b.col}"></rect>
+                  `).join("")}
                     <line x1="20" y1="150" x2="545" y2="150" stroke="#D9C9B5" stroke-width="1.2"></line>
                   </svg>
-                  <div style="display:flex;justify-content:space-between;margin-top:6px;padding:0 14px;font-size:10.5px;color:#857260"><span>Jan</span><span>Feb</span><span>Mar</span><span>Apr</span><span>May</span><span>Jun</span></div>
+                  <div style="display:flex;justify-content:space-between;margin-top:6px;padding:0 14px;font-size:10.5px;color:#857260">${(chartLabels).map((l)=>`<span style="flex:1;text-align:center">${l}</span>`).join("")}</div>
                 </div>
               </div>
             `:""}
@@ -1003,6 +997,7 @@ function tpl(V){
                 <div style="flex:2;min-width:300px;background:#FFFFFF;border:1px solid #EAE0D2;border-radius:12px;padding:18px 18px 8px">
                   <div style="font-family:'Cormorant Garamond',serif;font-size:18px;font-weight:600;letter-spacing:.2px;margin-bottom:2px">Per-Tenant Breakdown</div>
                   <div style="font-size:11.5px;color:#8C7A68;margin-bottom:12px">Outstanding · oldest invoice · bounce history · margin</div>
+                  ${(!hasRecvDetail)?`<div style="padding:14px 4px;font-size:12px;color:#857260">No tenants in arrears. Rows appear when a submitted invoice goes unpaid.</div>`:""}
                   ${(recvDetail).map((r)=>`
                     <div style="display:flex;align-items:center;gap:13px;padding:11px 4px;border-bottom:1px solid #EAE0D2;flex-wrap:wrap">
                       <div style="flex:1;min-width:150px"><div style="font-size:12.5px;font-weight:600">${r.name}</div><div style="font-size:11px;color:#9A8775;margin-top:1px">${r.loc} · oldest ${r.oldest}</div></div>
@@ -1024,6 +1019,7 @@ function tpl(V){
                   <div style="font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;color:#857260">Horizon</div>
                   <div style="font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;color:#857260;text-align:right">Gross (face)</div>
                   <div style="font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;color:#1E7E58;text-align:right">Risk-adjusted</div>
+                  ${(!hasPdc)?`<div style="grid-column:1/-1;padding:10px 0;font-size:12px;color:#857260">No post-dated cheques recorded. Enter PDC Cheque records and the 30/60/90-day forecast builds itself.</div>`:""}
                   ${(pdcForward).map((p)=>`
                     <div style="font-size:12.5px;font-weight:600;${p.isTotal}">${p.horizon}</div>
                     <div style="font-size:12.5px;text-align:right;color:#6B5648">${p.gross}</div>
@@ -1033,6 +1029,7 @@ function tpl(V){
               </div>
               <div style="background:#FFFFFF;border:1px solid #EAE0D2;border-radius:12px;padding:18px 18px 8px">
                 <div style="font-family:'Cormorant Garamond',serif;font-size:18px;font-weight:600;letter-spacing:.2px;margin-bottom:12px">Cheque Pipeline</div>
+                ${(!hasCheques)?`<div style="padding:8px 4px 16px;font-size:12px;color:#857260">Empty until cheques are logged.</div>`:""}
                 ${(cheques).map((c)=>`
                   <div style="display:flex;align-items:center;gap:13px;padding:11px 4px;border-bottom:1px solid #EAE0D2;flex-wrap:wrap">
                     <span style="width:34px;flex-shrink:0;font-size:10px;font-weight:700;text-transform:uppercase;color:${c.dirCol}">${c.dir}</span>
@@ -1053,14 +1050,14 @@ function tpl(V){
                   ${(liqShortfall)?`<span style="font-size:11px;font-weight:700;color:#BC512B;background:rgba(224,138,102,.18);padding:3px 10px;border-radius:20px">⚠ Projected shortfall · week of ${liqShortfall.wk}</span>`:""}
                 </div>
                 <div style="font-size:11.5px;color:#8C7A68;margin-bottom:14px">Cumulative risk-adjusted in − out. The dip below zero is a timing gap: landlord cheques clear before tenant cheques cover them.</div>
-                <svg viewBox="0 0 560 170" style="width:100%;height:auto;display:block">
+                ${(hasLiq)?`<svg viewBox="0 0 560 170" style="width:100%;height:auto;display:block">
                   <line x1="20" y1="${liqZeroY}" x2="545" y2="${liqZeroY}" stroke="#857260" stroke-width="1.2" stroke-dasharray="4 4" opacity="0.55"></line>
                   <text x="548" y="${liqZeroY}" font-size="9" fill="#857260">0</text>
                   <polyline points="${liqPts}" fill="none" stroke="#2E7D6A" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></polyline>
                   ${(liqDots).map((d)=>`
                     <circle cx="${d.cx}" cy="${d.cy}" r="4" fill="${d.col}" stroke="#FFFFFF" stroke-width="2"></circle>
                   `).join("")}
-                </svg>
+                </svg>`:`<div style="height:110px;display:flex;align-items:center;justify-content:center;font-size:12px;color:#857260;border:1px dashed #D9C9B5;border-radius:10px">Cashflow projection builds from PDC cheque dates \u2014 none recorded yet.</div>`}
                 <div style="display:flex;justify-content:space-between;margin-top:6px;font-size:10px;color:#857260">
                   ${(liq).map((l)=>`<span style="flex:1;text-align:center">${l.wk}</span>`).join("")}
                 </div>
@@ -1068,6 +1065,7 @@ function tpl(V){
               <div style="display:flex;flex-wrap:wrap;gap:16px">
                 <div style="flex:2;min-width:300px;background:#FFFFFF;border:1px solid #EAE0D2;border-radius:12px;padding:18px 18px 8px">
                   <div style="font-family:'Cormorant Garamond',serif;font-size:18px;font-weight:600;letter-spacing:.2px;margin-bottom:12px">Owed to Landlords · upcoming</div>
+                  ${(!hasPayables)?`<div style="padding:8px 4px 16px;font-size:12px;color:#857260">Nothing owed. Landlord invoices post on day 5 from ${finSince}.</div>`:""}
                   ${(payLandlord).map((p)=>`
                     <div style="display:flex;align-items:center;gap:13px;padding:11px 4px;border-bottom:1px solid #EAE0D2">
                       <div style="flex:1;min-width:0;font-size:12.5px;font-weight:600">${p.name}</div>
@@ -1146,15 +1144,12 @@ function tpl(V){
                 <div style="font-size:11.5px;color:#8C7A68;margin-top:2px;margin-bottom:16px">QAR M per month · grey = billed</div>
                 <svg viewBox="0 0 560 200" style="width:100%;height:auto;display:block">
                   <line x1="20" y1="46" x2="545" y2="46" stroke="#857260" stroke-width="1.3" stroke-dasharray="5 5" opacity="0.4"></line>
-                  <rect x="34" y="62" width="46" height="88" rx="4" fill="#D9C9B5"></rect><rect x="34" y="74" width="46" height="76" rx="4" fill="#2E6B57"></rect>
-                  <rect x="122" y="46" width="46" height="104" rx="4" fill="#D9C9B5"></rect><rect x="122" y="58" width="46" height="92" rx="4" fill="#2E6B57"></rect>
-                  <rect x="210" y="78" width="46" height="72" rx="4" fill="#D9C9B5"></rect><rect x="210" y="90" width="46" height="60" rx="4" fill="#9A7A2E"></rect>
-                  <rect x="298" y="34" width="46" height="116" rx="4" fill="#D9C9B5"></rect><rect x="298" y="46" width="46" height="104" rx="4" fill="#2E6B57"></rect>
-                  <rect x="386" y="54" width="46" height="96" rx="4" fill="#D9C9B5"></rect><rect x="386" y="66" width="46" height="84" rx="4" fill="#2E6B57"></rect>
-                  <rect x="474" y="30" width="46" height="120" rx="4" fill="#D9C9B5"></rect><rect x="474" y="42" width="46" height="108" rx="4" fill="#1E7E58"></rect>
-                  <line x1="20" y1="150" x2="545" y2="150" stroke="#D9C9B5" stroke-width="1.2"></line>
+                  ${(chartBarsData).map((b)=>`
+                    <rect x="${b.x}" y="${b.incY}" width="46" height="${b.incH}" rx="4" fill="#D9C9B5"></rect><rect x="${b.x}" y="${b.keptY}" width="46" height="${b.keptH}" rx="4" fill="${b.col}"></rect>
+                  `).join("")}
+                    <line x1="20" y1="150" x2="545" y2="150" stroke="#D9C9B5" stroke-width="1.2"></line>
                 </svg>
-                <div style="display:flex;justify-content:space-between;margin-top:6px;padding:0 14px;font-size:10.5px;color:#857260"><span>Jan</span><span>Feb</span><span>Mar</span><span>Apr</span><span>May</span><span>Jun</span></div>
+                <div style="display:flex;justify-content:space-between;margin-top:6px;padding:0 14px;font-size:10.5px;color:#857260">${(chartLabels).map((l)=>`<span style="flex:1;text-align:center">${l}</span>`).join("")}</div>
               </div>
             </div>
             `:""}
@@ -1222,6 +1217,7 @@ function tpl(V){
               <div style="background:#FFFFFF;border:1px solid #EAE0D2;border-radius:12px;padding:18px">
                 <div style="font-family:'Cormorant Garamond',serif;font-size:18px;font-weight:600;letter-spacing:.2px">Rent Arrears Aging</div>
                 <div style="font-size:11.5px;color:#8C7A68;margin-top:2px;margin-bottom:18px">Tenant outstanding by bucket</div>
+              ${(!hasArrears)?`<div style="padding:10px 0 4px;font-size:12px;color:#857260">No arrears on the books \u2014 ledger starts ${finSince}. Buckets fill as invoices fall due.</div>`:""}
                 <div style="display:flex;flex-direction:column;gap:14px">
                   ${(receivables).map((r)=>`
                     <div>
@@ -1238,7 +1234,7 @@ function tpl(V){
             ${(showApprovals)?`
             <div style="${spanStyle.approvals}">
               <div style="background:#FFFFFF;border:1px solid #EAE0D2;border-radius:12px;padding:18px 4px 8px 18px">
-                <div style="display:flex;align-items:center;justify-content:space-between;padding-right:14px;margin-bottom:14px"><div style="display:flex;align-items:center;gap:9px"><div style="font-family:'Cormorant Garamond',serif;font-size:18px;font-weight:600;letter-spacing:.2px">Pending Your Approval</div><span style="font-size:10.5px;font-weight:700;color:#9A7A2E;background:rgba(201,168,106,.18);border-radius:20px;padding:1px 8px">5</span></div><a href="#" style="font-size:11.5px;color:#2E7D6A;text-decoration:none;font-weight:550">View all</a></div>
+                <div style="display:flex;align-items:center;justify-content:space-between;padding-right:14px;margin-bottom:14px"><div style="display:flex;align-items:center;gap:9px"><div style="font-family:'Cormorant Garamond',serif;font-size:18px;font-weight:600;letter-spacing:.2px">Pending Your Approval</div><span style="font-size:10.5px;font-weight:700;color:#9A7A2E;background:rgba(201,168,106,.18);border-radius:20px;padding:1px 8px">${approvalCount}</span></div><a href="#" style="font-size:11.5px;color:#2E7D6A;text-decoration:none;font-weight:550">View all</a></div>
                 <div class="noscroll" style="display:flex;flex-direction:column;max-height:312px;overflow-y:auto;padding-right:8px">
                   ${(approvals).map((a)=>`
                     <div class="hovA" style="display:flex;align-items:center;gap:12px;padding:11px 4px;border-bottom:1px solid #EAE0D2;cursor:pointer;border-radius:6px;transition:background .12s">
@@ -1274,6 +1270,7 @@ function tpl(V){
                 <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px"><div style="font-family:'Cormorant Garamond',serif;font-size:18px;font-weight:600;letter-spacing:.2px">Open Maintenance Requests</div><a href="#" style="font-size:11.5px;color:#2E7D6A;text-decoration:none;font-weight:550">Open Maintenance</a></div>
                 <div style="display:flex;flex-direction:column">
                   <div style="${maintHeadStyle}"><span>Location / Issue</span><span style="text-align:center">Priority</span><span style="text-align:center">Status</span><span style="text-align:right">Age</span></div>
+                  ${(!hasMaint)?`<div style="padding:14px 4px;font-size:12px;color:#857260">No maintenance requests logged yet. Create them under Maintenance Request \u2014 KPIs and per-building load derive automatically.</div>`:""}
                   ${(maintRequests).map((r)=>`
                     <div style="${maintRowStyle}">
                       <div style="min-width:0"><div style="font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${r.loc}</div><div style="font-size:11px;color:#9A8775;margin-top:1px">${r.issue}</div></div>
