@@ -1,0 +1,44 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "format:HPL-{period_label}-{building}",
+ "creation": "2026-07-10 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "period_end", "period_label", "is_lump_period", "column_break_1",
+  "building", "section_break_1",
+  "rent_received", "owner_rent", "column_break_2",
+  "kahrama", "wifi", "section_break_2", "profit"
+ ],
+ "fields": [
+  {"fieldname": "period_end", "fieldtype": "Date", "label": "Period End", "reqd": 1, "in_list_view": 1},
+  {"fieldname": "period_label", "fieldtype": "Data", "label": "Period", "reqd": 1, "in_list_view": 1},
+  {"fieldname": "is_lump_period", "fieldtype": "Check", "label": "Multi-Month Lump", "description": "Jul-Oct 2025 was recorded as a single four-month figure."},
+  {"fieldname": "column_break_1", "fieldtype": "Column Break"},
+  {"fieldname": "building", "fieldtype": "Data", "label": "Building", "reqd": 1, "in_list_view": 1, "description": "Free text: historical labels may not match current Building records."},
+  {"fieldname": "section_break_1", "fieldtype": "Section Break", "label": "Income & Cost"},
+  {"fieldname": "rent_received", "fieldtype": "Currency", "label": "Rent Received", "in_list_view": 1},
+  {"fieldname": "owner_rent", "fieldtype": "Currency", "label": "Owner Rent"},
+  {"fieldname": "column_break_2", "fieldtype": "Column Break"},
+  {"fieldname": "kahrama", "fieldtype": "Currency", "label": "Kahramaa"},
+  {"fieldname": "wifi", "fieldtype": "Currency", "label": "WiFi"},
+  {"fieldname": "section_break_2", "fieldtype": "Section Break"},
+  {"fieldname": "profit", "fieldtype": "Currency", "label": "Profit", "in_list_view": 1}
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-07-10 00:00:00.000000",
+ "module": "Darkbrown",
+ "name": "Historical Monthly PL",
+ "owner": "Administrator",
+ "permissions": [
+  {"create": 1, "delete": 1, "email": 1, "export": 1, "print": 1, "read": 1, "report": 1, "role": "System Manager", "share": 1, "write": 1},
+  {"read": 1, "report": 1, "role": "Managing Director"},
+  {"read": 1, "report": 1, "role": "Accounts"}
+ ],
+ "sort_field": "period_end",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}
