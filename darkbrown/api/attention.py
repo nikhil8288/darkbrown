@@ -26,15 +26,31 @@ from darkbrown.api.md_dashboard import (
 
 # ---------------------------------------------------------------- config
 
-# Alert 2 blocker: PDC Cheque was built on the live site and its
-# direction field is unconfirmed. Fill these two constants in once
-# checked (Setup > Customize Form > PDC Cheque), then the alert and
-# endpoint go live on the next deploy. Until then get_landlord_pdc()
-# returns configured=False and the alert strip skips item 2.
-PDC_DIRECTION_FIELD = None        # e.g. "direction" or "cheque_type"
-PDC_OUTGOING_VALUE = None         # e.g. "Outgoing" or "To Landlord"
-PDC_MATURITY_FIELD = "cheque_date"  # confirm; change if it's "maturity_date"
+# PDC Cheque live-site fields (confirmed from Customize Form 12-Jul-2026):
+# direction, party, tenant_rental_agreement, landlord_contract,
+# cheque_number, bank_name, cheque_date, amount, status, cleared_date.
+# The outgoing option value is auto-detected from the Select options
+# (first value containing "out"/"landlord"/"pay"); set PDC_OUTGOING_VALUE
+# explicitly to override if detection picks wrong.
+PDC_DIRECTION_FIELD = "direction"
+PDC_OUTGOING_VALUE = None           # None = auto-detect from field options
+PDC_MATURITY_FIELD = "cheque_date"
 PDC_WINDOW_DAYS = 15
+
+
+def _pdc_outgoing_value():
+    if PDC_OUTGOING_VALUE:
+        return PDC_OUTGOING_VALUE
+    if not (_has("PDC Cheque")
+            and frappe.get_meta("PDC Cheque").has_field(PDC_DIRECTION_FIELD)):
+        return None
+    opts = (frappe.get_meta("PDC Cheque")
+            .get_field(PDC_DIRECTION_FIELD).options or "")
+    for o in [x.strip() for x in opts.split("\n") if x.strip()]:
+        low = o.lower()
+        if "out" in low or "landlord" in low or "pay" in low:
+            return o
+    return None
 
 MAINT_AGE_HOURS = 48
 HEADLEASE_WINDOW = 90
@@ -184,9 +200,7 @@ def _cases_by_tenant():
 # ------------------------------------------ 2. landlord PDC due (15 days)
 
 def _pdc_configured():
-    return bool(PDC_DIRECTION_FIELD and PDC_OUTGOING_VALUE
-                and _has("PDC Cheque")
-                and frappe.get_meta("PDC Cheque").has_field(PDC_DIRECTION_FIELD))
+    return bool(_pdc_outgoing_value())
 
 
 @frappe.whitelist()
@@ -198,15 +212,17 @@ def get_landlord_pdc():
 
     meta = frappe.get_meta("PDC Cheque")
     fields = ["name", PDC_MATURITY_FIELD, PDC_DIRECTION_FIELD]
-    for f in ("amount", "bank", "landlord", "supplier", "building",
-              "cheque_no", "status"):
+    for f in ("amount", "bank_name", "party", "landlord_contract",
+              "cheque_number", "status"):
         if meta.has_field(f):
             fields.append(f)
 
     today = getdate(nowdate())
+    hl_building = {c.name: c.building for c in frappe.get_all(
+        "Landlord Contract", fields=["name", "building"])}
     rows = []
     for c in frappe.get_all("PDC Cheque",
-                            filters={PDC_DIRECTION_FIELD: PDC_OUTGOING_VALUE},
+                            filters={PDC_DIRECTION_FIELD: _pdc_outgoing_value()},
                             fields=fields):
         md = c.get(PDC_MATURITY_FIELD)
         if not md:
@@ -215,11 +231,11 @@ def get_landlord_pdc():
         if 0 <= d <= PDC_WINDOW_DAYS:
             rows.append({
                 "cheque": c.name,
-                "cheque_no": c.get("cheque_no", ""),
-                "bank": c.get("bank", ""),
+                "cheque_no": c.get("cheque_number", ""),
+                "bank": c.get("bank_name", ""),
                 "amount": flt(c.get("amount")),
-                "landlord": c.get("landlord") or c.get("supplier", ""),
-                "building": c.get("building", ""),
+                "landlord": c.get("party", ""),
+                "building": hl_building.get(c.get("landlord_contract"), ""),
                 "maturity": _fmt(md),
                 "days_remaining": d,
             })
