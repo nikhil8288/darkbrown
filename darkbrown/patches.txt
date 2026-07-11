@@ -1,1 +1,2 @@
 darkbrown.patches.create_collections_workflow
+darkbrown.patches.setup_rent_invoicing
