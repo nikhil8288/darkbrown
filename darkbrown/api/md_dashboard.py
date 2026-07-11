@@ -641,7 +641,7 @@ def get_alerts():
         out.append(["arrears", "high", "invoice",
                     "Arrears outstanding — QAR %.1fK across %d tenants"
                     % (total, tn["strip"]["arrears"]),
-                    "finance", "Finance"])
+                    "tenants/arrears", "Resolve arrears"])
 
     if tn["strip"]["expiring"]:
         soon = sum(1 for e in tn["expiring"] if e[4] == "red")
@@ -649,14 +649,14 @@ def get_alerts():
             out.append(["exp", "warn", "calendar",
                         "%d tenant agreement%s expire within 30 days"
                         % (soon, "" if soon == 1 else "s"),
-                        "tenants", "Leasing"])
+                        "tenants/expiring", "Review renewals"])
 
     if _has("PDC Cheque"):
         n = frappe.db.count("PDC Cheque", {"status": "Bounced"})
         if n:
             out.append(["pdc", "high", "dollar",
                         "%d PDC cheque%s bounced" % (n, "" if n == 1 else "s"),
-                        "finance", "Finance"])
+                        "finance/pdc", "Bounced cheques"])
 
     # Landlord head-leases expiring: the expensive kind, one contract can
     # take a whole building's tenancies with it.
@@ -667,7 +667,7 @@ def get_alerts():
             out.append(["hl_%s" % c.name, "info", "building",
                         "%s head-lease renews in %d days · %d units"
                         % (c.building, d, n),
-                        "portfolio", "Portfolio"])
+                        "portfolio/hl/%s" % c.building, "Open building"])
 
     if _has("Maintenance Request"):
         n = frappe.db.count("Maintenance Request",
@@ -677,14 +677,14 @@ def get_alerts():
             out.append(["mnt", "warn", "wrench",
                         "%d high-priority maintenance request%s open"
                         % (n, "" if n == 1 else "s"),
-                        "maintenance", "Maintenance"])
+                        "maintenance/high", "High priority"])
 
     pf = get_portfolio()
     if pf["strip"]["vacant"]:
         out.append(["vac", "warn", "home",
                     "%d vacant units · QAR %.1fK/mo head-lease bleed"
                     % (pf["strip"]["vacant"], pf["strip"]["bleed"]),
-                    "portfolio", "Portfolio"])
+                    "portfolio/units/Vacant", "Vacant units"])
 
     return {"live": True, "alerts": out[:6]}
 
