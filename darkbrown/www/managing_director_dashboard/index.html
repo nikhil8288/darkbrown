@@ -29,7 +29,8 @@
 <script>
 (function(){
 var state = { tab:'overview', tf:'month', vw:1440, navOpen:false, forceMobile:false, dismissed:[],
-    pfView:'buildings', pfSort:'margin', pfFilter:'all', pfExpanded:'', unitFilter:'all', tnFilter:'all', finView:'pnl' };
+    pfView:'buildings', pfSort:'margin', pfFilter:'all', pfExpanded:'', unitFilter:'all', tnFilter:'all', finView:'pnl',
+    mntFilter:'all' };
 var H = [];
 var LIVE = null;
 var LOADING = true;
@@ -54,12 +55,53 @@ function setState(patch){
   Object.assign(state, p);
   render();
 }
+/* ---- hash router ----------------------------------------------------
+   Every view is a route: #tenants/arrears, #finance/pdc,
+   #portfolio/units/Vacant, #portfolio/hl/<building>, #maintenance/high.
+   Tab switches and alert drills PUSH (back button walks views);
+   filter chips within a tab REPLACE (back never replays chip clicks). */
+var TABS = ['overview','portfolio','tenants','finance','maintenance'];
+function _dec(s){ try { return decodeURIComponent(s); } catch(e){ return s; } }
+function routeApply(hash){
+  var p = String(hash || '').replace(/^#\/?/, '').split('/');
+  var t = TABS.indexOf(p[0]) >= 0 ? p[0] : 'overview';
+  var patch = { tab:t, navOpen:false, mntFilter:'all' };
+  if (t === 'tenants')
+    patch.tnFilter = ['arrears','bounce','expiring','lapsed'].indexOf(p[1]) >= 0 ? p[1] : 'all';
+  else if (t === 'finance')
+    patch.finView = ['receivables','pdc','payables'].indexOf(p[1]) >= 0 ? p[1] : 'pnl';
+  else if (t === 'portfolio'){
+    if (p[1] === 'units'){
+      patch.pfView = 'units';
+      patch.unitFilter = p[2] ? _dec(p.slice(2).join('/')) : 'all';
+    } else if (p[1] === 'hl'){
+      patch.pfView = 'buildings';
+      patch.pfFilter = 'expiring';
+      patch.pfExpanded = p[2] ? _dec(p.slice(2).join('/')) : '';
+    } else {
+      patch.pfView = 'buildings';
+    }
+  }
+  else if (t === 'maintenance' && p[1] === 'high') patch.mntFilter = 'high';
+  setState(patch);
+}
+var HASH_FROM_NAV = false;
+function navTo(route){
+  var same = _dec(location.hash) === _dec('#' + route);
+  if (!same){ HASH_FROM_NAV = true; location.hash = route; }
+  routeApply(route);
+}
+function hashSync(route){ history.replaceState(null, '', '#' + route); }
+window.addEventListener('hashchange', function(){
+  if (HASH_FROM_NAV){ HASH_FROM_NAV = false; return; }
+  routeApply(location.hash);       // back / forward button
+});
 function renderVals(){
     const S = state;
     const isMobile = S.forceMobile || (S.vw > 0 && S.vw < 820);
-    const setTab = (k) => setState({ tab:k, navOpen:false });
+    const setTab = (k) => navTo(k);
     const setTf = (k) => setState({ tf:k });
-    const drillTo = (k) => setState({ tab:k });
+    const drillTo = (r) => navTo(r);   // accepts full routes: 'tenants/arrears', 'portfolio/hl/<bldg>'
 
     const ic = {
       home:'M3 9.5L12 3l9 6.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z',
@@ -332,17 +374,22 @@ function renderVals(){
 
     const maintHeadStyle = 'display:grid;grid-template-columns:1.8fr auto auto auto;gap:12px;padding:0 4px 9px;font-size:10.5px;font-weight:600;letter-spacing:.4px;text-transform:uppercase;color:#857260;border-bottom:1px solid #EAE0D2';
     const maintRowStyle = 'display:grid;grid-template-columns:1.8fr auto auto auto;gap:12px;align-items:center;padding:11px 4px;border-bottom:1px solid #EAE0D2;cursor:pointer;transition:background .12s';
-    const maintRequests = (_MT ? _MT.requests : [])
+    const mntFilterSet=(f)=>{ setState({mntFilter:f}); hashSync(f==='all'?'maintenance':'maintenance/'+f); };
+    const allMaint = (_MT ? _MT.requests : [])
       .map(r => ({ loc:r[0], issue:r[1], priority:r[2], priCol:tint[r[3]][0], priBg:tint[r[3]][1], status:r[4], statusCol:tint[r[5]][0], statusBg:tint[r[5]][1], age:r[6] }));
+    const maintRequests = S.mntFilter==='high' ? allMaint.filter(r=>r.priority==='High') : allMaint;
+    const mntChips=[['all','All'],['high','High priority']].map(c=>({label:c[1], onClick:()=>mntFilterSet(c[0]),
+      style:'border:1px solid '+(S.mntFilter===c[0]?'#2E6B57':'#D9C9B5')+';background:'+(S.mntFilter===c[0]?'rgba(46,107,87,.20)':'#FFFFFF')+';color:'+(S.mntFilter===c[0]?'#2E7D6A':'#6B5648')+';border-radius:7px;padding:5px 11px;font-size:11.5px;font-weight:600;font-family:inherit;cursor:pointer;white-space:nowrap'}));
     const hasMaint = maintRequests.length > 0;
 
     const maintByBldg = (_MT ? _MT.by_building : [])
       .map(m => ({ name:m[0], count:m[1], w:m[2], col:m[3] }));
 
     // ================= PORTFOLIO DATA =================
-    const pfSet=(v)=>setState({pfView:v}); const pfSortSet=(s)=>setState({pfSort:s});
+    const pfSet=(v)=>{ setState({pfView:v}); hashSync(v==='units'?'portfolio/units':'portfolio'); };
+    const pfSortSet=(s)=>setState({pfSort:s});
     const pfFilterSet=(f)=>setState({pfFilter:f}); const pfToggle=(n)=>setState(st=>({pfExpanded: st.pfExpanded===n?'':n}));
-    const unitFilterSet=(f)=>setState({unitFilter:f});
+    const unitFilterSet=(f)=>{ setState({unitFilter:f}); hashSync(f==='all'?'portfolio/units':'portfolio/units/'+encodeURIComponent(f)); };
     const stCol={ Occupied:tint.green, Vacant:tint.red, Notice:tint.orange, Maintenance:tint.blue };
     const vacBucket=(d)=> d==null?null:(d<=30?{l:'0\u201330d',c:tint.green[0]}:(d<=60?{l:'31\u201360d',c:tint.orange[0]}:(d<=90?{l:'61\u201390d',c:'#A85A2C'}:{l:'90+d',c:tint.red[0]})));
     const unitMaster = (_PF && _PF.units) || [
@@ -423,7 +470,7 @@ function renderVals(){
     const showPortfolio=S.tab==='portfolio'; const pfBuildings=S.pfView==='buildings'; const pfUnits=S.pfView==='units';
 
     // ================= TENANTS DATA =================
-    const tnFilterSet=(f)=>setState({tnFilter:f});
+    const tnFilterSet=(f)=>{ setState({tnFilter:f}); hashSync(f==='all'?'tenants':'tenants/'+f); };
     const agCol={ Active:tint.green, Grace:tint.orange, Expiring:tint.orange, Lapsed:tint.red };
     const tnRaw = (_TN && _TN.tenants) || [
       ['Qatar Petroleum Svcs','West Bay \u00b7 U-1410',18.5,'Active','current',0,0,'Mar 2022',4.62],
@@ -480,7 +527,7 @@ function renderVals(){
     const showTenants=S.tab==='tenants';
 
     // ================= FINANCE DATA =================
-    const finSet=(v)=>setState({finView:v});
+    const finSet=(v)=>{ setState({finView:v}); hashSync(v==='pnl'?'finance':'finance/'+v); };
     const finNavStyle='display:'+(isMobile?'flex':'inline-flex')+';gap:0;background:#FFFFFF;border:1px solid #D9C9B5;border-radius:8px;padding:3px;margin-bottom:18px;'+(isMobile?'width:100%;overflow-x:auto':'width:fit-content');
     const finViewBtns=[['pnl','P&L'],['receivables','Receivables'],['pdc','PDC'],['payables','Payables']]
       .map(c=>({label:c[1], onClick:()=>finSet(c[0]),
@@ -551,7 +598,8 @@ function renderVals(){
       goFinance: ()=>drillTo('finance'),
       approvals, bookings, projects, funnel, receivables, expiries,
       bookingHeadStyle, bookingRowStyle,
-      maintKpiGridStyle, maintKpiCards, maintHeadStyle, maintRowStyle, maintRequests, maintByBldg,
+      maintKpiGridStyle, maintKpiCards, maintHeadStyle, maintRowStyle, maintRequests, maintByBldg, mntChips,
+      maintEmptyMsg: allMaint.length ? 'No high-priority requests open.' : 'No maintenance requests logged yet. Create them under Maintenance Request \u2014 KPIs and per-building load derive automatically.',
       showSalesTrend:show('salesTrend'), showCollected:show('collected'), showApprovals:show('approvals'),
       showBookings:show('bookings'), showProjects:show('projects'), showFunnel:show('funnel'),
       showReceivables:show('receivables'), showExpiries:show('expiries'),
@@ -560,7 +608,7 @@ function renderVals(){
   }
 function tpl(V){
   var _k = V; /* destructured below */
-  const {rootStyle,appStyle,sidebarStyle,mainStyle,contentStyle,innerStyle,h1Style,isMobile,toggleNav,closeNav,setDesktop,setMobile,vpDesktopStyle,vpMobileStyle,subtitle,nav,tabs,timeframes,tfWrapStyle,cardGridStyle,cards,showOverview,poolActive,poolGridStyle,spanStyle,showPortfolio,pfViewBtns,pfBuildings,pfUnits,pfStrip,pfFilterChips,pfSortChips,buildings,units,unitFilters,showTenants,tnStrip,tnFilterChips,tenants,agExpiring,agOther,churnOut,churnNotice,showFinance,finNavStyle,finViewBtns,finIsPnl,finIsRecv,finIsPdc,finIsPay,finPnl,recvDetail,pdcForward,cheques,payLandlord,liq,liqPts,liqZeroY,liqDots,liqShortfall,liqForward,alerts,alertCount,showAlerts,showHealthy,chartEmpty,chartBars,chartBarsData,chartSub,chartLabels,perBuilding,hasLiq,hasPdc,hasCheques,hasPayables,hasRecvDetail,hasMaint,hasApprovals,approvalCount,hasArrears,finLive,finSince,isLoading,goFinance,approvals,bookings,projects,funnel,receivables,expiries,bookingHeadStyle,bookingRowStyle,maintKpiGridStyle,maintKpiCards,maintHeadStyle,maintRowStyle,maintRequests,maintByBldg,showSalesTrend,showCollected,showApprovals,showBookings,showProjects,showFunnel,showReceivables,showExpiries,showMaintKpis,showMaintList,showMaintByBldg} = V;
+  const {rootStyle,appStyle,sidebarStyle,mainStyle,contentStyle,innerStyle,h1Style,isMobile,toggleNav,closeNav,setDesktop,setMobile,vpDesktopStyle,vpMobileStyle,subtitle,nav,tabs,timeframes,tfWrapStyle,cardGridStyle,cards,showOverview,poolActive,poolGridStyle,spanStyle,showPortfolio,pfViewBtns,pfBuildings,pfUnits,pfStrip,pfFilterChips,pfSortChips,buildings,units,unitFilters,showTenants,tnStrip,tnFilterChips,tenants,agExpiring,agOther,churnOut,churnNotice,showFinance,finNavStyle,finViewBtns,finIsPnl,finIsRecv,finIsPdc,finIsPay,finPnl,recvDetail,pdcForward,cheques,payLandlord,liq,liqPts,liqZeroY,liqDots,liqShortfall,liqForward,alerts,alertCount,showAlerts,showHealthy,chartEmpty,chartBars,chartBarsData,chartSub,chartLabels,perBuilding,hasLiq,hasPdc,hasCheques,hasPayables,hasRecvDetail,hasMaint,hasApprovals,approvalCount,hasArrears,finLive,finSince,isLoading,goFinance,approvals,bookings,projects,funnel,receivables,expiries,bookingHeadStyle,bookingRowStyle,maintKpiGridStyle,maintKpiCards,maintHeadStyle,maintRowStyle,maintRequests,maintByBldg,mntChips,maintEmptyMsg,showSalesTrend,showCollected,showApprovals,showBookings,showProjects,showFunnel,showReceivables,showExpiries,showMaintKpis,showMaintList,showMaintByBldg} = V;
   return `
 
 <div style="${rootStyle}">
@@ -1267,10 +1315,10 @@ function tpl(V){
             ${(showMaintList)?`
             <div style="${spanStyle.maintList}">
               <div style="background:#FFFFFF;border:1px solid #EAE0D2;border-radius:12px;padding:18px 18px 8px">
-                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px"><div style="font-family:'Cormorant Garamond',serif;font-size:18px;font-weight:600;letter-spacing:.2px">Open Maintenance Requests</div><a href="#" style="font-size:11.5px;color:#2E7D6A;text-decoration:none;font-weight:550">Open Maintenance</a></div>
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px"><div style="font-family:'Cormorant Garamond',serif;font-size:18px;font-weight:600;letter-spacing:.2px">Open Maintenance Requests</div><div style="display:flex;gap:7px">${(mntChips).map((c)=>`<button data-h="${_h(c.onClick)}" style="${c.style}">${c.label}</button>`).join("")}</div></div>
                 <div style="display:flex;flex-direction:column">
                   <div style="${maintHeadStyle}"><span>Location / Issue</span><span style="text-align:center">Priority</span><span style="text-align:center">Status</span><span style="text-align:right">Age</span></div>
-                  ${(!hasMaint)?`<div style="padding:14px 4px;font-size:12px;color:#857260">No maintenance requests logged yet. Create them under Maintenance Request \u2014 KPIs and per-building load derive automatically.</div>`:""}
+                  ${(!hasMaint)?`<div style="padding:14px 4px;font-size:12px;color:#857260">${maintEmptyMsg}</div>`:""}
                   ${(maintRequests).map((r)=>`
                     <div style="${maintRowStyle}">
                       <div style="min-width:0"><div style="font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${r.loc}</div><div style="font-size:11px;color:#9A8775;margin-top:1px">${r.issue}</div></div>
@@ -1330,7 +1378,8 @@ root.addEventListener('click', function(e){
 });
 window.addEventListener('resize', function(){ setState({ vw: window.innerWidth }); });
 state.vw = window.innerWidth;
-render();
+if (location.hash && location.hash !== '#'){ routeApply(location.hash); }
+else { hashSync('overview'); render(); }
 loadLive();
 /* ---- live-data hook (Phase 2) ----
    Each whitelisted endpoint returns {"live": false} until wired to DocTypes.
