@@ -630,63 +630,11 @@ def get_maintenance():
 
 @frappe.whitelist()
 def get_alerts():
-    """Derived, never stored. Each entry: [id, severity, icon, message,
-    drill_tab, drill_label]. Empty list renders the 'All clear' banner."""
-    _guard()
-    out = []
-
-    tn = get_tenants()
-    if tn["strip"]["arrears"]:
-        total = sum(t[5] for t in tn["tenants"] if t[4] == "arrears")
-        out.append(["arrears", "high", "invoice",
-                    "Arrears outstanding — QAR %.1fK across %d tenants"
-                    % (total, tn["strip"]["arrears"]),
-                    "tenants/arrears", "Resolve arrears"])
-
-    if tn["strip"]["expiring"]:
-        soon = sum(1 for e in tn["expiring"] if e[4] == "red")
-        if soon:
-            out.append(["exp", "warn", "calendar",
-                        "%d tenant agreement%s expire within 30 days"
-                        % (soon, "" if soon == 1 else "s"),
-                        "tenants/expiring", "Review renewals"])
-
-    if _has("PDC Cheque"):
-        n = frappe.db.count("PDC Cheque", {"status": "Bounced"})
-        if n:
-            out.append(["pdc", "high", "dollar",
-                        "%d PDC cheque%s bounced" % (n, "" if n == 1 else "s"),
-                        "finance/pdc", "Bounced cheques"])
-
-    # Landlord head-leases expiring: the expensive kind, one contract can
-    # take a whole building's tenancies with it.
-    for c in _landlord_contracts():
-        d = _days_until(c.contract_end_date)
-        if d is not None and 0 <= d <= EXPIRY_WINDOW:
-            n = frappe.db.count("Unit", {"building": c.building})
-            out.append(["hl_%s" % c.name, "info", "building",
-                        "%s head-lease renews in %d days · %d units"
-                        % (c.building, d, n),
-                        "portfolio/hl/%s" % c.building, "Open building"])
-
-    if _has("Maintenance Request"):
-        n = frappe.db.count("Maintenance Request",
-                            {"status": ["in", ["Open", "In Progress"]],
-                             "priority": "High"})
-        if n:
-            out.append(["mnt", "warn", "wrench",
-                        "%d high-priority maintenance request%s open"
-                        % (n, "" if n == 1 else "s"),
-                        "maintenance/high", "High priority"])
-
-    pf = get_portfolio()
-    if pf["strip"]["vacant"]:
-        out.append(["vac", "warn", "home",
-                    "%d vacant units · QAR %.1fK/mo head-lease bleed"
-                    % (pf["strip"]["vacant"], pf["strip"]["bleed"]),
-                    "portfolio/units/Vacant", "Vacant units"])
-
-    return {"live": True, "alerts": out[:6]}
+    """The 6 surviving attention items, filtered against shared
+    dismissals. Logic lives in darkbrown.api.attention; the entry shape
+    is unchanged: [id, severity, icon, message, drill_route, label]."""
+    from darkbrown.api import attention
+    return attention.get_attention()
 
 
 # -------------------------------------------------------------- approvals
