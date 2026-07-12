@@ -641,9 +641,27 @@ def get_alerts():
 
 @frappe.whitelist()
 def get_approvals():
-    """Draft documents waiting on a submit. Empty until invoices generate."""
+    """Agreements awaiting MD approval, then draft invoices."""
     _guard()
     out = []
+
+    # agreements in the Legal -> GM -> MD approval flow, stuck at MD
+    for dt, label, party_field, amt_field in (
+            ("Tenant Rental Agreement", "Tenant Agreement",
+             "tenant", "monthly_rent"),
+            ("Landlord Contract", "Landlord Contract",
+             "landlord", "total_owner_rent")):
+        if not (_has(dt) and frappe.db.has_column(dt, "workflow_state")):
+            continue
+        for a in frappe.get_all(dt,
+                                filters={"workflow_state":
+                                         "Pending MD Approval"},
+                                fields=["name", party_field, amt_field,
+                                        "modified"],
+                                order_by="modified desc", limit=5):
+            out.append([label + " Approval", a.name, a.get(party_field) or "",
+                        "QAR " + _k(a.get(amt_field) or 0) + "/mo",
+                        frappe.utils.pretty_date(a.modified), "red", "file"])
 
     for si in frappe.get_all("Sales Invoice", filters={"docstatus": 0},
                              fields=["name", "customer", "base_grand_total",
