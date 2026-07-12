@@ -30,7 +30,7 @@
 (function(){
 var state = { tab:'overview', tf:'month', vw:1440, navOpen:false, forceMobile:false, dismissed:[],
     pfView:'buildings', pfSort:'margin', pfFilter:'all', pfExpanded:'', unitFilter:'all', tnFilter:'all', finView:'pnl',
-    mntFilter:'all' };
+    mntFilter:'all', att:'', attExp:'' };
 var H = [];
 var LIVE = null;
 var LOADING = true;
@@ -50,6 +50,37 @@ async function loadLive(){
   LOADING = false;
   render();
 }
+/* ---- attention detail layer (Batch 2) --------------------------------
+   Lazy per-view fetch from darkbrown.api.attention; cached in DET until
+   the page reloads or a Resolve mutates it. */
+var DET = {};
+var ATT_EP = { arrears:'get_arrears', pdc:'get_landlord_pdc', vacant:'get_vacant',
+  headleases:'get_headlease_expiring', expiring:'get_tenant_expiring',
+  maintenance:'get_maintenance_aging' };
+function loadDetail(key, force){
+  if (!ATT_EP[key]) return;
+  if (!force && DET[key] && (DET[key].loading || DET[key].data)) return;
+  DET[key] = { loading:true };
+  fetch('/api/method/darkbrown.api.attention.' + ATT_EP[key],
+    {headers:{'X-Frappe-CSRF-Token': _csrf()}})
+    .then(function(r){ return r.json(); })
+    .then(function(j){ DET[key] = { loading:false, data:(j && j.message) || null }; render(); })
+    .catch(function(e){ console.error('attention detail failed', key, e);
+      DET[key] = { loading:false, error:true }; render(); });
+}
+function resolvePdc(alertId, cheque){
+  fetch('/api/method/darkbrown.api.attention.resolve_alert', { method:'POST',
+    headers:{'X-Frappe-CSRF-Token': _csrf(), 'Content-Type':'application/json'},
+    body: JSON.stringify({ alert_id: alertId }) })
+  .then(function(){
+    if (DET.pdc && DET.pdc.data && DET.pdc.data.rows)
+      DET.pdc.data.rows = DET.pdc.data.rows.filter(function(r){ return r.cheque !== cheque; });
+    if (LIVE && LIVE.alerts && LIVE.alerts.alerts)
+      LIVE.alerts.alerts = LIVE.alerts.alerts.filter(function(a){ return a[0] !== alertId; });
+    render();
+  })
+  .catch(function(e){ console.error('resolve failed', e); });
+}
 function setState(patch){
   var p = typeof patch === 'function' ? patch(state) : patch;
   Object.assign(state, p);
@@ -65,25 +96,36 @@ function _dec(s){ try { return decodeURIComponent(s); } catch(e){ return s; } }
 function routeApply(hash){
   var p = String(hash || '').replace(/^#\/?/, '').split('/');
   var t = TABS.indexOf(p[0]) >= 0 ? p[0] : 'overview';
-  var patch = { tab:t, navOpen:false, mntFilter:'all' };
-  if (t === 'tenants')
+  var patch = { tab:t, navOpen:false, mntFilter:'all', att:'', attExp:'' };
+  if (t === 'tenants'){
     patch.tnFilter = ['arrears','bounce','expiring','lapsed'].indexOf(p[1]) >= 0 ? p[1] : 'all';
-  else if (t === 'finance')
+    if (p[1] === 'arrears') patch.att = 'arrears';
+    else if (p[1] === 'expiring') patch.att = 'expiring';
+  }
+  else if (t === 'finance'){
     patch.finView = ['receivables','pdc','payables'].indexOf(p[1]) >= 0 ? p[1] : 'pnl';
+    if (p[1] === 'pdc') patch.att = 'pdc';
+  }
   else if (t === 'portfolio'){
     if (p[1] === 'units'){
       patch.pfView = 'units';
       patch.unitFilter = p[2] ? _dec(p.slice(2).join('/')) : 'all';
-    } else if (p[1] === 'hl'){
+      if (patch.unitFilter === 'Vacant') patch.att = 'vacant';
+    } else if (p[1] === 'hl' || p[1] === 'headleases'){
       patch.pfView = 'buildings';
       patch.pfFilter = 'expiring';
-      patch.pfExpanded = p[2] ? _dec(p.slice(2).join('/')) : '';
+      patch.pfExpanded = p[1] === 'hl' && p[2] ? _dec(p.slice(2).join('/')) : '';
+      if (p[1] === 'headleases') patch.att = 'headleases';
     } else {
       patch.pfView = 'buildings';
     }
   }
-  else if (t === 'maintenance' && p[1] === 'high') patch.mntFilter = 'high';
+  else if (t === 'maintenance'){
+    if (p[1] === 'high') patch.mntFilter = 'high';
+    else if (p[1] === 'aging') patch.att = 'maintenance';
+  }
   setState(patch);
+  if (patch.att) loadDetail(patch.att);
 }
 var HASH_FROM_NAV = false;
 function navTo(route){
@@ -184,6 +226,7 @@ function renderVals(){
     }));
 
     // ---------- alerts ----------
+    const _AL = LIVE && LIVE.alerts;
     const sev = { high:tint.red, warn:tint.orange, info:tint.blue };
     // Live alerts are derived server-side. An empty array is a real answer:
     // it renders the "All clear" banner rather than falling back to mock.
@@ -194,11 +237,146 @@ function renderVals(){
       onDismiss:(e)=>{ e.stopPropagation(); setState(st => ({ dismissed: st.dismissed.concat(a[0]) })); }
     }));
 
+
+    // ---------- attention detail panel (Batch 2) ----------
+    const attPanel = (function(){
+      if (!S.att) return '';
+      const K = S.att, D = DET[K] || {};
+      const TITLES = {
+        arrears:['Arrears \u2014 tenants behind on rent','tenants'],
+        pdc:['Landlord cheques due \u2014 next 15 days','finance'],
+        vacant:['Vacant units','portfolio'],
+        headleases:['Head-leases expiring \u2014 within 90 days','portfolio'],
+        expiring:['Tenant agreements expiring \u2014 within 30 days','tenants'],
+        maintenance:['Maintenance requests aged past 48h','maintenance'] };
+      const meta = TITLES[K]; if (!meta) return '';
+      const fmtQ = (v)=>{ v = +v || 0;
+        return 'QAR ' + (Math.abs(v)>=1e6 ? (v/1e6).toFixed(2)+'M' : Math.abs(v)>=1000 ? (v/1000).toFixed(1)+'K' : Math.round(v)); };
+      const BAND = { amber:['#9A7A2E','rgba(201,168,106,.18)'], orange:['#BC512B','rgba(224,138,102,.18)'],
+        red:['#B3261E','rgba(224,102,102,.20)'], dark:['#4E342E','rgba(78,52,46,.14)'] };
+      const chip = (txt,band)=>{ const c = BAND[band]||BAND.amber;
+        return '<span style="font-size:10.5px;font-weight:700;color:'+c[0]+';background:'+c[1]+';border-radius:20px;padding:1px 8px;white-space:nowrap">'+txt+'</span>'; };
+      const urg = (d)=> d<=7 ? 'red' : d<=30 ? 'orange' : 'amber';
+      const TH = 'text-align:left;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#9A8775;padding:7px 10px;border-bottom:1px solid #EAE0D2;white-space:nowrap';
+      const TD = 'font-size:12px;color:#4E342E;padding:8px 10px;border-bottom:1px solid #F2EADD;vertical-align:top;white-space:nowrap';
+      const table = (heads, body)=>'<div class="noscroll" style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;min-width:'+(isMobile?'680px':'0')+'"><thead><tr>'+
+        heads.map(h=>'<th style="'+TH+'">'+h+'</th>').join('')+'</tr></thead><tbody>'+body+'</tbody></table></div>';
+      const empty = (m)=>'<div style="padding:22px;text-align:center;font-size:12.5px;color:#8C7A68">'+m+'</div>';
+
+      let head2 = '', body = '';
+      if (D.loading || (!D.data && !D.error)) body = empty('Loading\u2026');
+      else if (D.error || !D.data) body = empty('Could not load \u2014 check connection and reload.');
+      else {
+        const d = D.data;
+        if (K==='arrears'){
+          head2 = d.count ? (d.count+' tenants \u00b7 '+fmtQ(d.total)+' outstanding') : '';
+          body = !d.rows.length ? empty('No outstanding arrears. Clean book.') :
+            table(['Building / Unit','Tenant','Outstanding','Months','Oldest','Aging','Case',''],
+              d.rows.map((r,i)=>{
+                const k='ar'+i, open=S.attExp===k;
+                const main='<tr class="hovB" data-h="'+_h(()=>setState({attExp:open?'':k}))+'" style="cursor:pointer">'+
+                  '<td style="'+TD+'"><b>'+r.building+'</b> \u00b7 '+r.unit+(r.past_grace?' '+chip('Past grace','red'):'')+'</td>'+
+                  '<td style="'+TD+'">'+r.tenant+'</td>'+
+                  '<td style="'+TD+';font-weight:700">'+fmtQ(r.outstanding)+'</td>'+
+                  '<td style="'+TD+'">'+(r.months_behind==null?'\u2014':r.months_behind)+'</td>'+
+                  '<td style="'+TD+'">'+r.oldest_overdue_days+'d</td>'+
+                  '<td style="'+TD+'">'+chip(r.aging_bucket, r.aging_band)+'</td>'+
+                  '<td style="'+TD+'">'+(r.case_status?chip(r.case_status,'dark'):'<span style="color:#B9A995">\u2014</span>')+'</td>'+
+                  '<td style="'+TD+';color:#857260">'+(open?'\u25B4':'\u25BE')+'</td></tr>';
+                if (!open) return main;
+                const inv = r.invoices.map(v=>'<div style="display:flex;gap:14px;font-size:11.5px;color:#6B5648;padding:2px 0"><span style="min-width:120px">'+v.invoice+'</span><span style="min-width:90px;font-weight:600">'+fmtQ(v.outstanding)+'</span><span>due '+v.due_date+' \u00b7 '+v.days_overdue+'d over</span></div>').join('');
+                const det = '<tr><td colspan="8" style="padding:0;border-bottom:1px solid #EAE0D2"><div style="background:#F7F1E8;padding:12px 14px;display:flex;flex-wrap:wrap;gap:22px">'+
+                  '<div style="min-width:220px"><div style="font-size:10.5px;font-weight:700;color:#9A8775;text-transform:uppercase;margin-bottom:5px">Invoices ('+r.invoice_count+')</div>'+inv+'</div>'+
+                  '<div style="min-width:180px;font-size:11.5px;color:#6B5648;line-height:1.7"><div style="font-size:10.5px;font-weight:700;color:#9A8775;text-transform:uppercase;margin-bottom:5px">Lease</div>'+
+                    (r.lease||'\u2014')+' \u00b7 '+r.lease_status+'<br>'+r.lease_start+' \u2192 '+r.lease_end+'<br>Rent '+fmtQ(r.monthly_rent)+'/mo</div>'+
+                  '<div style="min-width:170px;font-size:11.5px;color:#6B5648;line-height:1.7"><div style="font-size:10.5px;font-weight:700;color:#9A8775;text-transform:uppercase;margin-bottom:5px">Deposit</div>Held '+fmtQ(r.deposit_held)+'<br>Gap '+fmtQ(r.deposit_gap)+'</div>'+
+                  '<div style="min-width:180px;font-size:11.5px;color:#6B5648;line-height:1.7"><div style="font-size:10.5px;font-weight:700;color:#9A8775;text-transform:uppercase;margin-bottom:5px">Contact</div>'+(r.mobile||'\u2014')+'<br>'+(r.email||'\u2014')+'</div>'+
+                  (r.latest_note?'<div style="min-width:220px;max-width:340px;font-size:11.5px;color:#6B5648;line-height:1.55"><div style="font-size:10.5px;font-weight:700;color:#9A8775;text-transform:uppercase;margin-bottom:5px">Latest note'+(r.case?' \u00b7 '+r.case:'')+'</div>'+r.latest_note+'</div>':'')+
+                  '</div></td></tr>';
+                return main + det;
+              }).join(''));
+        }
+        else if (K==='pdc'){
+          if (d.configured === false) body = empty('PDC direction not configured yet \u2014 set PDC_OUTGOING_VALUE in attention.py.');
+          else body = !d.rows.length ? empty('No landlord cheques due in the next 15 days.') :
+            table(['Cheque','Bank','Amount','Landlord','Building','Maturity','Due',''],
+              d.rows.map(r=>'<tr>'+
+                '<td style="'+TD+';font-weight:600">'+(r.cheque_no||r.cheque)+'</td>'+
+                '<td style="'+TD+'">'+(r.bank||'\u2014')+'</td>'+
+                '<td style="'+TD+';font-weight:700">'+fmtQ(r.amount)+'</td>'+
+                '<td style="'+TD+'">'+(r.landlord||'\u2014')+'</td>'+
+                '<td style="'+TD+'">'+(r.building||'\u2014')+'</td>'+
+                '<td style="'+TD+'">'+r.maturity+'</td>'+
+                '<td style="'+TD+'">'+chip(r.days_remaining+'d', urg(r.days_remaining))+'</td>'+
+                '<td style="'+TD+'"><button data-h="'+_h(()=>resolvePdc('pdc_'+r.cheque, r.cheque))+'" style="border:1px solid #D9C9B5;background:#FFFFFF;color:#6B5648;border-radius:7px;padding:4px 10px;font-size:11px;font-weight:600;font-family:inherit;cursor:pointer">Resolve</button></td></tr>').join(''));
+        }
+        else if (K==='vacant'){
+          head2 = d.count ? (d.count+' vacant \u00b7 '+fmtQ(d.bleed_total)+'/mo head-lease bleed') : '';
+          body = !d.rows.length ? empty('No vacant units \u2014 fully occupied.') :
+            table(['Building','Unit','Type','Furnishing','Bleed / mo','Last tenant','Days vacant'],
+              d.rows.map(r=>'<tr>'+
+                '<td style="'+TD+';font-weight:600">'+r.building+'</td>'+
+                '<td style="'+TD+'">'+r.unit+'</td>'+
+                '<td style="'+TD+'">'+(r.unit_type||'\u2014')+'</td>'+
+                '<td style="'+TD+'">'+(r.furnishing||'\u2014')+'</td>'+
+                '<td style="'+TD+';font-weight:700;color:#BC512B">'+fmtQ(r.bleed)+'</td>'+
+                '<td style="'+TD+'">'+r.last_tenant+'</td>'+
+                '<td style="'+TD+'">'+(r.days_vacant==null?'\u2014':chip(r.days_vacant+'d', r.days_vacant>60?'red':r.days_vacant>30?'orange':'amber'))+'</td></tr>').join(''));
+        }
+        else if (K==='headleases'){
+          body = !d.rows.length ? empty('No head-leases expiring in the next 90 days.') :
+            table(['Building','Landlord','Contract','Ends','Left','Cost / mo','Units','Tenancies at risk'],
+              d.rows.map(r=>'<tr>'+
+                '<td style="'+TD+';font-weight:600">'+r.building+'</td>'+
+                '<td style="'+TD+'">'+r.landlord+'</td>'+
+                '<td style="'+TD+'">'+r.contract+'</td>'+
+                '<td style="'+TD+'">'+r.end+'</td>'+
+                '<td style="'+TD+'">'+chip(r.days_remaining+'d', r.urgency)+'</td>'+
+                '<td style="'+TD+';font-weight:700">'+fmtQ(r.monthly_cost)+'</td>'+
+                '<td style="'+TD+'">'+r.units+'</td>'+
+                '<td style="'+TD+'">'+r.tenancies_at_risk+'</td></tr>').join(''));
+        }
+        else if (K==='expiring'){
+          body = !d.rows.length ? empty('No tenant agreements expiring in the next 30 days.') :
+            table(['Tenant','Building / Unit','Agreement','Ends','Left','Rent / mo','Deposit','Arrears'],
+              d.rows.map(r=>'<tr>'+
+                '<td style="'+TD+';font-weight:600">'+r.tenant+'</td>'+
+                '<td style="'+TD+'">'+r.building+' \u00b7 '+r.unit+'</td>'+
+                '<td style="'+TD+'">'+r.agreement+'</td>'+
+                '<td style="'+TD+'">'+r.end+'</td>'+
+                '<td style="'+TD+'">'+chip(r.days_remaining+'d', r.urgency)+'</td>'+
+                '<td style="'+TD+'">'+fmtQ(r.monthly_rent)+'</td>'+
+                '<td style="'+TD+'">'+fmtQ(r.deposit_held)+'</td>'+
+                '<td style="'+TD+'">'+(r.in_arrears?chip('In arrears','red'):'<span style="color:#1E7E58;font-size:11.5px;font-weight:600">Clear</span>')+'</td></tr>').join(''));
+        }
+        else if (K==='maintenance'){
+          body = !d.rows.length ? empty('Nothing aged past 48h. On top of it.') :
+            table(['Request','Building / Unit','Issue','Priority','Past 48h by','Reported','Assigned'],
+              d.rows.map(r=>'<tr>'+
+                '<td style="'+TD+';font-weight:600">'+r.request+'</td>'+
+                '<td style="'+TD+'">'+r.building+(r.unit?' \u00b7 '+r.unit:'')+'</td>'+
+                '<td style="'+TD+';white-space:normal;min-width:180px">'+r.issue+'</td>'+
+                '<td style="'+TD+'">'+chip(r.priority||'\u2014', r.priority==='High'?'red':r.priority==='Medium'?'orange':'amber')+'</td>'+
+                '<td style="'+TD+';font-weight:700">'+r.hours_past+'h</td>'+
+                '<td style="'+TD+'">'+r.reported+'</td>'+
+                '<td style="'+TD+'">'+r.assigned_to+'</td></tr>').join(''));
+        }
+      }
+      return '<div style="background:#FFFFFF;border:1px solid #D9C9B5;border-left:3px solid #3E2723;border-radius:11px;margin-bottom:18px;overflow:hidden">'+
+        '<div style="display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid #EAE0D2">'+
+          '<span style="font-size:13px;font-weight:700;color:#3E2723">'+meta[0]+'</span>'+
+          (head2?'<span style="font-size:11px;font-weight:600;color:#9A7A2E;background:rgba(201,168,106,.18);border-radius:20px;padding:2px 9px">'+head2+'</span>':'')+
+          '<span style="flex:1"></span>'+
+          '<button data-h="'+_h(()=>loadDetail(K, true))+'" style="border:none;background:transparent;color:#857260;font-size:11px;font-weight:600;font-family:inherit;cursor:pointer">Refresh</button>'+
+          '<button data-h="'+_h(()=>navTo(meta[1]))+'" style="border:none;background:transparent;color:#857260;cursor:pointer;width:24px;height:24px;display:flex;align-items:center;justify-content:center"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"></path></svg></button>'+
+        '</div>'+ body + '</div>';
+    })();
+
     // ---------- health cards ----------
     const same = (o) => ({ today:o, month:o, quarter:o, year:o });
     const _PF = LIVE && LIVE.portfolio, _TN = LIVE && LIVE.tenants;
     const _FI = LIVE && LIVE.finance,   _HI = LIVE && LIVE.history;
-    const _MT = LIVE && LIVE.maintenance, _AL = LIVE && LIVE.alerts;
+    const _MT = LIVE && LIVE.maintenance;
     const _AP = LIVE && LIVE.approvals;
     const _ov = (_PF && _PF.strip) || null;
     const _tv = (_TN && _TN.strip) || null;
@@ -596,6 +774,7 @@ function renderVals(){
       hasLiq, hasPdc, hasCheques, hasPayables, hasRecvDetail, hasMaint, hasApprovals, approvalCount, hasArrears, finLive:_finLive, finSince,
       isLoading: LOADING,
       goFinance: ()=>drillTo('finance'),
+      attPanel,
       approvals, bookings, projects, funnel, receivables, expiries,
       bookingHeadStyle, bookingRowStyle,
       maintKpiGridStyle, maintKpiCards, maintHeadStyle, maintRowStyle, maintRequests, maintByBldg, mntChips,
@@ -608,7 +787,7 @@ function renderVals(){
   }
 function tpl(V){
   var _k = V; /* destructured below */
-  const {rootStyle,appStyle,sidebarStyle,mainStyle,contentStyle,innerStyle,h1Style,isMobile,toggleNav,closeNav,setDesktop,setMobile,vpDesktopStyle,vpMobileStyle,subtitle,nav,tabs,timeframes,tfWrapStyle,cardGridStyle,cards,showOverview,poolActive,poolGridStyle,spanStyle,showPortfolio,pfViewBtns,pfBuildings,pfUnits,pfStrip,pfFilterChips,pfSortChips,buildings,units,unitFilters,showTenants,tnStrip,tnFilterChips,tenants,agExpiring,agOther,churnOut,churnNotice,showFinance,finNavStyle,finViewBtns,finIsPnl,finIsRecv,finIsPdc,finIsPay,finPnl,recvDetail,pdcForward,cheques,payLandlord,liq,liqPts,liqZeroY,liqDots,liqShortfall,liqForward,alerts,alertCount,showAlerts,showHealthy,chartEmpty,chartBars,chartBarsData,chartSub,chartLabels,perBuilding,hasLiq,hasPdc,hasCheques,hasPayables,hasRecvDetail,hasMaint,hasApprovals,approvalCount,hasArrears,finLive,finSince,isLoading,goFinance,approvals,bookings,projects,funnel,receivables,expiries,bookingHeadStyle,bookingRowStyle,maintKpiGridStyle,maintKpiCards,maintHeadStyle,maintRowStyle,maintRequests,maintByBldg,mntChips,maintEmptyMsg,showSalesTrend,showCollected,showApprovals,showBookings,showProjects,showFunnel,showReceivables,showExpiries,showMaintKpis,showMaintList,showMaintByBldg} = V;
+  const {rootStyle,appStyle,sidebarStyle,mainStyle,contentStyle,innerStyle,h1Style,isMobile,toggleNav,closeNav,setDesktop,setMobile,vpDesktopStyle,vpMobileStyle,subtitle,nav,tabs,timeframes,tfWrapStyle,cardGridStyle,cards,showOverview,poolActive,poolGridStyle,spanStyle,showPortfolio,pfViewBtns,pfBuildings,pfUnits,pfStrip,pfFilterChips,pfSortChips,buildings,units,unitFilters,showTenants,tnStrip,tnFilterChips,tenants,agExpiring,agOther,churnOut,churnNotice,showFinance,finNavStyle,finViewBtns,finIsPnl,finIsRecv,finIsPdc,finIsPay,finPnl,recvDetail,pdcForward,cheques,payLandlord,liq,liqPts,liqZeroY,liqDots,liqShortfall,liqForward,alerts,alertCount,showAlerts,showHealthy,chartEmpty,chartBars,chartBarsData,chartSub,chartLabels,perBuilding,hasLiq,hasPdc,hasCheques,hasPayables,hasRecvDetail,hasMaint,hasApprovals,approvalCount,hasArrears,finLive,finSince,isLoading,goFinance,approvals,bookings,projects,funnel,receivables,expiries,bookingHeadStyle,bookingRowStyle,maintKpiGridStyle,maintKpiCards,maintHeadStyle,maintRowStyle,maintRequests,maintByBldg,mntChips,maintEmptyMsg,showSalesTrend,showCollected,showApprovals,showBookings,showProjects,showFunnel,showReceivables,showExpiries,showMaintKpis,showMaintList,showMaintByBldg,attPanel} = V;
   return `
 
 <div style="${rootStyle}">
@@ -654,6 +833,9 @@ function tpl(V){
               <button data-h="${_h(t.onClick)}" style="${t.style}">${t.label}</button>
             `).join("")}
           </div>
+
+          <!-- ATTENTION DETAIL PANEL -->
+          ${attPanel}
 
           <!-- ===================== OVERVIEW ===================== -->
           ${(showOverview)?`
