@@ -69,6 +69,11 @@ def get_projection():
         "PDC Cheque", fields=["amount", "cheque_date", "direction"]
     ) if pdc_field else []
 
+    floor = 0.0
+    if _has("DBR Settings"):
+        floor = flt(frappe.db.get_single_value("DBR Settings",
+                                               "minimum_cash_floor") or 0)
+
     rows, running = [], 0.0
     danger, hl_expiring = None, []
     for (ms, me, label) in months:
@@ -103,7 +108,7 @@ def get_projection():
         inflow = committed + assumed
         net = inflow - outflow
         running += net
-        if danger is None and running < 0:
+        if danger is None and running < floor:
             danger = label
         rows.append({"label": label,
                      "committed": round(committed), "assumed": round(assumed),
@@ -112,8 +117,50 @@ def get_projection():
                      "pdc_in": round(pdc_in)})
 
     return {"live": True, "months": rows, "danger": danger,
-            "hl_expiring": hl_expiring, "pdc": bool(pdc_field),
-            "c8": _collected_vs_billed()}
+            "floor": floor, "hl_expiring": hl_expiring,
+            "pdc": bool(pdc_field), "c8": _collected_vs_billed(),
+            "scenarios": _scenarios()}
+
+
+def _scenarios():
+    if not _has("Building Scenario"):
+        return []
+    return frappe.get_all(
+        "Building Scenario",
+        fields=["name", "scenario_label", "headlease_monthly", "units",
+                "avg_unit_rent", "grace_months", "ramp_months"],
+        order_by="modified desc", limit=10)
+
+
+@frappe.whitelist()
+def save_scenario(label, headlease_monthly=0, units=0, avg_unit_rent=0,
+                  grace_months=0, ramp_months=0):
+    """F1: persist a what-if scenario. Upserts by label."""
+    _guard()
+    label = (label or "").strip()
+    if not label:
+        frappe.throw("Scenario needs a label")
+    vals = dict(headlease_monthly=flt(headlease_monthly), units=cint(units),
+                avg_unit_rent=flt(avg_unit_rent),
+                grace_months=cint(grace_months), ramp_months=cint(ramp_months))
+    if frappe.db.exists("Building Scenario", label):
+        doc = frappe.get_doc("Building Scenario", label)
+        doc.update(vals)
+        doc.save()
+    else:
+        frappe.get_doc(dict(doctype="Building Scenario",
+                            scenario_label=label, **vals)).insert()
+    return {"ok": True, "scenarios": _scenarios()}
+
+
+@frappe.whitelist()
+def set_cash_floor(value):
+    """F2: owner-set minimum cash floor (whole company, QAR)."""
+    _guard()
+    doc = frappe.get_doc("DBR Settings")
+    doc.minimum_cash_floor = flt(value)
+    doc.save()
+    return {"ok": True, "floor": flt(value)}
 
 
 def _collected_vs_billed():
