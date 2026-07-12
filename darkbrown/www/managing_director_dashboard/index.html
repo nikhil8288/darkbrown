@@ -263,7 +263,7 @@ function renderVals(){
         maintenance:['Maintenance requests aged past 48h','maintenance'] };
       const meta = TITLES[K]; if (!meta) return '';
       const fmtQ = (v)=>{ v = +v || 0;
-        return 'QAR ' + (Math.abs(v)>=1e6 ? (v/1e6).toFixed(2)+'M' : Math.abs(v)>=1000 ? (v/1000).toFixed(1)+'K' : Math.round(v)); };
+        return 'QAR ' + Math.round(v).toLocaleString('en-US'); };
       const BAND = { amber:['#9A7A2E','rgba(201,168,106,.18)'], orange:['#BC512B','rgba(224,138,102,.18)'],
         red:['#B3261E','rgba(224,102,102,.20)'], dark:['#4E342E','rgba(78,52,46,.14)'] };
       const chip = (txt,band)=>{ const c = BAND[band]||BAND.amber;
@@ -397,7 +397,7 @@ function renderVals(){
       if (!CH || CH.error) return card('Cash flow projection','', empty('Could not load projection \u2014 reload to retry.'));
       const M = CH.months || [];
       if (!M.length) return card('Cash flow projection','', empty('No active leases or contracts to project from.'));
-      const kf = (v)=>{ v=+v||0; return Math.abs(v)>=1e6?(v/1e6).toFixed(2)+'M':Math.abs(v)>=1000?(v/1000).toFixed(0)+'K':''+Math.round(v); };
+      const kf = (v)=>{ v=+v||0; return Math.round(v).toLocaleString('en-US'); };
       const W=720, HT=200, PAD=34, n=M.length, step=(W-PAD*2)/n, bw=Math.min(16,step/3);
 
       // ---- C1: inflow/outflow bars + running line
@@ -563,17 +563,17 @@ function renderVals(){
     const cardDefs = [
       // 1 Net Margin -- live GL once invoices post; zero before that.
       { icon:'trendUp', t:'teal', label:'Net Margin', drill:'finance', dl:'Finance', fixed:1,
-        value: finLiveVal(_FI && _FI.pnl && _FI.pnl.margin, 'QAR 0.0K'),
+        value: finLiveVal(_FI && _FI.pnl && _FI.pnl.margin, 'QAR 0'),
         sub: _finLive ? (_FI.pnl.pct+' margin \u00b7 income \u2212 head-lease') : ('ledger starts '+((_FI&&_FI.since)||'2026-07-01')),
         chip: _finLive ? 'live' : 'awaiting data', chipTone: _finLive ? 'neutral' : 'warn' },
       // 2 Rental Income
       { icon:'dollar', t:'green', label:'Rental Income', drill:'finance', dl:'Finance', fixed:1,
-        value: finLiveVal(_FI && _FI.pnl && _FI.pnl.income, 'QAR 0.0K'),
+        value: finLiveVal(_FI && _FI.pnl && _FI.pnl.income, 'QAR 0'),
         sub: _finLive ? 'billed to tenants this period' : 'first billing run: day 5',
         chip: _finLive ? 'live' : 'awaiting data', chipTone: _finLive ? 'neutral' : 'warn' },
       // 3 Head-lease Cost
       { icon:'building', t:'purple', label:'Head-lease Cost', drill:'finance', dl:'Finance', fixed:1,
-        value: finLiveVal(_FI && _FI.pnl && _FI.pnl.hl, 'QAR 0.0K'),
+        value: finLiveVal(_FI && _FI.pnl && _FI.pnl.hl, 'QAR 0'),
         sub: _finLive ? 'owed to landlords this period' : 'first billing run: day 5',
         chip: _finLive ? 'live' : 'awaiting data', chipTone: _finLive ? 'neutral' : 'warn' },
       // 4 Collected vs Billed
@@ -711,7 +711,7 @@ function renderVals(){
 
     const receivables = (_FI ? _FI.receivables : [])
       .map(r => ({ bucket:r[0], amount:r[1], w:r[2], col:r[3] }));
-    const hasArrears = _finLive && receivables.some(r => r.amount !== 'QAR 0.0K');
+    const hasArrears = _finLive && receivables.some(r => r.amount !== 'QAR 0');
 
     const expiries = [
       ['Al Sadd Tower','Head Lease','31 Aug 2026','68 days','Renew Due','orange'],
@@ -769,7 +769,7 @@ function renderVals(){
     ];
     const mkUnit=(u)=>{ const b=vacBucket(u[5]); const sc=stCol[u[2]] || stCol.Occupied;
       return { bldg:u[0], unit:u[1], status:u[2], statusCol:sc[0], statusBg:sc[1],
-        tenant:u[3]||(u[2]==='Maintenance'?'Off-market':'Available'), rent:'QAR '+u[4].toFixed(1)+'K',
+        tenant:u[3]||(u[2]==='Maintenance'?'Off-market':'Available'), rent:'QAR '+Math.round(u[4]*1000).toLocaleString('en-US'),
         furnish:u[6], type:u[7], moveOut:u[8], vacDays:u[5],
         note: u[2]==='Notice' ? ('out '+u[8]) : (b ? (u[5]+'d empty \u00b7 '+b.l) : (u[2]==='Maintenance'?'off-market':'\u2014')),
         noteCol: u[2]==='Notice' ? tint.orange[0] : (b ? b.c : '#857260') }; };
@@ -794,7 +794,7 @@ function renderVals(){
       const mcol = m>=25?tint.green:(m>=10?tint.orange:tint.red);
       const ocol = occ>=85?tint.green:(occ>=75?tint.orange:tint.red);
       return { name:b[0], m, occ, vacant:b[4], let:b[3]-b[4], total:b[3], expiry:b[5], atRisk:b[6], leak:b[7], expSoon,
-        incText:'QAR '+b[1].toFixed(1)+'K', hlText:'QAR '+b[2].toFixed(1)+'K',
+        incText:'QAR '+Math.round(b[1]*1000).toLocaleString('en-US'), hlText:'QAR '+Math.round(b[2]*1000).toLocaleString('en-US'),
         marginText:(m>=0?'+':'')+m.toFixed(1)+'%', mCol:mcol[0],
         marginPill:'flex-shrink:0;font-size:13px;font-weight:700;padding:3px 11px;border-radius:8px;color:'+mcol[0]+';background:'+mcol[1],
         occText:occ.toFixed(1)+'%', occW:occ.toFixed(0)+'%', occCol:ocol[0],
@@ -821,7 +821,7 @@ function renderVals(){
       {k:'Buildings',v: _ps ? String(_ps.buildings) : '5',tag:''},
       {k:'Units',v: _ps ? String(_ps.units) : '640',tag:''},
       {k:'Occupancy',v: _ps ? _ps.occupancy.toFixed(1)+'%' : '88.6%',tag:'live'},
-      {k:'Vacant + bleed',v: _ps ? (_ps.vacant+' \u00b7 QAR '+_ps.bleed.toFixed(1)+'K') : '73 \u00b7 QAR 0.9M',tag:'live'},
+      {k:'Vacant + bleed',v: _ps ? (_ps.vacant+' \u00b7 QAR '+Math.round(_ps.bleed*1000).toLocaleString('en-US')) : '73 \u00b7 QAR 900,000',tag:'live'},
       {k:'Net margin',v: _liveMargin!=null ? _liveMargin.toFixed(1)+'%' : tfMarginPct[S.tf], tag: _liveMargin!=null ? 'live' : 'period'},
     ].map(s=>({...s, tagStyle: s.tag==='live'?'color:#1E7E58;background:rgba(46,107,87,.22)':(s.tag==='period'?'color:#2E7D6A;background:rgba(46,107,87,.20)':'')}));
     const showPortfolio=S.tab==='portfolio'; const pfBuildings=S.pfView==='buildings'; const pfUnits=S.pfView==='units';
@@ -841,10 +841,10 @@ function renderVals(){
       ['Gulf Trading LLC','West Bay \u00b7 U-0908',16.0,'Grace','arrears',32.0,3,'May 2023',0.74],
     ];
     let tenants=tnRaw.map(t=>{ const ac=agCol[t[3]]; return {
-      name:t[0], loc:t[1], rent:'QAR '+t[2].toFixed(1)+'K', agreement:t[3], agCol:ac[0], agBg:ac[1],
-      standing:t[4], inArrears:t[4]==='arrears', isCurrent:t[4]==='current', outstanding:'QAR '+t[5].toFixed(1)+'K',
+      name:t[0], loc:t[1], rent:'QAR '+Math.round(t[2]*1000).toLocaleString('en-US'), agreement:t[3], agCol:ac[0], agBg:ac[1],
+      standing:t[4], inArrears:t[4]==='arrears', isCurrent:t[4]==='current', outstanding:'QAR '+Math.round(t[5]*1000).toLocaleString('en-US'),
       bounce:t[6], hasBounce:t[6]>0, bounceText:t[6]+(t[6]===1?' bounce':' bounces'),
-      since:t[7], ltv:'QAR '+t[8].toFixed(2)+'M',
+      since:t[7], ltv:'QAR '+Math.round(t[8]*1e6).toLocaleString('en-US'),
       standingStyle: t[4]==='arrears' ? 'color:#BC512B;background:rgba(224,138,102,.18)' : 'color:#1E7E58;background:rgba(46,107,87,.22)' }; });
     if(S.tnFilter==='arrears') tenants=tenants.filter(t=>t.inArrears);
     else if(S.tnFilter==='bounce') tenants=tenants.filter(t=>t.hasBounce);
@@ -893,7 +893,7 @@ function renderVals(){
         style:'border:none;border-radius:6px;padding:7px 16px;font-size:12.5px;font-weight:600;font-family:inherit;cursor:pointer;white-space:nowrap;flex-shrink:0;transition:all .15s;'+(isMobile?'flex:1;':'')+(S.finView===c[0]?'background:#3E2723;color:#F4EDE6;box-shadow:0 2px 6px rgba(62,39,35,.18);':'background:transparent;color:#9A8775;')}));
     // The API slices by timeframe server-side. Until invoices exist every
     // figure is a real zero, which is the correct thing to show.
-    const _zeroPnl={income:'QAR 0.0K',hl:'QAR 0.0K',margin:'QAR 0.0K',pct:'0.0%',coll:'\u2014',comm:'QAR 0.0K',commP:'QAR 0.0K'};
+    const _zeroPnl={income:'QAR 0',hl:'QAR 0',margin:'QAR 0',pct:'0.0%',coll:'\u2014',comm:'QAR 0',commP:'QAR 0'};
     const finPnl=(_FI && _FI.pnl) || _zeroPnl;
     const finSince=(_FI && _FI.since) || '2026-07-01';
     const recvDetail=(_FI ? _FI.recv_detail : [])
@@ -923,7 +923,7 @@ function renderVals(){
     const lqStep=liq.length>1?520/(liq.length-1):520;
     const liqPts=liq.map((l,i)=>(20+i*lqStep).toFixed(0)+','+lqY(l.run).toFixed(0)).join(' ');
     const liqZeroY=lqY(0).toFixed(0);
-    const liqDots=liq.map((l,i)=>({cx:(20+i*lqStep).toFixed(0), cy:lqY(l.run).toFixed(0), col:l.neg?tint.red[0]:tint.green[0], wk:l.wk, run:(l.run>=0?'+':'\u2212')+'QAR '+Math.abs(l.run).toFixed(2)+'M', lx:(20+i*lqStep).toFixed(0)}));
+    const liqDots=liq.map((l,i)=>({cx:(20+i*lqStep).toFixed(0), cy:lqY(l.run).toFixed(0), col:l.neg?tint.red[0]:tint.green[0], wk:l.wk, run:(l.run>=0?'+':'\u2212')+'QAR '+Math.round(Math.abs(l.run)*1e6).toLocaleString('en-US'), lx:(20+i*lqStep).toFixed(0)}));
     const liqForward=[];
     const showFinance=S.tab==='finance';
     const finPnlBars=true;
