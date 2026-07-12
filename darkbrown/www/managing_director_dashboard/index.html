@@ -68,6 +68,16 @@ function loadDetail(key, force){
     .catch(function(e){ console.error('attention detail failed', key, e);
       DET[key] = { loading:false, error:true }; render(); });
 }
+var CH = null, CH_LOADING = false;
+function loadCharts(force){
+  if (!force && (CH || CH_LOADING)) return;
+  CH_LOADING = true;
+  fetch('/api/method/darkbrown.api.charts.get_projection',
+    {headers:{'X-Frappe-CSRF-Token': _csrf()}})
+    .then(function(r){ return r.json(); })
+    .then(function(j){ CH = (j && j.message) || {error:true}; CH_LOADING = false; render(); })
+    .catch(function(e){ console.error('charts failed', e); CH = {error:true}; CH_LOADING = false; render(); });
+}
 function resolvePdc(alertId, cheque){
   fetch('/api/method/darkbrown.api.attention.resolve_alert', { method:'POST',
     headers:{'X-Frappe-CSRF-Token': _csrf(), 'Content-Type':'application/json'},
@@ -103,8 +113,9 @@ function routeApply(hash){
     else if (p[1] === 'expiring') patch.att = 'expiring';
   }
   else if (t === 'finance'){
-    patch.finView = ['receivables','pdc','payables'].indexOf(p[1]) >= 0 ? p[1] : 'pnl';
+    patch.finView = ['receivables','pdc','payables','projection'].indexOf(p[1]) >= 0 ? p[1] : 'pnl';
     if (p[1] === 'pdc') patch.att = 'pdc';
+    if (p[1] === 'projection') loadCharts();
   }
   else if (t === 'portfolio'){
     if (p[1] === 'units'){
@@ -370,6 +381,103 @@ function renderVals(){
           '<button data-h="'+_h(()=>loadDetail(K, true))+'" style="border:none;background:transparent;color:#857260;font-size:11px;font-weight:600;font-family:inherit;cursor:pointer">Refresh</button>'+
           '<button data-h="'+_h(()=>navTo(meta[1]))+'" style="border:none;background:transparent;color:#857260;cursor:pointer;width:24px;height:24px;display:flex;align-items:center;justify-content:center"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"></path></svg></button>'+
         '</div>'+ body + '</div>';
+    })();
+
+
+    // ---------- projection charts (Batch 3: C1/C2/C4/C8) ----------
+    const projPanel = (function(){
+      if (S.tab!=='finance' || S.finView!=='projection') return '';
+      const card = (title, sub, inner)=>'<div style="background:#FFFFFF;border:1px solid #D9C9B5;border-radius:11px;padding:16px;margin-bottom:16px">'+
+        '<div style="font-size:14px;font-weight:700;color:#3E2723">'+title+'</div>'+
+        (sub?'<div style="font-size:11.5px;color:#8C7A68;margin:3px 0 12px">'+sub+'</div>':'<div style="height:10px"></div>')+inner+'</div>';
+      const empty = (m)=>'<div style="padding:26px;text-align:center;font-size:12.5px;color:#8C7A68">'+m+'</div>';
+      if (CH_LOADING || (!CH && !LOADING)) return card('Cash flow projection','', empty('Loading\u2026'));
+      if (!CH || CH.error) return card('Cash flow projection','', empty('Could not load projection \u2014 reload to retry.'));
+      const M = CH.months || [];
+      if (!M.length) return card('Cash flow projection','', empty('No active leases or contracts to project from.'));
+      const kf = (v)=>{ v=+v||0; return Math.abs(v)>=1e6?(v/1e6).toFixed(2)+'M':Math.abs(v)>=1000?(v/1000).toFixed(0)+'K':''+Math.round(v); };
+      const W=720, HT=200, PAD=34, n=M.length, step=(W-PAD*2)/n, bw=Math.min(16,step/3);
+
+      // ---- C1: inflow/outflow bars + running line
+      const maxBar = Math.max.apply(null, M.map(m=>Math.max(m.inflow,m.outflow)).concat([1]));
+      const runMax = Math.max.apply(null, M.map(m=>Math.abs(m.running)).concat([1]));
+      const yB=(v)=>HT-24-(v/maxBar)*(HT-58), yR=(v)=>(HT-24)/2-(v/runMax)*((HT-58)/2);
+      const zeroY=yR(0);
+      let c1='<svg viewBox="0 0 '+W+' '+HT+'" style="width:100%;height:auto;display:block">';
+      c1+='<line x1="'+PAD+'" y1="'+zeroY+'" x2="'+(W-PAD)+'" y2="'+zeroY+'" stroke="#B9A995" stroke-width="1" stroke-dasharray="4 4"/>';
+      M.forEach((m,i)=>{ const x=PAD+i*step+step/2;
+        c1+='<rect x="'+(x-bw-1)+'" y="'+yB(m.inflow)+'" width="'+bw+'" height="'+(HT-24-yB(m.inflow))+'" rx="2" fill="#2E7D6A" opacity=".85"/>';
+        c1+='<rect x="'+(x+1)+'" y="'+yB(m.outflow)+'" width="'+bw+'" height="'+(HT-24-yB(m.outflow))+'" rx="2" fill="#BC512B" opacity=".8"/>';
+        c1+='<text x="'+x+'" y="'+(HT-8)+'" text-anchor="middle" font-size="9" fill="#9A8775">'+m.label+'</text>'; });
+      c1+='<polyline points="'+M.map((m,i)=>(PAD+i*step+step/2).toFixed(0)+','+yR(m.running).toFixed(0)).join(' ')+'" fill="none" stroke="#3E2723" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>';
+      M.forEach((m,i)=>{ const x=PAD+i*step+step/2;
+        c1+='<circle cx="'+x+'" cy="'+yR(m.running)+'" r="3" fill="'+(m.running<0?'#B3261E':'#3E2723')+'"/>'; });
+      c1+='</svg>';
+      const legend='<div style="display:flex;gap:16px;font-size:11px;color:#6B5648;margin-top:8px;flex-wrap:wrap">'+
+        '<span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#2E7D6A;margin-right:5px"></span>Expected inflow</span>'+
+        '<span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#BC512B;margin-right:5px"></span>Head-lease outflow</span>'+
+        '<span><span style="display:inline-block;width:14px;height:2.5px;background:#3E2723;margin:0 5px 2px 0;vertical-align:middle"></span>Running net position</span></div>';
+      const dangerBox = CH.danger
+        ? '<div style="margin-top:10px;font-size:12px;font-weight:600;color:#B3261E;background:rgba(224,102,102,.14);border:1px solid rgba(224,102,102,.3);border-radius:8px;padding:8px 12px">\u26A0 Running position goes negative in <b>'+CH.danger+'</b> at current contracts.</div>'
+        : '<div style="margin-top:10px;font-size:12px;font-weight:600;color:#1E7E58;background:rgba(46,107,87,.12);border:1px solid rgba(95,184,154,.3);border-radius:8px;padding:8px 12px">Running position stays positive across all 12 months.</div>';
+      const hlNote = (CH.hl_expiring&&CH.hl_expiring.length)?'<div style="margin-top:8px;font-size:11px;color:#9A7A2E">Head-lease renewals assumed at same cost: '+CH.hl_expiring.join(', ')+'</div>':'';
+
+      // ---- C2: committed vs assumed stacked + PDC cover
+      const maxIn = Math.max.apply(null, M.map(m=>m.inflow).concat([1]));
+      const yS=(v)=>HT-24-(v/maxIn)*(HT-50);
+      let c2='<svg viewBox="0 0 '+W+' '+HT+'" style="width:100%;height:auto;display:block">';
+      M.forEach((m,i)=>{ const x=PAD+i*step+step/2, w=bw*1.7;
+        const yC=yS(m.committed), yA=yS(m.committed+m.assumed);
+        c2+='<rect x="'+(x-w/2)+'" y="'+yA+'" width="'+w+'" height="'+(yC-yA)+'" rx="2" fill="#C9A86A" opacity=".85"/>';
+        c2+='<rect x="'+(x-w/2)+'" y="'+yC+'" width="'+w+'" height="'+(HT-24-yC)+'" rx="2" fill="#2E7D6A" opacity=".9"/>';
+        c2+='<text x="'+x+'" y="'+(HT-8)+'" text-anchor="middle" font-size="9" fill="#9A8775">'+m.label+'</text>'; });
+      if (CH.pdc) c2+='<polyline points="'+M.map((m,i)=>(PAD+i*step+step/2).toFixed(0)+','+yS(m.pdc_in).toFixed(0)).join(' ')+'" fill="none" stroke="#3E2723" stroke-width="2" stroke-dasharray="5 4"/>';
+      c2+='</svg>';
+      const leg2='<div style="display:flex;gap:16px;font-size:11px;color:#6B5648;margin-top:8px;flex-wrap:wrap">'+
+        '<span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#2E7D6A;margin-right:5px"></span>Committed (lease covers month)</span>'+
+        '<span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#C9A86A;margin-right:5px"></span>At risk (needs renewal)</span>'+
+        (CH.pdc?'<span><span style="display:inline-block;width:14px;height:0;border-top:2.5px dashed #3E2723;margin:0 5px 3px 0;vertical-align:middle"></span>Incoming PDC cover</span>':'')+'</div>';
+
+      // ---- C4: spread trend from history (already in LIVE)
+      const HM = (LIVE && LIVE.history && LIVE.history.months) || [];
+      let c4;
+      if (!HM.length) c4 = empty('No historical months imported.');
+      else {
+        const pMax=Math.max.apply(null,HM.map(m=>Math.abs(m.profit)).concat([1]));
+        const hn=HM.length, hstep=(W-PAD*2)/hn, yP=(v)=>(HT-24)/2-(v/pMax)*((HT-58)/2);
+        c4='<svg viewBox="0 0 '+W+' '+HT+'" style="width:100%;height:auto;display:block">';
+        c4+='<line x1="'+PAD+'" y1="'+yP(0)+'" x2="'+(W-PAD)+'" y2="'+yP(0)+'" stroke="#B9A995" stroke-width="1" stroke-dasharray="4 4"/>';
+        c4+='<polyline points="'+HM.map((m,i)=>(PAD+i*hstep+hstep/2).toFixed(0)+','+yP(m.profit).toFixed(0)).join(' ')+'" fill="none" stroke="#2E7D6A" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>';
+        HM.forEach((m,i)=>{ const x=PAD+i*hstep+hstep/2;
+          c4+='<circle cx="'+x+'" cy="'+yP(m.profit)+'" r="3" fill="'+(m.lump?'#C9A86A':'#2E7D6A')+'"><title>'+m.label+': '+kf(m.profit)+'</title></circle>';
+          if (i%2===0) c4+='<text x="'+x+'" y="'+(HT-8)+'" text-anchor="middle" font-size="9" fill="#9A8775">'+m.label+'</text>'; });
+        c4+='</svg><div style="font-size:11px;color:#6B5648;margin-top:8px">Monthly portfolio profit from the imported books \u00b7 <span style="color:#C9A86A">\u25CF</span> lump/estimated period</div>';
+      }
+
+      // ---- C8: collected vs billed
+      const C8 = CH.c8 || [];
+      let c8;
+      const anyC8 = C8.some(m=>m.billed||m.collected);
+      if (!anyC8) c8 = empty('No invoices posted yet \u2014 fills in after the first billing run.');
+      else {
+        const bMax=Math.max.apply(null,C8.map(m=>Math.max(m.billed,m.collected)).concat([1]));
+        const cn=C8.length, cstep=(W-PAD*2)/cn, yc=(v)=>HT-24-(v/bMax)*(HT-50);
+        c8='<svg viewBox="0 0 '+W+' '+HT+'" style="width:100%;height:auto;display:block">';
+        C8.forEach((m,i)=>{ const x=PAD+i*cstep+cstep/2;
+          c8+='<rect x="'+(x-bw-1)+'" y="'+yc(m.billed)+'" width="'+bw+'" height="'+(HT-24-yc(m.billed))+'" rx="2" fill="#9A7A2E" opacity=".8"/>';
+          c8+='<rect x="'+(x+1)+'" y="'+yc(m.collected)+'" width="'+bw+'" height="'+(HT-24-yc(m.collected))+'" rx="2" fill="#2E7D6A" opacity=".9"/>';
+          c8+='<text x="'+x+'" y="'+(HT-8)+'" text-anchor="middle" font-size="9" fill="#9A8775">'+m.label+'</text>'; });
+        c8+='</svg><div style="display:flex;gap:16px;font-size:11px;color:#6B5648;margin-top:8px">'+
+          '<span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#9A7A2E;margin-right:5px"></span>Billed</span>'+
+          '<span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#2E7D6A;margin-right:5px"></span>Collected</span></div>';
+      }
+
+      const refresh='<div style="display:flex;justify-content:flex-end;margin-bottom:10px"><button data-h="'+_h(()=>{CH=null;loadCharts(true);})+'" style="border:1px solid #D9C9B5;background:#FFFFFF;color:#6B5648;border-radius:7px;padding:5px 12px;font-size:11px;font-weight:600;font-family:inherit;cursor:pointer">Refresh projection</button></div>';
+      return refresh+
+        card('Forward cash flow \u2014 next 12 months','Expected tenant inflow vs committed head-lease outflow \u00b7 grace months excluded from outflow', c1+legend+dangerBox+hlNote)+
+        card('Committed vs at-risk inflow','How much of each month\u2019s rent is contractually locked vs dependent on renewals', c2+leg2)+
+        card('Margin trend \u2014 last 12 months (books)','Jul-2025 \u2192 Jun-2026 imported history', c4)+
+        card('Collected vs billed','Collection efficiency since the ledger went live ('+((LIVE&&LIVE.finance&&LIVE.finance.since)||'2026-07-01')+')', c8);
     })();
 
     // ---------- health cards ----------
@@ -707,7 +815,7 @@ function renderVals(){
     // ================= FINANCE DATA =================
     const finSet=(v)=>{ setState({finView:v}); hashSync(v==='pnl'?'finance':'finance/'+v); };
     const finNavStyle='display:'+(isMobile?'flex':'inline-flex')+';gap:0;background:#FFFFFF;border:1px solid #D9C9B5;border-radius:8px;padding:3px;margin-bottom:18px;'+(isMobile?'width:100%;overflow-x:auto':'width:fit-content');
-    const finViewBtns=[['pnl','P&L'],['receivables','Receivables'],['pdc','PDC'],['payables','Payables']]
+    const finViewBtns=[['pnl','P&L'],['receivables','Receivables'],['pdc','PDC'],['payables','Payables'],['projection','Projection']]
       .map(c=>({label:c[1], onClick:()=>finSet(c[0]),
         style:'border:none;border-radius:6px;padding:7px 16px;font-size:12.5px;font-weight:600;font-family:inherit;cursor:pointer;white-space:nowrap;flex-shrink:0;transition:all .15s;'+(isMobile?'flex:1;':'')+(S.finView===c[0]?'background:#3E2723;color:#F4EDE6;box-shadow:0 2px 6px rgba(62,39,35,.18);':'background:transparent;color:#9A8775;')}));
     // The API slices by timeframe server-side. Until invoices exist every
@@ -774,7 +882,7 @@ function renderVals(){
       hasLiq, hasPdc, hasCheques, hasPayables, hasRecvDetail, hasMaint, hasApprovals, approvalCount, hasArrears, finLive:_finLive, finSince,
       isLoading: LOADING,
       goFinance: ()=>drillTo('finance'),
-      attPanel,
+      attPanel, projPanel,
       approvals, bookings, projects, funnel, receivables, expiries,
       bookingHeadStyle, bookingRowStyle,
       maintKpiGridStyle, maintKpiCards, maintHeadStyle, maintRowStyle, maintRequests, maintByBldg, mntChips,
@@ -787,7 +895,7 @@ function renderVals(){
   }
 function tpl(V){
   var _k = V; /* destructured below */
-  const {rootStyle,appStyle,sidebarStyle,mainStyle,contentStyle,innerStyle,h1Style,isMobile,toggleNav,closeNav,setDesktop,setMobile,vpDesktopStyle,vpMobileStyle,subtitle,nav,tabs,timeframes,tfWrapStyle,cardGridStyle,cards,showOverview,poolActive,poolGridStyle,spanStyle,showPortfolio,pfViewBtns,pfBuildings,pfUnits,pfStrip,pfFilterChips,pfSortChips,buildings,units,unitFilters,showTenants,tnStrip,tnFilterChips,tenants,agExpiring,agOther,churnOut,churnNotice,showFinance,finNavStyle,finViewBtns,finIsPnl,finIsRecv,finIsPdc,finIsPay,finPnl,recvDetail,pdcForward,cheques,payLandlord,liq,liqPts,liqZeroY,liqDots,liqShortfall,liqForward,alerts,alertCount,showAlerts,showHealthy,chartEmpty,chartBars,chartBarsData,chartSub,chartLabels,perBuilding,hasLiq,hasPdc,hasCheques,hasPayables,hasRecvDetail,hasMaint,hasApprovals,approvalCount,hasArrears,finLive,finSince,isLoading,goFinance,approvals,bookings,projects,funnel,receivables,expiries,bookingHeadStyle,bookingRowStyle,maintKpiGridStyle,maintKpiCards,maintHeadStyle,maintRowStyle,maintRequests,maintByBldg,mntChips,maintEmptyMsg,showSalesTrend,showCollected,showApprovals,showBookings,showProjects,showFunnel,showReceivables,showExpiries,showMaintKpis,showMaintList,showMaintByBldg,attPanel} = V;
+  const {rootStyle,appStyle,sidebarStyle,mainStyle,contentStyle,innerStyle,h1Style,isMobile,toggleNav,closeNav,setDesktop,setMobile,vpDesktopStyle,vpMobileStyle,subtitle,nav,tabs,timeframes,tfWrapStyle,cardGridStyle,cards,showOverview,poolActive,poolGridStyle,spanStyle,showPortfolio,pfViewBtns,pfBuildings,pfUnits,pfStrip,pfFilterChips,pfSortChips,buildings,units,unitFilters,showTenants,tnStrip,tnFilterChips,tenants,agExpiring,agOther,churnOut,churnNotice,showFinance,finNavStyle,finViewBtns,finIsPnl,finIsRecv,finIsPdc,finIsPay,finPnl,recvDetail,pdcForward,cheques,payLandlord,liq,liqPts,liqZeroY,liqDots,liqShortfall,liqForward,alerts,alertCount,showAlerts,showHealthy,chartEmpty,chartBars,chartBarsData,chartSub,chartLabels,perBuilding,hasLiq,hasPdc,hasCheques,hasPayables,hasRecvDetail,hasMaint,hasApprovals,approvalCount,hasArrears,finLive,finSince,isLoading,goFinance,approvals,bookings,projects,funnel,receivables,expiries,bookingHeadStyle,bookingRowStyle,maintKpiGridStyle,maintKpiCards,maintHeadStyle,maintRowStyle,maintRequests,maintByBldg,mntChips,maintEmptyMsg,showSalesTrend,showCollected,showApprovals,showBookings,showProjects,showFunnel,showReceivables,showExpiries,showMaintKpis,showMaintList,showMaintByBldg,attPanel,projPanel} = V;
   return `
 
 <div style="${rootStyle}">
@@ -1177,6 +1285,8 @@ function tpl(V){
             </div>
 
             <!-- P&L -->
+            ${projPanel}
+
             ${(finIsPnl)?`
               <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:16px">
                 <div style="background:#FFFFFF;border:1px solid #EAE0D2;border-radius:11px;padding:15px 16px"><div style="font-size:11px;color:#8C7A68;font-weight:550">Rental Income</div><div style="font-size:20px;font-weight:700;margin-top:5px">${finPnl.income}</div><div style="font-size:11px;color:#857260;margin-top:3px">billed to tenants</div></div>
