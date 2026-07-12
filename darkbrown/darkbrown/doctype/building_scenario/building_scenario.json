@@ -1,0 +1,30 @@
+{
+ "actions": [],
+ "autoname": "field:scenario_label",
+ "creation": "2026-07-12 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": ["scenario_label", "headlease_monthly", "units", "column_break_1",
+                 "avg_unit_rent", "grace_months", "ramp_months"],
+ "fields": [
+  {"fieldname": "scenario_label", "fieldtype": "Data", "label": "Scenario Label", "reqd": 1, "unique": 1, "in_list_view": 1},
+  {"fieldname": "headlease_monthly", "fieldtype": "Currency", "label": "Head-lease Cost / Month", "in_list_view": 1},
+  {"fieldname": "units", "fieldtype": "Int", "label": "Units"},
+  {"fieldname": "column_break_1", "fieldtype": "Column Break"},
+  {"fieldname": "avg_unit_rent", "fieldtype": "Currency", "label": "Expected Rent / Unit / Month", "in_list_view": 1},
+  {"fieldname": "grace_months", "fieldtype": "Int", "label": "Grace Period (months)"},
+  {"fieldname": "ramp_months", "fieldtype": "Int", "label": "Ramp-up to Full Occupancy (months)"}
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-07-12 00:00:00.000000",
+ "module": "Darkbrown",
+ "name": "Building Scenario",
+ "owner": "Administrator",
+ "permissions": [
+  {"create": 1, "delete": 1, "read": 1, "report": 1, "role": "System Manager", "write": 1},
+  {"create": 1, "delete": 1, "read": 1, "report": 1, "role": "Managing Director", "write": 1}
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC"
+}
