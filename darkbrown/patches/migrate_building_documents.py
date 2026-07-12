@@ -11,21 +11,47 @@ import frappe
 CHILD_CANDIDATES = ["Building Document", "Building Documents"]
 
 
+def _discover_child_doctypes():
+    """Any child table that actually holds rows parented to Building,
+    regardless of what it was named in the UI."""
+    found = []
+    for c in frappe.get_all("DocType", filters={"istable": 1},
+                            pluck="name"):
+        try:
+            if frappe.db.count(c, {"parenttype": "Building"}):
+                found.append(c)
+        except Exception:
+            continue
+    return found
+
+
 def execute():
     if not frappe.db.exists("DocType", "Document Register"):
         return
 
-    child_dt = next((c for c in CHILD_CANDIDATES
-                     if frappe.db.exists("DocType", c)), None)
-    if not child_dt:
-        return
+    candidates = [c for c in CHILD_CANDIDATES
+                  if frappe.db.exists("DocType", c)]
+    candidates += [c for c in _discover_child_doctypes()
+                   if c not in candidates]
 
-    fmap = _field_map(child_dt)
+    total = 0
+    for child_dt in candidates:
+        fmap = _field_map(child_dt)
+        # only migrate tables that look like document stores
+        if not (fmap.get("file") or fmap.get("expiry")
+                or fmap.get("type")):
+            continue
+        total += _migrate_table(child_dt, fmap)
+
+    frappe.db.commit()
+    print(f"migrate_building_documents: created {total} register entries")
+
+
+def _migrate_table(child_dt, fmap):
     rows = frappe.get_all(child_dt,
                           fields=["name", "parent", "parenttype"] +
                                  list(set(fmap.values())),
                           filters={"parenttype": "Building"})
-
     created = 0
     for r in rows:
         doc_type = (r.get(fmap.get("type")) or "Other") if fmap.get("type") else "Other"
@@ -54,9 +80,7 @@ def execute():
         reg.insert(ignore_permissions=True)
         created += 1
 
-    frappe.db.commit()
-    print(f"migrate_building_documents: created {created} register entries "
-          f"from {len(rows)} {child_dt} rows")
+    return created
 
 
 def _field_map(child_dt):
