@@ -7,3 +7,5 @@ darkbrown.patches.create_approval_workflow
 darkbrown.patches.migrate_building_documents
 darkbrown.patches.create_notifications
 darkbrown.patches.create_role_workspaces
+darkbrown.patches.fix_workspace_cards
+darkbrown.patches.full_number_cards
