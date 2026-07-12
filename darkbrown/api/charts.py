@@ -1,0 +1,138 @@
+"""Forward-looking finance charts for the MD dashboard.
+
+get_projection() feeds the Finance > Projection sub-view:
+
+  C1  12-month forward cash flow — expected inflow vs committed head-lease
+      outflow, net per month, and a running cumulative line. First month
+      the running line goes negative = the danger month.
+  C2  committed vs at-risk inflow — same 12 months, splitting expected
+      rent into "committed" (lease contractually covers the month) vs
+      "assumed" (lease expires first; counts only if renewed), plus
+      incoming PDC cover per month where the direction field exists.
+  C8  collected vs billed per month since GENERATION_START — Sales
+      Invoice billed vs Payment Entry receipts.
+
+Modelling choices (deliberate, keep in sync with the spec):
+  - Monthly granularity, no intra-month proration.
+  - A tenant lease is "committed" for months its end_date covers;
+    afterwards its rent moves to "assumed" (renewal risk). C1's inflow
+    = committed + assumed (the realistic-if-renewals-hold view).
+  - Head-lease cost continues at the same rate past contract end
+    (renewal assumed — conservative on cash), with the expiry flagged.
+  - Grace months are skipped on the outflow side, same rule as the
+    invoicer: skipped while contract_start + grace_period_days covers
+    the whole month.
+
+C4 (spread trend) intentionally has no endpoint — the frontend renders
+it straight from get_history(), which already aggregates the imported
+Jul-2025 → Jun-2026 books.
+"""
+
+import frappe
+from frappe.utils import (getdate, nowdate, get_first_day, get_last_day,
+                          add_months, add_days, flt, cint)
+
+from darkbrown.api.md_dashboard import _guard, _has
+from darkbrown.utils.rent_invoicing import GENERATION_START
+
+HORIZON = 12
+
+
+def _months(n, anchor=None):
+    d = get_first_day(getdate(anchor or nowdate()))
+    out = []
+    for i in range(n):
+        s = add_months(d, i)
+        out.append((s, get_last_day(s), s.strftime("%b %y")))
+    return out
+
+
+@frappe.whitelist()
+def get_projection():
+    _guard()
+    months = _months(HORIZON)
+
+    leases = frappe.get_all(
+        "Tenant Rental Agreement", filters={"status": "Active"},
+        fields=["monthly_rent", "start_date", "end_date"])
+    contracts = frappe.get_all(
+        "Landlord Contract", filters={"status": "Active"},
+        fields=["building", "total_owner_rent", "contract_start_date",
+                "contract_end_date", "grace_period_days"])
+
+    pdc_field = None
+    if _has("PDC Cheque"):
+        meta = frappe.get_meta("PDC Cheque")
+        if meta.has_field("direction") and meta.has_field("cheque_date"):
+            pdc_field = "direction"
+    cheques = frappe.get_all(
+        "PDC Cheque", fields=["amount", "cheque_date", "direction"]
+    ) if pdc_field else []
+
+    rows, running = [], 0.0
+    danger, hl_expiring = None, []
+    for (ms, me, label) in months:
+        committed = assumed = 0.0
+        for l in leases:
+            rent = flt(l.monthly_rent)
+            if rent <= 0 or (l.start_date and getdate(l.start_date) > me):
+                continue
+            if l.end_date and getdate(l.end_date) < ms:
+                assumed += rent          # expired by then; renewal risk
+            else:
+                committed += rent        # contract covers this month
+
+        outflow = 0.0
+        for c in contracts:
+            amt = flt(c.total_owner_rent)
+            if amt <= 0 or (c.contract_start_date
+                            and getdate(c.contract_start_date) > me):
+                continue
+            g = cint(c.grace_period_days)
+            if g and c.contract_start_date and \
+                    getdate(add_days(c.contract_start_date, g)) >= me:
+                continue                 # whole month inside grace
+            outflow += amt               # continues past end: renewal assumed
+            if c.contract_end_date and ms <= getdate(c.contract_end_date) <= me:
+                hl_expiring.append("%s (%s)" % (c.building, label))
+
+        pdc_in = sum(flt(q.amount) for q in cheques
+                     if q.cheque_date and ms <= getdate(q.cheque_date) <= me
+                     and (q.direction or "") != "Outgoing")
+
+        inflow = committed + assumed
+        net = inflow - outflow
+        running += net
+        if danger is None and running < 0:
+            danger = label
+        rows.append({"label": label,
+                     "committed": round(committed), "assumed": round(assumed),
+                     "inflow": round(inflow), "outflow": round(outflow),
+                     "net": round(net), "running": round(running),
+                     "pdc_in": round(pdc_in)})
+
+    return {"live": True, "months": rows, "danger": danger,
+            "hl_expiring": hl_expiring, "pdc": bool(pdc_field),
+            "c8": _collected_vs_billed()}
+
+
+def _collected_vs_billed():
+    start = get_first_day(getdate(GENERATION_START))
+    today = getdate(nowdate())
+    out = []
+    s = start
+    while s <= today and len(out) < 12:
+        e = get_last_day(s)
+        billed = flt(frappe.db.get_value(
+            "Sales Invoice",
+            {"docstatus": 1, "posting_date": ["between", [s, e]]},
+            "sum(base_grand_total)") or 0)
+        collected = flt(frappe.db.get_value(
+            "Payment Entry",
+            {"docstatus": 1, "payment_type": "Receive",
+             "posting_date": ["between", [s, e]]},
+            "sum(paid_amount)") or 0)
+        out.append({"label": s.strftime("%b %y"),
+                    "billed": round(billed), "collected": round(collected)})
+        s = add_months(s, 1)
+    return out
