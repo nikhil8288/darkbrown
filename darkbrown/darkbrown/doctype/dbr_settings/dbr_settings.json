@@ -1,0 +1,24 @@
+{
+ "actions": [],
+ "creation": "2026-07-12 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": ["minimum_cash_floor"],
+ "fields": [
+  {"fieldname": "minimum_cash_floor", "fieldtype": "Currency", "label": "Minimum Cash Floor (QAR)",
+   "description": "Company-wide floor. The cash-flow projection flags the first month the running position drops below this."}
+ ],
+ "issingle": 1,
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-07-12 00:00:00.000000",
+ "module": "Darkbrown",
+ "name": "DBR Settings",
+ "owner": "Administrator",
+ "permissions": [
+  {"read": 1, "write": 1, "role": "System Manager"},
+  {"read": 1, "write": 1, "role": "Managing Director"}
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC"
+}
