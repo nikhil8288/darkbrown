@@ -435,8 +435,8 @@ def get_attention():
     ar = get_arrears()
     if ar["count"]:
         out.append(["arrears", "high", "invoice",
-                    "Arrears — QAR %.1fK across %d tenants"
-                    % (ar["total"] / 1000.0, ar["count"]),
+                    "Arrears — QAR %s across %d tenants"
+                    % ("{:,.0f}".format(ar["total"]), ar["count"]),
                     "tenants/arrears", "Open arrears"])
 
     if _pdc_configured():
@@ -445,16 +445,17 @@ def get_attention():
             if aid in gone:
                 continue
             out.append([aid, "high", "dollar",
-                        "Landlord cheque %s — QAR %.1fK to %s in %d days"
-                        % (r["cheque_no"] or r["cheque"], r["amount"] / 1000.0,
+                        "Landlord cheque %s — QAR %s to %s in %d days"
+                        % (r["cheque_no"] or r["cheque"],
+                           "{:,.0f}".format(r["amount"]),
                            r["landlord"], r["days_remaining"]),
                         "finance/pdc", "Cheque detail"])
 
     vc = get_vacant()
     if vc["count"]:
         out.append(["vac", "warn", "home",
-                    "%d vacant units · QAR %.1fK/mo head-lease bleed"
-                    % (vc["count"], vc["bleed_total"] / 1000.0),
+                    "%d vacant units · QAR %s/mo head-lease bleed"
+                    % (vc["count"], "{:,.0f}".format(vc["bleed_total"])),
                     "portfolio/units/Vacant", "Vacant units"])
 
     hl = get_headlease_expiring()

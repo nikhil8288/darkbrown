@@ -364,9 +364,8 @@ def _ageing_buckets():
 
 
 def _k(v):
-    """Render an amount the way the dashboard does: K under a million."""
-    v = flt(v)
-    return ("%.2fM" % (v / 1e6)) if abs(v) >= 1e6 else ("%.1fK" % (v / 1e3))
+    """Full number with thousands separators (no K/M abbreviation)."""
+    return "{:,.0f}".format(flt(v))
 
 
 def _period_bounds(timeframe):
