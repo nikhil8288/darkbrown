@@ -3,3 +3,5 @@
 [post_model_sync]
 darkbrown.patches.create_collections_workflow
 darkbrown.patches.setup_rent_invoicing
+darkbrown.patches.create_approval_workflow
+darkbrown.patches.migrate_building_documents

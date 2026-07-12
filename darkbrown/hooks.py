@@ -23,6 +23,7 @@ scheduler_events = {
     "daily": [
         "darkbrown.utils.collections_case.auto_open_cases",
         "darkbrown.utils.collections_case.reopen_broken_promises",
+        "darkbrown.utils.document_register.refresh_statuses",
     ],
     # Frappe "monthly" fires on the 1st day of each month.
     "monthly": [
