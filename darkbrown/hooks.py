@@ -17,6 +17,12 @@ doc_events = {
     "Payment Entry": {
         "on_submit": "darkbrown.utils.collections_case.on_payment_entry_submit",
     },
+    "Maintenance Request": {
+        "after_insert": "darkbrown.utils.handoffs.t1_assign_maintenance",
+    },
+    "PDC Cheque": {
+        "on_update": "darkbrown.utils.handoffs.t5_assign_bounced",
+    },
 }
 
 scheduler_events = {
@@ -24,6 +30,9 @@ scheduler_events = {
         "darkbrown.utils.collections_case.auto_open_cases",
         "darkbrown.utils.collections_case.reopen_broken_promises",
         "darkbrown.utils.document_register.refresh_statuses",
+        "darkbrown.utils.handoffs.daily_renewal_todos",
+        "darkbrown.utils.handoffs.daily_document_todos",
+        "darkbrown.utils.handoffs.grace_period_alerts",
     ],
     # Frappe "monthly" fires on the 1st day of each month.
     "monthly": [

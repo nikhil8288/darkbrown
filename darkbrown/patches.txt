@@ -5,3 +5,5 @@ darkbrown.patches.create_collections_workflow
 darkbrown.patches.setup_rent_invoicing
 darkbrown.patches.create_approval_workflow
 darkbrown.patches.migrate_building_documents
+darkbrown.patches.create_notifications
+darkbrown.patches.create_role_workspaces

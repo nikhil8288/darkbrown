@@ -15,5 +15,17 @@ def on_session_creation(login_manager):
     if user in ("Administrator", "Guest"):
         return
 
-    if "Managing Director" in frappe.get_roles(user):
+    roles = frappe.get_roles(user)
+
+    if "Managing Director" in roles:
         frappe.local.response["home_page"] = MD_HOME
+        return
+
+    # role -> workspace landing (priority order for multi-role users)
+    for role, route in (("General Manager", "/app/gm-overview"),
+                        ("Accounts", "/app/dbr-finance"),
+                        ("Legal and Documentation", "/app/legal-docs"),
+                        ("Maintenance", "/app/maintenance-desk")):
+        if role in roles:
+            frappe.local.response["home_page"] = route
+            return
