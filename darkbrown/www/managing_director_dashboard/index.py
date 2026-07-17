@@ -23,4 +23,5 @@ def get_context(context):
     context.user_full_name = frappe.db.get_value(
         "User", frappe.session.user, "full_name"
     )
+    context.csrf_token = frappe.sessions.get_csrf_token()
     return context
