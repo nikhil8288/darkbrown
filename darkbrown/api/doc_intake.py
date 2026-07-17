@@ -6,13 +6,14 @@ Document Intake API for DarkBrown Real Estate.
 Flow:
   1. Legal & Documentation user uploads a file on the /doc-intake page.
   2. A Document Register record is created (status = Draft) holding the file.
-  3. extract_document() is called (server-side): it rasterises the PDF pages,
-     sends them to the Claude vision API with a strict extraction prompt, parses
-     the returned JSON, and writes the result back onto the Document Register
-     record (status = Needs Review).
-  4. The human reviews side-by-side with the source image and confirms.
-  5. confirm_and_push() fans the confirmed data out to the live DocTypes
-     (PDC Cheque / Landlord Contract / Tenant Rental Agreement).
+  3. extract_document() rasterises the PDF pages, sends them to the Claude
+     vision API, parses the JSON, writes it back (status = Needs Review).
+  4. The human reviews side-by-side with the source and edits (save_edits).
+  5. confirm_and_push() archives the document (Document Archive, renamed per
+     Building_Unit_DocType convention), links identity documents to the
+     matched Customer/Supplier via the Party Document child table (with the
+     two-check QID validation), and creates PDC Cheque records for confirmed
+     cheque rows. Status -> Pushed.
 
 Security:
   - The Anthropic API key is read server-side only, from site_config
@@ -22,6 +23,7 @@ Security:
 
 import base64
 import json
+import re
 
 import frappe
 from frappe import _
@@ -31,6 +33,8 @@ from darkbrown.api.doc_intake_prompts import (
 	SYSTEM_PROMPT,
 	USER_INSTRUCTION,
 )
+from darkbrown.api import id_validation
+from darkbrown.api.party_documents import append_party_document
 
 ANTHROPIC_URL = "https://api.anthropic.com/v1/messages"
 ANTHROPIC_VERSION = "2023-06-01"
@@ -38,6 +42,29 @@ DEFAULT_MODEL = "claude-haiku-4-5-20251001"
 ESCALATION_MODEL = "claude-sonnet-5"
 RENDER_DPI = 150
 MAX_PAGES = 15  # safety cap; a huge PDF should be split before intake
+
+# Register document_type -> Party Document document_type
+PARTY_DOC_TYPE_MAP = {
+	"QID / National ID": "QID / National ID",
+	"Passport": "Passport",
+	"Tenant Agreement": "Tenant Contract",
+	"Landlord Contract": "Landlord Contract",
+	"Owner Contract": "Owner Contract",
+	"Cheque Batch": "Cheque Batch",
+	"Utility / Other": "Utility / Other",
+}
+
+# Candidate fieldnames on PDC Cheque (created via Desk UI, so mapped
+# defensively at runtime). First existing candidate wins.
+PDC_FIELD_CANDIDATES = {
+	"cheque_number": ["cheque_number", "cheque_no", "chq_no"],
+	"cheque_date": ["cheque_date", "date", "due_date"],
+	"amount": ["amount", "cheque_amount"],
+	"bank_name": ["bank_name", "bank"],
+	"direction": ["direction", "cheque_type", "type"],
+	"payee": ["payee", "party_name", "in_favour_of"],
+	"party_account_no": ["party_account_no", "account_no"],
+}
 
 
 # ---------------------------------------------------------------------------
@@ -188,8 +215,8 @@ def _apply_extraction(reg, result):
 	notes = result.get("notes") or []
 	reg.extraction_notes = "\n".join(str(n) for n in notes) if notes else None
 
-	# Contract-style fields
-	contract = result.get("contract") or {}
+	# Contract-style fields (id_document block reuses the same flat fields)
+	contract = result.get("contract") or result.get("id_document") or {}
 	if contract:
 		mapping = [
 			"party_name", "party_name_ar", "id_number", "nationality",
@@ -201,6 +228,9 @@ def _apply_extraction(reg, result):
 		for f in mapping:
 			if contract.get(f) is not None:
 				reg.set(f, contract.get(f))
+		# id_document extras land in flat fields too
+		if contract.get("expiry_date") and not reg.end_date:
+			reg.end_date = contract.get("expiry_date")
 
 	# Cheque rows
 	reg.set("cheques", [])
@@ -221,7 +251,7 @@ def _apply_extraction(reg, result):
 
 
 # ---------------------------------------------------------------------------
-# Whitelisted entry points
+# Whitelisted entry points — extraction
 # ---------------------------------------------------------------------------
 
 @frappe.whitelist()
@@ -288,3 +318,254 @@ def reject_document(docname, reason=None):
 	reg.save()
 	frappe.db.commit()
 	return reg.name
+
+
+# ---------------------------------------------------------------------------
+# Whitelisted entry points — review & push
+# ---------------------------------------------------------------------------
+
+@frappe.whitelist()
+def get_document(docname):
+	"""Fetch one register record for the review UI."""
+	reg = frappe.get_doc("Document Register", docname)
+	if not reg.has_permission("read"):
+		frappe.throw(_("Not permitted"), frappe.PermissionError)
+	return reg.as_dict()
+
+
+@frappe.whitelist()
+def list_queue(limit=30):
+	"""Register records awaiting action, newest first."""
+	if not frappe.has_permission("Document Register", "read"):
+		frappe.throw(_("Not permitted"), frappe.PermissionError)
+	return frappe.get_all(
+		"Document Register",
+		filters={"status": ["in", ["Draft", "Needs Review"]]},
+		fields=["name", "status", "document_type", "party_name", "id_number",
+		        "extraction_confidence", "source_file", "modified"],
+		order_by="modified desc",
+		limit_page_length=int(limit),
+	)
+
+
+@frappe.whitelist()
+def save_edits(docname, updates):
+	"""Apply reviewer edits. `updates` is a JSON dict of flat fields, plus an
+	optional 'cheques' list that replaces the child rows wholesale."""
+	reg = frappe.get_doc("Document Register", docname)
+	if not reg.has_permission("write"):
+		frappe.throw(_("Not permitted"), frappe.PermissionError)
+
+	data = json.loads(updates) if isinstance(updates, str) else (updates or {})
+
+	editable = {
+		"document_type", "party_name", "party_name_ar", "id_number",
+		"nationality", "cr_number", "counterparty_name", "counterparty_id",
+		"contract_ref_no", "building_no", "zone", "street", "area_name",
+		"unit_no", "electricity_no", "water_no", "monthly_rent",
+		"security_deposit", "start_date", "end_date", "cheques_per_year",
+		"extraction_notes",
+	}
+	for field, value in data.items():
+		if field in editable:
+			reg.set(field, value if value not in ("", "null") else None)
+
+	if isinstance(data.get("cheques"), list):
+		reg.set("cheques", [])
+		for chq in data["cheques"]:
+			reg.append("cheques", {
+				"row_confirmed": 1 if chq.get("row_confirmed") else 0,
+				"direction": chq.get("direction") or "Incoming (from Tenant)",
+				"cheque_number": chq.get("cheque_number"),
+				"cheque_date": chq.get("cheque_date") or None,
+				"amount": chq.get("amount") or None,
+				"amount_in_words": chq.get("amount_in_words"),
+				"payee": chq.get("payee"),
+				"party_account_no": chq.get("party_account_no"),
+				"bank_name": chq.get("bank_name"),
+				"branch": chq.get("branch"),
+				"row_confidence": chq.get("row_confidence"),
+				"row_notes": chq.get("row_notes"),
+			})
+
+	reg.save()
+	frappe.db.commit()
+	return reg.as_dict()
+
+
+@frappe.whitelist()
+def validate_id(docname):
+	"""Run the two-check identity validation for the review UI."""
+	reg = frappe.get_doc("Document Register", docname)
+	if not reg.has_permission("read"):
+		frappe.throw(_("Not permitted"), frappe.PermissionError)
+	is_qid = reg.document_type != "Passport"
+	return id_validation.validate_identity(
+		reg.id_number, holder_name=reg.party_name,
+		nationality=reg.nationality, doc_is_qid=is_qid,
+	)
+
+
+def _sanitize(part):
+	part = re.sub(r"[^\w\- ]", "", str(part or "")).strip().replace(" ", "")
+	return part or "NA"
+
+
+def _archive_title(reg):
+	"""Building_Unit_DocType per the locked filename convention."""
+	building = reg.area_name or reg.building_no or "NA"
+	unit = reg.unit_no or "NA"
+	dtype = (reg.document_type or "Doc").replace(" / ", "").replace(" ", "")
+	return f"{_sanitize(building)}_{_sanitize(unit)}_{_sanitize(dtype)}"
+
+
+def _resolve_building(reg):
+	"""Best-effort Building link from extracted fields; never throws."""
+	try:
+		meta = frappe.get_meta("Building")
+		for field, value in (("building_no", reg.building_no), ("building_name", reg.area_name)):
+			if value and meta.has_field(field):
+				hit = frappe.db.get_value("Building", {field: value})
+				if hit:
+					return hit
+	except Exception:
+		pass
+	return None
+
+
+def _push_cheques(reg, refs):
+	"""Create PDC Cheque records for confirmed rows. Fieldnames are resolved
+	defensively since PDC Cheque was created via the Desk UI."""
+	if not frappe.db.exists("DocType", "PDC Cheque"):
+		refs.append("PDC Cheque DocType not found - cheque rows skipped")
+		return
+
+	meta = frappe.get_meta("PDC Cheque")
+	fieldmap = {}
+	for logical, candidates in PDC_FIELD_CANDIDATES.items():
+		for c in candidates:
+			if meta.has_field(c):
+				fieldmap[logical] = c
+				break
+
+	if "cheque_number" not in fieldmap or "amount" not in fieldmap:
+		refs.append("PDC Cheque fieldnames unrecognised - cheque rows skipped")
+		return
+
+	created = 0
+	for row in reg.cheques or []:
+		if not row.row_confirmed:
+			continue
+		if row.cheque_number and frappe.db.exists(
+			"PDC Cheque", {fieldmap["cheque_number"]: row.cheque_number}
+		):
+			refs.append(f"Cheque {row.cheque_number}: already exists, skipped")
+			continue
+		pdc = frappe.new_doc("PDC Cheque")
+		values = {
+			"cheque_number": row.cheque_number,
+			"cheque_date": row.cheque_date,
+			"amount": row.amount,
+			"bank_name": row.bank_name,
+			"direction": row.direction,
+			"payee": row.payee,
+			"party_account_no": row.party_account_no,
+		}
+		for logical, value in values.items():
+			if logical in fieldmap and value is not None:
+				pdc.set(fieldmap[logical], value)
+		pdc.flags.ignore_permissions = True
+		pdc.insert()
+		refs.append(f"PDC Cheque {pdc.name}")
+		created += 1
+	if not created:
+		refs.append("No confirmed cheque rows to push")
+
+
+@frappe.whitelist()
+def confirm_and_push(docname):
+	"""Reviewer confirmation: archive the document, link identity docs to the
+	matched party, push confirmed cheques. Status -> Pushed."""
+	reg = frappe.get_doc("Document Register", docname)
+	if not reg.has_permission("write"):
+		frappe.throw(_("Not permitted"), frappe.PermissionError)
+	if reg.status not in ("Needs Review", "Confirmed"):
+		frappe.throw(_("Only records in Needs Review can be pushed."))
+
+	refs = []
+	warnings = []
+
+	# 1) Identity validation + party linkage
+	validation = None
+	party_type = party = None
+	if reg.id_number:
+		is_qid = reg.document_type != "Passport"
+		validation = id_validation.validate_identity(
+			reg.id_number, holder_name=reg.party_name,
+			nationality=reg.nationality, doc_is_qid=is_qid,
+		)
+		warnings.extend(validation.get("flags") or [])
+		if validation.get("db_match"):
+			party_type = validation["db_match"]["party_type"]
+			party = validation["db_match"]["party"]
+
+	# 2) Archive (always)
+	title = _archive_title(reg)
+	archive = frappe.new_doc("Document Archive")
+	archive.archive_title = title
+	archive.document_type = reg.document_type if reg.document_type in PARTY_DOC_TYPE_MAP else "Utility / Other"
+	archive.file = reg.source_file
+	archive.id_number = reg.id_number
+	archive.party_type = party_type
+	archive.party = party
+	archive.building = _resolve_building(reg)
+	archive.source_register = reg.name
+	try:
+		fdoc = frappe.get_doc("File", {"file_url": reg.source_file})
+		archive.original_filename = fdoc.file_name
+		ext = (fdoc.file_name or "").rsplit(".", 1)
+		if len(ext) == 2:
+			fdoc.db_set("file_name", f"{title}.{ext[1]}")
+	except Exception:
+		pass
+	archive.flags.ignore_permissions = True
+	archive.insert()
+	refs.append(f"Document Archive {archive.name} ({title})")
+
+	# 3) Party Document row on the matched Customer/Supplier
+	if party and reg.document_type in PARTY_DOC_TYPE_MAP:
+		result = append_party_document(
+			party_doctype=party_type,
+			party_name=party,
+			document_type=PARTY_DOC_TYPE_MAP[reg.document_type],
+			id_number=reg.id_number,
+			holder_name=reg.party_name,
+			nationality=reg.nationality,
+			expiry_date=reg.end_date,
+			document_archive=archive.name,
+			source_register=reg.name,
+			file_url=reg.source_file,
+			id_check_verified=bool(validation and validation.get("verified")),
+		)
+		refs.append(
+			f"Party Document {result['status']} on {party_type} {party} "
+			f"(flat field: {result['flat_field']})"
+		)
+		if result["flat_field"] == "conflict":
+			warnings.append("ID conflict on party - flagged, flat field NOT changed")
+	elif reg.id_number and not party:
+		warnings.append("No matching party - document archived but not linked")
+
+	# 4) Cheques
+	if reg.document_type == "Cheque Batch":
+		_push_cheques(reg, refs)
+
+	# 5) Close out
+	reg.status = "Pushed"
+	reg.reviewed_by = frappe.session.user
+	reg.reviewed_on = now_datetime()
+	reg.pushed_refs = "\n".join(refs)
+	reg.save()
+	frappe.db.commit()
+
+	return {"refs": refs, "warnings": warnings, "validation": validation, "archive": archive.name}

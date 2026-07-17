@@ -41,6 +41,13 @@ it is OUTGOING (to a landlord). Set "direction" accordingly per cheque.
 owner. The owner is the first party (lessor); DarkBrown is the lessee.
 - "Tenant Agreement": a lease where DarkBrown rents a unit TO a tenant. DarkBrown is the \
 lessor (first party); the tenant is the second party (lessee).
+- "QID / National ID": a Qatari residency permit card (front and/or back). Extract the \
+QID number (11 digits), full name (English and Arabic), nationality, date of birth, and \
+expiry date. The QID number is the most important field - read it digit by digit.
+- "Passport": a passport bio page. Extract passport number, full name, nationality, \
+date of birth, and expiry date.
+- "Utility / Other": Kahramaa bills, municipality letters, or anything that does not fit \
+the above. Extract electricity_no / water_no if visible, and any party name/address.
 
 Distinguish Landlord/Owner contracts from Tenant agreements by WHO is paying WHOM: if \
 DarkBrown is the LESSEE (paying rent to an owner) it is a Landlord/Owner Contract; if \
@@ -49,7 +56,7 @@ DarkBrown is the LESSOR (collecting rent from a tenant) it is a Tenant Agreement
 OUTPUT SCHEMA (include only the blocks relevant to the detected type):
 
 {
-  "document_type": "Cheque Batch" | "Landlord Contract" | "Tenant Agreement" | "Owner Contract" | "Unknown",
+  "document_type": "Cheque Batch" | "Landlord Contract" | "Tenant Agreement" | "Owner Contract" | "QID / National ID" | "Passport" | "Utility / Other" | "Unknown",
   "overall_confidence": 0.0-1.0,
   "notes": ["..."],
 
@@ -92,6 +99,17 @@ OUTPUT SCHEMA (include only the blocks relevant to the detected type):
     "start_date": "YYYY-MM-DD or null",
     "end_date": "YYYY-MM-DD or null",
     "cheques_per_year": number or null
+  },
+
+  // ONLY for "QID / National ID", "Passport", "Utility / Other":
+  "id_document": {
+    "party_name": "string or null",     // full name in English/Latin
+    "party_name_ar": "string or null",  // full name in Arabic
+    "id_number": "string or null",      // QID or passport number, read digit by digit
+    "nationality": "string or null",
+    "expiry_date": "YYYY-MM-DD or null",
+    "electricity_no": "string or null", // Utility docs only
+    "water_no": "string or null"        // Utility docs only
   }
 }
 
