@@ -88,17 +88,23 @@ def daily_renewal_todos():
 
 
 def daily_document_todos():
-    """T4: register document hits 30 days to expiry -> Legal task."""
-    if not frappe.db.exists("DocType", "Document Register"):
+    """T4: a party's QID / passport / contract copy hits 30 days to
+    expiry -> Legal task. (Originally read expiry_date off the old
+    building-documents register; that schema was replaced by the intake
+    register, so this now reads Party Document rows.)"""
+    if not frappe.db.exists("DocType", "Party Document"):
         return
     target = add_days(nowdate(), 30)
-    for d in frappe.get_all("Document Register",
+    for d in frappe.get_all("Party Document",
                             filters={"expiry_date": target},
-                            fields=["name", "title"]):
-        if not _already_assigned("Document Register", d.name):
-            _assign("Document Register", d.name,
+                            fields=["name", "parent", "parenttype",
+                                    "document_type", "id_number",
+                                    "holder_name"]):
+        if not _already_assigned(d.parenttype, d.parent):
+            _assign(d.parenttype, d.parent,
                     "Legal and Documentation",
-                    f"Document expiring in 30 days: {d.title} - renew")
+                    f"{d.document_type} expiring in 30 days: "
+                    f"{d.holder_name or d.parent} ({d.id_number or ''}) - renew")
 
 
 # ------------------------------------------------ N5: grace period end

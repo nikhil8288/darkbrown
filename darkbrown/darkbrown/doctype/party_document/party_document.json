@@ -1,0 +1,116 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "hash",
+ "creation": "2026-07-17 10:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "document_type",
+  "id_number",
+  "holder_name",
+  "column_break_1",
+  "nationality",
+  "issue_date",
+  "expiry_date",
+  "section_break_1",
+  "verification_status",
+  "document_archive",
+  "source_register",
+  "column_break_2",
+  "file",
+  "remarks"
+ ],
+ "fields": [
+  {
+   "fieldname": "document_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Document Type",
+   "options": "QID / National ID\nPassport\nTenant Contract\nLandlord Contract\nOwner Contract\nCheque Batch\nUtility / Other",
+   "reqd": 1
+  },
+  {
+   "fieldname": "id_number",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "ID / Document Number"
+  },
+  {
+   "fieldname": "holder_name",
+   "fieldtype": "Data",
+   "label": "Name on Document"
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "nationality",
+   "fieldtype": "Data",
+   "label": "Nationality"
+  },
+  {
+   "fieldname": "issue_date",
+   "fieldtype": "Date",
+   "label": "Issue Date"
+  },
+  {
+   "fieldname": "expiry_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Expiry Date"
+  },
+  {
+   "fieldname": "section_break_1",
+   "fieldtype": "Section Break"
+  },
+  {
+   "default": "Unverified",
+   "fieldname": "verification_status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Verification",
+   "options": "Unverified\nVerified\nConflict"
+  },
+  {
+   "fieldname": "document_archive",
+   "fieldtype": "Link",
+   "label": "Document Archive",
+   "options": "Document Archive"
+  },
+  {
+   "fieldname": "source_register",
+   "fieldtype": "Link",
+   "label": "Source Register Entry",
+   "options": "Document Register"
+  },
+  {
+   "fieldname": "column_break_2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "file",
+   "fieldtype": "Attach",
+   "label": "File"
+  },
+  {
+   "fieldname": "remarks",
+   "fieldtype": "Small Text",
+   "label": "Remarks"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-07-17 10:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Darkbrown",
+ "name": "Party Document",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

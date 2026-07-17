@@ -1,0 +1,338 @@
+{% raw %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Document Intake · DarkBrown</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Mulish:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Mulish',-apple-system,sans-serif;-webkit-font-smoothing:antialiased;background:#F4EDE6 radial-gradient(circle,rgba(184,146,85,0.45) 1.5px,transparent 1.5px);background-size:36px 36px;color:#3E2723;min-height:100vh}
+.wrap{max-width:1240px;margin:0 auto;padding:22px 16px 60px}
+h1{font-family:'Cormorant Garamond',serif;font-size:29px;font-weight:600;letter-spacing:-.2px}
+.sub{font-size:12px;color:#857260;margin-top:3px}
+.card{background:#FFF;border:1px solid #E4D7C6;border-radius:14px;padding:18px;box-shadow:0 1px 3px rgba(62,39,35,.05)}
+.row{display:flex;gap:16px;flex-wrap:wrap;margin-top:16px}
+.btn{border:none;border-radius:8px;padding:9px 16px;font-size:12.5px;font-weight:700;font-family:inherit;cursor:pointer;transition:opacity .15s}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn-primary{background:#3E2723;color:#F4EDE6}
+.btn-ghost{background:#FFF;border:1px solid #D9C9B5;color:#6B5648}
+.btn-green{background:#2E6B57;color:#fff}
+.btn-red{background:#FFF;border:1px solid #C46A5A;color:#A3452F}
+.lbl{display:block;font-size:10.5px;font-weight:700;color:#9A8775;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px}
+.inp{width:100%;border:1px solid #D9C9B5;border-radius:7px;padding:7px 9px;font-size:12.5px;font-family:inherit;color:#3E2723;background:#FFF;font-weight:600}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px}
+.badge{display:inline-block;border-radius:20px;padding:3px 10px;font-size:10.5px;font-weight:700}
+.b-warm{background:rgba(184,146,85,.18);color:#8A6A34}
+.b-green{background:rgba(46,107,87,.16);color:#2E6B57}
+.b-red{background:rgba(196,106,90,.16);color:#A3452F}
+.b-grey{background:rgba(133,114,96,.14);color:#6B5648}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{text-align:left;font-size:10px;font-weight:700;color:#9A8775;text-transform:uppercase;letter-spacing:.04em;padding:7px 8px;border-bottom:1px solid #E4D7C6}
+td{padding:7px 8px;border-bottom:1px solid #F0E6D8;vertical-align:middle}
+td .inp{padding:5px 7px;font-size:11.5px}
+.queue-item{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 4px;border-bottom:1px solid #F0E6D8;cursor:pointer}
+.queue-item:hover{background:#FBF6EF}
+.split{display:grid;grid-template-columns:minmax(320px,46%) 1fr;gap:16px;margin-top:16px}
+@media(max-width:900px){.split{grid-template-columns:1fr}}
+.preview{background:#FFF;border:1px solid #E4D7C6;border-radius:14px;overflow:hidden;min-height:420px}
+.preview iframe,.preview img{width:100%;height:640px;border:none;display:block;object-fit:contain;background:#EFE7DB}
+.flag{font-size:11.5px;color:#A3452F;padding:3px 0}
+.ok{font-size:11.5px;color:#2E6B57;padding:3px 0}
+#drop{border:2px dashed #C9B698;border-radius:14px;background:rgba(255,255,255,.6);padding:34px;text-align:center;color:#857260;font-size:13px;cursor:pointer;transition:background .15s}
+#drop.on{background:rgba(46,107,87,.08);border-color:#2E6B57}
+.spin{display:inline-block;width:14px;height:14px;border:2px solid #D9C9B5;border-top-color:#3E2723;border-radius:50%;animation:sp 0.8s linear infinite;vertical-align:-2px;margin-right:7px}
+@keyframes sp{to{transform:rotate(360deg)}}
+.toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:#3E2723;color:#F4EDE6;border-radius:10px;padding:11px 20px;font-size:12.5px;font-weight:600;box-shadow:0 6px 20px rgba(62,39,35,.3);z-index:99;max-width:90vw}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:10px">
+    <div>
+      <h1>Document Intake</h1>
+      <div class="sub">Upload &rarr; AI extraction &rarr; review &rarr; push to ERP</div>
+    </div>
+    <a href="/app/document-register" class="btn btn-ghost" style="text-decoration:none">Open Register list</a>
+  </div>
+
+  <!-- UPLOAD -->
+  <div id="upload_zone" style="margin-top:18px">
+    <div id="drop">Drop a scanned PDF / image here, or click to choose a file<br>
+      <span style="font-size:11px">Cheque batches, contracts, QID, passport, utility docs</span>
+    </div>
+    <input type="file" id="file_input" accept=".pdf,.png,.jpg,.jpeg" style="display:none">
+    <div style="margin-top:10px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+      <label style="font-size:12px;color:#6B5648;display:flex;align-items:center;gap:6px">
+        <input type="checkbox" id="escalate"> Use stronger model (Sonnet) for this document
+      </label>
+      <span id="up_status" style="font-size:12px;color:#857260"></span>
+    </div>
+  </div>
+
+  <!-- QUEUE -->
+  <div class="card" style="margin-top:16px">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <span class="lbl" style="margin:0">Pending review</span>
+      <button class="btn btn-ghost" onclick="loadQueue()">Refresh</button>
+    </div>
+    <div id="queue" style="margin-top:6px"><span style="font-size:12px;color:#857260">Loading&hellip;</span></div>
+  </div>
+
+  <!-- REVIEW -->
+  <div id="review" style="display:none">
+    <div class="split">
+      <div class="preview" id="preview"></div>
+      <div>
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+            <div>
+              <span id="r_name" style="font-weight:700;font-size:13px"></span>
+              <span id="r_conf" class="badge b-warm" style="margin-left:8px"></span>
+            </div>
+            <span id="r_status" class="badge b-grey"></span>
+          </div>
+          <div style="margin-top:12px">
+            <label class="lbl">Document type</label>
+            <select id="f_document_type" class="inp">
+              <option>Unknown</option><option>Cheque Batch</option>
+              <option>Landlord Contract</option><option>Tenant Agreement</option>
+              <option>Owner Contract</option><option>Passport</option>
+              <option>QID / National ID</option><option>Utility / Other</option>
+            </select>
+          </div>
+          <div class="grid" style="margin-top:12px" id="fields"></div>
+          <div id="notes_box" style="margin-top:12px"></div>
+          <div id="idcheck" style="margin-top:10px"></div>
+        </div>
+
+        <div class="card" id="cheque_card" style="margin-top:14px;display:none;overflow-x:auto">
+          <span class="lbl">Cheques &mdash; tick each row after checking it against the scan</span>
+          <table id="cheque_table"></table>
+        </div>
+
+        <div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap">
+          <button class="btn btn-ghost" onclick="saveEdits()">Save edits</button>
+          <button class="btn btn-ghost" onclick="reExtract()">Re-extract with Sonnet</button>
+          <button class="btn btn-green" onclick="confirmPush()">Confirm &amp; Push</button>
+          <button class="btn btn-red" onclick="rejectDoc()">Reject</button>
+          <button class="btn btn-ghost" onclick="closeReview()" style="margin-left:auto">Close</button>
+        </div>
+        <div id="push_result" style="margin-top:12px"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function _csrf(){ return (window.frappe && frappe.csrf_token) || ''; }
+const API = 'darkbrown.api.doc_intake.';
+let CUR = null;
+
+const FLAT_FIELDS = [
+  ['party_name','Party name'],['party_name_ar','Party name (Arabic)'],
+  ['id_number','ID / QID number'],['nationality','Nationality'],
+  ['cr_number','CR number'],['contract_ref_no','Contract ref'],
+  ['building_no','Building no'],['area_name','Area'],['zone','Zone'],['street','Street'],
+  ['unit_no','Unit'],['electricity_no','Electricity no'],['water_no','Water no'],
+  ['monthly_rent','Monthly rent (QAR)'],['security_deposit','Deposit (QAR)'],
+  ['start_date','Start date'],['end_date','End / expiry date'],
+  ['cheques_per_year','Cheques / year'],
+];
+const DATE_F = new Set(['start_date','end_date']);
+const NUM_F = new Set(['monthly_rent','security_deposit','cheques_per_year']);
+
+function toast(msg){
+  const t=document.createElement('div');t.className='toast';t.textContent=msg;
+  document.body.appendChild(t);setTimeout(()=>t.remove(),3500);
+}
+async function call(method, args, isPost){
+  const opt = isPost
+    ? {method:'POST',headers:{'X-Frappe-CSRF-Token':_csrf(),'Content-Type':'application/json'},body:JSON.stringify(args||{})}
+    : {headers:{'X-Frappe-CSRF-Token':_csrf()}};
+  const url = '/api/method/'+API+method+(isPost?'':('?'+new URLSearchParams(args||{})));
+  const r = await fetch(url,opt);
+  const j = await r.json();
+  if(!r.ok){throw new Error((j._server_messages&&JSON.parse(JSON.parse(j._server_messages)[0]).message)||j.exception||'Request failed');}
+  return j.message;
+}
+
+// ---------- upload ----------
+const drop=document.getElementById('drop'),fi=document.getElementById('file_input');
+drop.onclick=()=>fi.click();
+drop.ondragover=e=>{e.preventDefault();drop.classList.add('on');};
+drop.ondragleave=()=>drop.classList.remove('on');
+drop.ondrop=e=>{e.preventDefault();drop.classList.remove('on');if(e.dataTransfer.files[0])handleFile(e.dataTransfer.files[0]);};
+fi.onchange=()=>{if(fi.files[0])handleFile(fi.files[0]);};
+
+async function handleFile(file){
+  const st=document.getElementById('up_status');
+  st.innerHTML='<span class="spin"></span>Uploading&hellip;';
+  try{
+    const fd=new FormData();
+    fd.append('file',file);fd.append('is_private','1');fd.append('folder','Home');
+    const r=await fetch('/api/method/upload_file',{method:'POST',headers:{'X-Frappe-CSRF-Token':_csrf()},body:fd});
+    const j=await r.json();
+    if(!r.ok) throw new Error('Upload failed');
+    const fileUrl=j.message.file_url;
+    st.innerHTML='<span class="spin"></span>Extracting with AI &mdash; this can take up to a minute&hellip;';
+    const esc=document.getElementById('escalate').checked?1:0;
+    const doc=await call('extract_from_upload',{file_url:fileUrl,escalate:esc},true);
+    st.textContent='';
+    openReview(doc);loadQueue();
+  }catch(e){st.textContent='';toast('Error: '+e.message);}
+  fi.value='';
+}
+
+// ---------- queue ----------
+async function loadQueue(){
+  const q=document.getElementById('queue');
+  try{
+    const rows=await call('list_queue',{limit:30});
+    if(!rows.length){q.innerHTML='<span style="font-size:12px;color:#857260">Nothing pending. Upload a document above.</span>';return;}
+    q.innerHTML=rows.map(r=>`
+      <div class="queue-item" onclick="openByName('${r.name}')">
+        <div>
+          <span style="font-weight:700;font-size:12.5px">${r.name}</span>
+          <span class="badge ${r.status==='Needs Review'?'b-warm':'b-grey'}" style="margin-left:8px">${r.status}</span>
+          <div style="font-size:11.5px;color:#857260;margin-top:2px">${r.document_type||'—'} · ${r.party_name||''} ${r.id_number?('· '+r.id_number):''}</div>
+        </div>
+        <span style="font-size:11px;color:#9A8775">${r.extraction_confidence?Math.round(r.extraction_confidence*100)+'%':''}</span>
+      </div>`).join('');
+  }catch(e){q.innerHTML='<span class="flag">'+e.message+'</span>';}
+}
+async function openByName(name){ openReview(await call('get_document',{docname:name})); }
+
+// ---------- review ----------
+function openReview(doc){
+  CUR=doc;
+  document.getElementById('review').style.display='block';
+  document.getElementById('push_result').innerHTML='';
+  document.getElementById('r_name').textContent=doc.name;
+  document.getElementById('r_status').textContent=doc.status;
+  const c=doc.extraction_confidence;
+  const cb=document.getElementById('r_conf');
+  cb.textContent=c!=null?('confidence '+Math.round(c*100)+'%'):'not extracted';
+  cb.className='badge '+(c>=0.85?'b-green':c>=0.6?'b-warm':'b-red');
+
+  // preview
+  const p=document.getElementById('preview');
+  const u=doc.source_file||'';
+  p.innerHTML = u.toLowerCase().endsWith('.pdf')
+    ? `<iframe src="${u}"></iframe>`
+    : `<img src="${u}" alt="document">`;
+
+  document.getElementById('f_document_type').value=doc.document_type||'Unknown';
+
+  // flat fields
+  document.getElementById('fields').innerHTML=FLAT_FIELDS.map(([f,label])=>{
+    const type=DATE_F.has(f)?'date':NUM_F.has(f)?'number':'text';
+    const val=doc[f]==null?'':doc[f];
+    return `<div><label class="lbl">${label}</label><input class="inp" type="${type}" id="f_${f}" value="${String(val).replace(/"/g,'&quot;')}"></div>`;
+  }).join('');
+
+  // notes
+  document.getElementById('notes_box').innerHTML=doc.extraction_notes
+    ? `<span class="lbl">Extractor notes</span><div style="font-size:12px;color:#6B5648;white-space:pre-wrap">${doc.extraction_notes}</div>`:'';
+
+  // cheques
+  const cc=document.getElementById('cheque_card');
+  if((doc.cheques||[]).length){
+    cc.style.display='block';
+    document.getElementById('cheque_table').innerHTML=
+      '<tr><th>OK</th><th>Direction</th><th>Number</th><th>Date</th><th>Amount</th><th>Payee</th><th>Bank</th><th>Conf.</th></tr>'+
+      doc.cheques.map((ch,i)=>`
+        <tr>
+          <td><input type="checkbox" id="cq_ok_${i}" ${ch.row_confirmed?'checked':''}></td>
+          <td><select class="inp" id="cq_dir_${i}" style="min-width:120px">
+            <option ${/Incoming/.test(ch.direction||'')?'selected':''}>Incoming (from Tenant)</option>
+            <option ${/Outgoing/.test(ch.direction||'')?'selected':''}>Outgoing (to Landlord)</option></select></td>
+          <td><input class="inp" id="cq_no_${i}" value="${ch.cheque_number||''}" style="min-width:90px"></td>
+          <td><input class="inp" type="date" id="cq_dt_${i}" value="${ch.cheque_date||''}"></td>
+          <td><input class="inp" type="number" id="cq_amt_${i}" value="${ch.amount||''}" style="min-width:90px"></td>
+          <td><input class="inp" id="cq_pay_${i}" value="${(ch.payee||'').replace(/"/g,'&quot;')}" style="min-width:130px"></td>
+          <td><input class="inp" id="cq_bank_${i}" value="${(ch.bank_name||'').replace(/"/g,'&quot;')}" style="min-width:100px"></td>
+          <td style="font-size:11px;color:#9A8775">${ch.row_confidence?Math.round(ch.row_confidence*100)+'%':''}</td>
+        </tr>`).join('');
+  } else cc.style.display='none';
+
+  runIdCheck();
+  document.getElementById('review').scrollIntoView({behavior:'smooth'});
+}
+function closeReview(){document.getElementById('review').style.display='none';CUR=null;}
+
+async function runIdCheck(){
+  const box=document.getElementById('idcheck');box.innerHTML='';
+  if(!CUR||!CUR.id_number)return;
+  try{
+    const v=await call('validate_id',{docname:CUR.name});
+    let html='<span class="lbl">Identity checks</span>';
+    if(v.db_match) html+=`<div class="ok">&#10003; Matched ${v.db_match.party_type} <b>${v.db_match.party_name}</b> via ${v.db_match.via} (name score ${v.name_score})</div>`;
+    (v.flags||[]).forEach(f=>html+=`<div class="flag">&#9888; ${f}</div>`);
+    if(v.verified) html+='<div class="ok"><b>Both checks passed — will link as Verified.</b></div>';
+    box.innerHTML=html;
+  }catch(e){/* silent */}
+}
+
+function collectEdits(){
+  const upd={document_type:document.getElementById('f_document_type').value};
+  FLAT_FIELDS.forEach(([f])=>{upd[f]=document.getElementById('f_'+f).value;});
+  if((CUR.cheques||[]).length){
+    upd.cheques=CUR.cheques.map((ch,i)=>({
+      row_confirmed:document.getElementById('cq_ok_'+i).checked?1:0,
+      direction:document.getElementById('cq_dir_'+i).value,
+      cheque_number:document.getElementById('cq_no_'+i).value,
+      cheque_date:document.getElementById('cq_dt_'+i).value,
+      amount:document.getElementById('cq_amt_'+i).value,
+      payee:document.getElementById('cq_pay_'+i).value,
+      bank_name:document.getElementById('cq_bank_'+i).value,
+      amount_in_words:ch.amount_in_words,branch:ch.branch,
+      party_account_no:ch.party_account_no,
+      row_confidence:ch.row_confidence,row_notes:ch.row_notes,
+    }));
+  }
+  return upd;
+}
+
+async function saveEdits(){
+  if(!CUR)return;
+  try{
+    const doc=await call('save_edits',{docname:CUR.name,updates:JSON.stringify(collectEdits())},true);
+    CUR=doc;toast('Saved');runIdCheck();
+  }catch(e){toast('Error: '+e.message);}
+}
+
+async function reExtract(){
+  if(!CUR)return;
+  toast('Re-extracting with Sonnet…');
+  try{openReview(await call('extract_document',{docname:CUR.name,escalate:1},true));}
+  catch(e){toast('Error: '+e.message);}
+}
+
+async function confirmPush(){
+  if(!CUR)return;
+  if(!confirm('Push this document to the ERP? This archives the file and writes to live records.'))return;
+  try{
+    await call('save_edits',{docname:CUR.name,updates:JSON.stringify(collectEdits())},true);
+    const res=await call('confirm_and_push',{docname:CUR.name},true);
+    let html='<span class="lbl">Pushed</span>'+res.refs.map(r=>`<div class="ok">&#10003; ${r}</div>`).join('');
+    (res.warnings||[]).forEach(w=>html+=`<div class="flag">&#9888; ${w}</div>`);
+    document.getElementById('push_result').innerHTML=html;
+    document.getElementById('r_status').textContent='Pushed';
+    toast('Document pushed');loadQueue();
+  }catch(e){toast('Error: '+e.message);}
+}
+
+async function rejectDoc(){
+  if(!CUR)return;
+  const reason=prompt('Reason for rejection (optional):')||'';
+  try{await call('reject_document',{docname:CUR.name,reason:reason},true);toast('Rejected');closeReview();loadQueue();}
+  catch(e){toast('Error: '+e.message);}
+}
+
+loadQueue();
+</script>
+</body>
+</html>
+{% endraw %}

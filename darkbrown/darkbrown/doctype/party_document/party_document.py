@@ -3,14 +3,12 @@
 
 import frappe
 from frappe.model.document import Document
-from frappe.utils import now_datetime
 
 
-class DocumentArchive(Document):
-	def before_insert(self):
-		self.archived_on = self.archived_on or now_datetime()
-		self.archived_by = self.archived_by or frappe.session.user
-
+class PartyDocument(Document):
 	def validate(self):
+		# Normalise the ID number: strip spaces, keep it comparable across
+		# agreements, cheques and ID copies (it is the primary key linking a
+		# person's document set).
 		if self.id_number:
 			self.id_number = self.id_number.replace(" ", "").strip()
