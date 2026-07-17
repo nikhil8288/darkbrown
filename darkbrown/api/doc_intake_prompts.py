@@ -61,6 +61,11 @@ OUTPUT SCHEMA (include only the blocks relevant to the detected type):
   "notes": ["..."],
 
   // ONLY for Cheque Batch:
+  "drawer": {
+    "name": "string or null",           // account holder / drawer printed above the account number
+    "name_ar": "string or null",
+    "account_no": "string or null"
+  },
   "cheques": [
     {
       "direction": "Incoming (from Tenant)" | "Outgoing (to Landlord)",
@@ -81,7 +86,7 @@ OUTPUT SCHEMA (include only the blocks relevant to the detected type):
   "contract": {
     "party_name": "string or null",            // the counterparty (owner or tenant), English
     "party_name_ar": "string or null",          // counterparty name in Arabic
-    "id_number": "string or null",              // QID / ID number of the counterparty
+    "id_number": "string or null",              // QID / ID number of the counterparty. Qatari QIDs are EXACTLY 11 digits - count them; re-read digit by digit if you get 10 or 12
     "nationality": "string or null",
     "cr_number": "string or null",              // commercial registration, if a company
     "counterparty_name": "string or null",      // the OTHER side (usually DarkBrown)
@@ -98,7 +103,7 @@ OUTPUT SCHEMA (include only the blocks relevant to the detected type):
     "security_deposit": number or null,
     "start_date": "YYYY-MM-DD or null",
     "end_date": "YYYY-MM-DD or null",
-    "cheques_per_year": number or null
+    "cheques_per_year": number or null          // PER YEAR (typically 4, 6, or 12). If the contract states a TOTAL cheque count for a multi-year term, divide by the number of years and note it
   },
 
   // ONLY for "QID / National ID", "Passport", "Utility / Other":

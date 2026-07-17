@@ -232,6 +232,13 @@ def _apply_extraction(reg, result):
 		if contract.get("expiry_date") and not reg.end_date:
 			reg.end_date = contract.get("expiry_date")
 
+	# Cheque batches: the drawer (account holder) is the party
+	drawer = result.get("drawer") or {}
+	if drawer.get("name") and not reg.party_name:
+		reg.party_name = drawer.get("name")
+	if drawer.get("name_ar") and not reg.party_name_ar:
+		reg.party_name_ar = drawer.get("name_ar")
+
 	# Cheque rows
 	reg.set("cheques", [])
 	for chq in (result.get("cheques") or []):
@@ -412,11 +419,15 @@ def _sanitize(part):
 
 
 def _archive_title(reg):
-	"""Building_Unit_DocType per the locked filename convention."""
-	building = reg.area_name or reg.building_no or "NA"
-	unit = reg.unit_no or "NA"
+	"""Building_Unit_DocType per the locked filename convention; when the
+	document has no property context (e.g. cheque batches, IDs), fall back
+	to PartyName_DocType instead of NA_NA."""
+	building = reg.area_name or reg.building_no
+	unit = reg.unit_no
 	dtype = (reg.document_type or "Doc").replace(" / ", "").replace(" ", "")
-	return f"{_sanitize(building)}_{_sanitize(unit)}_{_sanitize(dtype)}"
+	if not building and not unit and reg.party_name:
+		return f"{_sanitize(reg.party_name)[:40]}_{_sanitize(dtype)}"
+	return f"{_sanitize(building or 'NA')}_{_sanitize(unit or 'NA')}_{_sanitize(dtype)}"
 
 
 def _resolve_building(reg):
@@ -508,6 +519,31 @@ def confirm_and_push(docname):
 		if validation.get("db_match"):
 			party_type = validation["db_match"]["party_type"]
 			party = validation["db_match"]["party"]
+
+	# No ID (or no ID hit) but we have a name (e.g. cheque drawer):
+	# conservative fuzzy match. Incoming cheques -> tenants, outgoing -> landlords.
+	name_match = None
+	if not party and reg.party_name:
+		preferred = None
+		if reg.document_type == "Cheque Batch" and reg.cheques:
+			preferred = (
+				"Supplier"
+				if "Outgoing" in (reg.cheques[0].direction or "")
+				else "Customer"
+			)
+		name_match = id_validation.find_party_by_name(reg.party_name, party_type=preferred)
+		if name_match:
+			party_type = name_match["party_type"]
+			party = name_match["party"]
+			refs.append(
+				f"Matched {party_type} '{name_match['party_name']}' by name "
+				f"(score {name_match['score']})"
+			)
+		else:
+			warnings.append(
+				f"No party matched the name '{reg.party_name}' - "
+				"archived without link"
+			)
 
 	# 2) Archive (always)
 	title = _archive_title(reg)

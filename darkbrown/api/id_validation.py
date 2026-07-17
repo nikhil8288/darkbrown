@@ -136,6 +136,31 @@ def find_party_by_id(id_number):
 	return None
 
 
+def find_party_by_name(name, party_type=None, threshold=0.72):
+	"""Fuzzy name match against Customer/Supplier for documents that carry a
+	name but no ID number (e.g. cheque batches: the drawer). Returns the best
+	{party_type, party, party_name, score, via} above threshold, else None.
+	Deliberately conservative: a wrong link is worse than no link."""
+	if not name:
+		return None
+	doctypes = (
+		[(party_type, "customer_name" if party_type == "Customer" else "supplier_name")]
+		if party_type
+		else [("Customer", "customer_name"), ("Supplier", "supplier_name")]
+	)
+	best = None
+	for doctype, name_field in doctypes:
+		for row in frappe.get_all(doctype, fields=["name", name_field]):
+			candidate = row.get(name_field) or row.name
+			score = name_similarity(name, candidate)
+			if score >= threshold and (not best or score > best["score"]):
+				best = {
+					"party_type": doctype, "party": row.name,
+					"party_name": candidate, "score": score, "via": "name match",
+				}
+	return best
+
+
 def validate_identity(id_number, holder_name=None, nationality=None, doc_is_qid=True):
 	"""Full two-check run. Returns a dict the UI can render and
 	confirm_and_push can act on:
