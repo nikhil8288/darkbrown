@@ -261,6 +261,30 @@ def _apply_extraction(reg, result):
 # Whitelisted entry points — extraction
 # ---------------------------------------------------------------------------
 
+def _find_duplicate(file_url):
+	"""Return the name of an existing non-rejected Document Register entry
+	whose source file has the same content hash (true duplicate even if the
+	filename differs), else None."""
+	try:
+		this_hash = frappe.db.get_value("File", {"file_url": file_url}, "content_hash")
+		if not this_hash:
+			return None
+		twin_urls = frappe.get_all(
+			"File",
+			filters={"content_hash": this_hash, "file_url": ["!=", file_url]},
+			pluck="file_url",
+		)
+		if not twin_urls:
+			return None
+		return frappe.db.get_value(
+			"Document Register",
+			{"source_file": ["in", twin_urls], "status": ["!=", "Rejected"]},
+			"name",
+		)
+	except Exception:
+		return None
+
+
 @frappe.whitelist()
 def create_intake(file_url):
 	"""Create a Document Register record for an uploaded file (status Draft)."""
@@ -308,8 +332,14 @@ def extract_document(docname, escalate=0):
 
 
 @frappe.whitelist()
-def extract_from_upload(file_url, escalate=0):
-	"""Convenience: create the register record AND extract in one call."""
+def extract_from_upload(file_url, escalate=0, skip_duplicate_check=0):
+	"""Convenience: create the register record AND extract in one call.
+	Duplicate files (same content hash as an existing non-rejected register
+	entry) are skipped BEFORE any API spend, unless explicitly overridden."""
+	if not int(skip_duplicate_check or 0):
+		twin = _find_duplicate(file_url)
+		if twin:
+			return {"duplicate": twin, "file_url": file_url}
 	docname = create_intake(file_url)
 	return extract_document(docname, escalate=escalate)
 
@@ -502,6 +532,13 @@ def confirm_and_push(docname):
 		frappe.throw(_("Not permitted"), frappe.PermissionError)
 	if reg.status not in ("Needs Review", "Confirmed"):
 		frappe.throw(_("Only records in Needs Review can be pushed."))
+	if reg.document_type == "Cheque Batch" and not any(
+		r.row_confirmed for r in (reg.cheques or [])
+	):
+		frappe.throw(
+			_("No cheque rows are ticked. Tick each cheque you have verified "
+			  "against the scan (or use Tick all), then push.")
+		)
 
 	refs = []
 	warnings = []

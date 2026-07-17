@@ -46,6 +46,15 @@ td .inp{padding:5px 7px;font-size:11.5px}
 .spin{display:inline-block;width:14px;height:14px;border:2px solid #D9C9B5;border-top-color:#3E2723;border-radius:50%;animation:sp 0.8s linear infinite;vertical-align:-2px;margin-right:7px}
 @keyframes sp{to{transform:rotate(360deg)}}
 .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:#3E2723;color:#F4EDE6;border-radius:10px;padding:11px 20px;font-size:12.5px;font-weight:600;box-shadow:0 6px 20px rgba(62,39,35,.3);z-index:99;max-width:90vw}
+.rvw{display:flex;gap:6px;justify-content:flex-end}
+.rvw button{width:30px;height:30px;border-radius:50%;border:1.5px solid #D9C9B5;background:#FFF;cursor:pointer;font-size:14px;line-height:1;color:#B8A58C;transition:all .12s}
+.rvw button:hover{transform:scale(1.08)}
+.rvw .y.on{background:#2E6B57;border-color:#2E6B57;color:#fff}
+.rvw .n.on{background:#C46A5A;border-color:#C46A5A;color:#fff}
+tr.st-ok td{background:rgba(46,107,87,.07)}
+tr.st-no td{background:rgba(196,106,90,.08)}
+tr.st-no input,tr.st-no select{opacity:.55}
+.btn-allok{border:1.5px solid #2E6B57;background:rgba(46,107,87,.12);color:#2E6B57;border-radius:16px;padding:4px 12px;font-size:11px;font-weight:700;font-family:inherit;cursor:pointer}
 </style>
 </head>
 <body>
@@ -60,10 +69,11 @@ td .inp{padding:5px 7px;font-size:11.5px}
 
   <!-- UPLOAD -->
   <div id="upload_zone" style="margin-top:18px">
-    <div id="drop">Drop a scanned PDF / image here, or click to choose a file<br>
-      <span style="font-size:11px">Cheque batches, contracts, QID, passport, utility docs</span>
+    <div id="drop">Drop scanned PDFs / images here (up to 10 at once), or click to choose<br>
+      <span style="font-size:11px">Cheque batches, contracts, QID, passport, utility docs &mdash; duplicates are detected and skipped</span>
     </div>
-    <input type="file" id="file_input" accept=".pdf,.png,.jpg,.jpeg" style="display:none">
+    <input type="file" id="file_input" accept=".pdf,.png,.jpg,.jpeg" multiple style="display:none">
+    <div id="batch_panel" class="card" style="margin-top:10px;display:none"></div>
     <div style="margin-top:10px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
       <label style="font-size:12px;color:#6B5648;display:flex;align-items:center;gap:6px">
         <input type="checkbox" id="escalate"> Use stronger model (Sonnet) for this document
@@ -109,7 +119,7 @@ td .inp{padding:5px 7px;font-size:11.5px}
         </div>
 
         <div class="card" id="cheque_card" style="margin-top:14px;display:none;overflow-x:auto">
-          <span class="lbl">Cheques &mdash; tick each row after checking it against the scan</span>
+          <span class="lbl">Cheques &mdash; verify each row against the scan: <span style="color:#2E6B57">&#10003; push</span> / <span style="color:#A3452F">&#10005; exclude</span></span>
           <table id="cheque_table"></table>
         </div>
 
@@ -164,26 +174,51 @@ const drop=document.getElementById('drop'),fi=document.getElementById('file_inpu
 drop.onclick=()=>fi.click();
 drop.ondragover=e=>{e.preventDefault();drop.classList.add('on');};
 drop.ondragleave=()=>drop.classList.remove('on');
-drop.ondrop=e=>{e.preventDefault();drop.classList.remove('on');if(e.dataTransfer.files[0])handleFile(e.dataTransfer.files[0]);};
-fi.onchange=()=>{if(fi.files[0])handleFile(fi.files[0]);};
+drop.ondrop=e=>{e.preventDefault();drop.classList.remove('on');if(e.dataTransfer.files.length)handleBatch([...e.dataTransfer.files]);};
+fi.onchange=()=>{if(fi.files.length)handleBatch([...fi.files]);};
 
-async function handleFile(file){
-  const st=document.getElementById('up_status');
-  st.innerHTML='<span class="spin"></span>Uploading&hellip;';
-  try{
-    const fd=new FormData();
-    fd.append('file',file);fd.append('is_private','1');fd.append('folder','Home');
-    const r=await fetch('/api/method/upload_file',{method:'POST',headers:{'X-Frappe-CSRF-Token':_csrf()},body:fd});
-    const j=await r.json();
-    if(!r.ok) throw new Error('Upload failed');
-    const fileUrl=j.message.file_url;
-    st.innerHTML='<span class="spin"></span>Extracting with AI &mdash; this can take up to a minute&hellip;';
-    const esc=document.getElementById('escalate').checked?1:0;
-    const doc=await call('extract_from_upload',{file_url:fileUrl,escalate:esc},true);
-    st.textContent='';
-    openReview(doc);loadQueue();
-  }catch(e){st.textContent='';toast('Error: '+e.message);}
+let BUSY=false;
+async function handleBatch(files){
+  if(BUSY){toast('A batch is already processing \u2014 wait for it to finish');return;}
+  if(files.length>10){toast('Max 10 files per batch \u2014 taking the first 10');files=files.slice(0,10);}
   fi.value='';
+  BUSY=true;
+  const panel=document.getElementById('batch_panel');
+  panel.style.display='block';
+  const esc=document.getElementById('escalate').checked?1:0;
+  const states=files.map(f=>({name:f.name,st:'queued',info:''}));
+  const paint=()=>{panel.innerHTML='<span class="lbl">Batch progress</span>'+states.map(s=>{
+    const icon=s.st==='done'?'<span style="color:#2E6B57">&#10003;</span>'
+      :s.st==='dup'?'<span style="color:#8A6A34">&#9888;</span>'
+      :s.st==='fail'?'<span style="color:#A3452F">&#10005;</span>'
+      :s.st==='working'?'<span class="spin"></span>':'&#8226;';
+    return `<div style="display:flex;gap:8px;align-items:center;font-size:12px;padding:3px 0">${icon}<b>${s.name}</b><span style="color:#857260">${s.info}</span></div>`;
+  }).join('');};
+  paint();
+  const single=files.length===1;
+  for(let i=0;i<files.length;i++){
+    states[i].st='working';states[i].info='uploading\u2026';paint();
+    try{
+      const fd=new FormData();
+      fd.append('file',files[i]);fd.append('is_private','1');fd.append('folder','Home');
+      const r=await fetch('/api/method/upload_file',{method:'POST',headers:{'X-Frappe-CSRF-Token':_csrf()},body:fd});
+      const j=await r.json();
+      if(!r.ok) throw new Error('upload rejected (HTTP '+r.status+')');
+      states[i].info='extracting with AI\u2026';paint();
+      const res=await call('extract_from_upload',{file_url:j.message.file_url,escalate:esc},true);
+      if(res && res.duplicate){
+        states[i].st='dup';states[i].info='duplicate of '+res.duplicate+' \u2014 skipped, no API cost';
+      }else{
+        states[i].st='done';
+        states[i].info=(res.document_type||'?')+' \u00b7 '+(res.party_name||'')+' \u00b7 '+(res.extraction_confidence?Math.round(res.extraction_confidence*100)+'%':'');
+        if(single){openReview(res);}
+      }
+    }catch(e){states[i].st='fail';states[i].info=e.message;}
+    paint();loadQueue();
+  }
+  BUSY=false;
+  const done=states.filter(s=>s.st==='done').length,dup=states.filter(s=>s.st==='dup').length,fail=states.filter(s=>s.st==='fail').length;
+  toast(`Batch finished: ${done} extracted`+(dup?`, ${dup} duplicate${dup>1?'s':''}`:'')+(fail?`, ${fail} failed`:''));
 }
 
 // ---------- queue ----------
@@ -241,11 +276,17 @@ function openReview(doc){
   const cc=document.getElementById('cheque_card');
   if((doc.cheques||[]).length){
     cc.style.display='block';
+    // review state per row: 1 = confirmed (green), -1 = excluded (red), 0 = untouched
+    CUR._rvw = doc.cheques.map(ch=>{
+      if(ch.row_confirmed) return 1;
+      if(/\[Skipped\]/.test(ch.row_notes||'')) return -1;
+      return 0;
+    });
     document.getElementById('cheque_table').innerHTML=
-      '<tr><th>OK</th><th>Direction</th><th>Number</th><th>Date</th><th>Amount</th><th>Payee</th><th>Bank</th><th>Conf.</th></tr>'+
+      '<tr><th>Direction</th><th>Number</th><th>Date</th><th>Amount</th><th>Payee</th><th>Bank</th><th>Conf.</th>'+
+      '<th style="text-align:right"><button class="btn-allok" onclick="setAllRows(1)">&#10003; All</button></th></tr>'+
       doc.cheques.map((ch,i)=>`
-        <tr>
-          <td><input type="checkbox" id="cq_ok_${i}" ${ch.row_confirmed?'checked':''}></td>
+        <tr id="cq_row_${i}">
           <td><select class="inp" id="cq_dir_${i}" style="min-width:120px">
             <option ${/Incoming/.test(ch.direction||'')?'selected':''}>Incoming (from Tenant)</option>
             <option ${/Outgoing/.test(ch.direction||'')?'selected':''}>Outgoing (to Landlord)</option></select></td>
@@ -255,7 +296,12 @@ function openReview(doc){
           <td><input class="inp" id="cq_pay_${i}" value="${(ch.payee||'').replace(/"/g,'&quot;')}" style="min-width:130px"></td>
           <td><input class="inp" id="cq_bank_${i}" value="${(ch.bank_name||'').replace(/"/g,'&quot;')}" style="min-width:100px"></td>
           <td style="font-size:11px;color:#9A8775">${ch.row_confidence?Math.round(ch.row_confidence*100)+'%':''}</td>
+          <td><div class="rvw">
+            <button class="y" id="cq_y_${i}" title="Verified — push this cheque" onclick="setRow(${i},1)">&#10003;</button>
+            <button class="n" id="cq_n_${i}" title="Exclude — do not push" onclick="setRow(${i},-1)">&#10005;</button>
+          </div></td>
         </tr>`).join('');
+    doc.cheques.forEach((_,i)=>paintRow(i));
   } else cc.style.display='none';
 
   runIdCheck();
@@ -276,22 +322,44 @@ async function runIdCheck(){
   }catch(e){/* silent */}
 }
 
+function setRow(i,state){
+  // clicking the active button again returns the row to untouched
+  CUR._rvw[i] = (CUR._rvw[i]===state) ? 0 : state;
+  paintRow(i);
+}
+function setAllRows(state){
+  CUR._rvw = CUR._rvw.map(()=>state);
+  CUR.cheques.forEach((_,i)=>paintRow(i));
+}
+function paintRow(i){
+  const s=CUR._rvw[i];
+  const row=document.getElementById('cq_row_'+i);
+  row.className = s===1?'st-ok':s===-1?'st-no':'';
+  document.getElementById('cq_y_'+i).className='y'+(s===1?' on':'');
+  document.getElementById('cq_n_'+i).className='n'+(s===-1?' on':'');
+}
+
 function collectEdits(){
   const upd={document_type:document.getElementById('f_document_type').value};
   FLAT_FIELDS.forEach(([f])=>{upd[f]=document.getElementById('f_'+f).value;});
   if((CUR.cheques||[]).length){
-    upd.cheques=CUR.cheques.map((ch,i)=>({
-      row_confirmed:document.getElementById('cq_ok_'+i).checked?1:0,
-      direction:document.getElementById('cq_dir_'+i).value,
-      cheque_number:document.getElementById('cq_no_'+i).value,
-      cheque_date:document.getElementById('cq_dt_'+i).value,
-      amount:document.getElementById('cq_amt_'+i).value,
-      payee:document.getElementById('cq_pay_'+i).value,
-      bank_name:document.getElementById('cq_bank_'+i).value,
-      amount_in_words:ch.amount_in_words,branch:ch.branch,
-      party_account_no:ch.party_account_no,
-      row_confidence:ch.row_confidence,row_notes:ch.row_notes,
-    }));
+    upd.cheques=CUR.cheques.map((ch,i)=>{
+      const s=(CUR._rvw&&CUR._rvw[i])||0;
+      let notes=(ch.row_notes||'').replace(/\s*\[Skipped\][^|]*/g,'').trim();
+      if(s===-1) notes=('[Skipped] excluded by reviewer '+(notes?'| '+notes:'')).trim();
+      return {
+        row_confirmed:s===1?1:0,
+        direction:document.getElementById('cq_dir_'+i).value,
+        cheque_number:document.getElementById('cq_no_'+i).value,
+        cheque_date:document.getElementById('cq_dt_'+i).value,
+        amount:document.getElementById('cq_amt_'+i).value,
+        payee:document.getElementById('cq_pay_'+i).value,
+        bank_name:document.getElementById('cq_bank_'+i).value,
+        amount_in_words:ch.amount_in_words,branch:ch.branch,
+        party_account_no:ch.party_account_no,
+        row_confidence:ch.row_confidence,row_notes:notes,
+      };
+    });
   }
   return upd;
 }
@@ -313,7 +381,14 @@ async function reExtract(){
 
 async function confirmPush(){
   if(!CUR)return;
-  if(!confirm('Push this document to the ERP? This archives the file and writes to live records.'))return;
+  let msg='Push this document to the ERP? This archives the file and writes to live records.';
+  if((CUR.cheques||[]).length){
+    const ok=CUR._rvw.filter(s=>s===1).length, no=CUR._rvw.filter(s=>s===-1).length,
+          un=CUR._rvw.length-ok-no;
+    if(!ok){toast('No cheques marked \u2713 yet \u2014 verify rows first');return;}
+    msg=`Push ${ok} verified cheque${ok>1?'s':''}`+(no?`, ${no} excluded`:'')+(un?`, ${un} not reviewed (will NOT push)`:'')+'. Continue?';
+  }
+  if(!confirm(msg))return;
   try{
     await call('save_edits',{docname:CUR.name,updates:JSON.stringify(collectEdits())},true);
     const res=await call('confirm_and_push',{docname:CUR.name},true);
