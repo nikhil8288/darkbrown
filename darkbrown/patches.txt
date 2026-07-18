@@ -11,3 +11,6 @@ darkbrown.patches.fix_workspace_cards
 darkbrown.patches.full_number_cards
 darkbrown.patches.add_party_document_tables
 darkbrown.patches.extend_pdc_cheque
+darkbrown.patches.seed_opening_arrears
+darkbrown.patches.seed_pdc_outgoing
+darkbrown.patches.run_july_billing

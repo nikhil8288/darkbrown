@@ -189,3 +189,16 @@ def run():
     print("created %d invoices, skipped %d (already seeded)" % (made, skipped))
     print("Collection Cases will auto-open on the next scheduled "
           "auto_open_cases run (or trigger it manually via bench execute).")
+
+
+# ---------------------------------------------------------------- patch entry
+
+def execute():
+    """Frappe patch entrypoint — runs automatically during migrate.
+    Defensive: logs errors instead of failing the whole deployment."""
+    try:
+        run()
+    except Exception:
+        import traceback
+        print("PATCH FAILED (non-fatal):")
+        traceback.print_exc()

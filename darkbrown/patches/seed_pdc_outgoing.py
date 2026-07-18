@@ -131,3 +131,16 @@ def run():
         doc.insert()
     frappe.db.commit()
     print("created %d PDC cheques, skipped %d existing" % (made, skipped))
+
+
+# ---------------------------------------------------------------- patch entry
+
+def execute():
+    """Frappe patch entrypoint — runs automatically during migrate.
+    Defensive: logs errors instead of failing the whole deployment."""
+    try:
+        run()
+    except Exception:
+        import traceback
+        print("PATCH FAILED (non-fatal):")
+        traceback.print_exc()
