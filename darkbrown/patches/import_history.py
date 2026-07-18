@@ -9,7 +9,7 @@ duplicated.
 import csv, os
 import frappe
 
-CSV = os.path.join(os.path.dirname(__file__), "history_by_building.csv")
+CSV = os.path.join(os.path.dirname(__file__), "history_jul2026.csv")
 
 
 def run():
