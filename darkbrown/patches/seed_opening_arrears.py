@@ -26,6 +26,10 @@ from frappe.utils import today
 
 CSV = os.path.join(os.path.dirname(__file__), "opening_arrears.csv")
 
+# TESTING PHASE: auto-create a Customer for any unmatched tenant name
+# instead of aborting. Set to False before the real go-live run.
+TEST_MODE = True
+
 
 # ---------------------------------------------------------------- matching
 
@@ -135,10 +139,20 @@ def run():
     rows = _load_rows()
     idx = _customer_index()
     matched, unmatched = _report(rows, idx)
-    if unmatched:
+    if unmatched and not TEST_MODE:
         print(f"ABORTING: {len(unmatched)} unmatched tenant names. "
               f"Run dry_run for the list.")
         return
+    if unmatched and TEST_MODE:
+        for i, r, _, _ in unmatched:
+            cust = frappe.get_doc({
+                "doctype": "Customer",
+                "customer_name": r["tenant_name"].title(),
+                "customer_type": "Individual",
+            }).insert(ignore_permissions=True).name
+            print("TEST_MODE created Customer: %s" % cust)
+        idx = _customer_index()
+        matched, unmatched = _report(rows, idx)
 
     company, abbr, debtor, temp_open = _resolve_accounts()
     made = skipped = 0

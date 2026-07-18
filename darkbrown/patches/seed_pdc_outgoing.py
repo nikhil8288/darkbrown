@@ -21,6 +21,10 @@ import frappe
 
 CSV = os.path.join(os.path.dirname(__file__), "pdc_outgoing.csv")
 
+# TESTING PHASE: auto-create a Supplier for any unmatched party name
+# instead of aborting. Set to False before the real go-live run.
+TEST_MODE = True
+
 
 def _norm(s):
     s = (s or "").upper().replace("\xa0", " ")
@@ -85,10 +89,23 @@ def run():
     rows = _rows()
     idx = _supplier_index()
     unmatched = [r for r in rows if not _match(r["party"], idx)[0]]
-    if unmatched:
+    if unmatched and not TEST_MODE:
         print(f"ABORTING: {len(unmatched)} unmatched suppliers. "
               f"Run dry_run for the list.")
         return
+    if unmatched and TEST_MODE:
+        seen = set()
+        for r in unmatched:
+            nm = r["party"].title()
+            if nm in seen:
+                continue
+            seen.add(nm)
+            sup = frappe.get_doc({
+                "doctype": "Supplier",
+                "supplier_name": nm,
+            }).insert(ignore_permissions=True).name
+            print("TEST_MODE created Supplier: %s" % sup)
+        idx = _supplier_index()
     made = skipped = 0
     for r in rows:
         sup, _ = _match(r["party"], idx)
