@@ -27,7 +27,7 @@ import re
 
 import frappe
 from frappe import _
-from frappe.utils import now_datetime
+from frappe.utils import now_datetime, flt, getdate
 
 from darkbrown.api.doc_intake_prompts import (
 	SYSTEM_PROMPT,
@@ -244,6 +244,7 @@ def _apply_extraction(reg, result):
 	for chq in (result.get("cheques") or []):
 		reg.append("cheques", {
 			"direction": chq.get("direction") or "Incoming (from Tenant)",
+			"cheque_type": chq.get("cheque_type") or "Rent",
 			"cheque_number": chq.get("cheque_number"),
 			"cheque_date": chq.get("cheque_date"),
 			"amount": chq.get("amount"),
@@ -255,6 +256,27 @@ def _apply_extraction(reg, result):
 			"row_confidence": chq.get("confidence"),
 			"row_notes": chq.get("notes"),
 		})
+
+	# Bank statement (guarded: fields arrive with the Phase-3 migrate)
+	stmt = result.get("statement") or {}
+	if stmt and reg.meta.has_field("statement_lines"):
+		reg.statement_bank = stmt.get("bank")
+		reg.statement_account_no = stmt.get("account_no")
+		reg.statement_from = stmt.get("period_from")
+		reg.statement_to = stmt.get("period_to")
+		reg.opening_balance = stmt.get("opening_balance")
+		reg.closing_balance = stmt.get("closing_balance")
+		reg.set("statement_lines", [])
+		for ln in (stmt.get("lines") or []):
+			reg.append("statement_lines", {
+				"txn_date": ln.get("date"),
+				"description": ln.get("description"),
+				"ref_no": ln.get("ref_no"),
+				"debit": ln.get("debit"),
+				"credit": ln.get("credit"),
+				"balance": ln.get("balance"),
+				"line_status": "Unmatched",
+			})
 
 
 # ---------------------------------------------------------------------------
@@ -413,6 +435,7 @@ def save_edits(docname, updates):
 			reg.append("cheques", {
 				"row_confirmed": 1 if chq.get("row_confirmed") else 0,
 				"direction": chq.get("direction") or "Incoming (from Tenant)",
+				"cheque_type": chq.get("cheque_type") or "Rent",
 				"cheque_number": chq.get("cheque_number"),
 				"cheque_date": chq.get("cheque_date") or None,
 				"amount": chq.get("amount") or None,
@@ -474,9 +497,27 @@ def _resolve_building(reg):
 	return None
 
 
-def _push_cheques(reg, refs):
+def _agreement_for(party_type, party):
+	"""Active agreement for the linked party (Phase 1 linkage)."""
+	try:
+		if party_type == "Customer":
+			return ("tenant_rental_agreement", frappe.db.get_value(
+				"Tenant Rental Agreement",
+				{"tenant": party, "status": "Active"}, "name"))
+		if party_type == "Supplier":
+			return ("landlord_contract", frappe.db.get_value(
+				"Landlord Contract",
+				{"landlord": party, "status": "Active"}, "name"))
+	except Exception:
+		pass
+	return (None, None)
+
+
+def _push_cheques(reg, refs, party_type=None, party=None):
 	"""Create PDC Cheque records for confirmed rows. Fieldnames are resolved
-	defensively since PDC Cheque was created via the Desk UI."""
+	defensively since PDC Cheque was created via the Desk UI. Phase 1: each
+	PDC is linked to its party and active agreement, typed, and starts its
+	lifecycle at 'In Hand'."""
 	if not frappe.db.exists("DocType", "PDC Cheque"):
 		refs.append("PDC Cheque DocType not found - cheque rows skipped")
 		return
@@ -492,6 +533,21 @@ def _push_cheques(reg, refs):
 	if "cheque_number" not in fieldmap or "amount" not in fieldmap:
 		refs.append("PDC Cheque fieldnames unrecognised - cheque rows skipped")
 		return
+
+	# party field may be a Link (docname) or Data (display name)
+	party_value = None
+	if party:
+		pf = meta.get_field("party")
+		if pf and pf.fieldtype == "Link":
+			party_value = party
+		elif pf:
+			name_field = "customer_name" if party_type == "Customer" else "supplier_name"
+			party_value = frappe.db.get_value(party_type, party, name_field) or party
+	agr_field, agr_name = _agreement_for(party_type, party) if party else (None, None)
+
+	status_opts = [o.strip() for o in (meta.get_field("status").options or "").split("\n")] \
+		if meta.has_field("status") else []
+	initial_status = "In Hand" if "In Hand" in status_opts else None
 
 	created = 0
 	for row in reg.cheques or []:
@@ -515,9 +571,20 @@ def _push_cheques(reg, refs):
 		for logical, value in values.items():
 			if logical in fieldmap and value is not None:
 				pdc.set(fieldmap[logical], value)
+		if party_value and meta.has_field("party"):
+			pdc.set("party", party_value)
+		if agr_field and agr_name and meta.has_field(agr_field):
+			pdc.set(agr_field, agr_name)
+		if initial_status:
+			pdc.set("status", initial_status)
+		if meta.has_field("cheque_type"):
+			pdc.set("cheque_type", row.get("cheque_type") or "Rent")
+		if meta.has_field("source_register"):
+			pdc.set("source_register", reg.name)
 		pdc.flags.ignore_permissions = True
 		pdc.insert()
-		refs.append(f"PDC Cheque {pdc.name}")
+		refs.append(f"PDC Cheque {pdc.name}"
+		            + (f" [{row.get('cheque_type')}]" if row.get("cheque_type") and row.get("cheque_type") != "Rent" else ""))
 		created += 1
 	if not created:
 		refs.append("No confirmed cheque rows to push")
@@ -557,18 +624,27 @@ def confirm_and_push(docname):
 			party_type = validation["db_match"]["party_type"]
 			party = validation["db_match"]["party"]
 
-	# No ID (or no ID hit) but we have a name (e.g. cheque drawer):
-	# conservative fuzzy match. Incoming cheques -> tenants, outgoing -> landlords.
+	# No ID (or no ID hit) but we have a name (e.g. cheque batches):
+	# conservative fuzzy match. The counterparty depends on direction -
+	# incoming: the DRAWER (tenant paying us); outgoing: the PAYEE
+	# (landlord we pay). Our own name is never a link candidate.
 	name_match = None
-	if not party and reg.party_name:
+	match_name = reg.party_name
+	if not party and reg.document_type == "Cheque Batch" and reg.cheques:
+		outgoing = "Outgoing" in (reg.cheques[0].direction or "")
+		if outgoing:
+			match_name = None
+			for r in reg.cheques:
+				if r.payee and "dark brown" not in r.payee.lower():
+					match_name = r.payee
+					break
+		preferred = "Supplier" if outgoing else "Customer"
+	else:
 		preferred = None
-		if reg.document_type == "Cheque Batch" and reg.cheques:
-			preferred = (
-				"Supplier"
-				if "Outgoing" in (reg.cheques[0].direction or "")
-				else "Customer"
-			)
-		name_match = id_validation.find_party_by_name(reg.party_name, party_type=preferred)
+	if match_name and "dark brown" in match_name.lower():
+		match_name = None  # that's us, not a counterparty
+	if not party and match_name:
+		name_match = id_validation.find_party_by_name(match_name, party_type=preferred)
 		if name_match:
 			party_type = name_match["party_type"]
 			party = name_match["party"]
@@ -578,12 +654,18 @@ def confirm_and_push(docname):
 			)
 		else:
 			warnings.append(
-				f"No party matched the name '{reg.party_name}' - "
+				f"No party matched the name '{match_name}' - "
 				"archived without link"
 			)
 
-	# 2) Archive (always)
-	title = _archive_title(reg)
+	# 2) Archive (always) - titled by the true counterparty where known
+	title_name = (name_match and name_match["party_name"]) or match_name or reg.party_name
+	if title_name and "dark brown" in title_name.lower():
+		title_name = None
+	if title_name and not (reg.area_name or reg.building_no or reg.unit_no):
+		title = f"{_sanitize(title_name)[:40]}_{_sanitize((reg.document_type or 'Doc').replace(' / ', '').replace(' ', ''))}"
+	else:
+		title = _archive_title(reg)
 	archive = frappe.new_doc("Document Archive")
 	archive.archive_title = title
 	archive.document_type = reg.document_type if reg.document_type in PARTY_DOC_TYPE_MAP else "Utility / Other"
@@ -629,9 +711,38 @@ def confirm_and_push(docname):
 	elif reg.id_number and not party:
 		warnings.append("No matching party - document archived but not linked")
 
-	# 4) Cheques
+	# 4) Cheques - now party- and agreement-linked
 	if reg.document_type == "Cheque Batch":
-		_push_cheques(reg, refs)
+		_push_cheques(reg, refs, party_type=party_type, party=party)
+
+	# 4b) Agreements: cross-check the scan against the live agreement (Phase 4)
+	if reg.document_type in ("Tenant Agreement", "Landlord Contract", "Owner Contract"):
+		_diff_agreement(reg, party_type, party, refs, warnings)
+
+	# 4c) Bank statement: report reconciliation state (lines are applied
+	# individually from the review UI before or after pushing)
+	if reg.document_type == "Bank Statement" and reg.meta.has_field("statement_lines"):
+		lines = reg.statement_lines or []
+		unresolved = [l for l in lines if l.line_status in ("Unmatched", "Suggested")]
+		applied = [l for l in lines if l.line_status == "Applied"]
+		refs.append(f"Statement archived: {len(applied)} lines applied, "
+		            f"{len(unresolved)} unresolved, "
+		            f"{len(lines) - len(applied) - len(unresolved)} ignored")
+		if unresolved:
+			warnings.append(
+				f"{len(unresolved)} statement lines are still unmatched - "
+				"they were archived but have NOT touched the accounts")
+		net = sum(flt(l.credit) for l in lines) - sum(flt(l.debit) for l in lines)
+		if reg.opening_balance is not None and reg.closing_balance is not None:
+			expected = flt(reg.opening_balance) + net
+			if abs(expected - flt(reg.closing_balance)) > 0.01:
+				warnings.append(
+					f"Balance check FAILED: opening {flt(reg.opening_balance):,.2f} "
+					f"+ net movement {net:,.2f} = {expected:,.2f}, but statement "
+					f"closing is {flt(reg.closing_balance):,.2f} - a line is "
+					"missing or misread")
+			else:
+				refs.append("Balance check passed: opening + movements = closing")
 
 	# 5) Close out
 	reg.status = "Pushed"
@@ -642,3 +753,209 @@ def confirm_and_push(docname):
 	frappe.db.commit()
 
 	return {"refs": refs, "warnings": warnings, "validation": validation, "archive": archive.name}
+
+
+# ---------------------------------------------------------------------------
+# Phase 4: agreement cross-check
+# ---------------------------------------------------------------------------
+
+def _diff_agreement(reg, party_type, party, refs, warnings):
+	"""Compare the scanned agreement against the live ERP agreement for the
+	matched party. Mismatches become warnings; a missing agreement is flagged
+	for Legal to create through the normal approval workflow."""
+	def _d(x):
+		try:
+			return getdate(x) if x else None
+		except Exception:
+			return None
+
+	if reg.document_type == "Tenant Agreement":
+		if party_type != "Customer" or not party:
+			warnings.append("Agreement cross-check skipped: no tenant matched")
+			return
+		agr = frappe.db.get_value(
+			"Tenant Rental Agreement", {"tenant": party, "status": "Active"},
+			["name", "monthly_rent", "start_date", "end_date", "security_deposit"],
+			as_dict=True)
+		if not agr:
+			warnings.append(
+				f"No ACTIVE Tenant Rental Agreement for {party} in ERP - "
+				"if this scan is a new lease, create it via the Legal approval workflow")
+			return
+		checks = [
+			("monthly rent", flt(reg.monthly_rent), flt(agr.monthly_rent)),
+			("security deposit", flt(reg.security_deposit), flt(agr.security_deposit)),
+		]
+		date_checks = [
+			("start date", _d(reg.start_date), _d(agr.start_date)),
+			("end date", _d(reg.end_date), _d(agr.end_date)),
+		]
+		mismatch = False
+		for label, scanned, live in checks:
+			if scanned and live and abs(scanned - live) > 0.01:
+				warnings.append(
+					f"MISMATCH vs {agr.name}: {label} on scan is {scanned:,.0f} "
+					f"but ERP has {live:,.0f}")
+				mismatch = True
+		for label, scanned, live in date_checks:
+			if scanned and live and scanned != live:
+				warnings.append(
+					f"MISMATCH vs {agr.name}: {label} on scan is {scanned} "
+					f"but ERP has {live}")
+				mismatch = True
+		if not mismatch:
+			refs.append(f"Cross-checked against {agr.name}: rent, deposit and dates all agree")
+
+	else:  # Landlord Contract / Owner Contract
+		if party_type != "Supplier" or not party:
+			warnings.append("Contract cross-check skipped: no landlord matched")
+			return
+		agr = frappe.db.get_value(
+			"Landlord Contract", {"landlord": party, "status": "Active"},
+			["name", "total_owner_rent", "contract_start_date", "contract_end_date"],
+			as_dict=True)
+		if not agr:
+			warnings.append(
+				f"No ACTIVE Landlord Contract for {party} in ERP - "
+				"create it via the normal workflow if this is a new head-lease")
+			return
+		mismatch = False
+		if reg.monthly_rent and agr.total_owner_rent and \
+				abs(flt(reg.monthly_rent) - flt(agr.total_owner_rent)) > 0.01:
+			warnings.append(
+				f"MISMATCH vs {agr.name}: rent on scan is {flt(reg.monthly_rent):,.0f} "
+				f"but ERP has {flt(agr.total_owner_rent):,.0f}")
+			mismatch = True
+		for label, scanned, live in [
+			("start date", _d(reg.start_date), _d(agr.contract_start_date)),
+			("end date", _d(reg.end_date), _d(agr.contract_end_date)),
+		]:
+			if scanned and live and scanned != live:
+				warnings.append(
+					f"MISMATCH vs {agr.name}: {label} on scan is {scanned} "
+					f"but ERP has {live}")
+				mismatch = True
+		if not mismatch:
+			refs.append(f"Cross-checked against {agr.name}: rent and dates agree")
+
+
+# ---------------------------------------------------------------------------
+# Phase 3: bank statement matching
+# ---------------------------------------------------------------------------
+
+@frappe.whitelist()
+def match_statement(docname):
+	"""Suggest a PDC Cheque for every unmatched statement line. Matching:
+	exact cheque-number hit (strong), else amount+direction within a small
+	date window (weak). Suggestions are saved onto the lines."""
+	reg = frappe.get_doc("Document Register", docname)
+	if not reg.has_permission("write"):
+		frappe.throw(_("Not permitted"), frappe.PermissionError)
+	if not reg.meta.has_field("statement_lines"):
+		frappe.throw(_("Statement fields not deployed yet (run the Phase-3 migrate)."))
+	if not frappe.db.exists("DocType", "PDC Cheque"):
+		frappe.throw(_("PDC Cheque DocType not found."))
+
+	meta = frappe.get_meta("PDC Cheque")
+	pdc_fields = ["name", "cheque_number", "amount", "direction", "status", "cheque_date"]
+	pdc_fields = [f for f in pdc_fields if meta.has_field(f) or f == "name"]
+	pdcs = frappe.get_all("PDC Cheque",
+		filters={"status": ["not in", ["Cleared", "Cancelled", "Replaced"]]},
+		fields=pdc_fields)
+	by_number = {}
+	for p in pdcs:
+		n = re.sub(r"\D", "", str(p.get("cheque_number") or ""))
+		if n:
+			by_number.setdefault(n.lstrip("0") or "0", []).append(p)
+
+	suggested = 0
+	for line in reg.statement_lines or []:
+		if line.line_status in ("Applied", "Ignored"):
+			continue
+		amount = flt(line.credit) or flt(line.debit)
+		incoming_line = flt(line.credit) > 0
+		hit, note = None, None
+
+		refno = re.sub(r"\D", "", str(line.ref_no or ""))
+		candidates = by_number.get(refno.lstrip("0") or "0", []) if refno else []
+		for p in candidates:
+			if abs(flt(p.get("amount")) - amount) <= 0.01:
+				hit, note = p, f"cheque number {line.ref_no} + exact amount"
+				break
+		if not hit and candidates:
+			hit, note = candidates[0], (
+				f"cheque number {line.ref_no} matched but amount differs "
+				f"({flt(candidates[0].get('amount')):,.2f} vs {amount:,.2f}) - VERIFY")
+
+		if not hit and amount:
+			window = []
+			for p in pdcs:
+				p_in = "Incoming" in (p.get("direction") or "")
+				if p_in != incoming_line:
+					continue
+				if abs(flt(p.get("amount")) - amount) > 0.01:
+					continue
+				try:
+					dd = abs((getdate(line.txn_date) - getdate(p.get("cheque_date"))).days) \
+						if line.txn_date and p.get("cheque_date") else 999
+				except Exception:
+					dd = 999
+				window.append((dd, p))
+			window.sort(key=lambda t: t[0])
+			if window and window[0][0] <= 10:
+				hit, note = window[0][1], (
+					f"amount match, cheque dated {window[0][0]} day(s) away - VERIFY number")
+
+		if hit:
+			line.match_pdc = hit.name
+			line.match_note = note
+			line.line_status = "Suggested"
+			suggested += 1
+
+	reg.flags.ignore_permissions = True
+	reg.save()
+	frappe.db.commit()
+	return {"suggested": suggested, "doc": reg.as_dict()}
+
+
+@frappe.whitelist()
+def apply_statement_line(docname, line_name, pdc=None):
+	"""Reviewer accepted a match: clear the PDC as of the line's date (this
+	creates the Payment Entry via the Phase-2 engine) and mark the line."""
+	from darkbrown.utils import pdc_accounting
+	reg = frappe.get_doc("Document Register", docname)
+	if not reg.has_permission("write"):
+		frappe.throw(_("Not permitted"), frappe.PermissionError)
+	line = next((l for l in reg.statement_lines or [] if l.name == line_name), None)
+	if not line:
+		frappe.throw(_("Statement line not found."))
+	target = pdc or line.match_pdc
+	if not target:
+		frappe.throw(_("No PDC selected for this line."))
+
+	result = pdc_accounting.mark_cleared(target, clearance_date=line.txn_date)
+	line.match_pdc = target
+	line.line_status = "Applied"
+	line.match_note = ((line.match_note or "") + f" | {result.get('msg')}").strip(" |")
+	reg.flags.ignore_permissions = True
+	reg.save()
+	frappe.db.commit()
+	return {"msg": result.get("msg"), "doc": reg.as_dict()}
+
+
+@frappe.whitelist()
+def ignore_statement_line(docname, line_name, note=None):
+	"""Line is not a cheque event we track (bank charges, transfers, etc.)."""
+	reg = frappe.get_doc("Document Register", docname)
+	if not reg.has_permission("write"):
+		frappe.throw(_("Not permitted"), frappe.PermissionError)
+	line = next((l for l in reg.statement_lines or [] if l.name == line_name), None)
+	if not line:
+		frappe.throw(_("Statement line not found."))
+	line.line_status = "Ignored"
+	if note:
+		line.match_note = note
+	reg.flags.ignore_permissions = True
+	reg.save()
+	frappe.db.commit()
+	return {"doc": reg.as_dict()}

@@ -111,6 +111,7 @@ tr.st-no input,tr.st-no select{opacity:.55}
               <option>Landlord Contract</option><option>Tenant Agreement</option>
               <option>Owner Contract</option><option>Passport</option>
               <option>QID / National ID</option><option>Utility / Other</option>
+              <option>Bank Statement</option>
             </select>
           </div>
           <div class="grid" style="margin-top:12px" id="fields"></div>
@@ -121,6 +122,15 @@ tr.st-no input,tr.st-no select{opacity:.55}
         <div class="card" id="cheque_card" style="margin-top:14px;display:none;overflow-x:auto">
           <span class="lbl">Cheques &mdash; verify each row against the scan: <span style="color:#2E6B57">&#10003; push</span> / <span style="color:#A3452F">&#10005; exclude</span></span>
           <table id="cheque_table"></table>
+        </div>
+
+        <div class="card" id="stmt_card" style="margin-top:14px;display:none;overflow-x:auto">
+          <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+            <span class="lbl" style="margin:0">Bank statement reconciliation</span>
+            <button class="btn btn-ghost" onclick="findMatches()">Find matches</button>
+          </div>
+          <div id="stmt_summary" style="font-size:12px;color:#6B5648;margin:8px 0"></div>
+          <table id="stmt_table"></table>
         </div>
 
         <div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap">
@@ -283,13 +293,17 @@ function openReview(doc){
       return 0;
     });
     document.getElementById('cheque_table').innerHTML=
-      '<tr><th>Direction</th><th>Number</th><th>Date</th><th>Amount</th><th>Payee</th><th>Bank</th><th>Conf.</th>'+
+      '<tr><th>Direction</th><th>Type</th><th>Number</th><th>Date</th><th>Amount</th><th>Payee</th><th>Bank</th><th>Conf.</th>'+
       '<th style="text-align:right"><button class="btn-allok" onclick="setAllRows(1)">&#10003; All</button></th></tr>'+
       doc.cheques.map((ch,i)=>`
         <tr id="cq_row_${i}">
           <td><select class="inp" id="cq_dir_${i}" style="min-width:120px">
             <option ${/Incoming/.test(ch.direction||'')?'selected':''}>Incoming (from Tenant)</option>
             <option ${/Outgoing/.test(ch.direction||'')?'selected':''}>Outgoing (to Landlord)</option></select></td>
+          <td><select class="inp" id="cq_typ_${i}" style="min-width:95px">
+            <option ${(ch.cheque_type||'Rent')==='Rent'?'selected':''}>Rent</option>
+            <option ${ch.cheque_type==='Security Deposit'?'selected':''}>Security Deposit</option>
+            <option ${ch.cheque_type==='Other'?'selected':''}>Other</option></select></td>
           <td><input class="inp" id="cq_no_${i}" value="${ch.cheque_number||''}" style="min-width:90px"></td>
           <td><input class="inp" type="date" id="cq_dt_${i}" value="${ch.cheque_date||''}"></td>
           <td><input class="inp" type="number" id="cq_amt_${i}" value="${ch.amount||''}" style="min-width:90px"></td>
@@ -305,7 +319,71 @@ function openReview(doc){
   } else cc.style.display='none';
 
   runIdCheck();
+  renderStatement(doc);
   document.getElementById('review').scrollIntoView({behavior:'smooth'});
+}
+
+function renderStatement(doc){
+  const sc=document.getElementById('stmt_card');
+  const lines=doc.statement_lines||[];
+  if(!lines.length){sc.style.display='none';return;}
+  sc.style.display='block';
+  const fmt=n=>n==null?'':Number(n).toLocaleString('en',{minimumFractionDigits:2});
+  const net=lines.reduce((a,l)=>a+(Number(l.credit)||0)-(Number(l.debit)||0),0);
+  let bal='';
+  if(doc.opening_balance!=null&&doc.closing_balance!=null){
+    const exp=Number(doc.opening_balance)+net;
+    const ok=Math.abs(exp-Number(doc.closing_balance))<=0.01;
+    bal=ok?`<span class="ok">&#10003; balance check: ${fmt(doc.opening_balance)} + ${fmt(net)} = ${fmt(doc.closing_balance)}</span>`
+          :`<span class="flag">&#9888; balance check FAILED: expected ${fmt(exp)}, statement says ${fmt(doc.closing_balance)}</span>`;
+  }
+  const counts={Applied:0,Suggested:0,Ignored:0,Unmatched:0};
+  lines.forEach(l=>counts[l.line_status||'Unmatched']=(counts[l.line_status||'Unmatched']||0)+1);
+  document.getElementById('stmt_summary').innerHTML=
+    `<b>${doc.statement_bank||''}</b> ${doc.statement_account_no||''} · ${doc.statement_from||''} &rarr; ${doc.statement_to||''}<br>`+
+    `${lines.length} lines: ${counts.Applied} applied · ${counts.Suggested} suggested · ${counts.Unmatched} unmatched · ${counts.Ignored} ignored<br>${bal}`;
+  document.getElementById('stmt_table').innerHTML=
+    '<tr><th>Date</th><th>Description</th><th>Ref</th><th>Out</th><th>In</th><th>Match</th><th style="text-align:right">Action</th></tr>'+
+    lines.map(l=>{
+      const chip=l.line_status==='Applied'?'<span class="badge b-green">Applied</span>'
+        :l.line_status==='Suggested'?'<span class="badge b-warm">Suggested</span>'
+        :l.line_status==='Ignored'?'<span class="badge b-grey">Ignored</span>'
+        :'<span class="badge b-red">Unmatched</span>';
+      const match=l.match_pdc?`<b>${l.match_pdc}</b><div style="font-size:10.5px;color:#857260">${l.match_note||''}</div>`:(l.match_note||'—');
+      const act=l.line_status==='Applied'?'':l.line_status==='Ignored'?'':
+        `<div style="display:flex;gap:6px;justify-content:flex-end">`+
+        (l.match_pdc?`<button class="btn btn-green" style="padding:4px 10px;font-size:11px" onclick="applyLine('${l.name}')">Apply</button>`:'')+
+        `<button class="btn btn-ghost" style="padding:4px 10px;font-size:11px" onclick="ignoreLine('${l.name}')">Ignore</button></div>`;
+      return `<tr>
+        <td style="white-space:nowrap">${l.txn_date||''}</td>
+        <td style="max-width:260px;font-size:11px">${(l.description||'').slice(0,120)}</td>
+        <td>${l.ref_no||''}</td>
+        <td style="color:#A3452F">${l.debit?fmt(l.debit):''}</td>
+        <td style="color:#2E6B57">${l.credit?fmt(l.credit):''}</td>
+        <td>${chip}<div style="font-size:11px">${match}</div></td>
+        <td>${act}</td></tr>`;
+    }).join('');
+}
+
+async function findMatches(){
+  if(!CUR)return;
+  toast('Matching against PDC register\u2026');
+  try{const r=await call('match_statement',{docname:CUR.name},true);
+    CUR=r.doc;renderStatement(CUR);toast(r.suggested+' suggestion(s) found');}
+  catch(e){toast('Error: '+e.message);}
+}
+async function applyLine(lineName){
+  if(!CUR)return;
+  if(!confirm('Clear the matched cheque as of this line\u2019s date? This creates a Payment Entry.'))return;
+  try{const r=await call('apply_statement_line',{docname:CUR.name,line_name:lineName},true);
+    CUR=r.doc;renderStatement(CUR);toast(r.msg||'Applied');}
+  catch(e){toast('Error: '+e.message);}
+}
+async function ignoreLine(lineName){
+  if(!CUR)return;
+  try{const r=await call('ignore_statement_line',{docname:CUR.name,line_name:lineName},true);
+    CUR=r.doc;renderStatement(CUR);}
+  catch(e){toast('Error: '+e.message);}
 }
 function closeReview(){document.getElementById('review').style.display='none';CUR=null;}
 
@@ -350,6 +428,7 @@ function collectEdits(){
       return {
         row_confirmed:s===1?1:0,
         direction:document.getElementById('cq_dir_'+i).value,
+        cheque_type:document.getElementById('cq_typ_'+i).value,
         cheque_number:document.getElementById('cq_no_'+i).value,
         cheque_date:document.getElementById('cq_dt_'+i).value,
         amount:document.getElementById('cq_amt_'+i).value,

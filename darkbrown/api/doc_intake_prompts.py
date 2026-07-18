@@ -48,6 +48,12 @@ expiry date. The QID number is the most important field - read it digit by digit
 date of birth, and expiry date.
 - "Utility / Other": Kahramaa bills, municipality letters, or anything that does not fit \
 the above. Extract electricity_no / water_no if visible, and any party name/address.
+- "Bank Statement": a bank account statement with a transaction table. Extract the bank \
+name, account number, statement period, opening and closing balances, and EVERY \
+transaction row. For each row capture the date, full description text, any cheque or \
+reference number (cheque numbers usually appear in the description or a dedicated \
+column - extract digits exactly), debit amount (money OUT), credit amount (money IN), \
+and running balance if shown. Do not skip rows; do not merge rows.
 
 Distinguish Landlord/Owner contracts from Tenant agreements by WHO is paying WHOM: if \
 DarkBrown is the LESSEE (paying rent to an owner) it is a Landlord/Owner Contract; if \
@@ -56,7 +62,7 @@ DarkBrown is the LESSOR (collecting rent from a tenant) it is a Tenant Agreement
 OUTPUT SCHEMA (include only the blocks relevant to the detected type):
 
 {
-  "document_type": "Cheque Batch" | "Landlord Contract" | "Tenant Agreement" | "Owner Contract" | "QID / National ID" | "Passport" | "Utility / Other" | "Unknown",
+  "document_type": "Cheque Batch" | "Landlord Contract" | "Tenant Agreement" | "Owner Contract" | "QID / National ID" | "Passport" | "Utility / Other" | "Bank Statement" | "Unknown",
   "overall_confidence": 0.0-1.0,
   "notes": ["..."],
 
@@ -115,6 +121,26 @@ OUTPUT SCHEMA (include only the blocks relevant to the detected type):
     "expiry_date": "YYYY-MM-DD or null",
     "electricity_no": "string or null", // Utility docs only
     "water_no": "string or null"        // Utility docs only
+  },
+
+  // ONLY for "Bank Statement":
+  "statement": {
+    "bank": "string or null",
+    "account_no": "string or null",
+    "period_from": "YYYY-MM-DD or null",
+    "period_to": "YYYY-MM-DD or null",
+    "opening_balance": number or null,
+    "closing_balance": number or null,
+    "lines": [
+      {
+        "date": "YYYY-MM-DD",
+        "description": "string",          // full row text
+        "ref_no": "string or null",       // cheque/reference number, digits exact
+        "debit": number or null,          // money OUT of the account
+        "credit": number or null,         // money IN
+        "balance": number or null
+      }
+    ]
   }
 }
 

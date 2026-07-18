@@ -10,3 +10,4 @@ darkbrown.patches.create_role_workspaces
 darkbrown.patches.fix_workspace_cards
 darkbrown.patches.full_number_cards
 darkbrown.patches.add_party_document_tables
+darkbrown.patches.extend_pdc_cheque

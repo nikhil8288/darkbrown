@@ -11,6 +11,7 @@
   "cheque_date",
   "col_break_1",
   "amount",
+  "cheque_type",
   "amount_in_words",
   "sec_party",
   "payee",
@@ -111,12 +112,20 @@
    "fieldname": "row_notes",
    "fieldtype": "Small Text",
    "label": "Notes / Flags"
+  },
+  {
+   "fieldname": "cheque_type",
+   "fieldtype": "Select",
+   "label": "Cheque Type",
+   "options": "Rent\nSecurity Deposit\nOther",
+   "default": "Rent",
+   "in_list_view": 1
   }
  ],
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2026-07-13 00:00:00.000000",
+ "modified": "2026-07-18 08:00:00.000000",
  "module": "Darkbrown",
  "name": "Document Register Cheque",
  "owner": "Administrator",
