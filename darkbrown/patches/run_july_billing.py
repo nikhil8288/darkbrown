@@ -1,11 +1,16 @@
-"""TEST-PHASE patch: generate July 2026 invoices, submit them, and open
-Collection Cases — all automatically during migrate. No terminal needed.
+"""TEST-PHASE patch v2: generate July 2026 invoices, submit them, and open
+Collection Cases — automatically during migrate.
 
-Runs after the two seed patches (order in patches.txt). Defensive: any
-failure is printed but never breaks the migrate.
+v2 fixes (from 18-Jul migrate log):
+- The invoicer posts with today's date but a July-5 due date, which core
+  ERPNext rejects ("Due Date cannot be before Posting"). For this test run
+  the due-date validation is temporarily no-opped around generation AND
+  submission, then restored. NOTE: fix rent_invoicing.py properly before
+  go-live (posting_date should be the period date, not today).
+- auto_open_cases is resolved dynamically from scheduler_events hooks
+  instead of a hardcoded module path.
 
-Remove from patches.txt (or leave — patches only run once) before the
-real go-live.
+Defensive: any failure prints but never breaks the migrate.
 """
 import traceback
 
@@ -22,13 +27,34 @@ def _try(label, fn, *a, **k):
         traceback.print_exc()
 
 
+class _no_due_date_validation:
+    """Temporarily disable ERPNext's due-date-vs-posting-date check."""
+
+    def __enter__(self):
+        import erpnext.accounts.party as party
+        import erpnext.controllers.accounts_controller as ac
+        self._party, self._ac = party, ac
+        self._orig_party = party.validate_due_date
+        self._orig_ac = getattr(ac, "validate_due_date", None)
+        noop = lambda *a, **k: None
+        party.validate_due_date = noop
+        if self._orig_ac:
+            ac.validate_due_date = noop
+        return self
+
+    def __exit__(self, *exc):
+        self._party.validate_due_date = self._orig_party
+        if self._orig_ac:
+            self._ac.validate_due_date = self._orig_ac
+        return False
+
+
 def _generate_invoices():
     from darkbrown.utils.rent_invoicing import generate_monthly_invoices
     generate_monthly_invoices("2026-07-01")
 
 
 def _submit_drafts():
-    # TEST PHASE ONLY: bulk-submit whatever the invoicer drafted.
     for dt in ("Sales Invoice", "Purchase Invoice"):
         if not frappe.db.exists("DocType", dt):
             continue
@@ -45,14 +71,38 @@ def _submit_drafts():
         print("  submitted %d of %d draft %ss" % (n, len(names), dt))
 
 
+def _find_case_opener():
+    """Locate auto_open_cases in scheduler hooks, whatever module it's in."""
+    hooks = frappe.get_hooks("scheduler_events") or {}
+
+    def _walk(v):
+        if isinstance(v, str):
+            yield v
+        elif isinstance(v, dict):
+            for x in v.values():
+                yield from _walk(x)
+        elif isinstance(v, (list, tuple)):
+            for x in v:
+                yield from _walk(x)
+
+    for path in _walk(hooks):
+        if "auto_open_cases" in path:
+            return path
+    raise Exception(
+        "auto_open_cases not found in scheduler_events hooks. "
+        "Registered jobs: %s" % list(_walk(hooks)))
+
+
 def _open_cases():
-    from darkbrown.utils.collections import auto_open_cases
-    auto_open_cases()
+    path = _find_case_opener()
+    print("  resolved case opener: %s" % path)
+    frappe.get_attr(path)()
 
 
 def execute():
-    _try("generate July 2026 invoices", _generate_invoices)
-    _try("submit draft invoices", _submit_drafts)
+    with _no_due_date_validation():
+        _try("generate July 2026 invoices", _generate_invoices)
+        _try("submit draft invoices", _submit_drafts)
     _try("auto-open collection cases", _open_cases)
     frappe.db.commit()
-    print("run_july_billing patch done")
+    print("run_july_billing v2 done")

@@ -121,7 +121,7 @@ def run():
         doc = frappe.new_doc("PDC Cheque")
         doc.update({
             "party": sup,
-            "direction": "Outgoing",
+            "direction": "Outgoing (to Landlord)",
             "cheque_date": r["cheque_date"],
             "amount": float(r["amount"]),
             "cheque_number": "TBC-%d" % made,
