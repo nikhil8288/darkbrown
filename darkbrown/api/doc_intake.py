@@ -534,15 +534,31 @@ def _push_cheques(reg, refs, party_type=None, party=None):
 		refs.append("PDC Cheque fieldnames unrecognised - cheque rows skipped")
 		return
 
-	# party field may be a Link (docname) or Data (display name)
+	# The live PDC schema: 'party' is a role Select (Tenant/Landlord);
+	# the actual party lives in separate link fields. Handle all variants.
 	party_value = None
+	party_role = None
+	party_link_field = None
 	if party:
 		pf = meta.get_field("party")
 		if pf and pf.fieldtype == "Link":
 			party_value = party
-		elif pf:
+		elif pf and pf.fieldtype == "Select":
+			opts = [o.strip() for o in (pf.options or "").split("\n")]
+			party_role = ("Tenant" if party_type == "Customer" else "Landlord")
+			if party_role not in opts:
+				party_role = None
+		elif pf:  # Data
 			name_field = "customer_name" if party_type == "Customer" else "supplier_name"
 			party_value = frappe.db.get_value(party_type, party, name_field) or party
+		# the real party link field, whatever it's called
+		candidates = (["tenant", "customer"] if party_type == "Customer"
+		              else ["landlord", "supplier"])
+		for c in candidates:
+			f = meta.get_field(c)
+			if f and f.fieldtype == "Link":
+				party_link_field = c
+				break
 	agr_field, agr_name = _agreement_for(party_type, party) if party else (None, None)
 
 	status_opts = [o.strip() for o in (meta.get_field("status").options or "").split("\n")] \
@@ -571,8 +587,13 @@ def _push_cheques(reg, refs, party_type=None, party=None):
 		for logical, value in values.items():
 			if logical in fieldmap and value is not None:
 				pdc.set(fieldmap[logical], value)
-		if party_value and meta.has_field("party"):
-			pdc.set("party", party_value)
+		if meta.has_field("party"):
+			if party_value:
+				pdc.set("party", party_value)
+			elif party_role:
+				pdc.set("party", party_role)
+		if party and party_link_field:
+			pdc.set(party_link_field, party)
 		if agr_field and agr_name and meta.has_field(agr_field):
 			pdc.set(agr_field, agr_name)
 		if initial_status:

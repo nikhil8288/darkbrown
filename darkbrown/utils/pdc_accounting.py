@@ -69,12 +69,17 @@ def _building_for(pdc):
 
 
 def _party_for(pdc, incoming):
-	"""Resolve the Customer/Supplier docname. The party field on PDC may hold
-	either the docname or a display name; try both."""
+	"""Resolve the Customer/Supplier docname. The live 'party' field is a
+	role Select (Tenant/Landlord); the actual party is in a link field
+	(tenant/customer or landlord/supplier) or reachable via the agreement."""
 	doctype = "Customer" if incoming else "Supplier"
 	name_field = "customer_name" if incoming else "supplier_name"
-	raw = pdc.get("party")
-	# via agreement first (most reliable)
+	# 1) dedicated link field
+	for c in (["tenant", "customer"] if incoming else ["landlord", "supplier"]):
+		f = pdc.meta.get_field(c)
+		if f and f.fieldtype == "Link" and pdc.get(c):
+			return pdc.get(c)
+	# 2) via agreement
 	if incoming and pdc.get("tenant_rental_agreement"):
 		t = frappe.db.get_value(
 			"Tenant Rental Agreement", pdc.tenant_rental_agreement, "tenant")
@@ -85,7 +90,10 @@ def _party_for(pdc, incoming):
 			"Landlord Contract", pdc.landlord_contract, "landlord")
 		if l:
 			return l
-	if raw:
+	# 3) party field only if it actually holds a name/docname (Link or Data)
+	pf = pdc.meta.get_field("party")
+	raw = pdc.get("party")
+	if raw and pf and pf.fieldtype != "Select":
 		if frappe.db.exists(doctype, raw):
 			return raw
 		hit = frappe.db.get_value(doctype, {name_field: raw}, "name")
