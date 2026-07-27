@@ -1,41 +1,43 @@
 app_name = "darkbrown"
 app_title = "DarkBrown"
 app_publisher = "DarkBrown RealEstate"
-app_description = "Dark Brown Real Estate — MD dashboard and custom tooling"
+app_description = "DarkBrown Real Estate — V2 property management platform"
 app_email = "admin@darkbrown.qa"
 app_license = "MIT"
 
-on_session_creation = "darkbrown.auth.on_session_creation"
+required_apps = ["erpnext"]
 
+# ---------------------------------------------------------------------------
+# Installation
+# ---------------------------------------------------------------------------
+after_install = "darkbrown.install.after_install"
+
+# ---------------------------------------------------------------------------
+# Document events
+#
+# Wave 1 only. Agreement, document, invoicing, cheque, case, move-out,
+# maintenance and utilities hooks are added by their own waves.
+# ---------------------------------------------------------------------------
 doc_events = {
     "Building": {
         "after_insert": "darkbrown.utils.cost_center.create_building_cost_center",
-        "on_update": "darkbrown.utils.cost_center.sync_building_cost_center_rename",
-        "after_rename": "darkbrown.utils.cost_center.sync_building_cost_center_after_rename",
-        "on_trash": "darkbrown.utils.cost_center.handle_building_cost_center_delete",
-    },
-    "Payment Entry": {
-        "on_submit": "darkbrown.utils.collections_case.on_payment_entry_submit",
-    },
-    "Maintenance Request": {
-        "after_insert": "darkbrown.utils.handoffs.t1_assign_maintenance",
-    },
-    "PDC Cheque": {
-        "on_update": "darkbrown.utils.handoffs.t5_assign_bounced",
+        "on_update": "darkbrown.utils.cost_center.sync_building_cost_center",
+        "after_rename": "darkbrown.utils.cost_center.sync_after_rename",
+        "on_trash": "darkbrown.utils.cost_center.guard_cost_center_delete",
     },
 }
 
-scheduler_events = {
-    "daily": [
-        "darkbrown.utils.collections_case.auto_open_cases",
-        "darkbrown.utils.collections_case.reopen_broken_promises",
-        "darkbrown.utils.document_register.refresh_statuses",
-        "darkbrown.utils.handoffs.daily_renewal_todos",
-        "darkbrown.utils.handoffs.daily_document_todos",
-        "darkbrown.utils.handoffs.grace_period_alerts",
-    ],
-    # Frappe "monthly" fires on the 1st day of each month.
-    "monthly": [
-        "darkbrown.utils.rent_invoicing.generate_monthly_invoices",
-    ],
-}
+scheduler_events = {}
+
+# ---------------------------------------------------------------------------
+# Fixtures
+# ---------------------------------------------------------------------------
+fixtures = [
+    {"dt": "Role", "filters": [["name", "in", [
+        "Managing Director",
+        "General Manager",
+        "Accounts",
+        "Documentation",
+        "Maintenance",
+    ]]]},
+]

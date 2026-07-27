@@ -1,0 +1,53 @@
+{
+ "custom_fields": [
+  {"dt": "Supplier", "fieldname": "db_section_landlord", "fieldtype": "Section Break",
+   "label": "Landlord Details", "insert_after": "supplier_type", "module": "Darkbrown",
+   "depends_on": "eval:doc.db_is_landlord"},
+
+  {"dt": "Supplier", "fieldname": "db_is_landlord", "fieldtype": "Check", "label": "Is Landlord",
+   "insert_after": "supplier_type", "in_standard_filter": 1, "module": "Darkbrown",
+   "description": "Distinguishes head-lease counterparties from ordinary trade suppliers."},
+
+  {"dt": "Supplier", "fieldname": "db_landlord_category", "fieldtype": "Select",
+   "label": "Landlord Category", "options": "\nIndividual\nCompany\nGovernment / Endowment",
+   "insert_after": "db_section_landlord", "module": "Darkbrown"},
+
+  {"dt": "Supplier", "fieldname": "db_landlord_qid", "fieldtype": "Data", "label": "QID",
+   "insert_after": "db_landlord_category", "module": "Darkbrown"},
+
+  {"dt": "Supplier", "fieldname": "db_landlord_cr_no", "fieldtype": "Data", "label": "CR No.",
+   "insert_after": "db_landlord_qid", "module": "Darkbrown"},
+
+  {"dt": "Supplier", "fieldname": "db_column_landlord_1", "fieldtype": "Column Break",
+   "insert_after": "db_landlord_cr_no", "module": "Darkbrown"},
+
+  {"dt": "Supplier", "fieldname": "db_landlord_mobile", "fieldtype": "Data", "label": "Mobile",
+   "options": "Phone", "insert_after": "db_column_landlord_1", "module": "Darkbrown"},
+
+  {"dt": "Supplier", "fieldname": "db_representative_name", "fieldtype": "Data",
+   "label": "Representative / POA Holder", "insert_after": "db_landlord_mobile", "module": "Darkbrown",
+   "description": "Where the person signing the head-lease is not the owner on the title deed."},
+
+  {"dt": "Supplier", "fieldname": "db_section_landlord_bank", "fieldtype": "Section Break",
+   "label": "Payment Details", "insert_after": "db_representative_name", "module": "Darkbrown",
+   "depends_on": "eval:doc.db_is_landlord"},
+
+  {"dt": "Supplier", "fieldname": "db_bank_name", "fieldtype": "Data", "label": "Bank Name",
+   "insert_after": "db_section_landlord_bank", "module": "Darkbrown"},
+
+  {"dt": "Supplier", "fieldname": "db_iban", "fieldtype": "Data", "label": "IBAN",
+   "insert_after": "db_bank_name", "module": "Darkbrown",
+   "description": "Qatari IBAN, 29 characters beginning QA."},
+
+  {"dt": "Supplier", "fieldname": "db_column_landlord_bank", "fieldtype": "Column Break",
+   "insert_after": "db_iban", "module": "Darkbrown"},
+
+  {"dt": "Supplier", "fieldname": "db_payment_mode", "fieldtype": "Select",
+   "label": "Head-Lease Payment Mode", "options": "\nCheque\nBank Transfer\nCash",
+   "insert_after": "db_column_landlord_bank", "module": "Darkbrown"}
+ ],
+ "custom_perms": [],
+ "doctype": "Supplier",
+ "property_setters": [],
+ "sync_on_migrate": 1
+}

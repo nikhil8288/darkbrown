@@ -1,0 +1,51 @@
+{
+ "custom_fields": [
+  {"dt": "Customer", "fieldname": "db_section_tenant", "fieldtype": "Section Break",
+   "label": "Tenant Identity", "insert_after": "customer_type", "module": "Darkbrown"},
+
+  {"dt": "Customer", "fieldname": "db_tenant_category", "fieldtype": "Select",
+   "label": "Tenant Category", "options": "\nIndividual\nCompany\nStaff Accommodation",
+   "insert_after": "db_section_tenant", "in_standard_filter": 1, "module": "Darkbrown"},
+
+  {"dt": "Customer", "fieldname": "db_qid", "fieldtype": "Data", "label": "QID",
+   "insert_after": "db_tenant_category", "module": "Darkbrown",
+   "description": "Qatar ID. Eleven digits. Required before a tenancy can be approved without escalation."},
+
+  {"dt": "Customer", "fieldname": "db_qid_expiry", "fieldtype": "Date", "label": "QID Expiry",
+   "insert_after": "db_qid", "module": "Darkbrown"},
+
+  {"dt": "Customer", "fieldname": "db_column_tenant_1", "fieldtype": "Column Break",
+   "insert_after": "db_qid_expiry", "module": "Darkbrown"},
+
+  {"dt": "Customer", "fieldname": "db_passport_no", "fieldtype": "Data", "label": "Passport No.",
+   "insert_after": "db_column_tenant_1", "module": "Darkbrown"},
+
+  {"dt": "Customer", "fieldname": "db_nationality", "fieldtype": "Link", "label": "Nationality",
+   "options": "Country", "insert_after": "db_passport_no", "module": "Darkbrown"},
+
+  {"dt": "Customer", "fieldname": "db_cr_no", "fieldtype": "Data", "label": "CR No.",
+   "insert_after": "db_nationality", "module": "Darkbrown",
+   "depends_on": "eval:doc.db_tenant_category=='Company'",
+   "description": "Commercial Registration number for corporate tenants."},
+
+  {"dt": "Customer", "fieldname": "db_section_contact", "fieldtype": "Section Break",
+   "label": "Contact", "insert_after": "db_cr_no", "module": "Darkbrown"},
+
+  {"dt": "Customer", "fieldname": "db_mobile", "fieldtype": "Data", "label": "Mobile",
+   "options": "Phone", "insert_after": "db_section_contact", "module": "Darkbrown"},
+
+  {"dt": "Customer", "fieldname": "db_column_contact", "fieldtype": "Column Break",
+   "insert_after": "db_mobile", "module": "Darkbrown"},
+
+  {"dt": "Customer", "fieldname": "db_alt_contact_name", "fieldtype": "Data",
+   "label": "Alternate Contact Name", "insert_after": "db_column_contact", "module": "Darkbrown"},
+
+  {"dt": "Customer", "fieldname": "db_alt_contact_mobile", "fieldtype": "Data",
+   "label": "Alternate Contact Mobile", "options": "Phone",
+   "insert_after": "db_alt_contact_name", "module": "Darkbrown"}
+ ],
+ "custom_perms": [],
+ "doctype": "Customer",
+ "property_setters": [],
+ "sync_on_migrate": 1
+}

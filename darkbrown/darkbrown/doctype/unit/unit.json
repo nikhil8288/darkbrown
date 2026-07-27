@@ -1,0 +1,67 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "format:{building}-{unit_no}",
+ "creation": "2026-07-28 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "building", "unit_no", "floor", "column_break_ident",
+  "status", "unit_type", "landlord",
+  "section_spec", "bedrooms", "bathrooms", "area_sqm",
+  "column_break_spec", "furnishing", "balcony", "maid_room",
+  "section_utilities", "kahramaa_meter_no", "column_break_util", "water_meter_no",
+  "section_notes", "notes"
+ ],
+ "fields": [
+  {"fieldname": "building", "fieldtype": "Link", "label": "Building", "options": "Building", "reqd": 1,
+   "in_list_view": 1, "in_standard_filter": 1},
+  {"fieldname": "unit_no", "fieldtype": "Data", "label": "Unit No.", "reqd": 1, "in_list_view": 1,
+   "description": "Entered manually and must match the number physically on the apartment door. Never generated."},
+  {"fieldname": "floor", "fieldtype": "Data", "label": "Floor", "in_list_view": 1},
+  {"fieldname": "column_break_ident", "fieldtype": "Column Break"},
+  {"fieldname": "status", "fieldtype": "Select", "label": "Status", "reqd": 1, "default": "Not Ready",
+   "options": "Not Ready\nVacant\nReserved\nOccupied\nUnder Maintenance",
+   "in_list_view": 1, "in_standard_filter": 1},
+  {"fieldname": "unit_type", "fieldtype": "Select", "label": "Unit Type", "in_standard_filter": 1,
+   "options": "\nStudio\n1 BHK\n2 BHK\n3 BHK\n4 BHK\nPenthouse\nShop\nOffice\nWarehouse\nLabour Accommodation"},
+  {"fieldname": "landlord", "fieldtype": "Link", "label": "Landlord", "options": "Supplier",
+   "fetch_from": "building.landlord", "read_only": 1},
+
+  {"fieldname": "section_spec", "fieldtype": "Section Break", "label": "Specification"},
+  {"fieldname": "bedrooms", "fieldtype": "Int", "label": "Bedrooms"},
+  {"fieldname": "bathrooms", "fieldtype": "Int", "label": "Bathrooms"},
+  {"fieldname": "area_sqm", "fieldtype": "Float", "label": "Area (sqm)", "precision": "2"},
+  {"fieldname": "column_break_spec", "fieldtype": "Column Break"},
+  {"fieldname": "furnishing", "fieldtype": "Select", "label": "Furnishing", "default": "Unfurnished",
+   "options": "Unfurnished\nSemi Furnished\nFully Furnished"},
+  {"fieldname": "balcony", "fieldtype": "Check", "label": "Balcony"},
+  {"fieldname": "maid_room", "fieldtype": "Check", "label": "Maid Room"},
+
+  {"fieldname": "section_utilities", "fieldtype": "Section Break", "label": "Meters"},
+  {"fieldname": "kahramaa_meter_no", "fieldtype": "Data", "label": "Kahramaa Meter No."},
+  {"fieldname": "column_break_util", "fieldtype": "Column Break"},
+  {"fieldname": "water_meter_no", "fieldtype": "Data", "label": "Water Meter No."},
+
+  {"fieldname": "section_notes", "fieldtype": "Section Break", "label": "Notes", "collapsible": 1},
+  {"fieldname": "notes", "fieldtype": "Small Text", "label": "Notes"}
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-07-28 00:00:00.000000",
+ "module": "Darkbrown",
+ "name": "Unit",
+ "owner": "Administrator",
+ "permissions": [
+  {"role": "System Manager", "read": 1, "write": 1, "create": 1, "delete": 1, "report": 1, "export": 1, "share": 1, "print": 1, "email": 1},
+  {"role": "Managing Director", "read": 1, "write": 1, "create": 1, "delete": 1, "report": 1, "export": 1, "share": 1, "print": 1, "email": 1},
+  {"role": "General Manager", "read": 1, "write": 1, "create": 1, "delete": 1, "report": 1, "export": 1, "share": 1, "print": 1, "email": 1},
+  {"role": "Accounts", "read": 1, "report": 1, "export": 1, "print": 1},
+  {"role": "Documentation", "read": 1, "report": 1, "print": 1},
+  {"role": "Maintenance", "read": 1, "write": 1, "report": 1, "print": 1}
+ ],
+ "search_fields": "building,unit_no,status",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "track_changes": 1
+}

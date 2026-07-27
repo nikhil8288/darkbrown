@@ -1,0 +1,82 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "field:building_name",
+ "creation": "2026-07-28 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "building_name", "status", "landlord", "column_break_ident",
+  "handover_date", "exit_date", "company",
+  "section_location", "municipality", "zone_no", "street_no",
+  "column_break_loc", "building_no", "area_name", "maps_url",
+  "section_structure", "floors", "total_units",
+  "column_break_struct", "parking_spaces", "has_lift",
+  "section_accounting", "cost_center",
+  "section_utilities", "kahramaa_account_no",
+  "section_notes", "notes"
+ ],
+ "fields": [
+  {"fieldname": "building_name", "fieldtype": "Data", "label": "Building Name", "reqd": 1, "unique": 1,
+   "description": "Must match how the building is referred to operationally. Used as the cost centre label."},
+  {"fieldname": "status", "fieldtype": "Select", "label": "Status", "reqd": 1, "default": "Onboarding",
+   "options": "Onboarding\nActive\nNotice Period\nExited", "in_list_view": 1, "in_standard_filter": 1},
+  {"fieldname": "landlord", "fieldtype": "Link", "label": "Landlord", "options": "Supplier", "reqd": 1,
+   "in_list_view": 1, "in_standard_filter": 1,
+   "description": "The head-lease counterparty. Held as an ERPNext Supplier so head-lease rent posts to the payables ledger."},
+  {"fieldname": "column_break_ident", "fieldtype": "Column Break"},
+  {"fieldname": "handover_date", "fieldtype": "Date", "label": "Handover Date",
+   "description": "Date the building was handed over to DarkBrown by the landlord."},
+  {"fieldname": "exit_date", "fieldtype": "Date", "label": "Exit Date", "depends_on": "eval:doc.status=='Exited' || doc.status=='Notice Period'"},
+  {"fieldname": "company", "fieldtype": "Link", "label": "Company", "options": "Company", "reqd": 1},
+
+  {"fieldname": "section_location", "fieldtype": "Section Break", "label": "Location"},
+  {"fieldname": "municipality", "fieldtype": "Data", "label": "Municipality"},
+  {"fieldname": "zone_no", "fieldtype": "Data", "label": "Zone No."},
+  {"fieldname": "street_no", "fieldtype": "Data", "label": "Street No."},
+  {"fieldname": "column_break_loc", "fieldtype": "Column Break"},
+  {"fieldname": "building_no", "fieldtype": "Data", "label": "Building No."},
+  {"fieldname": "area_name", "fieldtype": "Data", "label": "Area / District", "in_standard_filter": 1},
+  {"fieldname": "maps_url", "fieldtype": "Small Text", "label": "Map Link"},
+
+  {"fieldname": "section_structure", "fieldtype": "Section Break", "label": "Structure"},
+  {"fieldname": "floors", "fieldtype": "Int", "label": "Floors"},
+  {"fieldname": "total_units", "fieldtype": "Int", "label": "Total Units", "read_only": 1, "in_list_view": 1,
+   "description": "Maintained from the Unit register. Not entered by hand."},
+  {"fieldname": "column_break_struct", "fieldtype": "Column Break"},
+  {"fieldname": "parking_spaces", "fieldtype": "Int", "label": "Parking Spaces"},
+  {"fieldname": "has_lift", "fieldtype": "Check", "label": "Has Lift"},
+
+  {"fieldname": "section_accounting", "fieldtype": "Section Break", "label": "Accounting"},
+  {"fieldname": "cost_center", "fieldtype": "Link", "label": "Cost Center", "options": "Cost Center", "read_only": 1,
+   "description": "Created automatically on insert and kept in step with the building name."},
+
+  {"fieldname": "section_utilities", "fieldtype": "Section Break", "label": "Utilities"},
+  {"fieldname": "kahramaa_account_no", "fieldtype": "Data", "label": "Kahramaa Account No.",
+   "description": "Building-level account. Unit-level meter numbers are held on the Unit."},
+
+  {"fieldname": "section_notes", "fieldtype": "Section Break", "label": "Notes", "collapsible": 1},
+  {"fieldname": "notes", "fieldtype": "Text Editor", "label": "Notes"}
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [
+  {"group": "Portfolio", "link_doctype": "Unit", "link_fieldname": "building"}
+ ],
+ "modified": "2026-07-28 00:00:00.000000",
+ "module": "Darkbrown",
+ "name": "Building",
+ "owner": "Administrator",
+ "permissions": [
+  {"role": "System Manager", "read": 1, "write": 1, "create": 1, "delete": 1, "report": 1, "export": 1, "share": 1, "print": 1, "email": 1},
+  {"role": "Managing Director", "read": 1, "write": 1, "create": 1, "delete": 1, "report": 1, "export": 1, "share": 1, "print": 1, "email": 1},
+  {"role": "General Manager", "read": 1, "write": 1, "create": 1, "report": 1, "export": 1, "share": 1, "print": 1, "email": 1},
+  {"role": "Accounts", "read": 1, "report": 1, "export": 1, "print": 1},
+  {"role": "Documentation", "read": 1, "write": 1, "report": 1, "print": 1},
+  {"role": "Maintenance", "read": 1, "report": 1, "print": 1}
+ ],
+ "search_fields": "area_name,landlord,status",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "title_field": "building_name",
+ "track_changes": 1
+}
