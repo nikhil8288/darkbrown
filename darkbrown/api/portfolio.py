@@ -112,14 +112,21 @@ def _landlord(data):
         return name
     group = (frappe.db.get_value("Supplier Group", {"supplier_group_name": "Services"}, "name")
              or frappe.db.get_value("Supplier Group", {"is_group": 0}, "name"))
+    # Nationality is a Link to Country. The wizard collects free text, so it is
+    # only set when it resolves to a real Country; an unrecognised value is
+    # dropped rather than failing the whole onboarding pass.
+    nationality = (data.get("nationality") or "").strip()
+    if nationality and not frappe.db.exists("Country", nationality):
+        nationality = None
+
     doc = frappe.get_doc({
         "doctype": "Supplier",
         "supplier_name": name,
         "supplier_group": group,
         "db_is_landlord": 1,
-        "db_qid_number": data.get("qid"),
-        "db_nationality": data.get("nationality"),
-        "db_bank_iban": data.get("iban"),
+        "db_landlord_qid": data.get("qid"),
+        "db_nationality": nationality,
+        "db_iban": data.get("iban"),
         "db_bank_name": data.get("bank"),
     })
     doc.flags.ignore_mandatory = True

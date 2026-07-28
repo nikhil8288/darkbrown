@@ -5,7 +5,6 @@ an empty site is created here.
 """
 
 import frappe
-from frappe.custom.doctype.custom_field.custom_field import create_custom_fields
 
 ROLES = [
     ("Managing Director",
@@ -15,63 +14,6 @@ ROLES = [
     ("Documentation", "Document intake, OCR review, vault and expiry queue."),
     ("Maintenance", "Maintenance requests and unit readiness."),
 ]
-
-# Landlords and tenants are ERPNext parties with identity layered on, not
-# standalone DocTypes. That keeps one ledger and one party master.
-CUSTOM_FIELDS = {
-    "Supplier": [
-        {"fieldname": "db_landlord_section", "fieldtype": "Section Break",
-         "label": "Landlord Details", "insert_after": "supplier_group",
-         "collapsible": 1},
-        {"fieldname": "db_is_landlord", "fieldtype": "Check",
-         "label": "Is Landlord", "insert_after": "db_landlord_section"},
-        {"fieldname": "db_qid_number", "fieldtype": "Data",
-         "label": "QID / CR No", "insert_after": "db_is_landlord",
-         "depends_on": "db_is_landlord"},
-        {"fieldname": "db_nationality", "fieldtype": "Data",
-         "label": "Nationality", "insert_after": "db_qid_number",
-         "depends_on": "db_is_landlord"},
-        {"fieldname": "db_col_landlord", "fieldtype": "Column Break",
-         "insert_after": "db_nationality"},
-        {"fieldname": "db_bank_iban", "fieldtype": "Data", "label": "IBAN",
-         "insert_after": "db_col_landlord", "depends_on": "db_is_landlord"},
-        {"fieldname": "db_bank_name", "fieldtype": "Data", "label": "Bank",
-         "insert_after": "db_bank_iban", "depends_on": "db_is_landlord"},
-        {"fieldname": "db_docs_section", "fieldtype": "Section Break",
-         "label": "Documents", "insert_after": "db_bank_name",
-         "collapsible": 1},
-        {"fieldname": "db_documents", "fieldtype": "Table",
-         "label": "Documents", "options": "Party Document",
-         "insert_after": "db_docs_section"},
-    ],
-    "Customer": [
-        {"fieldname": "db_tenant_section", "fieldtype": "Section Break",
-         "label": "Tenant Details", "insert_after": "customer_group",
-         "collapsible": 1},
-        {"fieldname": "db_is_tenant", "fieldtype": "Check", "label": "Is Tenant",
-         "insert_after": "db_tenant_section"},
-        {"fieldname": "db_qid_number", "fieldtype": "Data", "label": "QID No",
-         "insert_after": "db_is_tenant", "depends_on": "db_is_tenant"},
-        {"fieldname": "db_qid_expiry", "fieldtype": "Date",
-         "label": "QID Expiry", "insert_after": "db_qid_number",
-         "depends_on": "db_is_tenant"},
-        {"fieldname": "db_col_tenant", "fieldtype": "Column Break",
-         "insert_after": "db_qid_expiry"},
-        {"fieldname": "db_nationality", "fieldtype": "Data",
-         "label": "Nationality", "insert_after": "db_col_tenant",
-         "depends_on": "db_is_tenant"},
-        {"fieldname": "db_mobile_no", "fieldtype": "Data", "label": "Mobile",
-         "insert_after": "db_nationality", "depends_on": "db_is_tenant"},
-        {"fieldname": "db_employer", "fieldtype": "Data", "label": "Employer",
-         "insert_after": "db_mobile_no", "depends_on": "db_is_tenant"},
-        {"fieldname": "db_docs_section", "fieldtype": "Section Break",
-         "label": "Documents", "insert_after": "db_employer",
-         "collapsible": 1},
-        {"fieldname": "db_documents", "fieldtype": "Table",
-         "label": "Documents", "options": "Party Document",
-         "insert_after": "db_docs_section"},
-    ],
-}
 
 DOCUMENT_REQUIREMENTS = [
     ("Tenant", "QID", 1, 1, 30),
@@ -101,7 +43,7 @@ SETTINGS_DEFAULTS = {
 
 def after_install():
     create_roles()
-    install_custom_fields()
+    reconcile_custom_fields()
     seed_settings()
     seed_document_requirements()
     frappe.db.commit()
@@ -110,7 +52,7 @@ def after_install():
 def after_migrate():
     """Re-runs on every migrate so a new field or requirement lands without a
     patch. Everything below is a no-op when it already exists."""
-    install_custom_fields()
+    reconcile_custom_fields()
     seed_document_requirements()
     frappe.db.commit()
 
@@ -127,11 +69,31 @@ def create_roles():
         }).insert(ignore_permissions=True)
 
 
-def install_custom_fields():
-    for fields in CUSTOM_FIELDS.values():
-        for f in fields:
-            f.setdefault("module", "Darkbrown")
-    create_custom_fields(CUSTOM_FIELDS, update=True)
+def reconcile_custom_fields():
+    """The party fields are defined once, in darkbrown/custom/*.json, and applied
+    by migrate before this hook runs. An earlier build also declared them in
+    Python with different names and types, which left duplicates on any site
+    that ran it. Anything this app owns on Customer or Supplier that the JSON
+    no longer declares is removed here."""
+    import json
+    import os
+
+    base = os.path.join(os.path.dirname(__file__), "darkbrown", "custom")
+    for dt, fname in (("Customer", "customer.json"), ("Supplier", "supplier.json")):
+        path = os.path.join(base, fname)
+        if not os.path.exists(path):
+            continue
+        keep = {f["fieldname"] for f in json.load(open(path)).get("custom_fields", [])}
+        stale = frappe.get_all(
+            "Custom Field",
+            filters={"dt": dt, "module": "Darkbrown", "fieldname": ["not in", list(keep) or [""]]},
+            pluck="name",
+        )
+        for name in stale:
+            frappe.delete_doc("Custom Field", name,
+                              ignore_permissions=True, force=True)
+        if stale:
+            frappe.clear_cache(doctype=dt)
 
 
 def seed_settings():
