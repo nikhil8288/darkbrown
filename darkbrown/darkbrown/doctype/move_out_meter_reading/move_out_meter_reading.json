@@ -1,0 +1,68 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "creation": "2026-07-28 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "meter_type",
+  "meter_no",
+  "reading",
+  "reading_date",
+  "amount_due"
+ ],
+ "fields": [
+  {
+   "fieldname": "meter_type",
+   "fieldtype": "Select",
+   "label": "Meter",
+   "options": "Kahramaa\nWater\nGas",
+   "reqd": 1,
+   "in_list_view": 1,
+   "columns": 2
+  },
+  {
+   "fieldname": "meter_no",
+   "fieldtype": "Data",
+   "label": "Meter No",
+   "in_list_view": 1,
+   "columns": 2
+  },
+  {
+   "fieldname": "reading",
+   "fieldtype": "Float",
+   "label": "Final Reading",
+   "in_list_view": 1,
+   "columns": 2
+  },
+  {
+   "fieldname": "reading_date",
+   "fieldtype": "Date",
+   "label": "Read On",
+   "in_list_view": 1,
+   "columns": 2
+  },
+  {
+   "fieldname": "amount_due",
+   "fieldtype": "Currency",
+   "label": "Amount Due",
+   "options": "QAR",
+   "in_list_view": 1,
+   "columns": 2
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-07-28 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Darkbrown",
+ "name": "Move Out Meter Reading",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 0,
+ "istable": 1
+}

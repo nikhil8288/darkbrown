@@ -1,0 +1,282 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-07-28 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "naming_series",
+  "building",
+  "landlord",
+  "cb_ident",
+  "status",
+  "company",
+  "renewal_of",
+  "sec_term",
+  "start_date",
+  "end_date",
+  "rent_free_days",
+  "cb_term",
+  "notice_period_days",
+  "units_covered",
+  "auto_renew",
+  "sec_money",
+  "annual_rent",
+  "monthly_rent",
+  "cb_money",
+  "payment_frequency",
+  "security_deposit",
+  "sec_sched",
+  "payments",
+  "sec_acct",
+  "cost_center",
+  "sec_docs",
+  "signed_document",
+  "notes"
+ ],
+ "fields": [
+  {
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "label": "Series",
+   "options": "HL-.YYYY.-.####",
+   "default": "HL-.YYYY.-.####",
+   "reqd": 1,
+   "print_hide": 1
+  },
+  {
+   "fieldname": "building",
+   "fieldtype": "Link",
+   "label": "Building",
+   "options": "Building",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "landlord",
+   "fieldtype": "Link",
+   "label": "Landlord",
+   "options": "Supplier",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "cb_ident",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Draft\nActive\nExpiring\nExpired\nTerminated",
+   "default": "Draft",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company",
+   "reqd": 1
+  },
+  {
+   "fieldname": "renewal_of",
+   "fieldtype": "Link",
+   "label": "Renewal Of",
+   "options": "Head Lease"
+  },
+  {
+   "fieldname": "sec_term",
+   "fieldtype": "Section Break",
+   "label": "Term"
+  },
+  {
+   "fieldname": "start_date",
+   "fieldtype": "Date",
+   "label": "Start Date",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "end_date",
+   "fieldtype": "Date",
+   "label": "End Date",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "rent_free_days",
+   "fieldtype": "Int",
+   "label": "Rent-Free Days",
+   "description": "Days at the head of the term where no rent accrues."
+  },
+  {
+   "fieldname": "cb_term",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "notice_period_days",
+   "fieldtype": "Int",
+   "label": "Notice Period (Days)",
+   "default": "90"
+  },
+  {
+   "fieldname": "units_covered",
+   "fieldtype": "Int",
+   "label": "Units Covered"
+  },
+  {
+   "fieldname": "auto_renew",
+   "fieldtype": "Check",
+   "label": "Auto Renew"
+  },
+  {
+   "fieldname": "sec_money",
+   "fieldtype": "Section Break",
+   "label": "Consideration"
+  },
+  {
+   "fieldname": "annual_rent",
+   "fieldtype": "Currency",
+   "label": "Annual Rent",
+   "options": "QAR",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "monthly_rent",
+   "fieldtype": "Currency",
+   "label": "Monthly Rent",
+   "options": "QAR",
+   "read_only": 1,
+   "description": "Annual rent divided by twelve. Held for the spread calculation; the payment schedule below is what is actually paid."
+  },
+  {
+   "fieldname": "cb_money",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "payment_frequency",
+   "fieldtype": "Select",
+   "label": "Payment Frequency",
+   "options": "Monthly\nQuarterly\nHalf Yearly\nAnnual",
+   "default": "Quarterly",
+   "reqd": 1
+  },
+  {
+   "fieldname": "security_deposit",
+   "fieldtype": "Currency",
+   "label": "Security Deposit Paid",
+   "options": "QAR"
+  },
+  {
+   "fieldname": "sec_sched",
+   "fieldtype": "Section Break",
+   "label": "Payment Schedule"
+  },
+  {
+   "fieldname": "payments",
+   "fieldtype": "Table",
+   "label": "Scheduled Payments",
+   "options": "Head Lease Payment"
+  },
+  {
+   "fieldname": "sec_acct",
+   "fieldtype": "Section Break",
+   "label": "Accounting"
+  },
+  {
+   "fieldname": "cost_center",
+   "fieldtype": "Link",
+   "label": "Cost Center",
+   "options": "Cost Center",
+   "fetch_from": "building.cost_center",
+   "read_only": 1
+  },
+  {
+   "fieldname": "sec_docs",
+   "fieldtype": "Section Break",
+   "label": "Documents"
+  },
+  {
+   "fieldname": "signed_document",
+   "fieldtype": "Attach",
+   "label": "Signed Head Lease"
+  },
+  {
+   "fieldname": "notes",
+   "fieldtype": "Text Editor",
+   "label": "Notes"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-07-28 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Darkbrown",
+ "name": "Head Lease",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "Managing Director",
+   "read": 1,
+   "report": 1,
+   "export": 1,
+   "share": 1,
+   "print": 1,
+   "email": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1
+  },
+  {
+   "role": "General Manager",
+   "read": 1,
+   "report": 1,
+   "export": 1,
+   "share": 1,
+   "print": 1,
+   "email": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 0
+  },
+  {
+   "role": "Accounts",
+   "read": 1,
+   "report": 1,
+   "export": 1,
+   "share": 1,
+   "print": 1,
+   "email": 1,
+   "write": 0,
+   "create": 0,
+   "delete": 0
+  },
+  {
+   "role": "Documentation",
+   "read": 1,
+   "report": 1,
+   "export": 1,
+   "share": 1,
+   "print": 1,
+   "email": 1,
+   "write": 0,
+   "create": 0,
+   "delete": 0
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1,
+ "autoname": "naming_series:",
+ "naming_rule": "By \"Naming Series\" field",
+ "title_field": "building",
+ "show_title_field_in_link": 1,
+ "search_fields": "building,landlord,status,end_date"
+}

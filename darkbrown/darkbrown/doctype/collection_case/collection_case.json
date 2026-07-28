@@ -1,69 +1,287 @@
 {
  "actions": [],
- "allow_rename": 0,
- "autoname": "naming_series:",
- "creation": "2026-07-12 00:00:00.000000",
+ "allow_rename": 1,
+ "creation": "2026-07-28 00:00:00.000000",
  "doctype": "DocType",
+ "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
-  "naming_series", "tenant", "lease", "column_break_1",
-  "building", "unit", "status",
-  "section_amounts",
-  "outstanding_amount", "oldest_due_date", "column_break_2",
-  "past_grace_on", "broken_promise",
-  "section_contact",
-  "contacted_on", "contact_method", "column_break_3",
-  "promised_amount", "promised_date",
-  "section_resolution",
-  "payment_entry", "collected_on", "column_break_4",
-  "escalated_on", "escalated_by",
-  "section_invoices",
-  "invoices"
+  "naming_series",
+  "tenant",
+  "tenancy_agreement",
+  "building",
+  "unit",
+  "cb_ident",
+  "status",
+  "trigger",
+  "opened_on",
+  "manual_reason",
+  "sec_amounts",
+  "outstanding_amount",
+  "oldest_due_date",
+  "cb_amounts",
+  "days_past_due",
+  "reference",
+  "sec_promise",
+  "promised_amount",
+  "promised_date",
+  "cb_promise",
+  "broken_promise",
+  "sec_actions",
+  "actions",
+  "sec_invoices",
+  "invoices",
+  "sec_resolution",
+  "escalated_on",
+  "escalated_by",
+  "cb_res",
+  "resolution",
+  "resolved_on"
  ],
  "fields": [
-  {"fieldname": "naming_series", "fieldtype": "Select", "label": "Series", "options": "CC-.####", "default": "CC-.####", "hidden": 1},
-  {"fieldname": "tenant", "fieldtype": "Link", "label": "Tenant", "options": "Customer", "reqd": 1, "in_list_view": 1, "in_standard_filter": 1},
-  {"fieldname": "lease", "fieldtype": "Link", "label": "Rental Agreement", "options": "Tenant Rental Agreement", "in_list_view": 1},
-  {"fieldname": "column_break_1", "fieldtype": "Column Break"},
-  {"fieldname": "building", "fieldtype": "Link", "label": "Building", "options": "Building", "in_standard_filter": 1},
-  {"fieldname": "unit", "fieldtype": "Link", "label": "Unit", "options": "Unit"},
-  {"fieldname": "status", "fieldtype": "Select", "label": "Status", "options": "Open\nContacted\nPromised\nPending Confirmation\nCollected\nLegal", "default": "Open", "reqd": 1, "in_list_view": 1, "in_standard_filter": 1},
-  {"fieldname": "section_amounts", "fieldtype": "Section Break", "label": "Arrears"},
-  {"fieldname": "outstanding_amount", "fieldtype": "Currency", "label": "Outstanding", "in_list_view": 1},
-  {"fieldname": "oldest_due_date", "fieldtype": "Date", "label": "Oldest Due Date"},
-  {"fieldname": "column_break_2", "fieldtype": "Column Break"},
-  {"fieldname": "past_grace_on", "fieldtype": "Date", "label": "Past Grace Since", "read_only": 1},
-  {"fieldname": "broken_promise", "fieldtype": "Check", "label": "Broken Promise", "read_only": 1},
-  {"fieldname": "section_contact", "fieldtype": "Section Break", "label": "Contact & Promise", "depends_on": "eval:doc.status!='Open'"},
-  {"fieldname": "contacted_on", "fieldtype": "Date", "label": "Contacted On", "mandatory_depends_on": "eval:doc.status=='Contacted'"},
-  {"fieldname": "contact_method", "fieldtype": "Select", "label": "Method", "options": "\nCall\nWhatsApp\nSMS\nEmail\nIn Person"},
-  {"fieldname": "column_break_3", "fieldtype": "Column Break"},
-  {"fieldname": "promised_amount", "fieldtype": "Currency", "label": "Promised Amount", "mandatory_depends_on": "eval:doc.status=='Promised'"},
-  {"fieldname": "promised_date", "fieldtype": "Date", "label": "Promised Date", "mandatory_depends_on": "eval:doc.status=='Promised'"},
-  {"fieldname": "section_resolution", "fieldtype": "Section Break", "label": "Resolution", "collapsible": 1},
-  {"fieldname": "payment_entry", "fieldtype": "Link", "label": "Payment Entry", "options": "Payment Entry", "read_only": 1},
-  {"fieldname": "collected_on", "fieldtype": "Date", "label": "Collected On", "read_only": 1},
-  {"fieldname": "column_break_4", "fieldtype": "Column Break"},
-  {"fieldname": "escalated_on", "fieldtype": "Date", "label": "Escalated to Legal On", "read_only": 1},
-  {"fieldname": "escalated_by", "fieldtype": "Link", "label": "Escalated By", "options": "User", "read_only": 1},
-  {"fieldname": "section_invoices", "fieldtype": "Section Break", "label": "Overdue Invoices"},
-  {"fieldname": "invoices", "fieldtype": "Table", "label": "Invoices", "options": "Collection Case Invoice"}
+  {
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "label": "Series",
+   "options": "CC-.YYYY.-.####",
+   "default": "CC-.YYYY.-.####",
+   "reqd": 1,
+   "print_hide": 1
+  },
+  {
+   "fieldname": "tenant",
+   "fieldtype": "Link",
+   "label": "Tenant",
+   "options": "Customer",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "tenancy_agreement",
+   "fieldtype": "Link",
+   "label": "Tenancy",
+   "options": "Tenancy Agreement",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "building",
+   "fieldtype": "Link",
+   "label": "Building",
+   "options": "Building",
+   "fetch_from": "tenancy_agreement.building",
+   "read_only": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "unit",
+   "fieldtype": "Link",
+   "label": "Unit",
+   "options": "Unit",
+   "fetch_from": "tenancy_agreement.unit",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "cb_ident",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Open\nContacted\nPromised\nBroken Promise\nEscalated\nLegal\nResolved\nClosed",
+   "default": "Open",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "trigger",
+   "fieldtype": "Select",
+   "label": "Opened By",
+   "options": "Past Due\nReturned Cheque\nBroken Promise\nTwo Months Arrears\nManual",
+   "reqd": 1,
+   "in_standard_filter": 1,
+   "description": "Four system triggers and one manual route."
+  },
+  {
+   "fieldname": "opened_on",
+   "fieldtype": "Date",
+   "label": "Opened On",
+   "read_only": 1
+  },
+  {
+   "fieldname": "manual_reason",
+   "fieldtype": "Small Text",
+   "label": "Reason for Opening Manually",
+   "depends_on": "eval:doc.trigger=='Manual'"
+  },
+  {
+   "fieldname": "sec_amounts",
+   "fieldtype": "Section Break",
+   "label": "Exposure"
+  },
+  {
+   "fieldname": "outstanding_amount",
+   "fieldtype": "Currency",
+   "label": "Outstanding",
+   "options": "QAR",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "oldest_due_date",
+   "fieldtype": "Date",
+   "label": "Oldest Due Date"
+  },
+  {
+   "fieldname": "cb_amounts",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "days_past_due",
+   "fieldtype": "Int",
+   "label": "Days Past Due",
+   "read_only": 1
+  },
+  {
+   "fieldname": "reference",
+   "fieldtype": "Data",
+   "label": "Trigger Reference",
+   "read_only": 1
+  },
+  {
+   "fieldname": "sec_promise",
+   "fieldtype": "Section Break",
+   "label": "Promise"
+  },
+  {
+   "fieldname": "promised_amount",
+   "fieldtype": "Currency",
+   "label": "Promised Amount",
+   "options": "QAR"
+  },
+  {
+   "fieldname": "promised_date",
+   "fieldtype": "Date",
+   "label": "Promised Date"
+  },
+  {
+   "fieldname": "cb_promise",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "broken_promise",
+   "fieldtype": "Check",
+   "label": "Promise Broken",
+   "read_only": 1
+  },
+  {
+   "fieldname": "sec_actions",
+   "fieldtype": "Section Break",
+   "label": "Contact Log"
+  },
+  {
+   "fieldname": "actions",
+   "fieldtype": "Table",
+   "label": "Actions",
+   "options": "Collection Case Action"
+  },
+  {
+   "fieldname": "sec_invoices",
+   "fieldtype": "Section Break",
+   "label": "Invoices In Scope"
+  },
+  {
+   "fieldname": "invoices",
+   "fieldtype": "Table",
+   "label": "Invoices",
+   "options": "Collection Case Invoice"
+  },
+  {
+   "fieldname": "sec_resolution",
+   "fieldtype": "Section Break",
+   "label": "Resolution"
+  },
+  {
+   "fieldname": "escalated_on",
+   "fieldtype": "Date",
+   "label": "Escalated On"
+  },
+  {
+   "fieldname": "escalated_by",
+   "fieldtype": "Link",
+   "label": "Escalated By",
+   "options": "User"
+  },
+  {
+   "fieldname": "cb_res",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "resolution",
+   "fieldtype": "Select",
+   "label": "Resolution",
+   "options": "\nPaid in Full\nPartially Paid\nWritten Off\nMove Out"
+  },
+  {
+   "fieldname": "resolved_on",
+   "fieldtype": "Date",
+   "label": "Resolved On"
+  }
  ],
  "index_web_pages_for_search": 0,
  "links": [],
- "modified": "2026-07-12 00:00:00.000000",
+ "modified": "2026-07-28 00:00:00.000000",
+ "modified_by": "Administrator",
  "module": "Darkbrown",
  "name": "Collection Case",
  "owner": "Administrator",
  "permissions": [
-  {"create": 1, "delete": 1, "email": 1, "export": 1, "read": 1, "report": 1, "role": "System Manager", "share": 1, "write": 1},
-  {"create": 1, "email": 1, "read": 1, "report": 1, "role": "Accounts", "share": 1, "write": 1},
-  {"read": 1, "report": 1, "role": "General Manager", "write": 1},
-  {"read": 1, "report": 1, "role": "Legal and Documentation"},
-  {"read": 1, "report": 1, "role": "Managing Director"}
+  {
+   "role": "Managing Director",
+   "read": 1,
+   "report": 1,
+   "export": 1,
+   "share": 1,
+   "print": 1,
+   "email": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1
+  },
+  {
+   "role": "General Manager",
+   "read": 1,
+   "report": 1,
+   "export": 1,
+   "share": 1,
+   "print": 1,
+   "email": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 0
+  },
+  {
+   "role": "Accounts",
+   "read": 1,
+   "report": 1,
+   "export": 1,
+   "share": 1,
+   "print": 1,
+   "email": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1
+  }
  ],
  "sort_field": "modified",
  "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1,
+ "autoname": "naming_series:",
+ "naming_rule": "By \"Naming Series\" field",
  "title_field": "tenant",
- "track_changes": 1
+ "show_title_field_in_link": 1,
+ "search_fields": "tenant,unit,status,outstanding_amount"
 }

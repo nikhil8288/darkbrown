@@ -1,95 +1,81 @@
 {
  "actions": [],
  "allow_rename": 1,
- "autoname": "format:DOC-{YYYY}-{#####}",
- "creation": "2026-07-13 00:00:00.000000",
+ "creation": "2026-07-28 00:00:00.000000",
  "doctype": "DocType",
+ "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
-  "sec_intake",
-  "document_type",
-  "status",
-  "col_intake_1",
+  "naming_series",
   "source_file",
+  "document_type",
+  "cb_ident",
+  "status",
   "page_count",
-  "sec_classify",
-  "detected_type",
+  "sec_party",
+  "party_type",
+  "party",
+  "cb_party",
+  "building",
+  "unit",
+  "sec_validity",
+  "issue_date",
+  "expiry_date",
+  "cb_validity",
+  "document_no",
+  "days_to_expiry",
+  "sec_extract",
+  "extracted_json",
   "extraction_confidence",
-  "col_classify_1",
-  "extracted_on",
+  "cb_extract",
   "extractor_model",
-  "sec_contract",
-  "party_name",
-  "party_name_ar",
-  "id_number",
-  "nationality",
-  "cr_number",
-  "col_contract_1",
-  "counterparty_name",
-  "counterparty_id",
-  "contract_ref_no",
-  "sec_property",
-  "building_no",
-  "zone",
-  "street",
-  "area_name",
-  "col_property_1",
-  "unit_no",
-  "electricity_no",
-  "water_no",
-  "sec_terms",
-  "monthly_rent",
-  "security_deposit",
-  "col_terms_1",
-  "start_date",
-  "end_date",
-  "cheques_per_year",
-  "sec_cheques",
-  "cheques",
+  "extracted_on",
   "sec_review",
   "reviewed_by",
   "reviewed_on",
-  "col_review_1",
-  "pushed_refs",
-  "sec_audit",
-  "raw_json",
-  "extraction_notes"
+  "cb_review",
+  "rejection_reason",
+  "supersedes"
  ],
  "fields": [
   {
-   "fieldname": "sec_intake",
-   "fieldtype": "Section Break",
-   "label": "Intake"
-  },
-  {
-   "default": "Unknown",
-   "fieldname": "document_type",
+   "fieldname": "naming_series",
    "fieldtype": "Select",
-   "in_list_view": 1,
-   "in_standard_filter": 1,
-   "label": "Document Type",
-   "options": "Unknown\nCheque Batch\nLandlord Contract\nTenant Agreement\nOwner Contract\nPassport\nQID / National ID\nUtility / Other",
-   "reqd": 1
-  },
-  {
-   "default": "Draft",
-   "fieldname": "status",
-   "fieldtype": "Select",
-   "in_list_view": 1,
-   "in_standard_filter": 1,
-   "label": "Status",
-   "options": "Draft\nExtracting\nNeeds Review\nConfirmed\nPushed\nRejected",
-   "read_only": 1
-  },
-  {
-   "fieldname": "col_intake_1",
-   "fieldtype": "Column Break"
+   "label": "Series",
+   "options": "DOC-.YYYY.-.####",
+   "default": "DOC-.YYYY.-.####",
+   "reqd": 1,
+   "print_hide": 1
   },
   {
    "fieldname": "source_file",
    "fieldtype": "Attach",
-   "label": "Source Document",
+   "label": "Source File",
    "reqd": 1
+  },
+  {
+   "fieldname": "document_type",
+   "fieldtype": "Select",
+   "label": "Document Type",
+   "options": "Unknown\nHead Lease\nTenancy Agreement\nQID\nPassport\nCommercial Registration\nCheque Batch\nUtility Bill\nMaintenance Invoice\nBank Statement\nOther",
+   "default": "Unknown",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "cb_ident",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Draft\nExtracting\nNeeds Review\nConfirmed\nRejected\nSuperseded",
+   "default": "Draft",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
   },
   {
    "fieldname": "page_count",
@@ -98,27 +84,99 @@
    "read_only": 1
   },
   {
-   "collapsible": 1,
-   "fieldname": "sec_classify",
+   "fieldname": "sec_party",
    "fieldtype": "Section Break",
-   "label": "Classification"
+   "label": "Filed Against"
   },
   {
-   "fieldname": "detected_type",
+   "fieldname": "party_type",
+   "fieldtype": "Select",
+   "label": "Party Type",
+   "options": "\nCustomer\nSupplier"
+  },
+  {
+   "fieldname": "party",
+   "fieldtype": "Dynamic Link",
+   "label": "Party",
+   "options": "party_type",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "cb_party",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "building",
+   "fieldtype": "Link",
+   "label": "Building",
+   "options": "Building",
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "unit",
+   "fieldtype": "Link",
+   "label": "Unit",
+   "options": "Unit"
+  },
+  {
+   "fieldname": "sec_validity",
+   "fieldtype": "Section Break",
+   "label": "Validity"
+  },
+  {
+   "fieldname": "issue_date",
+   "fieldtype": "Date",
+   "label": "Issue Date"
+  },
+  {
+   "fieldname": "expiry_date",
+   "fieldtype": "Date",
+   "label": "Expiry Date",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "cb_validity",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "document_no",
    "fieldtype": "Data",
-   "label": "Detected Type (AI)",
+   "label": "Document No"
+  },
+  {
+   "fieldname": "days_to_expiry",
+   "fieldtype": "Int",
+   "label": "Days to Expiry",
+   "read_only": 1
+  },
+  {
+   "fieldname": "sec_extract",
+   "fieldtype": "Section Break",
+   "label": "Extraction"
+  },
+  {
+   "fieldname": "extracted_json",
+   "fieldtype": "Code",
+   "label": "Extracted Fields",
+   "options": "JSON",
    "read_only": 1
   },
   {
    "fieldname": "extraction_confidence",
    "fieldtype": "Float",
-   "label": "Overall Confidence",
-   "precision": "2",
-   "read_only": 1
+   "label": "Confidence",
+   "read_only": 1,
+   "precision": "2"
   },
   {
-   "fieldname": "col_classify_1",
+   "fieldname": "cb_extract",
    "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "extractor_model",
+   "fieldtype": "Data",
+   "label": "Model",
+   "read_only": 1
   },
   {
    "fieldname": "extracted_on",
@@ -127,157 +185,6 @@
    "read_only": 1
   },
   {
-   "fieldname": "extractor_model",
-   "fieldtype": "Data",
-   "label": "Model Used",
-   "read_only": 1
-  },
-  {
-   "depends_on": "eval:['Landlord Contract','Tenant Agreement','Owner Contract'].includes(doc.document_type)",
-   "fieldname": "sec_contract",
-   "fieldtype": "Section Break",
-   "label": "Parties"
-  },
-  {
-   "fieldname": "party_name",
-   "fieldtype": "Data",
-   "label": "Party Name (EN)"
-  },
-  {
-   "fieldname": "party_name_ar",
-   "fieldtype": "Data",
-   "label": "Party Name (AR)"
-  },
-  {
-   "fieldname": "id_number",
-   "fieldtype": "Data",
-   "label": "QID / ID No"
-  },
-  {
-   "fieldname": "nationality",
-   "fieldtype": "Data",
-   "label": "Nationality"
-  },
-  {
-   "fieldname": "cr_number",
-   "fieldtype": "Data",
-   "label": "CR No"
-  },
-  {
-   "fieldname": "col_contract_1",
-   "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "counterparty_name",
-   "fieldtype": "Data",
-   "label": "Counterparty Name"
-  },
-  {
-   "fieldname": "counterparty_id",
-   "fieldtype": "Data",
-   "label": "Counterparty ID"
-  },
-  {
-   "fieldname": "contract_ref_no",
-   "fieldtype": "Data",
-   "label": "Contract Reference No"
-  },
-  {
-   "depends_on": "eval:['Landlord Contract','Tenant Agreement','Owner Contract'].includes(doc.document_type)",
-   "fieldname": "sec_property",
-   "fieldtype": "Section Break",
-   "label": "Property"
-  },
-  {
-   "fieldname": "building_no",
-   "fieldtype": "Data",
-   "label": "Building No"
-  },
-  {
-   "fieldname": "zone",
-   "fieldtype": "Data",
-   "label": "Zone"
-  },
-  {
-   "fieldname": "street",
-   "fieldtype": "Data",
-   "label": "Street"
-  },
-  {
-   "fieldname": "area_name",
-   "fieldtype": "Data",
-   "label": "Area"
-  },
-  {
-   "fieldname": "col_property_1",
-   "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "unit_no",
-   "fieldtype": "Data",
-   "label": "Unit / Room No"
-  },
-  {
-   "fieldname": "electricity_no",
-   "fieldtype": "Data",
-   "label": "Electricity No"
-  },
-  {
-   "fieldname": "water_no",
-   "fieldtype": "Data",
-   "label": "Water No"
-  },
-  {
-   "depends_on": "eval:['Landlord Contract','Tenant Agreement','Owner Contract'].includes(doc.document_type)",
-   "fieldname": "sec_terms",
-   "fieldtype": "Section Break",
-   "label": "Terms"
-  },
-  {
-   "fieldname": "monthly_rent",
-   "fieldtype": "Currency",
-   "label": "Monthly Rent",
-   "options": "QAR"
-  },
-  {
-   "fieldname": "security_deposit",
-   "fieldtype": "Currency",
-   "label": "Security Deposit",
-   "options": "QAR"
-  },
-  {
-   "fieldname": "col_terms_1",
-   "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "start_date",
-   "fieldtype": "Date",
-   "label": "Start Date"
-  },
-  {
-   "fieldname": "end_date",
-   "fieldtype": "Date",
-   "label": "End Date"
-  },
-  {
-   "fieldname": "cheques_per_year",
-   "fieldtype": "Int",
-   "label": "Cheques Per Year"
-  },
-  {
-   "depends_on": "eval:doc.document_type=='Cheque Batch'",
-   "fieldname": "sec_cheques",
-   "fieldtype": "Section Break",
-   "label": "Cheques Detected"
-  },
-  {
-   "fieldname": "cheques",
-   "fieldtype": "Table",
-   "label": "Cheques",
-   "options": "Document Register Cheque"
-  },
-  {
-   "collapsible": 1,
    "fieldname": "sec_review",
    "fieldtype": "Section Break",
    "label": "Review"
@@ -296,82 +203,85 @@
    "read_only": 1
   },
   {
-   "fieldname": "col_review_1",
+   "fieldname": "cb_review",
    "fieldtype": "Column Break"
   },
   {
-   "fieldname": "pushed_refs",
+   "fieldname": "rejection_reason",
    "fieldtype": "Small Text",
-   "label": "Pushed Records",
-   "read_only": 1
+   "label": "Rejection Reason"
   },
   {
-   "collapsible": 1,
-   "collapsible_depends_on": "eval:false",
-   "fieldname": "sec_audit",
-   "fieldtype": "Section Break",
-   "label": "Audit (raw extraction)"
-  },
-  {
-   "fieldname": "raw_json",
-   "fieldtype": "Code",
-   "label": "Raw Extraction JSON",
-   "options": "JSON",
-   "read_only": 1
-  },
-  {
-   "fieldname": "extraction_notes",
-   "fieldtype": "Small Text",
-   "label": "Extraction Notes / Flags",
-   "read_only": 1
+   "fieldname": "supersedes",
+   "fieldtype": "Link",
+   "label": "Supersedes",
+   "options": "Document Register"
   }
  ],
- "index_web_pages_for_search": 1,
+ "index_web_pages_for_search": 0,
  "links": [],
- "modified": "2026-07-17 10:00:00.000000",
+ "modified": "2026-07-28 00:00:00.000000",
+ "modified_by": "Administrator",
  "module": "Darkbrown",
  "name": "Document Register",
  "owner": "Administrator",
  "permissions": [
   {
-   "create": 1,
-   "delete": 0,
-   "email": 1,
-   "export": 1,
-   "print": 1,
-   "read": 1,
-   "report": 1,
-   "role": "Legal and Documentation",
-   "share": 1,
-   "write": 1
-  },
-  {
-   "create": 1,
-   "delete": 1,
-   "email": 1,
-   "export": 1,
-   "print": 1,
-   "read": 1,
-   "report": 1,
-   "role": "System Manager",
-   "share": 1,
-   "write": 1
-  },
-  {
-   "create": 0,
-   "delete": 0,
-   "email": 0,
-   "export": 1,
-   "print": 1,
-   "read": 1,
-   "report": 1,
    "role": "Managing Director",
-   "share": 0,
-   "write": 0
+   "read": 1,
+   "report": 1,
+   "export": 1,
+   "share": 1,
+   "print": 1,
+   "email": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1
+  },
+  {
+   "role": "General Manager",
+   "read": 1,
+   "report": 1,
+   "export": 1,
+   "share": 1,
+   "print": 1,
+   "email": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 0
+  },
+  {
+   "role": "Accounts",
+   "read": 1,
+   "report": 1,
+   "export": 1,
+   "share": 1,
+   "print": 1,
+   "email": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 0
+  },
+  {
+   "role": "Documentation",
+   "read": 1,
+   "report": 1,
+   "export": 1,
+   "share": 1,
+   "print": 1,
+   "email": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1
   }
  ],
  "sort_field": "modified",
  "sort_order": "DESC",
  "states": [],
- "track_changes": 1
+ "track_changes": 1,
+ "autoname": "naming_series:",
+ "naming_rule": "By \"Naming Series\" field",
+ "title_field": "document_type",
+ "show_title_field_in_link": 1,
+ "search_fields": "document_type,party,status,expiry_date"
 }

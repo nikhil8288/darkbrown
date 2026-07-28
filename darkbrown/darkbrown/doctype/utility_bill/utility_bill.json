@@ -1,0 +1,219 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-07-28 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "naming_series",
+  "building",
+  "meter",
+  "utility_type",
+  "cb_ident",
+  "status",
+  "company",
+  "sec_bill",
+  "bill_no",
+  "period_start",
+  "period_end",
+  "cb_bill",
+  "amount",
+  "consumption",
+  "bill_scan",
+  "sec_alloc",
+  "allocation_basis",
+  "allocations",
+  "allocated_total",
+  "unallocated"
+ ],
+ "fields": [
+  {
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "label": "Series",
+   "options": "UB-.YYYY.-.####",
+   "default": "UB-.YYYY.-.####",
+   "reqd": 1,
+   "print_hide": 1
+  },
+  {
+   "fieldname": "building",
+   "fieldtype": "Link",
+   "label": "Building",
+   "options": "Building",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "meter",
+   "fieldtype": "Link",
+   "label": "Meter",
+   "options": "Utility Meter",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "utility_type",
+   "fieldtype": "Select",
+   "label": "Type",
+   "options": "Kahramaa\nWater\nGas",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "cb_ident",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Draft\nAllocated\nRecovered\nDisputed\nCancelled",
+   "default": "Draft",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company",
+   "reqd": 1
+  },
+  {
+   "fieldname": "sec_bill",
+   "fieldtype": "Section Break",
+   "label": "Bill"
+  },
+  {
+   "fieldname": "bill_no",
+   "fieldtype": "Data",
+   "label": "Bill No",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "period_start",
+   "fieldtype": "Date",
+   "label": "Period Start",
+   "reqd": 1
+  },
+  {
+   "fieldname": "period_end",
+   "fieldtype": "Date",
+   "label": "Period End",
+   "reqd": 1
+  },
+  {
+   "fieldname": "cb_bill",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "amount",
+   "fieldtype": "Currency",
+   "label": "Amount",
+   "options": "QAR",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "consumption",
+   "fieldtype": "Float",
+   "label": "Consumption"
+  },
+  {
+   "fieldname": "bill_scan",
+   "fieldtype": "Attach",
+   "label": "Bill Scan"
+  },
+  {
+   "fieldname": "sec_alloc",
+   "fieldtype": "Section Break",
+   "label": "Allocation"
+  },
+  {
+   "fieldname": "allocation_basis",
+   "fieldtype": "Select",
+   "label": "Allocation Basis",
+   "options": "Sub-Meter\nArea\nEqual Split\nManual",
+   "default": "Sub-Meter",
+   "reqd": 1
+  },
+  {
+   "fieldname": "allocations",
+   "fieldtype": "Table",
+   "label": "Allocations",
+   "options": "Utility Bill Allocation"
+  },
+  {
+   "fieldname": "allocated_total",
+   "fieldtype": "Currency",
+   "label": "Allocated",
+   "options": "QAR",
+   "read_only": 1
+  },
+  {
+   "fieldname": "unallocated",
+   "fieldtype": "Currency",
+   "label": "Unallocated",
+   "options": "QAR",
+   "read_only": 1,
+   "description": "What the landlord absorbs — common areas and losses."
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-07-28 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Darkbrown",
+ "name": "Utility Bill",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "Managing Director",
+   "read": 1,
+   "report": 1,
+   "export": 1,
+   "share": 1,
+   "print": 1,
+   "email": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1
+  },
+  {
+   "role": "General Manager",
+   "read": 1,
+   "report": 1,
+   "export": 1,
+   "share": 1,
+   "print": 1,
+   "email": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 0
+  },
+  {
+   "role": "Accounts",
+   "read": 1,
+   "report": 1,
+   "export": 1,
+   "share": 1,
+   "print": 1,
+   "email": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1,
+ "autoname": "naming_series:",
+ "naming_rule": "By \"Naming Series\" field",
+ "title_field": "bill_no",
+ "show_title_field_in_link": 1,
+ "search_fields": "building,bill_no,period_end,status"
+}

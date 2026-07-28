@@ -1,0 +1,383 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-07-28 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "naming_series",
+  "tenancy_agreement",
+  "tenant",
+  "unit",
+  "building",
+  "cb_ident",
+  "status",
+  "reason",
+  "sec_notice",
+  "notice_received_on",
+  "notice_days",
+  "cb_notice",
+  "planned_move_out",
+  "actual_move_out",
+  "short_notice",
+  "sec_inspect",
+  "inspection_on",
+  "inspected_by",
+  "inspection_photos",
+  "cb_inspect",
+  "inspection_notes",
+  "damages_amount",
+  "sec_meters",
+  "meter_readings",
+  "sec_keys",
+  "keys_returned",
+  "keys_returned_on",
+  "cb_keys",
+  "access_cards_returned",
+  "parking_returned",
+  "sec_settle",
+  "outstanding_rent",
+  "utilities_due",
+  "damages_charged",
+  "cb_settle",
+  "deposit_held",
+  "refund_amount",
+  "security_deposit",
+  "sec_refund",
+  "settlement_approved_by",
+  "refund_paid_on",
+  "cb_refund",
+  "refund_method",
+  "refund_cheque"
+ ],
+ "fields": [
+  {
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "label": "Series",
+   "options": "MO-.YYYY.-.####",
+   "default": "MO-.YYYY.-.####",
+   "reqd": 1,
+   "print_hide": 1
+  },
+  {
+   "fieldname": "tenancy_agreement",
+   "fieldtype": "Link",
+   "label": "Tenancy",
+   "options": "Tenancy Agreement",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "tenant",
+   "fieldtype": "Link",
+   "label": "Customer",
+   "options": "Customer",
+   "fetch_from": "tenancy_agreement.tenant",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "unit",
+   "fieldtype": "Link",
+   "label": "Unit",
+   "options": "Unit",
+   "fetch_from": "tenancy_agreement.unit",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "building",
+   "fieldtype": "Link",
+   "label": "Building",
+   "options": "Building",
+   "fetch_from": "tenancy_agreement.building",
+   "read_only": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "cb_ident",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Notice Received\nInspection Pending\nInspection Done\nSettlement Pending\nRefund Pending\nClosed\nCancelled",
+   "default": "Notice Received",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "reason",
+   "fieldtype": "Select",
+   "label": "Reason",
+   "options": "Tenant Notice\nNon Renewal\nEviction\nMutual\nOther",
+   "reqd": 1
+  },
+  {
+   "fieldname": "sec_notice",
+   "fieldtype": "Section Break",
+   "label": "Notice"
+  },
+  {
+   "fieldname": "notice_received_on",
+   "fieldtype": "Date",
+   "label": "Notice Received",
+   "reqd": 1
+  },
+  {
+   "fieldname": "notice_days",
+   "fieldtype": "Int",
+   "label": "Notice Days Required",
+   "default": "60"
+  },
+  {
+   "fieldname": "cb_notice",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "planned_move_out",
+   "fieldtype": "Date",
+   "label": "Planned Move-Out",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "actual_move_out",
+   "fieldtype": "Date",
+   "label": "Actual Move-Out"
+  },
+  {
+   "fieldname": "short_notice",
+   "fieldtype": "Check",
+   "label": "Short Notice",
+   "read_only": 1
+  },
+  {
+   "fieldname": "sec_inspect",
+   "fieldtype": "Section Break",
+   "label": "Inspection"
+  },
+  {
+   "fieldname": "inspection_on",
+   "fieldtype": "Date",
+   "label": "Inspected On"
+  },
+  {
+   "fieldname": "inspected_by",
+   "fieldtype": "Link",
+   "label": "Inspected By",
+   "options": "User"
+  },
+  {
+   "fieldname": "inspection_photos",
+   "fieldtype": "Attach",
+   "label": "Photos"
+  },
+  {
+   "fieldname": "cb_inspect",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "inspection_notes",
+   "fieldtype": "Small Text",
+   "label": "Findings"
+  },
+  {
+   "fieldname": "damages_amount",
+   "fieldtype": "Currency",
+   "label": "Damages Assessed",
+   "options": "QAR"
+  },
+  {
+   "fieldname": "sec_meters",
+   "fieldtype": "Section Break",
+   "label": "Meter Readings"
+  },
+  {
+   "fieldname": "meter_readings",
+   "fieldtype": "Table",
+   "label": "Readings",
+   "options": "Move Out Meter Reading"
+  },
+  {
+   "fieldname": "sec_keys",
+   "fieldtype": "Section Break",
+   "label": "Keys and Access"
+  },
+  {
+   "fieldname": "keys_returned",
+   "fieldtype": "Check",
+   "label": "Keys Returned"
+  },
+  {
+   "fieldname": "keys_returned_on",
+   "fieldtype": "Date",
+   "label": "Returned On"
+  },
+  {
+   "fieldname": "cb_keys",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "access_cards_returned",
+   "fieldtype": "Int",
+   "label": "Access Cards Returned"
+  },
+  {
+   "fieldname": "parking_returned",
+   "fieldtype": "Check",
+   "label": "Parking Returned"
+  },
+  {
+   "fieldname": "sec_settle",
+   "fieldtype": "Section Break",
+   "label": "Settlement"
+  },
+  {
+   "fieldname": "outstanding_rent",
+   "fieldtype": "Currency",
+   "label": "Outstanding Rent",
+   "options": "QAR"
+  },
+  {
+   "fieldname": "utilities_due",
+   "fieldtype": "Currency",
+   "label": "Utilities Due",
+   "options": "QAR"
+  },
+  {
+   "fieldname": "damages_charged",
+   "fieldtype": "Currency",
+   "label": "Damages Charged",
+   "options": "QAR"
+  },
+  {
+   "fieldname": "cb_settle",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "deposit_held",
+   "fieldtype": "Currency",
+   "label": "Deposit Held",
+   "options": "QAR",
+   "read_only": 1
+  },
+  {
+   "fieldname": "refund_amount",
+   "fieldtype": "Currency",
+   "label": "Net Refund",
+   "options": "QAR",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "security_deposit",
+   "fieldtype": "Link",
+   "label": "Deposit Record",
+   "options": "Security Deposit"
+  },
+  {
+   "fieldname": "sec_refund",
+   "fieldtype": "Section Break",
+   "label": "Refund"
+  },
+  {
+   "fieldname": "settlement_approved_by",
+   "fieldtype": "Link",
+   "label": "Settlement Approved By",
+   "options": "User"
+  },
+  {
+   "fieldname": "refund_paid_on",
+   "fieldtype": "Date",
+   "label": "Refund Paid On"
+  },
+  {
+   "fieldname": "cb_refund",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "refund_method",
+   "fieldtype": "Select",
+   "label": "Refund Method",
+   "options": "\nCash\nCheque\nTransfer",
+   "description": "Mirrors how the deposit was received."
+  },
+  {
+   "fieldname": "refund_cheque",
+   "fieldtype": "Link",
+   "label": "Refund Cheque",
+   "options": "Cheque"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-07-28 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Darkbrown",
+ "name": "Move Out Case",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "Managing Director",
+   "read": 1,
+   "report": 1,
+   "export": 1,
+   "share": 1,
+   "print": 1,
+   "email": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1
+  },
+  {
+   "role": "General Manager",
+   "read": 1,
+   "report": 1,
+   "export": 1,
+   "share": 1,
+   "print": 1,
+   "email": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 0
+  },
+  {
+   "role": "Accounts",
+   "read": 1,
+   "report": 1,
+   "export": 1,
+   "share": 1,
+   "print": 1,
+   "email": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 0
+  },
+  {
+   "role": "Maintenance",
+   "read": 1,
+   "report": 1,
+   "export": 1,
+   "share": 1,
+   "print": 1,
+   "email": 1,
+   "write": 0,
+   "create": 0,
+   "delete": 0
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1,
+ "autoname": "naming_series:",
+ "naming_rule": "By \"Naming Series\" field",
+ "title_field": "unit",
+ "show_title_field_in_link": 1,
+ "search_fields": "tenant,unit,status,planned_move_out"
+}
