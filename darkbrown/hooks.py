@@ -13,7 +13,18 @@ required_frappe_version = ">=15.0.0"
 after_install = "darkbrown.install.after_install"
 after_migrate = "darkbrown.install.after_migrate"
 
-app_include_css = "/assets/darkbrown/css/darkbrown.css"
+# The prototype is the application. Frappe's desk stays reachable at /app for
+# Administrator only; every business role lands on the prototype.
+page_renderer = ["darkbrown.renderer.DarkBrownApp"]
+
+home_page = "darkbrown"
+role_home_page = {
+    "Managing Director": "darkbrown",
+    "General Manager": "darkbrown",
+    "Accounts": "darkbrown",
+    "Documentation": "darkbrown",
+    "Maintenance": "darkbrown",
+}
 
 # ---------------------------------------------------------------- doc events
 doc_events = {
