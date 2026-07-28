@@ -1,0 +1,75 @@
+{
+ "charts": [],
+ "content": "[{\"id\": \"Documents_hdr\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>Documents</b></span>\", \"col\": 12}}, {\"id\": \"Documents_sc_hdr\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\">Shortcuts</span>\", \"col\": 12}}, {\"id\": \"Documents_sc_Document_Register\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Document Register\", \"col\": 3}}, {\"id\": \"Documents_c_Intake\", \"type\": \"card\", \"data\": {\"card_name\": \"Intake\", \"col\": 4}}, {\"id\": \"Documents_c_Configuration\", \"type\": \"card\", \"data\": {\"card_name\": \"Configuration\", \"col\": 4}}]",
+ "creation": "2026-07-28 00:00:00.000000",
+ "docstatus": 0,
+ "doctype": "Workspace",
+ "for_user": "",
+ "hide_custom": 0,
+ "icon": "unarchive",
+ "idx": 0,
+ "indicator_color": "",
+ "is_hidden": 0,
+ "label": "Documents",
+ "links": [
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Intake",
+   "link_count": 1,
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Document Register",
+   "link_count": 0,
+   "link_to": "Document Register",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Configuration",
+   "link_count": 1,
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Document Requirement",
+   "link_count": 0,
+   "link_to": "Document Requirement",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  }
+ ],
+ "modified": "2026-07-28 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Darkbrown",
+ "name": "Documents",
+ "number_cards": [],
+ "owner": "Administrator",
+ "parent_page": "DarkBrown",
+ "public": 1,
+ "quick_lists": [],
+ "roles": [],
+ "sequence_id": 5.0,
+ "shortcuts": [
+  {
+   "color": "Cyan",
+   "doc_view": "",
+   "label": "Document Register",
+   "link_to": "Document Register",
+   "type": "DocType"
+  }
+ ],
+ "title": "Documents"
+}

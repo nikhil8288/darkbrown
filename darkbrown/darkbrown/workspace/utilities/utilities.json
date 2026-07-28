@@ -1,0 +1,59 @@
+{
+ "charts": [],
+ "content": "[{\"id\": \"Utilities_hdr\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>Utilities</b></span>\", \"col\": 12}}, {\"id\": \"Utilities_c_Meters_and_Bills\", \"type\": \"card\", \"data\": {\"card_name\": \"Meters and Bills\", \"col\": 4}}]",
+ "creation": "2026-07-28 00:00:00.000000",
+ "docstatus": 0,
+ "doctype": "Workspace",
+ "for_user": "",
+ "hide_custom": 0,
+ "icon": "setting-gear",
+ "idx": 0,
+ "indicator_color": "",
+ "is_hidden": 0,
+ "label": "Utilities",
+ "links": [
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Meters and Bills",
+   "link_count": 2,
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Utility Meter",
+   "link_count": 0,
+   "link_to": "Utility Meter",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Utility Bill",
+   "link_count": 0,
+   "link_to": "Utility Bill",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  }
+ ],
+ "modified": "2026-07-28 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Darkbrown",
+ "name": "Utilities",
+ "number_cards": [],
+ "owner": "Administrator",
+ "parent_page": "DarkBrown",
+ "public": 1,
+ "quick_lists": [],
+ "roles": [],
+ "sequence_id": 8.0,
+ "shortcuts": [],
+ "title": "Utilities"
+}

@@ -1,0 +1,78 @@
+{
+ "charts": [],
+ "content": "[{\"id\": \"Parties_hdr\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>Parties</b></span>\", \"col\": 12}}, {\"id\": \"Parties_c_Landlords_and_Tenants\", \"type\": \"card\", \"data\": {\"card_name\": \"Landlords and Tenants\", \"col\": 4}}, {\"id\": \"Parties_c_Requirements\", \"type\": \"card\", \"data\": {\"card_name\": \"Requirements\", \"col\": 4}}]",
+ "creation": "2026-07-28 00:00:00.000000",
+ "docstatus": 0,
+ "doctype": "Workspace",
+ "for_user": "",
+ "hide_custom": 0,
+ "icon": "users",
+ "idx": 0,
+ "indicator_color": "",
+ "is_hidden": 0,
+ "label": "Parties",
+ "links": [
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Landlords and Tenants",
+   "link_count": 2,
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Landlord",
+   "link_count": 0,
+   "link_to": "Supplier",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Tenant",
+   "link_count": 0,
+   "link_to": "Customer",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Requirements",
+   "link_count": 1,
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Document Requirement",
+   "link_count": 0,
+   "link_to": "Document Requirement",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  }
+ ],
+ "modified": "2026-07-28 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Darkbrown",
+ "name": "Parties",
+ "number_cards": [],
+ "owner": "Administrator",
+ "parent_page": "DarkBrown",
+ "public": 1,
+ "quick_lists": [],
+ "roles": [],
+ "sequence_id": 3.0,
+ "shortcuts": [],
+ "title": "Parties"
+}
