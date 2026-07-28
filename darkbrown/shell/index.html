@@ -110,6 +110,34 @@ main>#view>.stats,main>#view>.grid2,main>#view>.g3,main>#view>.card,main>#view>.
 .stats .st .s{font-size:10px;color:var(--mut);margin-top:1px}
 .stats .st .s.r{color:var(--red)} .stats .st .s.a{color:var(--amber)} .stats .st .s.g{color:var(--em)}
 
+/* ---- MD wall: four tiles, colour is the message ---- */
+#wall{grid-column:1/-1;display:grid;gap:10px;grid-template-columns:repeat(1,minmax(0,1fr));margin-bottom:4px}
+@media(min-width:760px){#wall{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(min-width:1180px){#wall{grid-template-columns:repeat(4,minmax(0,1fr))}}
+.wt{position:relative;border:1px solid var(--line);border-left:4px solid var(--mut);
+ border-radius:10px;padding:14px 15px 13px;background:var(--card);cursor:pointer;
+ display:flex;flex-direction:column;gap:0;transition:border-color .15s}
+.wt:hover{border-color:var(--ink2)}
+.wt .wl{font:600 10.5px/1.3 var(--mono);letter-spacing:.09em;text-transform:uppercase;color:var(--mut)}
+.wt .wv{font:500 30px/1.05 var(--serif);margin:7px 0 2px;color:var(--ink)}
+.wt .ws{font:400 11.5px/1.45 var(--sans);color:var(--mut)}
+.wt .wm{font:400 12px/1.55 var(--sans);color:var(--ink2);margin-top:10px;
+ padding-top:9px;border-top:1px solid var(--line)}
+.wt .wa{font:400 12px/1.5 var(--sans);margin-top:7px;padding:7px 9px;border-radius:6px}
+.wt .wq{font:400 11.5px/1.5 var(--sans);color:var(--mut);margin-top:7px;display:none}
+.wt.open .wq{display:block}
+.wt .wmore{font:600 9.5px/1 var(--mono);letter-spacing:.08em;text-transform:uppercase;
+ color:var(--mut);margin-top:9px;border:0;background:none;padding:0;cursor:pointer}
+.wt .wmore:hover{color:var(--ink)}
+.wt .wb{position:absolute;top:13px;right:14px;font:600 9.5px/1 var(--mono);
+ letter-spacing:.08em;padding:4px 7px;border-radius:4px}
+.wt.red{border-left-color:var(--red)} .wt.red .wb{background:#F7DEDA;color:#7A2318}
+.wt.red .wa{background:#F7DEDA;color:#7A2318}
+.wt.amber{border-left-color:var(--amber)} .wt.amber .wb{background:#F6E7C8;color:#6B4708}
+.wt.amber .wa{background:#F6E7C8;color:#6B4708}
+.wt.green{border-left-color:var(--em)} .wt.green .wb{background:#D9EBE2;color:#1D4E3B}
+.wt.green .wa{display:none}
+.wt.grey .wb{background:var(--bg2);color:var(--mut)} .wt.grey .wa{display:none}
 #kpis{grid-column:1/-1;display:grid;align-items:stretch;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
 @media(min-width:700px){#kpis{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(min-width:980px){#kpis{grid-template-columns:repeat(4,minmax(0,1fr))}}
@@ -964,6 +992,7 @@ function accBalance(code){
 }
 
 const DASH_TPL=`<div class="grid">
+  <section id="wall"></section>
   <section id="kpis"></section>
 
   <div class="band"><h2>Command</h2><div class="rule"></div><span>EVERY MORNING · ACTION FIRST</span></div>
@@ -1069,6 +1098,62 @@ function kdelta(d,goodUp,unit=''){
   const cls = Math.abs(d)<0.05?'fl':(good?'up':'dn');
   return `<span class="d ${cls}">${d>0?'▲':d<0?'▼':'·'} ${Math.abs(d).toFixed(1)}${unit}</span>`;
 }
+/* ---------- MD wall ----------
+   Four tiles, each carrying its own verdict. The band is decided on the
+   server against thresholds an owner can change in settings; nothing here
+   computes a colour. Demo values below stand in until a server sends real
+   ones, and are deliberately not all green — a wall that is always green
+   teaches nobody what red looks like. */
+const WALL=[
+ {id:'cover',label:'Obligation cover',value:'1.34x',band:'green',
+  sub:'QAR 1.32M expected \u00b7 QAR 986K owed \u00b7 60 days',
+  means:'Landlord rent falling due in the next 60 days, set against cheques in hand plus unpaid invoices discounted at your actual collection rate.',
+  why:'Rent to your landlords is fixed and contractual \u2014 owed whether a building is full or empty. Your bank balance cannot answer this because the accounts sweep to near zero daily. This is the one number that can end the business.',
+  act:'',go:'#/cheques'},
+ {id:'spread',label:'Portfolio spread',value:'28.4%',band:'green',
+  sub:'QAR 391K on QAR 1.38M billed this month',
+  means:'What you charged tenants this month, less what you owe landlords for the same month, as a percentage of what you charged.',
+  why:'You never buy property \u2014 you head-lease it and sub-let it, so this gap is the entire business. It compresses slowly and quietly, usually through renewals at higher rent, and is easy to miss until a year has gone.',
+  act:'',go:'#/reports'},
+ {id:'collection',label:'Collection rate',value:'91%',band:'amber',
+  sub:'QAR 418K outstanding \u00b7 rolling 90 days',
+  means:'Of everything invoiced in the last 90 days, the share that has actually been received.',
+  why:'A healthy spread on paper means nothing if the money does not arrive. Most of your rent comes in by cheque, and a cheque is a promise until it clears. This is the number that separates a profitable business from a failing one with good invoices.',
+  act:'QAR 418K outstanding. Worth a pass through the oldest cases before it hardens.',go:'#/arrears'},
+ {id:'losers',label:'Buildings losing money',value:'2',band:'amber',
+  sub:'Al Wakra Residences worst at QAR -18K/month \u00b7 QAR 26K total',
+  means:'Buildings where the rent you collect from tenants is less than the rent you pay the landlord.',
+  why:'The portfolio average hides the loser. A building at low occupancy still owes its landlord in full, so it quietly eats the profit the good buildings make. A negative building does not recover on its own \u2014 something has to change.',
+  act:'Al Wakra Residences is running at a loss. Check its occupancy and when its head lease is next up.',go:'#/portfolio'}];
+
+/* live data \u00b7 replaces the seed when the server sent rows */
+if(window.DB_SEED&&DB_SEED.wall&&DB_SEED.wall.length){WALL.length=0;WALL.push.apply(WALL,DB_SEED.wall);}
+
+const BANDW={red:'ACT NOW',amber:'WATCH',green:'CLEAR',grey:'NO DATA'};
+function renderWall(){
+  const w=document.getElementById('wall'); if(!w)return;
+  w.innerHTML=WALL.map((t,i)=>`<div class="wt ${t.band}" id="wt${i}">
+    <span class="wb">${BANDW[t.band]||''}</span>
+    <div class="wl">${t.label}</div>
+    <div class="wv">${t.value}</div>
+    <div class="ws">${t.sub||''}</div>
+    <div class="wm">${t.means||''}</div>
+    ${t.act?`<div class="wa">${t.act}</div>`:''}
+    <div class="wq">${t.why||''}</div>
+    <button class="wmore" onclick="wallWhy(${i},event)">Why this matters</button>
+  </div>`).join('');
+  WALL.forEach((t,i)=>{
+    const e=document.getElementById('wt'+i); if(!e)return;
+    e.addEventListener('click',ev=>{ if(ev.target.classList.contains('wmore'))return; go(t.go||'#/reports'); });
+  });
+}
+window.wallWhy=(i,ev)=>{
+  ev.stopPropagation();
+  const e=document.getElementById('wt'+i); if(!e)return;
+  const open=e.classList.toggle('open');
+  ev.target.textContent=open?'Hide':'Why this matters';
+};
+
 function renderKPIs(p){
   const P=KPI[p];
   const cells=[
@@ -1077,7 +1162,6 @@ function renderKPIs(p){
    {l:'Collection rate',v:pc(P.coll),d:kdelta(P.collD,true,'pt'),s:spk(spark(collected.map((c,i)=>c/billed[i]*100)),'#2E6B57'),w:P.coll<93},
    {l:'Occupancy / 276',v:pc(occU[11]/276*100),d:kdelta(-0.7,true,'pt'),s:spk(spark(occU),'#2E6B57')},
    {l:'Total arrears',v:k(P.arr),d:kdelta(P.arrD,false,'%'),s:spk([371,380,376,392,388,396,418],'#A63D2F'),w:true},
-   {l:'Cash position',v:k(P.cash),d:kdelta(P.cashD,true,'%'),s:spk([2310,2270,2180,2290,2210,2245,2140],'#2E6B57')},
    {l:'PDC in · 30d',v:k(P.pdc30),d:kdelta(2.1,true,'%'),s:spk([940,980,1020,995,1050,1010,1085],'#2E6B57')},
    {l:'Landlord out · 30d',v:k(P.ll30),d:kdelta(1.4,false,'%'),s:spk([958,958,964,964,972,972,986],'#A63D2F')},
    {l:'Void days '+(p==='jul'?'MTD':''),v:P.vd,d:kdelta(P.vdD,false,'%'),s:spk([160,171,182,168,175,187,212],'#B07C2A'),w:P.vd>200},
@@ -1085,6 +1169,7 @@ function renderKPIs(p){
    {l:'Unmatched bank',v:P.unm+' <span style="font:500 10px var(--mono);color:var(--amber)">'+P.unmA+'</span>',d:kdelta(P.unm-6,false,''),s:spk([4,7,5,8,6,6,9],'#B07C2A')},
    {l:'MD approvals',v:P.ap+' <span style="font:500 10px var(--mono);color:var(--red)">'+P.apOld+' &gt; 48h</span>',d:'',s:spk([2,3,5,3,4,3,4],'#A63D2F'),c:P.apOld>0}
   ];
+  renderWall();
   $('#kpis').innerHTML=cells.map(c=>`<div class="kpi ${c.c?'crit':c.w?'warn':''}" onclick="go('#/reports')" title="Drills to source">
     <div class="l">${c.l}</div><div class="row"><span class="v">${c.v}</span>${c.s}</div>
     <div style="margin-top:2px">${c.d}</div></div>`).join('');

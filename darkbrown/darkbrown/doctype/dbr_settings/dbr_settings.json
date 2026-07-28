@@ -23,7 +23,20 @@
   "emergency_maintenance_ceiling",
   "cb_appr",
   "weekly_closing_day",
-  "reserve_months"
+  "reserve_months",
+  "sec_wall",
+  "wall_cover_days",
+  "wall_cover_green",
+  "wall_cover_red",
+  "cb_wall_1",
+  "wall_margin_green",
+  "wall_margin_red",
+  "wall_collection_green",
+  "wall_collection_red",
+  "cb_wall_2",
+  "wall_loss_amber",
+  "wall_loss_red",
+  "wall_loss_share_red"
  ],
  "fields": [
   {
@@ -131,6 +144,84 @@
    "fieldtype": "Int",
    "label": "Cash Reserve Floor (Months)",
    "default": "3"
+  },
+  {
+   "fieldname": "sec_wall",
+   "fieldtype": "Section Break",
+   "label": "Command Centre Thresholds"
+  },
+  {
+   "fieldname": "wall_cover_days",
+   "fieldtype": "Int",
+   "label": "Obligation Cover Window (Days)",
+   "default": "60",
+   "description": "How far ahead to look when comparing landlord rent due against money expected in."
+  },
+  {
+   "fieldname": "wall_cover_green",
+   "fieldtype": "Float",
+   "label": "Cover \u2014 Green At or Above",
+   "default": "1.2",
+   "description": "Ratio of expected inflow to landlord rent due. 1.2 leaves a fifth in hand for bounces."
+  },
+  {
+   "fieldname": "wall_cover_red",
+   "fieldtype": "Float",
+   "label": "Cover \u2014 Red Below",
+   "default": "1.0",
+   "description": "Below 1.0 the money expected does not cover what is owed."
+  },
+  {
+   "fieldname": "cb_wall_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "wall_margin_green",
+   "fieldtype": "Float",
+   "label": "Spread Margin \u2014 Green At or Above (%)",
+   "default": "20"
+  },
+  {
+   "fieldname": "wall_margin_red",
+   "fieldtype": "Float",
+   "label": "Spread Margin \u2014 Red Below (%)",
+   "default": "12",
+   "description": "Set this to the margin that just covers overhead. Below it the portfolio is not paying for itself."
+  },
+  {
+   "fieldname": "wall_collection_green",
+   "fieldtype": "Float",
+   "label": "Collection Rate \u2014 Green At or Above (%)",
+   "default": "95"
+  },
+  {
+   "fieldname": "wall_collection_red",
+   "fieldtype": "Float",
+   "label": "Collection Rate \u2014 Red Below (%)",
+   "default": "85"
+  },
+  {
+   "fieldname": "cb_wall_2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "wall_loss_amber",
+   "fieldtype": "Int",
+   "label": "Loss-Making Buildings \u2014 Amber At",
+   "default": "1"
+  },
+  {
+   "fieldname": "wall_loss_red",
+   "fieldtype": "Int",
+   "label": "Loss-Making Buildings \u2014 Red At",
+   "default": "3"
+  },
+  {
+   "fieldname": "wall_loss_share_red",
+   "fieldtype": "Float",
+   "label": "Red If Losses Exceed (% of Spread)",
+   "default": "5",
+   "description": "One badly bleeding building is worse than three barely negative ones. Either test can turn it red."
   }
  ],
  "index_web_pages_for_search": 0,

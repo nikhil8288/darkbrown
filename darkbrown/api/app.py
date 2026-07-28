@@ -341,7 +341,7 @@ def seed():
                     ("moveouts", moveouts), ("tenants", tenants),
                     ("agreements", agreements), ("invoices", invoices),
                     ("cheques", cheques), ("docs", docs),
-                    ("approvals", approvals)):
+                    ("approvals", approvals), ("wall", wall)):
         try:
             rows = fn()
         except Exception:
@@ -707,3 +707,277 @@ def _building_names(ids):
     return {b.name: (b.building_name or b.name) for b in frappe.get_all(
         "Building", filters={"name": ["in", ids]},
         fields=["name", "building_name"])}
+
+
+# ---------------------------------------------------------------------- wall
+
+"""The four numbers an MD looks at before anything else.
+
+Each one carries its own verdict. The band is decided here, on the server,
+against thresholds an owner can change in settings — the front end only
+renders the colour it was handed. That matters because a threshold buried in
+a browser script is a threshold nobody can audit or tune.
+
+Every tile also carries what it means and, when it is not green, what to do
+about it. A number without a next step is a number that gets ignored.
+"""
+
+BAND_ORDER = {"red": 0, "amber": 1, "green": 2}
+
+
+def _band(value, green_at, red_below, higher_is_better=True):
+    if value is None:
+        return "grey"
+    if higher_is_better:
+        if value < red_below:
+            return "red"
+        return "green" if value >= green_at else "amber"
+    if value > red_below:
+        return "red"
+    return "green" if value <= green_at else "amber"
+
+
+def wall():
+    s = frappe.get_single("DBR Settings")
+    tiles = [_cover(s), _spread(s), _collection(s), _losers(s)]
+    return [t for t in tiles if t]
+
+
+def _cover(s):
+    """Can the landlords be paid?
+
+    Cheques already in hand are near-certain money. Invoiced-but-unpaid rent
+    is not, so it is discounted by the collection rate actually achieved
+    rather than taken at face value.
+    """
+    days = int(s.wall_cover_days or 60)
+    horizon = add_days(today(), days)
+
+    owed = sum(flt(p.amount) for p in frappe.get_all(
+        "Head Lease Payment",
+        filters={"status": ["!=", "Paid"], "due_date": ["<=", horizon]},
+        fields=["amount"]))
+
+    in_hand = sum(flt(c.amount) for c in frappe.get_all(
+        "Cheque",
+        filters={"direction": "Incoming",
+                 "status": ["in", ("Received", "Deposited", "Presented")],
+                 "cheque_date": ["<=", horizon]},
+        fields=["amount"]))
+
+    billed_open = sum(flt(i.outstanding_amount) for i in frappe.get_all(
+        "Sales Invoice",
+        filters={"docstatus": 1, "outstanding_amount": [">", 0],
+                 "due_date": ["<=", horizon]},
+        fields=["outstanding_amount"]))
+
+    rate = _collection_rate() or 90.0
+    expected = in_hand + billed_open * (rate / 100.0)
+
+    if not owed:
+        return {"id": "cover", "label": "Obligation cover",
+                "value": "—", "band": "grey",
+                "sub": f"No landlord rent falls due in the next {days} days.",
+                "means": ("Landlord rent you owe in the next "
+                          f"{days} days, against the money you can reasonably "
+                          "expect to have by then."),
+                "why": ("Your rent to landlords is fixed and contractual — it "
+                        "is owed whether the building is full or empty. This "
+                        "is the one number that can end the business."),
+                "act": "", "go": "#/cheques"}
+
+    ratio = expected / owed
+    band = _band(ratio, flt(s.wall_cover_green or 1.2),
+                 flt(s.wall_cover_red or 1.0))
+    act = {
+        "red": (f"You are short by about {_kfmt(owed - expected)}. Chase the "
+                "largest arrears now and check whether any landlord payment "
+                "can be rescheduled."),
+        "amber": ("You will cover it, but with nothing spare. A couple of "
+                  "bounced cheques would put you short."),
+        "green": "",
+    }.get(band, "")
+
+    return {
+        "id": "cover", "label": "Obligation cover",
+        "value": f"{ratio:.2f}×", "band": band,
+        "sub": f"{_kfmt(expected)} expected · {_kfmt(owed)} owed · {days} days",
+        "means": (f"Landlord rent falling due in the next {days} days, set "
+                  "against cheques in hand plus unpaid invoices discounted "
+                  f"at your actual collection rate of {rate:.0f}%."),
+        "why": ("Rent to your landlords is fixed and contractual — owed "
+                "whether a building is full or empty. Your bank balance "
+                "cannot answer this because the accounts sweep to near zero "
+                "daily. This is the one number that can end the business."),
+        "act": act, "go": "#/cheques",
+    }
+
+
+def _spread(s):
+    """Is the business making money this month?"""
+    start = getdate(today()).replace(day=1)
+    billed = sum(flt(i.grand_total) for i in frappe.get_all(
+        "Sales Invoice",
+        filters={"docstatus": 1, "posting_date": [">=", start]},
+        fields=["grand_total"]))
+    cost = sum(flt(h.monthly_rent) for h in frappe.get_all(
+        "Head Lease", filters={"status": "Active"},
+        fields=["monthly_rent"]))
+
+    if not billed:
+        return {"id": "spread", "label": "Portfolio spread",
+                "value": "—", "band": "grey",
+                "sub": "Nothing billed this month yet.",
+                "means": ("What you charge tenants, less what you pay "
+                          "landlords."),
+                "why": ("This is your entire profit model in one number. You "
+                        "do not own property — you rent it and re-rent it, "
+                        "and the gap is the business."),
+                "act": "", "go": "#/reports"}
+
+    spread = billed - cost
+    margin = spread / billed * 100
+    band = _band(margin, flt(s.wall_margin_green or 20),
+                 flt(s.wall_margin_red or 12))
+    act = {
+        "red": ("The portfolio is not covering its own cost base. Look at the "
+                "loss-making buildings first, then at head leases up for "
+                "renewal."),
+        "amber": ("Margin is thinner than it should be. Worth checking "
+                  "whether it is one building or the whole book."),
+        "green": "",
+    }.get(band, "")
+
+    return {
+        "id": "spread", "label": "Portfolio spread",
+        "value": f"{margin:.1f}%", "band": band,
+        "sub": f"{_kfmt(spread)} on {_kfmt(billed)} billed this month",
+        "means": ("What you charged tenants this month, less what you owe "
+                  "landlords for the same month, as a percentage of what you "
+                  "charged."),
+        "why": ("You never buy property — you head-lease it and sub-let it, "
+                "so this gap is the entire business. It compresses slowly and "
+                "quietly, usually through renewals at higher rent, and is "
+                "easy to miss until a year has gone."),
+        "act": act, "go": "#/reports",
+    }
+
+
+def _collection(s):
+    """Is billed money actually arriving?"""
+    rate = _collection_rate()
+    if rate is None:
+        return {"id": "collection", "label": "Collection rate",
+                "value": "—", "band": "grey",
+                "sub": "Nothing billed in the last 90 days.",
+                "means": "What you billed against what actually arrived.",
+                "why": ("Spread is theoretical until the money lands."),
+                "act": "", "go": "#/arrears"}
+
+    band = _band(rate, flt(s.wall_collection_green or 95),
+                 flt(s.wall_collection_red or 85))
+    arrears = sum(_arrears_by_tenant().values())
+    act = {
+        "red": (f"{_kfmt(arrears)} is outstanding. Collection has broken down "
+                "rather than slipped — work the arrears list by size."),
+        "amber": (f"{_kfmt(arrears)} outstanding. Worth a pass through the "
+                  "oldest cases before it hardens."),
+        "green": "",
+    }.get(band, "")
+
+    return {
+        "id": "collection", "label": "Collection rate",
+        "value": f"{rate:.0f}%", "band": band,
+        "sub": f"{_kfmt(arrears)} outstanding · rolling 90 days",
+        "means": ("Of everything invoiced in the last 90 days, the share that "
+                  "has actually been received."),
+        "why": ("A healthy spread on paper means nothing if the money does "
+                "not arrive. Most of your rent comes in by cheque, and a "
+                "cheque is a promise until it clears. This is the number that "
+                "separates a profitable business from a failing one with good "
+                "invoices."),
+        "act": act, "go": "#/arrears",
+    }
+
+
+def _losers(s):
+    """Which buildings are eating the profit the others make?"""
+    hl = {}
+    for h in frappe.get_all("Head Lease", filters={"status": "Active"},
+                            fields=["building", "monthly_rent"]):
+        hl[h.building] = hl.get(h.building, 0) + flt(h.monthly_rent)
+    if not hl:
+        return None
+
+    rent_by_b, _ = _tenancy_rollup()
+    bnames = _building_names(list(hl.keys()))
+
+    negative, worst, total_loss, total_spread = [], None, 0, 0
+    for b, cost in hl.items():
+        spread = flt(rent_by_b.get(b, 0)) - cost
+        total_spread += spread
+        if spread < 0:
+            total_loss += -spread
+            negative.append((bnames.get(b, b), spread))
+            if worst is None or spread < worst[1]:
+                worst = (bnames.get(b, b), spread)
+
+    count = len(negative)
+    share = (total_loss / total_spread * 100) if total_spread > 0 else 0
+    red_at = int(s.wall_loss_red or 3)
+    amber_at = int(s.wall_loss_amber or 1)
+    share_red = flt(s.wall_loss_share_red or 5)
+
+    if count >= red_at or (count and share >= share_red):
+        band = "red"
+    elif count >= amber_at:
+        band = "amber"
+    else:
+        band = "green"
+
+    if count:
+        sub = (f"{worst[0]} worst at {_kfmt(worst[1])}/month · "
+               f"{_kfmt(total_loss)} total")
+    else:
+        sub = f"All {len(hl)} buildings above water"
+
+    act = {
+        "red": (f"{_kfmt(total_loss)} a month is being lost. Start with "
+                f"{worst[0]}: either occupancy comes up, the head-lease rent "
+                "comes down at renewal, or you exit."),
+        "amber": (f"{worst[0]} is running at a loss. Check its occupancy and "
+                  "when its head lease is next up."),
+        "green": "",
+    }.get(band, "")
+
+    return {
+        "id": "losers", "label": "Buildings losing money",
+        "value": str(count), "band": band, "sub": sub,
+        "means": ("Buildings where the rent you collect from tenants is less "
+                  "than the rent you pay the landlord."),
+        "why": ("The portfolio average hides the loser. A building at low "
+                "occupancy still owes its landlord in full, so it quietly "
+                "eats the profit the good buildings make. A negative building "
+                "does not recover on its own — something has to change."),
+        "act": act, "go": "#/portfolio",
+    }
+
+
+def _collection_rate():
+    start = add_days(today(), -90)
+    rows = frappe.get_all(
+        "Sales Invoice",
+        filters={"docstatus": 1, "posting_date": [">=", start]},
+        fields=["grand_total", "outstanding_amount"])
+    billed = sum(flt(r.grand_total) for r in rows)
+    if not billed:
+        return None
+    outstanding = sum(flt(r.outstanding_amount) for r in rows)
+    return (billed - outstanding) / billed * 100
+
+
+def _kfmt(v):
+    v = flt(v)
+    if abs(v) >= 1_000_000:
+        return f"QAR {v / 1_000_000:.2f}M"
+    return f"QAR {v / 1000:.0f}K"
