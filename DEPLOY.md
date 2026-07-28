@@ -81,10 +81,23 @@ at `/darkbrown` by the renderer.
 
 ## Wired to live data
 
-- **Portfolio** — buildings, units, onboarding wizard, unit status (read + write)
-- **Operations** — collection cases, maintenance jobs, move-out lifecycle (read + write)
+- **Portfolio** — buildings, units, onboarding wizard, unit status
+- **Operations** — collection cases, maintenance jobs, move-out lifecycle
+- **Parties** — tenants as ERPNext Customers, arrears rolled up from invoices
+- **Agreements** — tenancies, self-approving activation, amendments, renewals
+- **Finance** — invoice runs, Sales Invoices, cheque lifecycle, receipts with
+  oldest-first allocation, deposit batches, head-lease payments
+- **Documents** — register, review, supersession, expiry queue
+- **Approvals** — one queue over amendments, over-ceiling maintenance, deposit
+  releases and invoice runs
 
-Everything else still renders its demonstration values. A module with no data
-is left out of the boot payload entirely, so those screens show sample figures
-rather than zeros. Wire further modules by replacing one seeded array at a
-time.
+Still on demonstration data, by decision: **Command Centre**, **Planning**,
+**Owners and Shareholders**. A module with no data is left out of the boot
+payload entirely, so those screens show sample figures rather than zeros.
+
+## Ledger
+
+ERPNext owns the books. Nothing in this app writes a GL entry directly — it
+creates Sales Invoices and Payment Entries and lets ERPNext post them. A
+returned cheque cancels its Payment Entry and opens a collection case rather
+than only changing a status.

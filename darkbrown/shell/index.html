@@ -646,7 +646,12 @@ for(let i=0;i<64;i++){
     qid:corp?'CR '+ri(10000,99999):'2'+ri(80,99)+ri(10000,99999),
     since:dplus(-ri(60,1400)), phone:'+974 '+ri(3000,7999)+' '+ri(1000,9999)});
 }
+
+/* live data · replaces the seed when the server sent rows */
+if(window.DB_SEED&&DB_SEED.tenants&&DB_SEED.tenants.length){TENANTS.length=0;TENANTS.push.apply(TENANTS,DB_SEED.tenants);}
 const T=id=>TENANTS.find(t=>t.id===id);
+/* seed rows reference seeded tenant ids; live rows carry real ones */
+const TN=id=>(T(id)||TENANTS[0]||{}).n||'—';
 
 const AGR=TENANTS.map((t,i)=>{
   const u=UNITS[i*3%UNITS.length];
@@ -657,6 +662,9 @@ const AGR=TENANTS.map((t,i)=>{
     ren:endD<180?pick(['Renewed','Negotiating','Not started','Not started']):'—',
     freq:pick(['Monthly','Quarterly','Quarterly','Semi-annual'])};
 });
+
+/* live data · replaces the seed when the server sent rows */
+if(window.DB_SEED&&DB_SEED.agreements&&DB_SEED.agreements.length){AGR.length=0;AGR.push.apply(AGR,DB_SEED.agreements);}
 const A=id=>AGR.find(a=>a.id===id);
 
 const INV=[];
@@ -668,6 +676,9 @@ AGR.slice(0,46).forEach((a,i)=>{
     st:paid?'Paid':part?'Part paid':'Unpaid',
     lines:[['Rent — '+a.u,a.rent],...(R()<0.25?[['Maintenance recharge',+(R()*2).toFixed(1)]]:[])]});
 });
+
+/* live data · replaces the seed when the server sent rows */
+if(window.DB_SEED&&DB_SEED.invoices&&DB_SEED.invoices.length){INV.length=0;INV.push.apply(INV,DB_SEED.invoices);}
 const I=id=>INV.find(x=>x.id===id);
 
 const CHQ=[];
@@ -680,6 +691,9 @@ for(let i=0;i<58;i++){
     reason:st==='Bounced'?pick(['Insufficient funds','Signature mismatch','Account closed']):'',
     act:st==='Bounced'?pick(['Redeposit scheduled','Replacement received','Escalate → legal','Replacement pending']):''});
 }
+
+/* live data · replaces the seed when the server sent rows */
+if(window.DB_SEED&&DB_SEED.cheques&&DB_SEED.cheques.length){CHQ.length=0;CHQ.push.apply(CHQ,DB_SEED.cheques);}
 const C=id=>CHQ.find(c=>c.id===id);
 
 const CASES=[];
@@ -719,16 +733,19 @@ const APPR=[
  {id:'APR-0099',ty:'Emergency maint.',ref:'MNT-0231 · B14 chiller',amt:3.2,age:26,res:0,st:'Approved',
   why:'Above QAR 2,000 emergency ceiling — chiller failure affecting 6 units.'},
  {id:'APR-0098',ty:'Agreement — new',ref:'TA-0298 · Aisha R.',amt:78,age:40,res:0,st:'Approved',why:'Standard terms, Legal cleared.'}];
+
+/* live data · replaces the seed when the server sent rows */
+if(window.DB_SEED&&DB_SEED.approvals&&DB_SEED.approvals.length){APPR.length=0;APPR.push.apply(APPR,DB_SEED.approvals);}
 const AP=id=>APPR.find(a=>a.id===id);
 
 
 /* live data · replaces the seed when the server sent rows */
 if(window.DB_SEED&&DB_SEED.jobs&&DB_SEED.jobs.length){JOBS.length=0;JOBS.push.apply(JOBS,DB_SEED.jobs);}
 const MOVEOUT=[
- {id:'MO-0051',t:'TN-0018',tn:T('TN-0018').n,u:'B03-U204',dep:11.2,step:2,notice:dplus(-18),out:dplus(9),
+ {id:'MO-0051',t:'TN-0018',tn:TN('TN-0018'),u:'B03-U204',dep:11.2,step:2,notice:dplus(-18),out:dplus(9),
   ded:[['Deep clean',0.6],['Wall repair',0.4]]},
- {id:'MO-0052',t:'TN-0027',tn:T('TN-0027').n,u:'B09-U107',dep:9.8,step:1,notice:dplus(-6),out:dplus(24),ded:[]},
- {id:'MO-0050',t:'TN-0009',tn:T('TN-0009').n,u:'B01-U301',dep:13.4,step:4,notice:dplus(-44),out:dplus(-8),
+ {id:'MO-0052',t:'TN-0027',tn:TN('TN-0027'),u:'B09-U107',dep:9.8,step:1,notice:dplus(-6),out:dplus(24),ded:[]},
+ {id:'MO-0050',t:'TN-0009',tn:TN('TN-0009'),u:'B01-U301',dep:13.4,step:4,notice:dplus(-44),out:dplus(-8),
   ded:[['Missing keys',0.2]]}];
 const MO=id=>MOVEOUT.find(m=>m.id===id);
 /* live data · replaces the seed when the server sent rows */
@@ -741,6 +758,9 @@ const DOCS=[
  {id:'DOC-0909',ty:'Utility invoice',f:'Kahramaa_B09_Jul.pdf',st:'Flagged',conf:64,by:'System',when:'24 Jul',ext:'B09 · QAR 12,480 — +38% vs trailing average'},
  {id:'DOC-0908',ty:'Landlord contract',f:'HL_B07_renewal.pdf',st:'Pushed to vault',conf:93,by:'Yusuf K.',when:'23 Jul',ext:'Head-lease B07 · 4% uplift · 2 yr'}];
 
+
+/* live data · replaces the seed when the server sent rows */
+if(window.DB_SEED&&DB_SEED.docs&&DB_SEED.docs.length){DOCS.length=0;DOCS.push.apply(DOCS,DB_SEED.docs);}
 /* ---------- shared components ---------- */
 const el=s=>document.querySelector(s);
 function page(t,sub,actions,body){
@@ -804,7 +824,7 @@ async function dbRefresh(){
   try{
     const r = await dbCall('app.refresh', {});
     window.DB_SEED = r.seed || {};
-    const map={buildings:BUILDINGS,units:UNITS,cases:CASES,jobs:JOBS,moveouts:MOVEOUT};
+    const map={buildings:BUILDINGS,units:UNITS,cases:CASES,jobs:JOBS,moveouts:MOVEOUT,tenants:TENANTS,agreements:AGR,invoices:INV,cheques:CHQ,docs:DOCS,approvals:APPR};
     Object.keys(map).forEach(k=>{
       const rows=DB_SEED[k];
       if(rows&&rows.length){map[k].length=0;map[k].push.apply(map[k],rows);}
@@ -879,10 +899,10 @@ const ALERTS=[
  {ty:'Reconciliation',t:'9 unmatched bank items · 2 over 5 days',w:'24 Jul',s:'a',go:'#/recon'}];
 
 const CASH=[
- {id:'RCT-0441',t:'TN-0006',tn:T('TN-0006').n,amt:4.2,when:dplus(-1),by:'Aisha R.',loc:'Office',st:'Undeposited'},
- {id:'RCT-0442',t:'TN-0011',tn:T('TN-0011').n,amt:6.5,when:dplus(-1),by:'Aisha R.',loc:'Office',st:'Undeposited'},
- {id:'RCT-0443',t:'TN-0019',tn:T('TN-0019').n,amt:3.8,when:dplus(-2),by:'Yusuf K.',loc:'Safe',st:'Undeposited'},
- {id:'RCT-0444',t:'TN-0024',tn:T('TN-0024').n,amt:5.1,when:dplus(-3),by:'Aisha R.',loc:'Safe',st:'Deposited'}];
+ {id:'RCT-0441',t:'TN-0006',tn:TN('TN-0006'),amt:4.2,when:dplus(-1),by:'Aisha R.',loc:'Office',st:'Undeposited'},
+ {id:'RCT-0442',t:'TN-0011',tn:TN('TN-0011'),amt:6.5,when:dplus(-1),by:'Aisha R.',loc:'Office',st:'Undeposited'},
+ {id:'RCT-0443',t:'TN-0019',tn:TN('TN-0019'),amt:3.8,when:dplus(-2),by:'Yusuf K.',loc:'Safe',st:'Undeposited'},
+ {id:'RCT-0444',t:'TN-0024',tn:TN('TN-0024'),amt:5.1,when:dplus(-3),by:'Aisha R.',loc:'Safe',st:'Deposited'}];
 
 const COA=[
  ['1010','Bank — QNB current','Asset','Dr'],['1020','Bank — Doha Bank','Asset','Dr'],
@@ -3983,6 +4003,9 @@ ROUTES.recon=()=>page('Bank reconciliation',
 /* ---------- alerts and approvals pick up the new module ---------- */
 ALERTS.unshift({ty:'Reserve gate',t:'Headroom '+k(headK())+' against a target of '+k(DPOL.target),w:'06:10',s:'r',go:'#/owners'});
 ALERTS.splice(3,0,{ty:'Classification',t:openFlags()+' bank lines flagged — shareholder match and unattributed cash',w:'06:05',s:'r',go:'#/recon'});
+/* Owners is not wired to live data; its demo approval only belongs in a
+   demo queue, never alongside real ones. */
+if(!(window.DB_SEED&&DB_SEED.approvals&&DB_SEED.approvals.length))
 APPR.push({id:'APR-0107',ty:'Distribution run',ref:'DR-2026-07 · General Manager',amt:DPOL.target,age:3,res:1,st:'Pending',
  why:'Monthly distribution under policy v'+DPOL.v+'. The reserve gate result and the full arithmetic are on the approval memo.'});
 

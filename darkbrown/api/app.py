@@ -338,7 +338,10 @@ def seed():
     data = {}
     for key, fn in (("buildings", buildings), ("units", units),
                     ("cases", cases), ("jobs", jobs),
-                    ("moveouts", moveouts)):
+                    ("moveouts", moveouts), ("tenants", tenants),
+                    ("agreements", agreements), ("invoices", invoices),
+                    ("cheques", cheques), ("docs", docs),
+                    ("approvals", approvals)):
         try:
             rows = fn()
         except Exception:
@@ -356,3 +359,351 @@ def refresh():
     return {"seed": seed(), "role": role_code(),
             "user": frappe.db.get_value("User", frappe.session.user,
                                         "full_name")}
+
+
+# ------------------------------------------------------------------- parties
+
+def tenants():
+    """Tenants are ERPNext Customers carrying the tenant flag. Unit count,
+    rent and arrears are rolled up from live agreements and invoices rather
+    than stored, so they cannot drift."""
+    rows = frappe.get_all(
+        "Customer",
+        filters={"db_is_tenant": 1},
+        fields=["name", "customer_name", "customer_type", "db_qid",
+                "db_cr_no", "db_mobile", "creation"],
+        order_by="customer_name asc")
+    if not rows:
+        return []
+
+    units, rent = {}, {}
+    for ta in frappe.get_all(
+            "Tenancy Agreement",
+            filters={"status": ["in", ("Active", "Expiring")]},
+            fields=["tenant", "monthly_rent"]):
+        units[ta.tenant] = units.get(ta.tenant, 0) + 1
+        rent[ta.tenant] = rent.get(ta.tenant, 0) + flt(ta.monthly_rent)
+
+    arrears = _arrears_by_tenant()
+
+    out = []
+    for c in rows:
+        arr = _k(arrears.get(c.name, 0))
+        corp = c.customer_type == "Company"
+        out.append({
+            "id": c.name,
+            "n": c.customer_name or c.name,
+            "corp": corp,
+            "units": units.get(c.name, 0),
+            "rent": _k(rent.get(c.name, 0)),
+            "arr": arr,
+            "st": "In arrears" if arr > 25 else "Late" if arr > 0 else "Current",
+            "qid": c.db_cr_no or c.db_qid or "—",
+            "since": _fdate(c.creation),
+            "phone": c.db_mobile or "—",
+        })
+    return out
+
+
+def _arrears_by_tenant():
+    out = {}
+    for si in frappe.get_all(
+            "Sales Invoice",
+            filters={"docstatus": 1, "outstanding_amount": [">", 0]},
+            fields=["customer", "outstanding_amount"]):
+        out[si.customer] = out.get(si.customer, 0) + flt(si.outstanding_amount)
+    return out
+
+
+# ---------------------------------------------------------------- agreements
+
+TA_STATE = {"Draft": "Draft", "Pending Approval": "Pending",
+            "Active": "Active", "Expiring": "Expiring",
+            "Expired": "Expired", "Terminated": "Terminated"}
+
+
+def agreements():
+    rows = frappe.get_all(
+        "Tenancy Agreement",
+        filters={"status": ["!=", "Terminated"]},
+        fields=["name", "tenant", "unit", "building", "status", "start_date",
+                "end_date", "monthly_rent", "security_deposit",
+                "payment_mode", "renewal_of"],
+        order_by="end_date asc")
+    if not rows:
+        return []
+
+    tnames = _customer_names([r.tenant for r in rows])
+    bnames = _building_names([r.building for r in rows])
+    renewed = {r.renewal_of for r in rows if r.renewal_of}
+
+    out = []
+    for a in rows:
+        end_d = date_diff(a.end_date, today()) if a.end_date else 0
+        out.append({
+            "id": a.name,
+            "t": a.tenant,
+            "tn": tnames.get(a.tenant, a.tenant),
+            "u": a.unit or "—",
+            "b": a.building,
+            "bn": bnames.get(a.building, a.building),
+            "rent": _k(a.monthly_rent),
+            "dep": _k(a.security_deposit),
+            "start": _fdate(a.start_date),
+            "end": _fdate(a.end_date),
+            "endD": end_d,
+            "st": TA_STATE.get(a.status, a.status),
+            "ren": ("Renewed" if a.name in renewed
+                    else "Not started" if end_d < 180 else "—"),
+            "freq": a.payment_mode or "Monthly",
+        })
+    return out
+
+
+# ------------------------------------------------------------------- finance
+
+def invoices():
+    """Sales Invoices raised against tenants. The building and unit come from
+    the invoice run line that produced it where there is one; a manually
+    raised invoice simply carries no unit."""
+    rows = frappe.get_all(
+        "Sales Invoice",
+        filters={"docstatus": ["<", 2]},
+        fields=["name", "customer", "grand_total", "outstanding_amount",
+                "due_date", "status", "docstatus"],
+        order_by="due_date desc", limit=300)
+    if not rows:
+        return []
+
+    tnames = _customer_names([r.customer for r in rows])
+    link = {}
+    for l in frappe.get_all(
+            "Invoice Run Line",
+            filters={"sales_invoice": ["in", [r.name for r in rows]]},
+            fields=["sales_invoice", "tenancy_agreement", "unit"]):
+        link[l.sales_invoice] = l
+    ta_b = {t.name: t for t in frappe.get_all(
+        "Tenancy Agreement",
+        fields=["name", "building", "unit"])} if link else {}
+    bnames = _building_names([t.building for t in ta_b.values()])
+
+    out = []
+    for si in rows:
+        paid = flt(si.grand_total) - flt(si.outstanding_amount)
+        l = link.get(si.name)
+        ta = ta_b.get(l.tenancy_agreement) if l else None
+        due_d = date_diff(si.due_date, today()) if si.due_date else 0
+        if flt(si.outstanding_amount) <= 0 and si.docstatus == 1:
+            st = "Paid"
+        elif paid > 0:
+            st = "Part paid"
+        else:
+            st = "Unpaid"
+        out.append({
+            "id": si.name,
+            "t": si.customer,
+            "tn": tnames.get(si.customer, si.customer),
+            "a": l.tenancy_agreement if l else "—",
+            "b": ta.building if ta else "—",
+            "bn": bnames.get(ta.building, "—") if ta else "—",
+            "amt": _k(si.grand_total),
+            "paid": _k(paid),
+            "due": _fdate(si.due_date),
+            "dueD": due_d,
+            "st": "Draft" if si.docstatus == 0 else st,
+            "lines": _invoice_lines(si.name),
+        })
+    return out
+
+
+def _invoice_lines(invoice):
+    return [[i.item_name or i.description or "Rent", _k(i.amount)]
+            for i in frappe.get_all(
+                "Sales Invoice Item", filters={"parent": invoice},
+                fields=["item_name", "description", "amount"])]
+
+
+CHQ_STATE = {"Received": "On hand", "Deposited": "Deposited",
+             "Presented": "Deposited", "Cleared": "Cleared",
+             "Returned": "Bounced", "Replaced": "Replaced",
+             "Cancelled": "Cancelled"}
+
+
+def cheques():
+    rows = frappe.get_all(
+        "Cheque",
+        filters={"direction": "Incoming", "status": ["!=", "Cancelled"]},
+        fields=["name", "party", "amount", "bank", "cheque_no", "cheque_date",
+                "status", "return_reason", "replaced_by", "unit"],
+        order_by="cheque_date asc", limit=400)
+    if not rows:
+        return []
+    tnames = _customer_names([r.party for r in rows])
+    out = []
+    for c in rows:
+        mat_d = date_diff(c.cheque_date, today()) if c.cheque_date else 0
+        if c.status == "Returned":
+            act = ("Replacement received" if c.replaced_by
+                   else "Replacement pending")
+        else:
+            act = ""
+        out.append({
+            "id": c.name,
+            "t": c.party,
+            "tn": tnames.get(c.party, c.party or "—"),
+            "amt": _k(c.amount),
+            "bank": c.bank or "—",
+            "no": c.cheque_no or "—",
+            "mat": _fdate(c.cheque_date),
+            "matD": mat_d,
+            "st": CHQ_STATE.get(c.status, c.status),
+            "reason": c.return_reason or "",
+            "act": act,
+        })
+    return out
+
+
+# ----------------------------------------------------------------- documents
+
+DOC_STATE = {"Draft": "Needs review", "Extracting": "Needs review",
+             "Needs Review": "Needs review", "Confirmed": "Validated",
+             "Rejected": "Flagged", "Superseded": "Pushed to vault"}
+
+
+def docs():
+    rows = frappe.get_all(
+        "Document Register",
+        filters={"status": ["!=", "Superseded"]},
+        fields=["name", "document_type", "source_file", "status",
+                "extraction_confidence", "owner", "modified", "document_no",
+                "expiry_date", "party", "building"],
+        order_by="modified desc", limit=60)
+    if not rows:
+        return []
+    out = []
+    for d in rows:
+        bits = []
+        if d.document_no:
+            bits.append(d.document_no)
+        if d.party:
+            bits.append(str(d.party))
+        if d.building:
+            bits.append(str(d.building))
+        if d.expiry_date:
+            bits.append("expiry " + _fdate(d.expiry_date))
+        out.append({
+            "id": d.name,
+            "ty": d.document_type or "Unknown",
+            "f": (d.source_file or "").split("/")[-1] or "—",
+            "st": DOC_STATE.get(d.status, d.status),
+            "conf": round(flt(d.extraction_confidence) * 100)
+                    if flt(d.extraction_confidence) <= 1
+                    else round(flt(d.extraction_confidence)),
+            "by": _short_name(d.owner),
+            "when": _fdate(d.modified),
+            "ext": " · ".join(bits) or "—",
+        })
+    return out
+
+
+# ----------------------------------------------------------------- approvals
+
+def approvals():
+    """One queue, several sources. Everything waiting on a human decision
+    surfaces here with the reason it is waiting."""
+    out = []
+
+    for a in frappe.get_all(
+            "Agreement Amendment",
+            filters={"status": ["in", ("Pending GM", "Pending MD")]},
+            fields=["name", "agreement", "field_changed", "old_value",
+                    "new_value", "value_impact", "reason", "requested_by",
+                    "requested_on", "status"]):
+        out.append({
+            "id": a.name,
+            "ty": "Amendment",
+            "ref": f"{a.agreement} · {_short_name(a.requested_by)}",
+            "amt": _k(a.value_impact),
+            "age": _age(a.requested_on),
+            "res": 1 if a.status == "Pending MD" else 0,
+            "st": "Pending",
+            "why": a.reason or (f"{a.field_changed}: {a.old_value} → "
+                                f"{a.new_value}"),
+        })
+
+    ceiling = flt(frappe.db.get_single_value(
+        "DBR Settings", "emergency_maintenance_ceiling") or 2000)
+    for m in frappe.get_all(
+            "Maintenance Request",
+            filters={"status": ["in", ("Open", "Assigned", "Scheduled")],
+                     "over_ceiling": 1},
+            fields=["name", "building", "unit", "cost", "category",
+                    "reported_on", "issue"]):
+        out.append({
+            "id": m.name,
+            "ty": "Emergency maint.",
+            "ref": f"{m.building} · {m.category or 'Maintenance'}",
+            "amt": _k(m.cost),
+            "age": _age(m.reported_on),
+            "res": 1,
+            "st": "Pending",
+            "why": (f"Above the QAR {ceiling:,.0f} emergency ceiling — "
+                    f"{m.issue or m.category or 'works'} at "
+                    f"{m.unit or m.building}."),
+        })
+
+    for s in frappe.get_all(
+            "Security Deposit",
+            filters={"status": "Held", "move_out_case": ["is", "set"]},
+            fields=["name", "tenancy_agreement", "amount", "deductions",
+                    "move_out_case", "modified"]):
+        refund = flt(s.amount) - flt(s.deductions)
+        out.append({
+            "id": s.name,
+            "ty": "Deposit release",
+            "ref": f"{s.tenancy_agreement} · {s.move_out_case}",
+            "amt": _k(refund),
+            "age": _age(s.modified),
+            "res": 1,
+            "st": "Pending",
+            "why": (f"Move-out {s.move_out_case} settled. "
+                    f"Deductions raised: QAR {flt(s.deductions):,.0f}."),
+        })
+
+    for r in frappe.get_all(
+            "Invoice Run",
+            filters={"status": "Pending GM"},
+            fields=["name", "building", "total_amount", "has_variance",
+                    "variance_reason", "generated_on"]):
+        out.append({
+            "id": r.name,
+            "ty": "Invoice run",
+            "ref": str(r.building),
+            "amt": _k(r.total_amount),
+            "age": _age(r.generated_on),
+            "res": 0,
+            "st": "Pending",
+            "why": (r.variance_reason if r.has_variance
+                    else "Standard monthly run, no variance against agreements."),
+        })
+
+    out.sort(key=lambda x: (-x["res"], -x["age"]))
+    return out
+
+
+def _age(dt):
+    if not dt:
+        return 0
+    try:
+        return max(date_diff(today(), getdate(dt)), 0)
+    except Exception:
+        return 0
+
+
+def _building_names(ids):
+    ids = [i for i in set(ids) if i]
+    if not ids:
+        return {}
+    return {b.name: (b.building_name or b.name) for b in frappe.get_all(
+        "Building", filters={"name": ["in", ids]},
+        fields=["name", "building_name"])}

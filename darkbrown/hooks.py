@@ -45,6 +45,9 @@ scheduler_events = {
     "daily_long": [
         "darkbrown.utils.collections_case.nightly",
         "darkbrown.utils.cheques.nightly",
+        "darkbrown.api.agreements.nightly",
+        "darkbrown.api.finance.nightly",
+        "darkbrown.api.documents.nightly",
     ],
     "cron": {
         # 07:00 Doha, on the configured generation day only
