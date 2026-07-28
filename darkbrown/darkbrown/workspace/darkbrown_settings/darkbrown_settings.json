@@ -1,0 +1,63 @@
+{
+ "charts": [],
+ "content": "[{\"id\": \"DarkBrown Settings_hdr\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>Settings</b></span>\", \"col\": 12}}, {\"id\": \"DarkBrown_Settings_c_Configuration\", \"type\": \"card\", \"data\": {\"card_name\": \"Configuration\", \"col\": 4}}]",
+ "creation": "2026-07-28 00:00:00.000000",
+ "docstatus": 0,
+ "doctype": "Workspace",
+ "for_user": "",
+ "hide_custom": 0,
+ "icon": "setting-gear",
+ "idx": 0,
+ "indicator_color": "",
+ "is_hidden": 0,
+ "label": "Settings",
+ "links": [
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Configuration",
+   "link_count": 2,
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "DBR Settings",
+   "link_count": 0,
+   "link_to": "DBR Settings",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Document Requirement",
+   "link_count": 0,
+   "link_to": "Document Requirement",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  }
+ ],
+ "modified": "2026-07-28 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Darkbrown",
+ "name": "DarkBrown Settings",
+ "number_cards": [],
+ "owner": "Administrator",
+ "parent_page": "DarkBrown",
+ "public": 1,
+ "quick_lists": [],
+ "roles": [
+  {
+   "role": "Managing Director"
+  }
+ ],
+ "sequence_id": 9.0,
+ "shortcuts": [],
+ "title": "Settings"
+}

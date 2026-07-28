@@ -1,174 +1,205 @@
-"""Collection Case automation.
+"""Collection cases open on four system triggers, plus one manual route.
 
-Three moving parts, per the collections spec:
+    Past Due            an invoice passes the configured grace period
+    Returned Cheque     an incoming cheque comes back
+    Broken Promise      a promised date passes without payment
+    Two Months Arrears  exposure reaches the legal escalation threshold
 
-  auto_open_cases        daily   invoice past grace + no open case
-                                  -> case auto-opens (Open), Finance to-do
-  reopen_broken_promises daily   promised_date passed, still outstanding
-                                  -> back to Open, broken_promise flagged
-  on_payment_entry_submit hook   payment clears a case's invoices
-                                  -> Pending Confirmation (never straight
-                                     to Collected; Finance confirms)
-
-Overdue-but-pre-grace = flagged row in the arrears view only. Grace days
-come from the building's Active Landlord Contract (grace_period_days).
+A tenancy carries at most one live case. A second trigger on a tenancy that
+already has one updates the existing case rather than opening a duplicate,
+because two cases against one tenant means two people chasing the same money.
 """
 
 import frappe
-from frappe.utils import getdate, nowdate, flt, cint
+from frappe.utils import today, getdate, date_diff, flt
 
-OPEN_STATES = ["Open", "Contacted", "Promised", "Pending Confirmation", "Legal"]
-FINANCE_ROLE = "Accounts"
-
-
-def _grace_by_building():
-    return {c.building: cint(c.grace_period_days)
-            for c in frappe.get_all(
-                "Landlord Contract", filters={"status": "Active"},
-                fields=["building", "grace_period_days"]) if c.building}
+LIVE_STATES = ("Open", "Contacted", "Promised", "Broken Promise",
+               "Escalated", "Legal")
 
 
-def _finance_users():
-    return [u.parent for u in frappe.get_all(
-        "Has Role", filters={"role": FINANCE_ROLE, "parenttype": "User"},
-        fields=["parent"]) if u.parent not in ("Administrator", "Guest")]
+def _settings():
+    return {
+        "grace_days": frappe.db.get_single_value("DBR Settings", "grace_days") or 7,
+        "legal_months": frappe.db.get_single_value(
+            "DBR Settings", "legal_escalation_months") or 2,
+    }
 
 
-# ------------------------------------------------------------ auto-open
-
-def auto_open_cases():
-    """Scheduled daily. One case per tenant-in-arrears, opened when the
-    oldest overdue invoice crosses the building's grace period."""
-    today = getdate(nowdate())
-    grace = _grace_by_building()
-
-    inv = frappe.get_all(
-        "Sales Invoice",
-        filters={"docstatus": 1, "outstanding_amount": [">", 0]},
-        fields=["name", "customer", "outstanding_amount", "due_date"],
-    )
-    by_cust = {}
-    for r in inv:
-        by_cust.setdefault(r.customer, []).append(r)
-
-    for tenant, invoices in by_cust.items():
-        if frappe.db.exists("Collection Case",
-                            {"tenant": tenant, "status": ["in", OPEN_STATES]}):
-            continue
-
-        lease = frappe.db.get_value(
-            "Tenant Rental Agreement",
-            {"tenant": tenant, "status": "Active"},
-            ["name", "building", "unit"], as_dict=True) or frappe.db.get_value(
-            "Tenant Rental Agreement",
-            {"tenant": tenant, "status": "Expired"},
-            ["name", "building", "unit"], as_dict=True)
-
-        g = grace.get(lease.building) if lease else None
-        if g is None:
-            continue  # no grace known -> stays a flagged arrears row
-
-        oldest = min((getdate(i.due_date) for i in invoices if i.due_date),
-                     default=None)
-        if not oldest or (today - oldest).days <= g:
-            continue  # overdue but still within grace
-
-        case = frappe.get_doc({
-            "doctype": "Collection Case",
-            "tenant": tenant,
-            "lease": lease.name if lease else None,
-            "building": lease.building if lease else None,
-            "unit": lease.unit if lease else None,
-            "status": "Open",
-            "outstanding_amount": sum(flt(i.outstanding_amount)
-                                      for i in invoices),
-            "oldest_due_date": oldest,
-            "past_grace_on": today,
-            "invoices": [{"sales_invoice": i.name,
-                          "outstanding_amount": flt(i.outstanding_amount),
-                          "due_date": i.due_date} for i in invoices],
-        })
-        case.insert(ignore_permissions=True)
-        _assign_finance(case.name, "Collection case opened — past grace")
-
-    frappe.db.commit()
-
-
-def _assign_finance(case_name, description):
-    users = _finance_users()
-    if not users:
-        return
-    try:
-        from frappe.desk.form.assign_to import add
-        add({"assign_to": [users[0]], "doctype": "Collection Case",
-             "name": case_name, "description": description})
-    except Exception:
-        frappe.log_error(frappe.get_traceback(),
-                         "collections: assign failed %s" % case_name)
-
-
-# ---------------------------------------------------- broken promises
-
-def reopen_broken_promises():
-    """Scheduled daily. Promised date passed and money still outstanding
-    -> case reopens flagged 'broken promise'."""
-    today = getdate(nowdate())
-    for c in frappe.get_all(
-            "Collection Case",
-            filters={"status": "Promised",
-                     "promised_date": ["<", today]},
-            fields=["name", "tenant"]):
-        still_out = frappe.db.count(
-            "Sales Invoice",
-            {"docstatus": 1, "customer": c.tenant,
-             "outstanding_amount": [">", 0]})
-        if not still_out:
-            continue
-        doc = frappe.get_doc("Collection Case", c.name)
-        doc.status = "Open"
-        doc.broken_promise = 1
-        doc.flags.ignore_permissions = True
-        doc.save()
-        doc.add_comment("Comment",
-                        "Broken promise — promised date passed unpaid. "
-                        "Reopened, escalate.")
-        _assign_finance(c.name, "Broken promise — escalate")
-    frappe.db.commit()
-
-
-# ------------------------------------------------- payment safeguard
-
-def on_payment_entry_submit(doc, method=None):
-    """Payment Entry hook. If it pays down invoices on an open case and the
-    tenant's outstanding hits zero, move to Pending Confirmation — Finance
-    confirms Collected manually. Partial payment just logs a note."""
-    if doc.payment_type != "Receive" or doc.party_type != "Customer":
-        return
-    case_name = frappe.db.get_value(
+def live_case(tenancy):
+    return frappe.db.get_value(
         "Collection Case",
-        {"tenant": doc.party, "status": ["in",
-                                         ["Open", "Contacted", "Promised"]]},
+        {"tenancy_agreement": tenancy, "status": ["in", LIVE_STATES]},
         "name")
-    if not case_name:
-        return
 
-    remaining = flt(frappe.db.get_value(
-        "Sales Invoice",
-        {"docstatus": 1, "customer": doc.party,
-         "outstanding_amount": [">", 0]},
-        "sum(outstanding_amount)") or 0)
 
-    case = frappe.get_doc("Collection Case", case_name)
-    if remaining <= 0.005:
-        case.status = "Pending Confirmation"
-        case.payment_entry = doc.name
-        case.flags.ignore_permissions = True
-        case.save()
-        case.add_comment("Comment",
-                         "Payment %s clears all outstanding — pending "
-                         "Finance confirmation." % doc.name)
-    else:
-        case.add_comment("Comment",
-                         "Partial payment %s (QAR %.0f). QAR %.0f still "
-                         "outstanding." % (doc.name, flt(doc.paid_amount),
-                                           remaining))
+def open_case(tenancy, trigger, reference=None, outstanding=None,
+              oldest_due=None):
+    """Open a case, or refresh the one already running against this tenancy."""
+    if not tenancy:
+        return None
+
+    existing = live_case(tenancy)
+    if existing:
+        doc = frappe.get_doc("Collection Case", existing)
+        if outstanding is not None:
+            doc.outstanding_amount = flt(outstanding)
+        if oldest_due:
+            doc.oldest_due_date = oldest_due
+        if trigger == "Returned Cheque":
+            doc.append("actions", {
+                "action_on": frappe.utils.now(),
+                "method": "Letter",
+                "outcome": "Disputed",
+                "notes": f"Cheque {reference} returned.",
+                "by_user": frappe.session.user,
+            })
+        doc.save(ignore_permissions=True)
+        return doc.name
+
+    ta = frappe.db.get_value("Tenancy Agreement", tenancy,
+                             ["tenant", "unit", "building"], as_dict=True)
+    if not ta:
+        return None
+
+    doc = frappe.get_doc({
+        "doctype": "Collection Case",
+        "tenancy_agreement": tenancy,
+        "tenant": ta.tenant,
+        "trigger": trigger,
+        "status": "Open",
+        "opened_on": today(),
+        "reference": reference,
+        "outstanding_amount": flt(outstanding),
+        "oldest_due_date": oldest_due,
+    }).insert(ignore_permissions=True)
+    return doc.name
+
+
+# ------------------------------------------------------------------ triggers
+
+def sweep_past_due():
+    """Trigger 1 and 4. Runs nightly."""
+    s = _settings()
+    rows = frappe.db.sql("""
+        select si.customer, si.name as invoice, si.due_date,
+               si.outstanding_amount, si.grand_total
+        from `tabSales Invoice` si
+        where si.docstatus = 1
+          and si.outstanding_amount > 0
+          and si.due_date < %(cut)s
+    """, {"cut": frappe.utils.add_days(today(), -s["grace_days"])}, as_dict=True)
+
+    by_tenant = {}
+    for r in rows:
+        by_tenant.setdefault(r.customer, []).append(r)
+
+    opened = 0
+    for customer, invs in by_tenant.items():
+        tenancy = frappe.db.get_value(
+            "Tenancy Agreement",
+            {"tenant": customer, "status": ["in", ("Active", "Expiring")]},
+            "name")
+        if not tenancy:
+            continue
+        outstanding = sum(flt(i.outstanding_amount) for i in invs)
+        oldest = min(getdate(i.due_date) for i in invs)
+        rent = flt(frappe.db.get_value("Tenancy Agreement", tenancy,
+                                       "monthly_rent"))
+        trigger = ("Two Months Arrears"
+                   if rent and outstanding >= rent * s["legal_months"]
+                   else "Past Due")
+        name = open_case(tenancy, trigger, outstanding=outstanding,
+                         oldest_due=oldest)
+        if name:
+            _sync_invoices(name, invs)
+            opened += 1
+    return opened
+
+
+def _sync_invoices(case, invoices):
+    doc = frappe.get_doc("Collection Case", case)
+    held = {r.sales_invoice for r in doc.invoices}
+    changed = False
+    for inv in invoices:
+        if inv.invoice in held:
+            continue
+        doc.append("invoices", {
+            "sales_invoice": inv.invoice,
+            "due_date": inv.due_date,
+            "amount": flt(inv.grand_total),
+            "outstanding": flt(inv.outstanding_amount),
+        })
+        changed = True
+    if changed:
+        doc.save(ignore_permissions=True)
+
+
+def sweep_broken_promises():
+    """Trigger 3. A promise that passes its date without payment is broken."""
+    cases = frappe.get_all(
+        "Collection Case",
+        filters={"status": "Promised", "promised_date": ["<", today()]},
+        pluck="name")
+    for name in cases:
+        doc = frappe.get_doc("Collection Case", name)
+        doc.broken_promise = 1
+        doc.status = "Broken Promise"
+        doc.append("actions", {
+            "action_on": frappe.utils.now(),
+            "method": "Call",
+            "outcome": "Refused",
+            "notes": "Promised date passed with no payment received.",
+        })
+        doc.save(ignore_permissions=True)
+    return len(cases)
+
+
+def close_settled_cases():
+    """A case whose invoices are all settled closes itself."""
+    closed = 0
+    for name in frappe.get_all("Collection Case",
+                               filters={"status": ["in", LIVE_STATES]},
+                               pluck="name"):
+        doc = frappe.get_doc("Collection Case", name)
+        if not doc.invoices:
+            continue
+        outstanding = 0
+        for row in doc.invoices:
+            outstanding += flt(frappe.db.get_value(
+                "Sales Invoice", row.sales_invoice, "outstanding_amount"))
+        if outstanding <= 0.005:
+            doc.status = "Resolved"
+            doc.resolution = "Paid in Full"
+            doc.resolved_on = today()
+            doc.outstanding_amount = 0
+            doc.save(ignore_permissions=True)
+            closed += 1
+    return closed
+
+
+def nightly():
+    sweep_past_due()
+    sweep_broken_promises()
+    close_settled_cases()
+    frappe.db.commit()
+
+
+@frappe.whitelist()
+def open_manual(tenancy_agreement, reason):
+    """The fifth route. A person may open a case by hand, with a reason."""
+    if not (reason or "").strip():
+        frappe.throw("A case opened by hand needs a reason.")
+    if live_case(tenancy_agreement):
+        frappe.throw("This tenancy already has a live case.")
+    ta = frappe.db.get_value("Tenancy Agreement", tenancy_agreement,
+                             ["tenant"], as_dict=True)
+    doc = frappe.get_doc({
+        "doctype": "Collection Case",
+        "tenancy_agreement": tenancy_agreement,
+        "tenant": ta.tenant,
+        "trigger": "Manual",
+        "manual_reason": reason,
+        "status": "Open",
+        "opened_on": today(),
+    }).insert()
+    return doc.name

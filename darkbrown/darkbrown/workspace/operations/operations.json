@@ -1,0 +1,101 @@
+{
+ "charts": [],
+ "content": "[{\"id\": \"Operations_hdr\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>Operations</b></span>\", \"col\": 12}}, {\"id\": \"Operations_sc_hdr\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\">Shortcuts</span>\", \"col\": 12}}, {\"id\": \"Operations_sc_Collection_Case\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Collection Case\", \"col\": 3}}, {\"id\": \"Operations_sc_Maintenance_Request\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Maintenance Request\", \"col\": 3}}, {\"id\": \"Operations_c_Collections\", \"type\": \"card\", \"data\": {\"card_name\": \"Collections\", \"col\": 4}}, {\"id\": \"Operations_c_Occupancy\", \"type\": \"card\", \"data\": {\"card_name\": \"Occupancy\", \"col\": 4}}, {\"id\": \"Operations_c_Maintenance\", \"type\": \"card\", \"data\": {\"card_name\": \"Maintenance\", \"col\": 4}}]",
+ "creation": "2026-07-28 00:00:00.000000",
+ "docstatus": 0,
+ "doctype": "Workspace",
+ "for_user": "",
+ "hide_custom": 0,
+ "icon": "activity",
+ "idx": 0,
+ "indicator_color": "",
+ "is_hidden": 0,
+ "label": "Operations",
+ "links": [
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Collections",
+   "link_count": 1,
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Collection Case",
+   "link_count": 0,
+   "link_to": "Collection Case",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Occupancy",
+   "link_count": 1,
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Move-Out Case",
+   "link_count": 0,
+   "link_to": "Move Out Case",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Maintenance",
+   "link_count": 1,
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Maintenance Request",
+   "link_count": 0,
+   "link_to": "Maintenance Request",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  }
+ ],
+ "modified": "2026-07-28 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Darkbrown",
+ "name": "Operations",
+ "number_cards": [],
+ "owner": "Administrator",
+ "parent_page": "DarkBrown",
+ "public": 1,
+ "quick_lists": [],
+ "roles": [],
+ "sequence_id": 7.0,
+ "shortcuts": [
+  {
+   "color": "Red",
+   "doc_view": "",
+   "label": "Collection Case",
+   "link_to": "Collection Case",
+   "type": "DocType"
+  },
+  {
+   "color": "Orange",
+   "doc_view": "",
+   "label": "Maintenance Request",
+   "link_to": "Maintenance Request",
+   "type": "DocType"
+  }
+ ],
+ "title": "Operations"
+}

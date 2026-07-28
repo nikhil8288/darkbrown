@@ -1,0 +1,313 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-07-28 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "naming_series",
+  "direction",
+  "party_type",
+  "party",
+  "cb_ident",
+  "status",
+  "company",
+  "sec_cheque",
+  "cheque_no",
+  "bank",
+  "cheque_date",
+  "cb_cheque",
+  "amount",
+  "cheque_book",
+  "scan",
+  "sec_context",
+  "building",
+  "unit",
+  "cb_context",
+  "tenancy_agreement",
+  "head_lease",
+  "sec_banking",
+  "bank_account",
+  "deposit_batch",
+  "presented_on",
+  "cb_banking",
+  "cleared_on",
+  "payment_entry",
+  "sec_return",
+  "returned_on",
+  "return_reason",
+  "cb_return",
+  "return_charge",
+  "replaced_by",
+  "return_notes"
+ ],
+ "fields": [
+  {
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "label": "Series",
+   "options": "CHQ-.YYYY.-.####",
+   "default": "CHQ-.YYYY.-.####",
+   "reqd": 1,
+   "print_hide": 1
+  },
+  {
+   "fieldname": "direction",
+   "fieldtype": "Select",
+   "label": "Direction",
+   "options": "Incoming\nOutgoing",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "party_type",
+   "fieldtype": "Select",
+   "label": "Party Type",
+   "options": "Customer\nSupplier",
+   "reqd": 1
+  },
+  {
+   "fieldname": "party",
+   "fieldtype": "Dynamic Link",
+   "label": "Party",
+   "options": "party_type",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "cb_ident",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Received\nDeposited\nPresented\nCleared\nReturned\nReplaced\nCancelled",
+   "default": "Received",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company",
+   "reqd": 1
+  },
+  {
+   "fieldname": "sec_cheque",
+   "fieldtype": "Section Break",
+   "label": "Instrument"
+  },
+  {
+   "fieldname": "cheque_no",
+   "fieldtype": "Data",
+   "label": "Cheque No",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "bank",
+   "fieldtype": "Data",
+   "label": "Drawn On Bank"
+  },
+  {
+   "fieldname": "cheque_date",
+   "fieldtype": "Date",
+   "label": "Cheque Date",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "cb_cheque",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "amount",
+   "fieldtype": "Currency",
+   "label": "Amount",
+   "options": "QAR",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "cheque_book",
+   "fieldtype": "Link",
+   "label": "Cheque Book",
+   "options": "Cheque Book"
+  },
+  {
+   "fieldname": "scan",
+   "fieldtype": "Attach",
+   "label": "Scan"
+  },
+  {
+   "fieldname": "sec_context",
+   "fieldtype": "Section Break",
+   "label": "Context"
+  },
+  {
+   "fieldname": "building",
+   "fieldtype": "Link",
+   "label": "Building",
+   "options": "Building",
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "unit",
+   "fieldtype": "Link",
+   "label": "Unit",
+   "options": "Unit"
+  },
+  {
+   "fieldname": "cb_context",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "tenancy_agreement",
+   "fieldtype": "Link",
+   "label": "Tenancy Agreement",
+   "options": "Tenancy Agreement"
+  },
+  {
+   "fieldname": "head_lease",
+   "fieldtype": "Link",
+   "label": "Head Lease",
+   "options": "Head Lease"
+  },
+  {
+   "fieldname": "sec_banking",
+   "fieldtype": "Section Break",
+   "label": "Banking"
+  },
+  {
+   "fieldname": "bank_account",
+   "fieldtype": "Link",
+   "label": "Bank Account",
+   "options": "Bank Account"
+  },
+  {
+   "fieldname": "deposit_batch",
+   "fieldtype": "Link",
+   "label": "Deposit Batch",
+   "options": "Deposit Batch",
+   "read_only": 1
+  },
+  {
+   "fieldname": "presented_on",
+   "fieldtype": "Date",
+   "label": "Presented On"
+  },
+  {
+   "fieldname": "cb_banking",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "cleared_on",
+   "fieldtype": "Date",
+   "label": "Cleared On"
+  },
+  {
+   "fieldname": "payment_entry",
+   "fieldtype": "Link",
+   "label": "Payment Entry",
+   "options": "Payment Entry",
+   "read_only": 1
+  },
+  {
+   "fieldname": "sec_return",
+   "fieldtype": "Section Break",
+   "label": "Return",
+   "depends_on": "eval:doc.status=='Returned'"
+  },
+  {
+   "fieldname": "returned_on",
+   "fieldtype": "Date",
+   "label": "Returned On"
+  },
+  {
+   "fieldname": "return_reason",
+   "fieldtype": "Select",
+   "label": "Return Reason",
+   "options": "\nInsufficient Funds\nSignature Mismatch\nAccount Closed\nStop Payment\nPost Dated\nTechnical\nOther"
+  },
+  {
+   "fieldname": "cb_return",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "return_charge",
+   "fieldtype": "Currency",
+   "label": "Bank Charge",
+   "options": "QAR"
+  },
+  {
+   "fieldname": "replaced_by",
+   "fieldtype": "Link",
+   "label": "Replaced By",
+   "options": "Cheque"
+  },
+  {
+   "fieldname": "return_notes",
+   "fieldtype": "Small Text",
+   "label": "Notes"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-07-28 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Darkbrown",
+ "name": "Cheque",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "Managing Director",
+   "read": 1,
+   "report": 1,
+   "export": 1,
+   "share": 1,
+   "print": 1,
+   "email": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1
+  },
+  {
+   "role": "General Manager",
+   "read": 1,
+   "report": 1,
+   "export": 1,
+   "share": 1,
+   "print": 1,
+   "email": 1,
+   "write": 0,
+   "create": 0,
+   "delete": 0
+  },
+  {
+   "role": "Accounts",
+   "read": 1,
+   "report": 1,
+   "export": 1,
+   "share": 1,
+   "print": 1,
+   "email": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1,
+ "autoname": "naming_series:",
+ "naming_rule": "By \"Naming Series\" field",
+ "title_field": "cheque_no",
+ "show_title_field_in_link": 1,
+ "search_fields": "cheque_no,party,cheque_date,amount,status"
+}

@@ -1,0 +1,136 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-07-28 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "book_name",
+  "party_type",
+  "party",
+  "cb_ident",
+  "status",
+  "bank_account",
+  "sec_range",
+  "prefix",
+  "first_no",
+  "cb_range",
+  "last_no",
+  "issued_on"
+ ],
+ "fields": [
+  {
+   "fieldname": "book_name",
+   "fieldtype": "Data",
+   "label": "Book Name",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "party_type",
+   "fieldtype": "Select",
+   "label": "Party Type",
+   "options": "Company\nCustomer\nSupplier",
+   "default": "Company",
+   "reqd": 1
+  },
+  {
+   "fieldname": "party",
+   "fieldtype": "Data",
+   "label": "Party",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "cb_ident",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Active\nExhausted\nCancelled",
+   "default": "Active",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "bank_account",
+   "fieldtype": "Link",
+   "label": "Bank Account",
+   "options": "Bank Account"
+  },
+  {
+   "fieldname": "sec_range",
+   "fieldtype": "Section Break",
+   "label": "Range"
+  },
+  {
+   "fieldname": "prefix",
+   "fieldtype": "Data",
+   "label": "Prefix"
+  },
+  {
+   "fieldname": "first_no",
+   "fieldtype": "Int",
+   "label": "First No",
+   "reqd": 1
+  },
+  {
+   "fieldname": "cb_range",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "last_no",
+   "fieldtype": "Int",
+   "label": "Last No",
+   "reqd": 1
+  },
+  {
+   "fieldname": "issued_on",
+   "fieldtype": "Date",
+   "label": "Issued On"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-07-28 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Darkbrown",
+ "name": "Cheque Book",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "Managing Director",
+   "read": 1,
+   "report": 1,
+   "export": 1,
+   "share": 1,
+   "print": 1,
+   "email": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1
+  },
+  {
+   "role": "Accounts",
+   "read": 1,
+   "report": 1,
+   "export": 1,
+   "share": 1,
+   "print": 1,
+   "email": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1,
+ "autoname": "field:book_name",
+ "naming_rule": "By fieldname",
+ "title_field": "book_name",
+ "show_title_field_in_link": 1
+}

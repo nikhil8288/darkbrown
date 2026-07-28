@@ -1,24 +1,186 @@
 {
  "actions": [],
- "creation": "2026-07-12 00:00:00.000000",
+ "allow_rename": 1,
+ "creation": "2026-07-28 00:00:00.000000",
  "doctype": "DocType",
+ "editable_grid": 1,
  "engine": "InnoDB",
- "field_order": ["minimum_cash_floor"],
- "fields": [
-  {"fieldname": "minimum_cash_floor", "fieldtype": "Currency", "label": "Minimum Cash Floor (QAR)",
-   "description": "Company-wide floor. The cash-flow projection flags the first month the running position drops below this."}
+ "field_order": [
+  "sec_company",
+  "default_company",
+  "default_bank_account",
+  "sec_billing",
+  "invoice_generation_day",
+  "presentation_notice_days",
+  "cb_billing",
+  "default_tenancy_notice_days",
+  "default_headlease_notice_days",
+  "sec_collections",
+  "grace_days",
+  "legal_escalation_months",
+  "sec_approvals",
+  "amendment_md_threshold",
+  "emergency_maintenance_ceiling",
+  "cb_appr",
+  "weekly_closing_day",
+  "reserve_months"
  ],
- "issingle": 1,
+ "fields": [
+  {
+   "fieldname": "sec_company",
+   "fieldtype": "Section Break",
+   "label": "Company"
+  },
+  {
+   "fieldname": "default_company",
+   "fieldtype": "Link",
+   "label": "Default Company",
+   "options": "Company"
+  },
+  {
+   "fieldname": "default_bank_account",
+   "fieldtype": "Link",
+   "label": "Default Bank Account",
+   "options": "Bank Account"
+  },
+  {
+   "fieldname": "sec_billing",
+   "fieldtype": "Section Break",
+   "label": "Billing"
+  },
+  {
+   "fieldname": "invoice_generation_day",
+   "fieldtype": "Int",
+   "label": "Invoice Generation Day",
+   "default": "1",
+   "description": "Rent invoices are raised on this day of the month."
+  },
+  {
+   "fieldname": "presentation_notice_days",
+   "fieldtype": "Int",
+   "label": "Cheque Presentation Notice (Days)",
+   "default": "14"
+  },
+  {
+   "fieldname": "cb_billing",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "default_tenancy_notice_days",
+   "fieldtype": "Int",
+   "label": "Default Tenancy Notice (Days)",
+   "default": "60"
+  },
+  {
+   "fieldname": "default_headlease_notice_days",
+   "fieldtype": "Int",
+   "label": "Default Head-Lease Notice (Days)",
+   "default": "90"
+  },
+  {
+   "fieldname": "sec_collections",
+   "fieldtype": "Section Break",
+   "label": "Collections"
+  },
+  {
+   "fieldname": "grace_days",
+   "fieldtype": "Int",
+   "label": "Grace Days Before a Case Opens",
+   "default": "7",
+   "description": "Provisional. Confirm before go-live."
+  },
+  {
+   "fieldname": "legal_escalation_months",
+   "fieldtype": "Int",
+   "label": "Months of Rent Before Legal Escalation",
+   "default": "2",
+   "description": "Provisional. Confirm before go-live."
+  },
+  {
+   "fieldname": "sec_approvals",
+   "fieldtype": "Section Break",
+   "label": "Approvals"
+  },
+  {
+   "fieldname": "amendment_md_threshold",
+   "fieldtype": "Currency",
+   "label": "Amendment Value Needing the MD",
+   "options": "QAR",
+   "description": "Amendments at or above this monthly impact go to the MD rather than the GM. Zero means the GM always."
+  },
+  {
+   "fieldname": "emergency_maintenance_ceiling",
+   "fieldtype": "Currency",
+   "label": "Emergency Maintenance Ceiling",
+   "options": "QAR",
+   "default": "2000"
+  },
+  {
+   "fieldname": "cb_appr",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "weekly_closing_day",
+   "fieldtype": "Select",
+   "label": "Weekly Closing Day",
+   "options": "Monday\nTuesday\nWednesday\nThursday\nFriday\nSaturday\nSunday",
+   "default": "Thursday"
+  },
+  {
+   "fieldname": "reserve_months",
+   "fieldtype": "Int",
+   "label": "Cash Reserve Floor (Months)",
+   "default": "3"
+  }
+ ],
  "index_web_pages_for_search": 0,
  "links": [],
- "modified": "2026-07-12 00:00:00.000000",
+ "modified": "2026-07-28 00:00:00.000000",
+ "modified_by": "Administrator",
  "module": "Darkbrown",
  "name": "DBR Settings",
  "owner": "Administrator",
  "permissions": [
-  {"read": 1, "write": 1, "role": "System Manager"},
-  {"read": 1, "write": 1, "role": "Managing Director"}
+  {
+   "role": "Managing Director",
+   "read": 1,
+   "report": 1,
+   "export": 1,
+   "share": 1,
+   "print": 1,
+   "email": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1
+  },
+  {
+   "role": "General Manager",
+   "read": 1,
+   "report": 1,
+   "export": 1,
+   "share": 1,
+   "print": 1,
+   "email": 1,
+   "write": 0,
+   "create": 0,
+   "delete": 0
+  },
+  {
+   "role": "Accounts",
+   "read": 1,
+   "report": 1,
+   "export": 1,
+   "share": 1,
+   "print": 1,
+   "email": 1,
+   "write": 0,
+   "create": 0,
+   "delete": 0
+  }
  ],
  "sort_field": "modified",
- "sort_order": "DESC"
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1,
+ "issingle": 1
 }

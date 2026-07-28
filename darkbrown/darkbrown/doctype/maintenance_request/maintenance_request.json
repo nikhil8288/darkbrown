@@ -1,38 +1,51 @@
 {
  "actions": [],
- "allow_rename": 0,
- "autoname": "naming_series:",
- "creation": "2026-07-10 00:00:00.000000",
+ "allow_rename": 1,
+ "creation": "2026-07-28 00:00:00.000000",
  "doctype": "DocType",
+ "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
   "naming_series",
   "building",
   "unit",
-  "column_break_1",
+  "category",
+  "cb_ident",
   "status",
   "priority",
-  "section_break_1",
+  "is_preventive",
+  "sec_issue",
   "issue",
   "description",
-  "section_break_2",
+  "photos",
+  "sec_assign",
   "reported_on",
-  "resolved_on",
-  "column_break_2",
+  "reported_by",
   "assigned_to",
-  "is_preventive",
-  "section_costs",
+  "cb_assign",
+  "scheduled_on",
+  "resolved_on",
+  "resolution_notes",
+  "sec_cost",
   "cost_lines",
-  "cost"
+  "cost",
+  "over_ceiling",
+  "sec_recharge",
+  "rechargeable",
+  "recharge_to",
+  "cb_recharge",
+  "recharge_amount",
+  "recharge_status"
  ],
  "fields": [
   {
    "fieldname": "naming_series",
    "fieldtype": "Select",
    "label": "Series",
-   "options": "MNT-.####",
-   "default": "MNT-.####",
-   "hidden": 1
+   "options": "MNT-.YYYY.-.####",
+   "default": "MNT-.YYYY.-.####",
+   "reqd": 1,
+   "print_hide": 1
   },
   {
    "fieldname": "building",
@@ -40,7 +53,8 @@
    "label": "Building",
    "options": "Building",
    "reqd": 1,
-   "in_list_view": 1
+   "in_list_view": 1,
+   "in_standard_filter": 1
   },
   {
    "fieldname": "unit",
@@ -50,30 +64,46 @@
    "in_list_view": 1
   },
   {
-   "fieldname": "column_break_1",
+   "fieldname": "category",
+   "fieldtype": "Select",
+   "label": "Category",
+   "options": "Plumbing\nElectrical\nAir Conditioning\nCivil\nLift\nPest Control\nCleaning\nOther",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "cb_ident",
    "fieldtype": "Column Break"
   },
   {
    "fieldname": "status",
    "fieldtype": "Select",
    "label": "Status",
-   "options": "Open\nIn Progress\nScheduled\nResolved\nCancelled",
+   "options": "Open\nAssigned\nScheduled\nIn Progress\nResolved\nCancelled",
    "default": "Open",
    "reqd": 1,
-   "in_list_view": 1
+   "in_list_view": 1,
+   "in_standard_filter": 1
   },
   {
    "fieldname": "priority",
    "fieldtype": "Select",
    "label": "Priority",
-   "options": "Low\nMedium\nHigh",
+   "options": "Low\nMedium\nHigh\nEmergency",
    "default": "Medium",
    "reqd": 1,
    "in_list_view": 1
   },
   {
-   "fieldname": "section_break_1",
-   "fieldtype": "Section Break"
+   "fieldname": "is_preventive",
+   "fieldtype": "Check",
+   "label": "Preventive"
+  },
+  {
+   "fieldname": "sec_issue",
+   "fieldtype": "Section Break",
+   "label": "Issue"
   },
   {
    "fieldname": "issue",
@@ -88,25 +118,25 @@
    "label": "Description"
   },
   {
-   "fieldname": "section_break_2",
-   "fieldtype": "Section Break"
+   "fieldname": "photos",
+   "fieldtype": "Attach",
+   "label": "Photos"
+  },
+  {
+   "fieldname": "sec_assign",
+   "fieldtype": "Section Break",
+   "label": "Assignment"
   },
   {
    "fieldname": "reported_on",
    "fieldtype": "Datetime",
-   "label": "Reported On",
-   "reqd": 1,
-   "default": "Now"
+   "label": "Reported On"
   },
   {
-   "fieldname": "resolved_on",
-   "fieldtype": "Datetime",
-   "label": "Resolved On",
-   "depends_on": "eval:doc.status=='Resolved'"
-  },
-  {
-   "fieldname": "column_break_2",
-   "fieldtype": "Column Break"
+   "fieldname": "reported_by",
+   "fieldtype": "Link",
+   "label": "Reported By",
+   "options": "User"
   },
   {
    "fieldname": "assigned_to",
@@ -115,65 +145,150 @@
    "options": "User"
   },
   {
-   "fieldname": "is_preventive",
-   "fieldtype": "Check",
-   "label": "Preventive"
+   "fieldname": "cb_assign",
+   "fieldtype": "Column Break"
   },
   {
-   "fieldname": "cost",
-   "fieldtype": "Currency",
-   "label": "Total Cost (QAR)",
-   "read_only": 1,
-   "description": "Auto-sum of resolution cost lines"
+   "fieldname": "scheduled_on",
+   "fieldtype": "Date",
+   "label": "Scheduled For"
   },
   {
-   "fieldname": "section_costs",
+   "fieldname": "resolved_on",
+   "fieldtype": "Datetime",
+   "label": "Resolved On"
+  },
+  {
+   "fieldname": "resolution_notes",
+   "fieldtype": "Small Text",
+   "label": "Resolution"
+  },
+  {
+   "fieldname": "sec_cost",
    "fieldtype": "Section Break",
-   "label": "Resolution Costs"
+   "label": "Cost"
   },
   {
    "fieldname": "cost_lines",
    "fieldtype": "Table",
    "label": "Cost Lines",
    "options": "Maintenance Cost Line"
+  },
+  {
+   "fieldname": "cost",
+   "fieldtype": "Currency",
+   "label": "Total Cost",
+   "options": "QAR",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "over_ceiling",
+   "fieldtype": "Check",
+   "label": "Over Emergency Ceiling",
+   "read_only": 1
+  },
+  {
+   "fieldname": "sec_recharge",
+   "fieldtype": "Section Break",
+   "label": "Tenant Recharge"
+  },
+  {
+   "fieldname": "rechargeable",
+   "fieldtype": "Check",
+   "label": "Recharge to Tenant"
+  },
+  {
+   "fieldname": "recharge_to",
+   "fieldtype": "Link",
+   "label": "Recharge To",
+   "options": "Customer",
+   "depends_on": "rechargeable"
+  },
+  {
+   "fieldname": "cb_recharge",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "recharge_amount",
+   "fieldtype": "Currency",
+   "label": "Recharge Amount",
+   "options": "QAR",
+   "depends_on": "rechargeable"
+  },
+  {
+   "fieldname": "recharge_status",
+   "fieldtype": "Select",
+   "label": "Recharge Status",
+   "options": "\nPending\nInvoiced\nWaived",
+   "depends_on": "rechargeable",
+   "description": "A recharge rides on the next rent invoice as its own line, against its own income account."
   }
  ],
  "index_web_pages_for_search": 0,
  "links": [],
- "modified": "2026-07-12 18:00:00.000000",
+ "modified": "2026-07-28 00:00:00.000000",
+ "modified_by": "Administrator",
  "module": "Darkbrown",
  "name": "Maintenance Request",
  "owner": "Administrator",
  "permissions": [
   {
-   "create": 1,
-   "delete": 1,
-   "email": 1,
+   "role": "Managing Director",
+   "read": 1,
+   "report": 1,
    "export": 1,
-   "print": 1,
-   "read": 1,
-   "report": 1,
-   "role": "System Manager",
    "share": 1,
-   "write": 1
-  },
-  {
-   "create": 1,
+   "print": 1,
    "email": 1,
-   "print": 1,
-   "read": 1,
-   "report": 1,
-   "role": "Maintenance",
-   "share": 1,
-   "write": 1
+   "write": 1,
+   "create": 1,
+   "delete": 1
   },
   {
+   "role": "General Manager",
    "read": 1,
    "report": 1,
-   "role": "Managing Director"
+   "export": 1,
+   "share": 1,
+   "print": 1,
+   "email": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 0
+  },
+  {
+   "role": "Accounts",
+   "read": 1,
+   "report": 1,
+   "export": 1,
+   "share": 1,
+   "print": 1,
+   "email": 1,
+   "write": 0,
+   "create": 0,
+   "delete": 0
+  },
+  {
+   "role": "Maintenance",
+   "read": 1,
+   "report": 1,
+   "export": 1,
+   "share": 1,
+   "print": 1,
+   "email": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1
   }
  ],
  "sort_field": "modified",
  "sort_order": "DESC",
- "track_changes": 1
+ "states": [],
+ "track_changes": 1,
+ "autoname": "naming_series:",
+ "naming_rule": "By \"Naming Series\" field",
+ "title_field": "issue",
+ "show_title_field_in_link": 1,
+ "search_fields": "building,unit,issue,status,priority"
 }

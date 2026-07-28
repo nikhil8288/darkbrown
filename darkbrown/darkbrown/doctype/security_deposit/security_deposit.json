@@ -1,0 +1,215 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-07-28 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "naming_series",
+  "tenancy_agreement",
+  "tenant",
+  "unit",
+  "cb_ident",
+  "status",
+  "company",
+  "sec_receipt",
+  "amount",
+  "received_on",
+  "cb_receipt",
+  "receipt_method",
+  "receipt_cheque",
+  "sec_refund",
+  "deductions",
+  "deduction_reason",
+  "cb_refund",
+  "refund_amount",
+  "refunded_on",
+  "move_out_case"
+ ],
+ "fields": [
+  {
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "label": "Series",
+   "options": "SD-.YYYY.-.####",
+   "default": "SD-.YYYY.-.####",
+   "reqd": 1,
+   "print_hide": 1
+  },
+  {
+   "fieldname": "tenancy_agreement",
+   "fieldtype": "Link",
+   "label": "Tenancy",
+   "options": "Tenancy Agreement",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "tenant",
+   "fieldtype": "Link",
+   "label": "Tenant",
+   "options": "Customer",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "unit",
+   "fieldtype": "Link",
+   "label": "Unit",
+   "options": "Unit",
+   "fetch_from": "tenancy_agreement.unit",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "cb_ident",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Held\nPartially Refunded\nRefunded\nForfeited",
+   "default": "Held",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company",
+   "reqd": 1
+  },
+  {
+   "fieldname": "sec_receipt",
+   "fieldtype": "Section Break",
+   "label": "Receipt"
+  },
+  {
+   "fieldname": "amount",
+   "fieldtype": "Currency",
+   "label": "Amount Held",
+   "options": "QAR",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "received_on",
+   "fieldtype": "Date",
+   "label": "Received On",
+   "reqd": 1
+  },
+  {
+   "fieldname": "cb_receipt",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "receipt_method",
+   "fieldtype": "Select",
+   "label": "Received By",
+   "options": "Cash\nCheque\nTransfer",
+   "reqd": 1,
+   "description": "The refund mirrors this. Cash in, cash out."
+  },
+  {
+   "fieldname": "receipt_cheque",
+   "fieldtype": "Link",
+   "label": "Cheque",
+   "options": "Cheque"
+  },
+  {
+   "fieldname": "sec_refund",
+   "fieldtype": "Section Break",
+   "label": "Refund"
+  },
+  {
+   "fieldname": "deductions",
+   "fieldtype": "Currency",
+   "label": "Deductions",
+   "options": "QAR"
+  },
+  {
+   "fieldname": "deduction_reason",
+   "fieldtype": "Small Text",
+   "label": "Deduction Reason"
+  },
+  {
+   "fieldname": "cb_refund",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "refund_amount",
+   "fieldtype": "Currency",
+   "label": "Refund Amount",
+   "options": "QAR",
+   "read_only": 1
+  },
+  {
+   "fieldname": "refunded_on",
+   "fieldtype": "Date",
+   "label": "Refunded On"
+  },
+  {
+   "fieldname": "move_out_case",
+   "fieldtype": "Link",
+   "label": "Move-Out Case",
+   "options": "Move Out Case"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-07-28 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Darkbrown",
+ "name": "Security Deposit",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "Managing Director",
+   "read": 1,
+   "report": 1,
+   "export": 1,
+   "share": 1,
+   "print": 1,
+   "email": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1
+  },
+  {
+   "role": "General Manager",
+   "read": 1,
+   "report": 1,
+   "export": 1,
+   "share": 1,
+   "print": 1,
+   "email": 1,
+   "write": 0,
+   "create": 0,
+   "delete": 0
+  },
+  {
+   "role": "Accounts",
+   "read": 1,
+   "report": 1,
+   "export": 1,
+   "share": 1,
+   "print": 1,
+   "email": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1,
+ "autoname": "naming_series:",
+ "naming_rule": "By \"Naming Series\" field",
+ "title_field": "tenant",
+ "show_title_field_in_link": 1
+}

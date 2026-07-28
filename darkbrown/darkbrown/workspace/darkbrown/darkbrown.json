@@ -1,0 +1,158 @@
+{
+ "charts": [],
+ "content": "[{\"id\": \"DarkBrown_hdr\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>DarkBrown</b></span>\", \"col\": 12}}, {\"id\": \"DarkBrown_sc_hdr\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\">Shortcuts</span>\", \"col\": 12}}, {\"id\": \"DarkBrown_sc_Command_Centre\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Command Centre\", \"col\": 3}}, {\"id\": \"DarkBrown_sc_Building\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Building\", \"col\": 3}}, {\"id\": \"DarkBrown_sc_Tenancy_Agreement\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Tenancy Agreement\", \"col\": 3}}, {\"id\": \"DarkBrown_sc_Cheque\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Cheque\", \"col\": 3}}, {\"id\": \"DarkBrown_sc_Collection_Case\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Collection Case\", \"col\": 3}}, {\"id\": \"DarkBrown_c_Held_Back\", \"type\": \"card\", \"data\": {\"card_name\": \"Held Back\", \"col\": 4}}, {\"id\": \"DarkBrown_c_Daily\", \"type\": \"card\", \"data\": {\"card_name\": \"Daily\", \"col\": 4}}]",
+ "creation": "2026-07-28 00:00:00.000000",
+ "docstatus": 0,
+ "doctype": "Workspace",
+ "for_user": "",
+ "hide_custom": 0,
+ "icon": "getting-started",
+ "idx": 0,
+ "indicator_color": "",
+ "is_hidden": 0,
+ "label": "DarkBrown",
+ "links": [
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Held Back",
+   "link_count": 3,
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Command Centre",
+   "link_count": 0,
+   "link_to": "command-centre",
+   "link_type": "Page",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Planning",
+   "link_count": 0,
+   "link_to": "planning",
+   "link_type": "Page",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Owners and Shareholders",
+   "link_count": 0,
+   "link_to": "owners",
+   "link_type": "Page",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Daily",
+   "link_count": 4,
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Tenancy Agreement",
+   "link_count": 0,
+   "link_to": "Tenancy Agreement",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Cheque Register",
+   "link_count": 0,
+   "link_to": "Cheque",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Collection Case",
+   "link_count": 0,
+   "link_to": "Collection Case",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Maintenance Request",
+   "link_count": 0,
+   "link_to": "Maintenance Request",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  }
+ ],
+ "modified": "2026-07-28 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Darkbrown",
+ "name": "DarkBrown",
+ "number_cards": [],
+ "owner": "Administrator",
+ "parent_page": "",
+ "public": 1,
+ "quick_lists": [],
+ "roles": [],
+ "sequence_id": 1.0,
+ "shortcuts": [
+  {
+   "color": "Grey",
+   "doc_view": "",
+   "label": "Command Centre",
+   "link_to": "command-centre",
+   "type": "Page"
+  },
+  {
+   "color": "Blue",
+   "doc_view": "",
+   "label": "Building",
+   "link_to": "Building",
+   "type": "DocType"
+  },
+  {
+   "color": "Green",
+   "doc_view": "",
+   "label": "Tenancy Agreement",
+   "link_to": "Tenancy Agreement",
+   "type": "DocType"
+  },
+  {
+   "color": "Orange",
+   "doc_view": "",
+   "label": "Cheque",
+   "link_to": "Cheque",
+   "type": "DocType"
+  },
+  {
+   "color": "Red",
+   "doc_view": "",
+   "label": "Collection Case",
+   "link_to": "Collection Case",
+   "type": "DocType"
+  }
+ ],
+ "title": "DarkBrown"
+}

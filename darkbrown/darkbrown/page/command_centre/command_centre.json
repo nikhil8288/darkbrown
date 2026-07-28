@@ -1,0 +1,25 @@
+{
+ "creation": "2026-07-28 00:00:00.000000",
+ "docstatus": 0,
+ "doctype": "Page",
+ "icon": "dashboard",
+ "idx": 0,
+ "modified": "2026-07-28 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Darkbrown",
+ "name": "command-centre",
+ "owner": "Administrator",
+ "page_html": null,
+ "page_name": "command-centre",
+ "roles": [
+  {
+   "role": "Managing Director"
+  },
+  {
+   "role": "General Manager"
+  }
+ ],
+ "standard": "Yes",
+ "system_page": 0,
+ "title": "Command Centre"
+}

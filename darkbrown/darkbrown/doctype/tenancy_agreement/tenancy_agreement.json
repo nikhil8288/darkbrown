@@ -1,0 +1,341 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-07-28 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "naming_series",
+  "tenant",
+  "unit",
+  "building",
+  "cb_ident",
+  "status",
+  "company",
+  "renewal_of",
+  "sec_term",
+  "start_date",
+  "end_date",
+  "cb_term",
+  "notice_days",
+  "auto_renew",
+  "sec_money",
+  "monthly_rent",
+  "security_deposit",
+  "cb_money",
+  "payment_mode",
+  "cheques_held",
+  "sec_charges",
+  "charges",
+  "sec_ident",
+  "qid_number",
+  "qid_expiry",
+  "cb_identd",
+  "passport_no",
+  "mobile_no",
+  "sec_activation",
+  "activation_route",
+  "missing_items",
+  "cb_act",
+  "approved_by",
+  "approved_on",
+  "sec_docs",
+  "signed_pack",
+  "notes"
+ ],
+ "fields": [
+  {
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "label": "Series",
+   "options": "TA-.YYYY.-.####",
+   "default": "TA-.YYYY.-.####",
+   "reqd": 1,
+   "print_hide": 1
+  },
+  {
+   "fieldname": "tenant",
+   "fieldtype": "Link",
+   "label": "Tenant",
+   "options": "Customer",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "unit",
+   "fieldtype": "Link",
+   "label": "Unit",
+   "options": "Unit",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "building",
+   "fieldtype": "Link",
+   "label": "Building",
+   "options": "Building",
+   "fetch_from": "unit.building",
+   "read_only": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "cb_ident",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Draft\nPending Approval\nActive\nExpiring\nExpired\nTerminated",
+   "default": "Draft",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company",
+   "reqd": 1
+  },
+  {
+   "fieldname": "renewal_of",
+   "fieldtype": "Link",
+   "label": "Renewal Of",
+   "options": "Tenancy Agreement"
+  },
+  {
+   "fieldname": "sec_term",
+   "fieldtype": "Section Break",
+   "label": "Term"
+  },
+  {
+   "fieldname": "start_date",
+   "fieldtype": "Date",
+   "label": "Start Date",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "end_date",
+   "fieldtype": "Date",
+   "label": "End Date",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "cb_term",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "notice_days",
+   "fieldtype": "Int",
+   "label": "Notice Period (Days)",
+   "default": "60"
+  },
+  {
+   "fieldname": "auto_renew",
+   "fieldtype": "Check",
+   "label": "Auto Renew"
+  },
+  {
+   "fieldname": "sec_money",
+   "fieldtype": "Section Break",
+   "label": "Consideration"
+  },
+  {
+   "fieldname": "monthly_rent",
+   "fieldtype": "Currency",
+   "label": "Monthly Rent",
+   "options": "QAR",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "security_deposit",
+   "fieldtype": "Currency",
+   "label": "Security Deposit",
+   "options": "QAR"
+  },
+  {
+   "fieldname": "cb_money",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "payment_mode",
+   "fieldtype": "Select",
+   "label": "Payment Mode",
+   "options": "Cheque\nCash\nTransfer",
+   "default": "Cheque",
+   "reqd": 1
+  },
+  {
+   "fieldname": "cheques_held",
+   "fieldtype": "Int",
+   "label": "Post-Dated Cheques Held",
+   "read_only": 1
+  },
+  {
+   "fieldname": "sec_charges",
+   "fieldtype": "Section Break",
+   "label": "Recurring Charges"
+  },
+  {
+   "fieldname": "charges",
+   "fieldtype": "Table",
+   "label": "Charges",
+   "options": "Tenancy Charge",
+   "description": "Rent is implied by the monthly rent above. Add only charges that sit alongside it."
+  },
+  {
+   "fieldname": "sec_ident",
+   "fieldtype": "Section Break",
+   "label": "Tenant Identity"
+  },
+  {
+   "fieldname": "qid_number",
+   "fieldtype": "Data",
+   "label": "QID Number"
+  },
+  {
+   "fieldname": "qid_expiry",
+   "fieldtype": "Date",
+   "label": "QID Expiry"
+  },
+  {
+   "fieldname": "cb_identd",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "passport_no",
+   "fieldtype": "Data",
+   "label": "Passport No"
+  },
+  {
+   "fieldname": "mobile_no",
+   "fieldtype": "Data",
+   "label": "Mobile"
+  },
+  {
+   "fieldname": "sec_activation",
+   "fieldtype": "Section Break",
+   "label": "Activation"
+  },
+  {
+   "fieldname": "activation_route",
+   "fieldtype": "Select",
+   "label": "Activation Route",
+   "options": "Self Approved\nRouted for Approval",
+   "read_only": 1,
+   "description": "A tenancy with a QID number and a signed pack activates on creation. Anything else routes."
+  },
+  {
+   "fieldname": "missing_items",
+   "fieldtype": "Small Text",
+   "label": "Missing for Activation",
+   "read_only": 1
+  },
+  {
+   "fieldname": "cb_act",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "approved_by",
+   "fieldtype": "Link",
+   "label": "Approved By",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "approved_on",
+   "fieldtype": "Datetime",
+   "label": "Approved On",
+   "read_only": 1
+  },
+  {
+   "fieldname": "sec_docs",
+   "fieldtype": "Section Break",
+   "label": "Documents"
+  },
+  {
+   "fieldname": "signed_pack",
+   "fieldtype": "Attach",
+   "label": "Signed Agreement Pack"
+  },
+  {
+   "fieldname": "notes",
+   "fieldtype": "Text Editor",
+   "label": "Notes"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-07-28 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Darkbrown",
+ "name": "Tenancy Agreement",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "Managing Director",
+   "read": 1,
+   "report": 1,
+   "export": 1,
+   "share": 1,
+   "print": 1,
+   "email": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1
+  },
+  {
+   "role": "General Manager",
+   "read": 1,
+   "report": 1,
+   "export": 1,
+   "share": 1,
+   "print": 1,
+   "email": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 0
+  },
+  {
+   "role": "Accounts",
+   "read": 1,
+   "report": 1,
+   "export": 1,
+   "share": 1,
+   "print": 1,
+   "email": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 0
+  },
+  {
+   "role": "Documentation",
+   "read": 1,
+   "report": 1,
+   "export": 1,
+   "share": 1,
+   "print": 1,
+   "email": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 0
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1,
+ "autoname": "naming_series:",
+ "naming_rule": "By \"Naming Series\" field",
+ "title_field": "tenant",
+ "show_title_field_in_link": 1,
+ "search_fields": "tenant,unit,building,status,end_date"
+}

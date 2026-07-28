@@ -1,174 +1,209 @@
-"""Monthly rent invoicing — runs on the 1st of every month.
+"""Rent invoicing.
 
-Tenant side    one draft Sales Invoice per Active Tenant Rental
-               Agreement for the current month.
-Landlord side  one draft Purchase Invoice per Active Landlord Contract,
-               skipped while the contract is still inside its grace
-               period (grace_period_days from contract start).
+Invoices are generated one building at a time, once per period. The run is
+drafted first so the numbers can be read before anything is posted; any line
+that differs from the agreement carries a typed reason and needs the General
+Manager before the run may issue.
 
-Safety rails
-    GENERATION_START  nothing generates for periods before Jul-2026;
-                      the Excel books own everything earlier.
-    AUTO_SUBMIT       False. Everything lands as Draft for Accounts to
-                      review and submit until the job is trusted.
-    Idempotent        custom_billing_period + agreement/contract link on
-                      the invoice; re-runs and manual replays are no-ops.
-                      (Custom fields created by patch
-                      create_invoice_custom_fields.)
-
-Manual replay from bench console:
-    from darkbrown.utils.rent_invoicing import generate_monthly_invoices
-    generate_monthly_invoices()            # current month
-    generate_monthly_invoices("2026-08-01")  # specific month
+Nothing here writes to the general ledger directly. Sales Invoice does that,
+which keeps ERPNext the owner of the ledger.
 """
 
 import frappe
-from frappe.utils import getdate, nowdate, get_first_day, get_last_day, flt, cint, add_days
-
-GENERATION_START = "2026-07-01"
-AUTO_SUBMIT = False
-
-TENANT_ITEM = "Rent"
-LANDLORD_ITEM = "Landlord Rent"
-INCOME_ACCOUNT = "Rent Income"      # under Direct Income
-EXPENSE_ACCOUNT = "Landlord Rent"   # under Direct Expenses
+from frappe.utils import (today, getdate, add_days, add_months, flt,
+                          get_first_day, get_last_day)
 
 
-def _company():
-    return frappe.db.get_value("Company", {}, ["name", "abbr"], as_dict=True)
+def _company(building):
+    return (frappe.db.get_value("Building", building, "company")
+            or frappe.db.get_single_value("DBR Settings", "default_company")
+            or frappe.defaults.get_user_default("Company"))
 
 
-def _account(base, abbr):
-    name = "%s - %s" % (base, abbr)
-    return name if frappe.db.exists("Account", name) else None
+def _income_account(company):
+    return frappe.db.get_value(
+        "Company", company, "default_income_account") or frappe.db.get_value(
+        "Account", {"company": company, "account_name": "Sales",
+                    "is_group": 0}, "name")
 
 
-def _cost_center(building, abbr):
-    return (frappe.db.get_value("Cost Center",
-                                {"cost_center_name": building, "is_group": 0},
-                                "name")
-            or frappe.db.get_value("Company", {}, "cost_center"))
+def active_tenancies(building, period_start, period_end):
+    return frappe.get_all(
+        "Tenancy Agreement",
+        filters={
+            "building": building,
+            "status": ["in", ("Active", "Expiring")],
+            "start_date": ["<=", period_end],
+            "end_date": [">=", period_start],
+        },
+        fields=["name", "tenant", "unit", "monthly_rent", "start_date",
+                "end_date"])
 
 
-def _period(anchor=None):
-    d = getdate(anchor or nowdate())
-    start, end = get_first_day(d), get_last_day(d)
-    return start, end, start.strftime("%Y-%m")
+def _prorate(ta, period_start, period_end):
+    """A tenancy that starts or ends mid-period is billed for the days it
+    actually covers, not the whole month."""
+    days_in_period = frappe.utils.date_diff(period_end, period_start) + 1
+    covered_from = max(getdate(ta.start_date), getdate(period_start))
+    covered_to = min(getdate(ta.end_date), getdate(period_end))
+    covered = frappe.utils.date_diff(covered_to, covered_from) + 1
+    if covered >= days_in_period:
+        return flt(ta.monthly_rent), False
+    return flt(ta.monthly_rent) * covered / days_in_period, True
 
 
-def generate_monthly_invoices(anchor=None):
-    """Scheduler entry point (monthly = 1st of month in Frappe)."""
-    start, end, period = _period(anchor)
-    if start < getdate(GENERATION_START):
-        return  # pre-ERP months belong to the Excel books
-
-    co = _company()
-    made_si = _tenant_invoices(start, end, period, co)
-    made_pi = _landlord_invoices(start, end, period, co)
-    frappe.db.commit()
-    frappe.logger("darkbrown").info(
-        "rent_invoicing %s: %d sales, %d purchase" % (period, made_si, made_pi))
+def _recharges(tenant, building):
+    """Maintenance recharges ride on the next rent invoice as their own line."""
+    return frappe.get_all(
+        "Maintenance Request",
+        filters={"recharge_to": tenant, "building": building,
+                 "rechargeable": 1, "recharge_status": "Pending",
+                 "status": "Resolved"},
+        fields=["name", "issue", "recharge_amount"])
 
 
-# ------------------------------------------------------------- tenant side
+@frappe.whitelist()
+def build_run(building, period_start=None):
+    """Draft an Invoice Run for one building. Creates nothing in the ledger."""
+    period_start = getdate(period_start or get_first_day(today()))
+    period_end = get_last_day(period_start)
 
-def _tenant_invoices(start, end, period, co):
+    clash = frappe.db.exists("Invoice Run", {
+        "building": building, "period_start": period_start,
+        "status": ["!=", "Cancelled"]})
+    if clash:
+        frappe.throw(f"{building} has already been generated for this period "
+                     f"as {clash}.")
+
+    tenancies = active_tenancies(building, period_start, period_end)
+    if not tenancies:
+        frappe.throw(f"No active tenancies in {building} for this period.")
+
+    run = frappe.get_doc({
+        "doctype": "Invoice Run",
+        "building": building,
+        "company": _company(building),
+        "period_start": period_start,
+        "period_end": period_end,
+        "status": "Draft",
+    })
+
+    for ta in tenancies:
+        amount, prorated = _prorate(ta, period_start, period_end)
+        extra = sum(flt(c.amount) for c in frappe.get_all(
+            "Tenancy Charge", filters={"parent": ta.name,
+                                       "frequency": "Monthly"},
+            fields=["amount"]))
+        recharge = sum(flt(r.recharge_amount)
+                       for r in _recharges(ta.tenant, building))
+        run.append("lines", {
+            "tenancy_agreement": ta.name,
+            "tenant": ta.tenant,
+            "unit": ta.unit,
+            "agreement_amount": flt(ta.monthly_rent) + extra,
+            "invoice_amount": amount + extra + recharge,
+            "reason": ("Prorated for part period." if prorated else
+                       "Includes maintenance recharge." if recharge else ""),
+        })
+
+    run.insert()
+    return run.name
+
+
+@frappe.whitelist()
+def issue_run(run_name):
+    """Post the run. Allocation order is oldest invoice first, and within an
+    invoice rent settles before recharge."""
+    run = frappe.get_doc("Invoice Run", run_name)
+
+    if run.status == "Issued":
+        frappe.throw("This run has already been issued.")
+    if run.has_variance and run.status != "Pending GM":
+        frappe.throw("A run with variances needs the General Manager first.")
+    if run.status == "Pending GM":
+        roles = frappe.get_roles(frappe.session.user)
+        if not ({"General Manager", "Managing Director"} & set(roles)):
+            frappe.throw("Only the General Manager or the MD may issue a run "
+                         "that carries variances.")
+
+    company = run.company
+    income = _income_account(company)
+    cost_center = frappe.db.get_value("Building", run.building, "cost_center")
     made = 0
-    income = _account(INCOME_ACCOUNT, co.abbr)
-    for a in frappe.get_all(
-            "Tenant Rental Agreement", filters={"status": "Active"},
-            fields=["name", "tenant", "building", "unit", "monthly_rent",
-                    "start_date", "end_date"]):
-        rent = flt(a.monthly_rent)
-        if rent <= 0:
-            continue
-        # lease must overlap the month
-        if (a.start_date and getdate(a.start_date) > end) or \
-           (a.end_date and getdate(a.end_date) < start):
-            continue
-        if frappe.db.exists("Sales Invoice",
-                            {"custom_rental_agreement": a.name,
-                             "custom_billing_period": period,
-                             "docstatus": ["<", 2]}):
-            continue
 
+    for line in run.lines:
+        if line.sales_invoice:
+            continue
         si = frappe.get_doc({
             "doctype": "Sales Invoice",
-            "customer": a.tenant,
-            "company": co.name,
-            "posting_date": start,
-            "due_date": start,
-            "custom_rental_agreement": a.name,
-            "custom_billing_period": period,
-            "cost_center": _cost_center(a.building, co.abbr),
+            "customer": line.tenant,
+            "company": company,
+            "posting_date": run.period_start,
+            "due_date": run.period_start,
+            "cost_center": cost_center,
+            "remarks": f"Rent for {getdate(run.period_start):%B %Y} — "
+                       f"{line.unit}, {run.building}",
             "items": [{
-                "item_code": TENANT_ITEM,
+                "item_name": f"Rent — {line.unit}",
+                "description": f"Monthly rent, {getdate(run.period_start):%B %Y}",
                 "qty": 1,
-                "rate": rent,
+                "rate": flt(line.invoice_amount),
                 "income_account": income,
-                "cost_center": _cost_center(a.building, co.abbr),
-                "description": "Rent %s — %s / %s" % (period, a.building,
-                                                      a.unit or ""),
+                "cost_center": cost_center,
+                "uom": "Nos",
             }],
         })
-        si.flags.ignore_permissions = True
-        si.insert()
-        if AUTO_SUBMIT:
-            si.submit()
+        si.flags.ignore_mandatory = True
+        si.insert(ignore_permissions=True)
+        si.submit()
+        line.db_set("sales_invoice", si.name)
         made += 1
-    return made
+
+    _close_recharges(run)
+    run.db_set({"status": "Issued", "issued_on": frappe.utils.now(),
+                "approved_by": frappe.session.user})
+    return {"run": run.name, "invoices": made}
 
 
-# ----------------------------------------------------------- landlord side
+def _close_recharges(run):
+    for line in run.lines:
+        for r in _recharges(line.tenant, run.building):
+            frappe.db.set_value("Maintenance Request", r.name,
+                                "recharge_status", "Invoiced")
 
-def _landlord_invoices(start, end, period, co):
-    made = 0
-    expense = _account(EXPENSE_ACCOUNT, co.abbr)
-    for c in frappe.get_all(
-            "Landlord Contract", filters={"status": "Active"},
-            fields=["name", "landlord", "building", "total_owner_rent",
-                    "contract_start_date", "contract_end_date",
-                    "grace_period_days"]):
-        amt = flt(c.total_owner_rent)
-        if amt <= 0:
-            continue
-        if (c.contract_start_date and getdate(c.contract_start_date) > end) or \
-           (c.contract_end_date and getdate(c.contract_end_date) < start):
-            continue
-        # grace: nothing is payable while the whole month sits inside the
-        # grace window (contract start + grace_period_days)
-        g = cint(c.grace_period_days)
-        if g and c.contract_start_date and \
-                getdate(add_days(c.contract_start_date, g)) >= end:
-            continue
-        if frappe.db.exists("Purchase Invoice",
-                            {"custom_landlord_contract": c.name,
-                             "custom_billing_period": period,
-                             "docstatus": ["<", 2]}):
-            continue
 
-        pi = frappe.get_doc({
-            "doctype": "Purchase Invoice",
-            "supplier": c.landlord,
-            "company": co.name,
-            "posting_date": start,
-            "due_date": start,
-            "custom_landlord_contract": c.name,
-            "custom_billing_period": period,
-            "cost_center": _cost_center(c.building, co.abbr),
-            "items": [{
-                "item_code": LANDLORD_ITEM,
-                "qty": 1,
-                "rate": amt,
-                "expense_account": expense,
-                "cost_center": _cost_center(c.building, co.abbr),
-                "description": "Head-lease rent %s — %s" % (period,
-                                                            c.building),
-            }],
-        })
-        pi.flags.ignore_permissions = True
-        pi.insert()
-        if AUTO_SUBMIT:
-            pi.submit()
-        made += 1
-    return made
+def monthly_reminder():
+    """Scheduled. Does not generate anything — invoicing stays a decision a
+    person takes per building, so this only says which buildings are due."""
+    day = frappe.db.get_single_value("DBR Settings",
+                                     "invoice_generation_day") or 1
+    if getdate(today()).day != int(day):
+        return
+
+    period_start = get_first_day(today())
+    pending = []
+    for b in frappe.get_all("Building", filters={"status": "Active"},
+                            pluck="name"):
+        if not frappe.db.exists("Invoice Run", {
+                "building": b, "period_start": period_start,
+                "status": ["!=", "Cancelled"]}):
+            pending.append(b)
+
+    if not pending:
+        return
+    for user in _accounts_users():
+        frappe.get_doc({
+            "doctype": "Notification Log",
+            "for_user": user,
+            "type": "Alert",
+            "subject": f"{len(pending)} buildings due for invoicing",
+            "email_content": "Not yet generated this period: "
+                             + ", ".join(pending),
+        }).insert(ignore_permissions=True)
+    frappe.db.commit()
+
+
+def _accounts_users():
+    return [r.parent for r in frappe.get_all(
+        "Has Role", filters={"role": ["in", ("Accounts", "Managing Director")]},
+        fields=["parent"]) if "@" in (r.parent or "")]

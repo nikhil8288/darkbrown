@@ -1,0 +1,104 @@
+{
+ "charts": [],
+ "content": "[{\"id\": \"Agreements_hdr\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>Agreements</b></span>\", \"col\": 12}}, {\"id\": \"Agreements_sc_hdr\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\">Shortcuts</span>\", \"col\": 12}}, {\"id\": \"Agreements_sc_Tenancy_Agreement\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Tenancy Agreement\", \"col\": 3}}, {\"id\": \"Agreements_sc_Head_Lease\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Head Lease\", \"col\": 3}}, {\"id\": \"Agreements_c_Leases\", \"type\": \"card\", \"data\": {\"card_name\": \"Leases\", \"col\": 4}}, {\"id\": \"Agreements_c_Changes\", \"type\": \"card\", \"data\": {\"card_name\": \"Changes\", \"col\": 4}}]",
+ "creation": "2026-07-28 00:00:00.000000",
+ "docstatus": 0,
+ "doctype": "Workspace",
+ "for_user": "",
+ "hide_custom": 0,
+ "icon": "file",
+ "idx": 0,
+ "indicator_color": "",
+ "is_hidden": 0,
+ "label": "Agreements",
+ "links": [
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Leases",
+   "link_count": 2,
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Head Lease",
+   "link_count": 0,
+   "link_to": "Head Lease",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Tenancy Agreement",
+   "link_count": 0,
+   "link_to": "Tenancy Agreement",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Changes",
+   "link_count": 2,
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Agreement Amendment",
+   "link_count": 0,
+   "link_to": "Agreement Amendment",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Move-Out Case",
+   "link_count": 0,
+   "link_to": "Move Out Case",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  }
+ ],
+ "modified": "2026-07-28 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Darkbrown",
+ "name": "Agreements",
+ "number_cards": [],
+ "owner": "Administrator",
+ "parent_page": "DarkBrown",
+ "public": 1,
+ "quick_lists": [],
+ "roles": [],
+ "sequence_id": 4.0,
+ "shortcuts": [
+  {
+   "color": "Green",
+   "doc_view": "",
+   "label": "Tenancy Agreement",
+   "link_to": "Tenancy Agreement",
+   "type": "DocType"
+  },
+  {
+   "color": "Purple",
+   "doc_view": "",
+   "label": "Head Lease",
+   "link_to": "Head Lease",
+   "type": "DocType"
+  }
+ ],
+ "title": "Agreements"
+}

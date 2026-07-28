@@ -1,0 +1,12 @@
+/* DarkBrown V2 — desk accents.
+   Deliberately light: this rides on Frappe's own design system rather than
+   fighting it, so upgrades do not break the look. */
+:root {
+  --db-cocoa: #2b2119;
+  --db-brass: #8a6f3f;
+  --db-emerald: #2f6f5b;
+  --db-porcelain: #faf6ee;
+}
+.db-stub .db-stub-tag { font-family: var(--font-stack); }
+[data-doctype="Collection Case"] .indicator-pill.red,
+[data-doctype="Cheque"] .indicator-pill.red { font-weight: 600; }
