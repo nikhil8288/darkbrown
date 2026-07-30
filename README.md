@@ -37,6 +37,18 @@ renders from the prototype's own seeded values.
 utilities and settings. Landlords are Suppliers and tenants are Customers with
 identity fields layered on; there is no separate party master.
 
+## Demo data
+
+A dummy portfolio for proving the workflow before real data lands. The seeder
+drives the app's own APIs rather than writing records, so a clean seed means a
+clean write path.
+
+    bench --site <site> execute darkbrown.demo.run.preview
+    bench --site <site> execute darkbrown.demo.run.rebuild \
+          --kwargs "{'confirm': 'REMOVE ALL DARKBROWN DATA'}"
+
+See `darkbrown/demo/README.md`.
+
 ## Install
 
     bench get-app darkbrown /path/to/darkbrown

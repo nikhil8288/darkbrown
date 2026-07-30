@@ -73,6 +73,24 @@ is two versions mixed together. Use `git pull`.
 
 ---
 
+## Demo data and reset
+
+`darkbrown/demo` purges the site's DarkBrown data and lays down a dummy
+portfolio in its place — three buildings, twenty-four units, twenty tenancies,
+with a bounce, an arrears case, a move-out and an approvals queue already in
+flight. Every record is created through the app's own whitelisted APIs, so the
+seed doubles as an end-to-end test of the write path.
+
+```bash
+bench --site erp.darkbrown.qa backup --with-files
+bench --site erp.darkbrown.qa execute darkbrown.demo.run.preview
+bench --site erp.darkbrown.qa execute darkbrown.demo.run.rebuild \
+      --kwargs "{'confirm': 'REMOVE ALL DARKBROWN DATA'}"
+```
+
+The purge is scoped by party, not by doctype: the Company, chart of accounts,
+bank accounts, users, roles and settings survive it. It is still irreversible.
+
 ## Roles
 
 `Managing Director`, `General Manager`, `Accounts`, `Documentation`,
