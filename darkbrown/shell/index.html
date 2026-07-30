@@ -586,6 +586,7 @@ body.focus main{max-width:none}
     <div class="nv" data-r="approvals">Approvals <span class="b">4</span></div>
     <div class="nv" data-r="reports">Reports</div>
     <div class="nv" data-r="admin">Admin</div>
+    <div class="nv" data-r="data">Data &amp; demo</div>
   </nav>
   <div class="user" id="userbox" onclick="cycleRole()" title="Switch role"><div class="av">MD</div><div>Managing Director<small>Reserved approvals · full access</small></div></div>
 </aside>
@@ -598,8 +599,8 @@ body.focus main{max-width:none}
     <button data-p="jul" class="on">Jul '26</button><button data-p="jun">Jun '26</button>
     <button data-p="q3">Q3</button><button data-p="ytd">YTD</button>
   </div>
-  <div class="ticker">Next landlord cheque <b>486K</b><span>· Al Kuwari Est. · in 7 days</span></div>
-  <div class="sync">Synced 07:12 · Sun 26 Jul</div>
+  <div class="ticker" id="ticker">Next landlord cheque <b id="tickAmt">486K</b><span id="tickDays">· Al Kuwari Est. · in 7 days</span></div>
+  <div class="sync" id="sync">Synced 07:12 · Sun 26 Jul</div>
   <div class="bellwrap">
     <button class="bell" id="bell" onclick="toggleNotif()" aria-label="Notifications">
       <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7"
@@ -933,6 +934,8 @@ function router(){
   document.querySelectorAll('.nv').forEach(n=>n.classList.toggle('on',n.dataset.r===r));
   el('#ptoggle').style.display=r==='dash'?'flex':'none';
   if(r==='dash') renderDash();
+  else if(window.DB_LIVE) gateChrome();
+  if(r==='data'&&window.dtResume) setTimeout(window.dtResume,0);
   const fc=el('#footcount');
   if(fc) fc.textContent = window.DB_LIVE
     ? `${BUILDINGS.length} buildings · ${UNITS.length} units · live data`
@@ -950,7 +953,8 @@ function router(){
    runs:'Distribution runs',run:'Distribution run',memo:'Approval memo',
    planning:'Planning',capacity:'Capacity curve',forecast:'Forecast',scenarios:'Scenarios',
    scenario:'Scenario',model:'Building model',portfolioplan:'Portfolio plan',targets:'Targets',
-   risks:'Risk & uncertainty',cfo:'Digital CFO',pactions:'Planning actions'}[r])||'Darkbrown';
+   risks:'Risk & uncertainty',cfo:'Digital CFO',pactions:'Planning actions',
+   data:'Data & demo'}[r])||'Darkbrown';
 }
 window.toggleNav=()=>{const s=document.getElementById('side');const on=s.classList.toggle('open');
   document.getElementById('scrim').classList.toggle('on',on);
@@ -1731,12 +1735,29 @@ const DASH_UNWIRED={
  unmatched:'No bank statement import exists yet.',
  overrides:'Override logging is not captured server-side yet.'};
 
+function gateChrome(){
+  const sy=document.getElementById('sync');
+  if(sy) sy.textContent='Live \u00b7 '+new Date().toLocaleString('en-GB',
+    {hour:'2-digit',minute:'2-digit',day:'2-digit',month:'short'});
+  const tk=document.getElementById('tickAmt'), td=document.getElementById('tickDays');
+  const next=((window.DB_SEED&&DB_SEED.panels&&DB_SEED.panels.llCheques)||[])[0];
+  if(tk&&td){
+    if(next){tk.textContent=next.amt+'K';td.textContent='\u00b7 '+next.ll+' \u00b7 '+next.due;}
+    else{tk.textContent='\u2014';td.textContent='\u00b7 no scheduled landlord payment';}
+  }
+}
+window.gateChrome=gateChrome;
+
 function gateDash(){
   if(!window.DB_LIVE) return;
+  gateChrome();
   /* the badge on an unwired panel is prototype fiction too */
   ['lowTag','undepTag','voidTag'].forEach(id=>{
     const e=document.getElementById(id); if(e){e.textContent='';e.className='tag';}
   });
+  const sy=document.getElementById('sync');
+  if(sy) sy.textContent='Live \u00b7 '+new Date().toLocaleString('en-GB',
+    {hour:'2-digit',minute:'2-digit',day:'2-digit',month:'short'});
   const tk=document.getElementById('tickAmt'), td=document.getElementById('tickDays');
   if(tk&&td){
     const next=(window.DB_SEED&&DB_SEED.panels&&DB_SEED.panels.llCheques||[])[0];
@@ -3390,7 +3411,90 @@ const ROLES={MD:['Managing Director','Reserved approvals · full access'],
  GM:['General Manager','Operations · reads owner balances'],
  ACC:['Accounts','Fatima N. · classifies, cannot see balances'],
  DOC:['Documentation','Aisha R. · intake and vault']};
-const RESTRICTED=['owners','shareholder','policy','runs','run','memo'];
+const RESTRICTED=['owners','shareholder','policy','runs','run','memo','data'];
+
+/* ============ Data & demo ============
+   Purging the portfolio and laying down a dummy one are things the owner
+   does, so they belong on a screen with a button on them rather than in a
+   shell. A rebuild runs in the background and this polls it, because the
+   work outlives a web request. */
+let DATA_POLL=null, DATA_LOG='Nothing has run yet.', DATA_STATE='idle';
+ROUTES.data=()=>page('Data & demo',
+  'Clear the site and lay down a test portfolio. Reserved to the Managing Director.',
+  '',
+  `<div class="card"><h3>What is on the site now</h3>
+     <div id="dtCounts" class="mt">Not counted yet.</div>
+     <div style="margin-top:12px"><button class="btn" onclick="dtPreview()">Count it</button></div>
+   </div>
+
+   <div class="card" style="margin-top:14px"><h3>Rebuild</h3>
+     <p class="mt" style="max-width:64ch">This removes every DarkBrown record and the ERPNext
+     invoices, payments, tenants and landlords that came with them, then lays down three
+     buildings, twenty-four units and twenty tenancies with a bounce, an arrears case and a
+     move-out already running. <b>It cannot be undone.</b> Take a backup first.</p>
+     <div class="fg" style="margin-top:12px;max-width:420px">
+       <label class="fl full"><span>Type <b>REMOVE ALL DARKBROWN DATA</b> to unlock</span>
+         <input id="dtConfirm" placeholder="REMOVE ALL DARKBROWN DATA" oninput="dtLock()">
+       </label>
+     </div>
+     <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
+       <button class="btn" id="dtRebuild" disabled onclick="dtStart('rebuild')">Purge, seed and verify</button>
+       <button class="btn" id="dtPurge" disabled onclick="dtStart('purge')">Purge only</button>
+       <button class="btn" onclick="dtStart('seed')">Seed only</button>
+       <button class="btn" onclick="dtStart('verify')">Verify only</button>
+     </div>
+   </div>
+
+   <div class="card" style="margin-top:14px"><h3>Log <span class="tag" id="dtState">${DATA_STATE}</span></h3>
+     <pre id="dtLog" style="max-height:460px;overflow:auto;font:11.5px/1.55 var(--mono);
+       white-space:pre-wrap;margin:10px 0 0;padding:12px;background:rgba(0,0,0,.035);
+       border-radius:3px">${esc(DATA_LOG)}</pre>
+   </div>`);
+
+/* Reattaches to a job already running, so navigating away and back does not
+   lose it and a re-render cannot blank the log. */
+window.dtResume=()=>{ if(DATA_STATE==='running') dtPoll(); };
+
+window.dtLock=()=>{
+  const ok=(document.getElementById('dtConfirm')||{}).value==='REMOVE ALL DARKBROWN DATA';
+  ['dtRebuild','dtPurge'].forEach(id=>{const b=document.getElementById(id);if(b)b.disabled=!ok});
+};
+window.dtPreview=async()=>{
+  const box=document.getElementById('dtCounts'); box.textContent='Counting\u2026';
+  try{
+    const r=await dbCall('admin.preview',{});
+    const rows=Object.entries(r.counts||{}).sort((a,b)=>b[1]-a[1]);
+    box.innerHTML=rows.length
+      ? `<table>${rows.map(([k,v])=>`<tr><td>${k}</td><td class="r num">${v}</td></tr>`).join('')}
+         </table><div class="foot"><span>${r.total} records in total</span></div>`
+      : 'Nothing on the site \u2014 it is already empty.';
+  }catch(e){ box.textContent='Could not count: '+e.message; }
+};
+window.dtStart=async(action)=>{
+  DATA_LOG='Starting\u2026'; DATA_STATE='running';
+  const log=document.getElementById('dtLog');
+  if(log) log.textContent=DATA_LOG;
+  try{
+    await dbCall('admin.start',{action,confirm:(document.getElementById('dtConfirm')||{}).value||null});
+    dtPoll();
+  }catch(e){ DATA_LOG=e.message; DATA_STATE='failed';
+             const l=document.getElementById('dtLog'); if(l) l.textContent=DATA_LOG; }
+};
+window.dtPoll=async()=>{
+  clearInterval(DATA_POLL);
+  const tick=async()=>{
+    try{
+      const r=await dbCall('admin.progress',{});
+      DATA_LOG=r.log||'Working\u2026'; DATA_STATE=r.state;
+      const log=document.getElementById('dtLog'), st=document.getElementById('dtState');
+      if(log){log.textContent=DATA_LOG;log.scrollTop=log.scrollHeight;}
+      if(st){st.textContent=r.state;st.className='tag '+(r.state==='running'?'amb':r.state==='failed'?'red':'tea')}
+      if(r.state!=='running'){ clearInterval(DATA_POLL); if(window.dbRefresh) dbRefresh(); }
+    }catch(e){ clearInterval(DATA_POLL); }
+  };
+  await tick();
+  DATA_POLL=setInterval(tick,2000);
+};
 const PLANONLY=['planning','capacity','forecast','fva','scenarios','scenario','compare','model','portfolioplan','unitplan','targets','solver','risks','optimise','cfo','pactions','pconfig'];
 window.cycleRole=()=>{const o=['MD','GM','ACC','DOC'];
   if(DB_REAL_ROLE!=='MD'){toast('Your role is set by your login');return}ROLEV=o[(o.indexOf(ROLEV)+1)%4];applyRole();
