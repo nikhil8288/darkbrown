@@ -17,27 +17,48 @@ CURRENCY = "QAR"
 
 # Two banks, because the real business runs two and the reconciliation story
 # only makes sense with more than one.
+# No IBANs. ERPNext checksum-validates them and an invented one is refused,
+# which would fail the whole prerequisite step over a cosmetic field.
 BANKS = [
-    {"bank": "Qatar National Bank", "account_name": "QNB Current — Operations",
-     "iban": "QA12QNBA000000000000011122233"},
-    {"bank": "Doha Bank", "account_name": "Doha Bank Current — Collections",
-     "iban": "QA44DOHB000000000000055566677"},
+    {"bank": "Qatar National Bank", "account_name": "QNB Current — Operations"},
+    {"bank": "Doha Bank", "account_name": "Doha Bank Current — Collections"},
 ]
 
 MODES = ["Cash", "Cheque", "Bank Transfer"]
 
 
 def ensure(verbose=True):
+    """Each part stands on its own. A bank account that will not create is
+    worth a line in the log, not a dead run — the settings singleton still has
+    to be written or every finance call after this fails looking for a
+    company."""
     company = _company()
-    accounts = [_bank_account(b, company) for b in BANKS]
-    _modes()
-    _settings(company, accounts[0])
+
+    accounts = []
+    for b in BANKS:
+        try:
+            accounts.append(_bank_account(b, company))
+        except Exception as e:
+            if verbose:
+                print(f"  !  bank account {b['bank']}: "
+                      f"{str(e).splitlines()[0][:90]}")
+            frappe.db.rollback()
+
+    try:
+        _modes()
+    except Exception:
+        frappe.db.rollback()
+
+    _settings(company, accounts[0] if accounts else None)
     frappe.db.commit()
 
     if verbose:
         print(f"  company        {company}")
         for a in accounts:
             print(f"  bank account   {a}")
+        if not accounts:
+            print("  bank account   none — receipts will fall back to the "
+                  "first bank account on the company")
     return {"company": company, "bank_accounts": accounts}
 
 
@@ -86,7 +107,6 @@ def _bank_account(spec, company):
         "is_company_account": 1,
         "company": company,
         "account": gl,
-        "iban": spec["iban"],
     })
     doc.flags.ignore_mandatory = True
     return doc.insert(ignore_permissions=True).name
@@ -121,7 +141,8 @@ def _modes():
 def _settings(company, bank_account):
     doc = frappe.get_single("DBR Settings")
     doc.default_company = company
-    doc.default_bank_account = bank_account
+    if bank_account:
+        doc.default_bank_account = bank_account
     if not doc.amendment_md_threshold:
         # Q14 sits open at a provisional QAR 50,000. The demo runs on that
         # figure so the routing can be seen working; change it here when the

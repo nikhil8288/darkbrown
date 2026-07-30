@@ -3437,6 +3437,10 @@ ROUTES.data=()=>page('Data & demo',
          <input id="dtConfirm" placeholder="REMOVE ALL DARKBROWN DATA" oninput="dtLock()">
        </label>
      </div>
+     <label class="fc" style="margin-top:10px"><input type="checkbox" id="dtWide">
+       <span>Also remove invoices and payments that carry no DarkBrown party.
+       Ordinary purge scopes by party, so anything imported outside this app
+       survives it — tick this for a genuinely empty site.</span></label>
      <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
        <button class="btn" id="dtRebuild" disabled onclick="dtStart('rebuild')">Purge, seed and verify</button>
        <button class="btn" id="dtPurge" disabled onclick="dtStart('purge')">Purge only</button>
@@ -3475,7 +3479,9 @@ window.dtStart=async(action)=>{
   const log=document.getElementById('dtLog');
   if(log) log.textContent=DATA_LOG;
   try{
-    await dbCall('admin.start',{action,confirm:(document.getElementById('dtConfirm')||{}).value||null});
+    await dbCall('admin.start',{action,
+      confirm:(document.getElementById('dtConfirm')||{}).value||null,
+      wide:(document.getElementById('dtWide')||{}).checked?1:0});
     dtPoll();
   }catch(e){ DATA_LOG=e.message; DATA_STATE='failed';
              const l=document.getElementById('dtLog'); if(l) l.textContent=DATA_LOG; }

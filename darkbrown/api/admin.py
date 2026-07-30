@@ -67,7 +67,7 @@ def preview():
 
 
 @frappe.whitelist()
-def start(action, confirm=None):
+def start(action, confirm=None, wide=0):
     """Hand a long job to a background worker."""
     _guard()
     if action not in ACTIONS:
@@ -85,7 +85,7 @@ def start(action, confirm=None):
 
     _reset_log()
     frappe.enqueue("darkbrown.api.admin.execute", queue="long", timeout=3600,
-                   action=action, confirm=confirm,
+                   action=action, confirm=confirm, wide=int(wide or 0),
                    user=frappe.session.user)
     return {"started": action}
 
@@ -108,7 +108,7 @@ def clear():
 
 # ----------------------------------------------------------------- the worker
 
-def execute(action, confirm=None, user=None):
+def execute(action, confirm=None, wide=0, user=None):
     """Runs in the background. Everything the demo scripts print is captured
     line by line so the screen can show it as it happens."""
     if user:
@@ -120,13 +120,13 @@ def execute(action, confirm=None, user=None):
     try:
         with contextlib.redirect_stdout(buf):
             if action == "purge":
-                run_mod.purge(confirm=confirm)
+                run_mod.purge(confirm=confirm, wide=bool(wide))
             elif action == "seed":
                 run_mod.seed()
             elif action == "verify":
                 run_mod.verify()
             elif action == "rebuild":
-                run_mod.rebuild(confirm=confirm)
+                run_mod.rebuild(confirm=confirm, wide=bool(wide))
         _append("\n\nDone.\n")
         _finish("done")
     except Exception:

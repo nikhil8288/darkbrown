@@ -36,6 +36,11 @@ class Run:
     def step(self, label, fn):
         try:
             out = fn()
+            # Commit each step that lands. Without this a later failure rolls
+            # the whole transaction back and quietly undoes work that had
+            # already succeeded, which is how four maintenance jobs became
+            # two and four documents became none.
+            frappe.db.commit()
             self.steps.append((label, "ok", ""))
             if self.verbose:
                 print(f"  ok    {label}")
@@ -754,6 +759,9 @@ def _utility_bill(r):
             return None
         total = 9800.0
         share = round(total / len(units), 2)
+        # the last row carries the rounding remainder, so the parts can never
+        # add up to more than the bill
+        last = round(total - share * (len(units) - 1), 2)
         doc = frappe.get_doc({
             "doctype": "Utility Bill",
             "building": building,
@@ -776,9 +784,9 @@ def _utility_bill(r):
                 "unit": u.name, "tenant": tenant,
                 "share_pct": round(100.0 / len(units), 2),
                 "consumption": round(14200.0 / len(units), 1),
-                "amount": share,
+                "amount": last if u.name == units[-1].name else share,
             })
-        doc.allocated_total = share * len(units)
+        doc.allocated_total = sum(a.amount for a in doc.allocations)
         doc.unallocated = total - doc.allocated_total
         doc.status = "Allocated"
         doc.flags.ignore_mandatory = True

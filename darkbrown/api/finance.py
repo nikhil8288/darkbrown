@@ -511,10 +511,12 @@ def pay_head_lease(head_lease, row, payload=None):
             break
     if not line:
         frappe.throw(_("That payment is not on {0}.").format(head_lease))
-    if line.status == "Paid":
+    if line.status == "Cleared":
         frappe.throw(_("That payment is already settled."))
 
-    line.status = "Paid"
+    # Cleared, not Paid. The cheque lifecycle already owns this vocabulary and
+    # a second word for the same state drifts apart from the first.
+    line.status = "Cleared"
     line.paid_on = data.get("on") or today()
     line.payment_mode = data.get("mode") or line.payment_mode
     if data.get("cheque"):

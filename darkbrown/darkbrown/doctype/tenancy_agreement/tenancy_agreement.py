@@ -1,11 +1,13 @@
 import frappe
 from frappe import _
 from frappe.model.document import Document
+from frappe.utils import getdate
 
 
 class TenancyAgreement(Document):
 	def validate(self):
-		if self.end_date and self.start_date and self.end_date <= self.start_date:
+		if self.end_date and self.start_date and \
+				getdate(self.end_date) <= getdate(self.start_date):
 			frappe.throw(_("End date must fall after the start date."))
 		self._set_activation_route()
 

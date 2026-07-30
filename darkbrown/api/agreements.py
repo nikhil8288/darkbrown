@@ -52,7 +52,10 @@ def create_agreement(payload):
     settings = _settings()
 
     start = getdate(data.get("start_date") or today())
-    end = data.get("end_date") or add_days(start, 364)
+    # getdate on both sides. Leaving one as the string the browser sent makes
+    # the controller compare a str to a date, which raises rather than
+    # validates.
+    end = getdate(data.get("end_date") or add_days(start, 364))
 
     doc = frappe.new_doc("Tenancy Agreement")
     doc.update({
