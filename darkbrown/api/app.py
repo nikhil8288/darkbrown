@@ -327,6 +327,16 @@ def role_code(user=None):
     return "ACC"
 
 
+def _health():
+    from darkbrown.api.command import health
+    return health()
+
+
+def _kpi():
+    from darkbrown.api.command import kpis
+    return kpis()
+
+
 def seed():
     """Everything the front end needs at boot, in one round trip.
 
@@ -341,7 +351,8 @@ def seed():
                     ("moveouts", moveouts), ("tenants", tenants),
                     ("agreements", agreements), ("invoices", invoices),
                     ("cheques", cheques), ("docs", docs),
-                    ("approvals", approvals), ("wall", wall)):
+                    ("approvals", approvals), ("wall", wall),
+                    ("health", _health), ("kpi", _kpi)):
         try:
             rows = fn()
         except Exception:

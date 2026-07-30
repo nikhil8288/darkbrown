@@ -519,6 +519,16 @@ body.focus main{max-width:none}
  .genbar .mini{margin:4px 0;text-align:center}
  .genbar button{width:100%}
 }
+
+/* ---------- not wired ---------- */
+.unwired{padding:18px 4px;text-align:center;color:var(--ink-3,#8a8378)}
+.unwired.big{padding:44px 24px}
+.uw-tag{display:inline-block;font:600 9px/1 'Montserrat',sans-serif;letter-spacing:.14em;
+ padding:5px 9px;border:1px solid currentColor;border-radius:2px;opacity:.65;margin-bottom:12px}
+.unwired p{margin:8px auto 0;max-width:46ch;font-size:12.5px;line-height:1.6}
+.unwired .uw-note{margin-top:14px;font-size:11.5px;opacity:.7;font-style:italic}
+.card.is-unwired{opacity:.72}
+.notrack{opacity:.45;cursor:help;letter-spacing:.05em}
 </style>
 
 </head>
@@ -599,7 +609,7 @@ body.focus main{max-width:none}
   </div>
 </header>
 <main><div id="view"></div></main>
-<footer>Darkbrown Real Estate · Elevated living. Crafted in Qatar. · V2 prototype — dummy data · 22 buildings · 276 units</footer>
+<footer>Darkbrown Real Estate · Elevated living. Crafted in Qatar. · <span id="footcount">—</span></footer>
 </div>
 <div class="tt" id="tt"></div>
 <div id="modal"></div>
@@ -868,6 +878,48 @@ window.dbDo = async (fn, okMsg) => {
   catch(e){ toast(e.message); }
 };
 const ROUTES={};
+
+/* ---------- screens with nothing behind them ----------
+   These render from the prototype's own invented figures. That was fine
+   while nothing was live; it is not fine once real records are on the site,
+   because there is no way to tell an invented number from a real one by
+   looking at it. When live, they say what they are and why. */
+const UNWIRED={
+ landlords:'Landlords are ERPNext Suppliers and the records exist — this list has not been pointed at them yet.',
+ batches:'Deposit Batch records exist. The list has not been pointed at them yet.',
+ vault:'Document Register records exist. The vault view has not been pointed at them yet.',
+ receipt:'Payment Entries exist. This detail view has not been pointed at them yet.',
+ runs:'Distribution runs belong to Stage 2I. Blocked on Q20 and Q21.',
+ run:'Distribution runs belong to Stage 2I. Blocked on Q20 and Q21.',
+ owners:'Owner and shareholder accounting is designed but not built. Blocked on Q20 and Q21.',
+ shareholder:'Owner and shareholder accounting is designed but not built. Blocked on Q20 and Q21.',
+ policy:'Distribution policy needs the reserve floor. Blocked on Q11.',
+ planning:'The reverse-planning solver is blocked on Q10 — excess cash as stock or flow.',
+ capacity:'The reverse-planning solver is blocked on Q10.',
+ forecast:'The reverse-planning solver is blocked on Q10.',
+ scenarios:'Scenario modelling needs the solver. Blocked on Q10.',
+ scenario:'Scenario modelling needs the solver. Blocked on Q10.',
+ model:'Building model needs the solver. Blocked on Q10.',
+ targets:'Targets need the solver. Blocked on Q10.',
+ pactions:'Planning actions need the solver. Blocked on Q10.',
+ cfo:'The Digital CFO needs the governed calculation services behind it before it can answer anything.',
+ closing:'Weekly closing is not a server-side process yet.',
+ reports:'Reporting has not been built against live records yet.',
+ coa:'Reads ERPNext accounts. Not pointed at them yet.',
+ ledger:'Reads ERPNext GL entries. Not pointed at them yet.',
+ journal:'Reads ERPNext journal entries. Not pointed at them yet.',
+ trial:'Reads ERPNext trial balance. Not pointed at them yet.'};
+
+function unwiredPage(r){
+  const t=({owners:'Owners & shareholders',planning:'Planning',cfo:'Digital CFO'}[r])||r;
+  return `<div class="hd"><h1>${t}</h1><p class="sub">Not wired to live data</p></div>
+  <div class="card"><div class="unwired big"><span class="uw-tag">NOT WIRED</span>
+    <p>${UNWIRED[r]}</p>
+    <p class="uw-note">This screen has a design and a prototype, but no server
+    behind it. Rather than show you invented figures next to your real ones,
+    it shows you nothing.</p></div></div>`;
+}
+
 function go(h){location.hash=h}
 window.go=go;
 function router(){
@@ -875,11 +927,16 @@ function router(){
   const [r,id]=h.split('/');
   const fn=ROUTES[r]||ROUTES.dash;
   document.body.classList.remove('focus');
-  el('#view').innerHTML=(typeof roleCan==='function'&&!roleCan(r))?roleBlock(r):(fn(id)||empty('Not found'));
+  el('#view').innerHTML=(typeof roleCan==='function'&&!roleCan(r))?roleBlock(r)
+    :(window.DB_LIVE&&UNWIRED[r])?unwiredPage(r):(fn(id)||empty('Not found'));
   window.scrollTo(0,0);
   document.querySelectorAll('.nv').forEach(n=>n.classList.toggle('on',n.dataset.r===r));
   el('#ptoggle').style.display=r==='dash'?'flex':'none';
   if(r==='dash') renderDash();
+  const fc=el('#footcount');
+  if(fc) fc.textContent = window.DB_LIVE
+    ? `${BUILDINGS.length} buildings · ${UNITS.length} units · live data`
+    : `V2 prototype — dummy data · ${BUILDINGS.length} buildings · ${UNITS.length} units`;
   el('#ptop').textContent=({dash:'MD Command Centre',mywork:'My Work',buildings:'Buildings',building:'Building',
    units:'Units',unit:'Unit',tenants:'Tenants',tenant:'Tenant',landlords:'Landlords',landlord:'Landlord',
    agreements:'Agreements',agreement:'Agreement',cases:'Collection cases',case:'Collection case',
@@ -1036,7 +1093,7 @@ const DASH_TPL=`<div class="grid">
   <div class="card c4"><h3>Deposit gauge <span class="plabel">balance-sheet exposure</span></h3><div id="deposits"></div></div>
   <div class="card c4"><h3>Occupancy trend <span class="plabel">12 months · 276 units</span></h3><div id="occ"></div></div>
 
-  <div class="card c12"><h3>Building health — 22 buildings × 6 raw metrics <span class="plabel">click any cell to drill · headers sort</span></h3>
+  <div class="card c12"><h3>Building health — <span class="cnt-b">—</span> × 6 raw metrics <span class="plabel">click any cell to drill · headers sort</span></h3>
     <div class="hmwrap" id="heatmap"></div></div>
 
   <div class="card c8"><h3>Portfolio table <span class="plabel" id="pl3"></span></h3><div style="overflow-x:auto" id="portfolio"></div></div>
@@ -1084,6 +1141,9 @@ const KPI={
       vd:1240, vdD:-4, br:3.2, brD:-0.6, unm:9, unmA:'2 > 5d', ap:4, apOld:2, label:"Jan–Jul '26"}
 };
 
+/* live data · replaces the seed when the server sent figures */
+if(window.DB_SEED&&DB_SEED.kpi){Object.keys(DB_SEED.kpi).forEach(k=>{KPI[k]=DB_SEED.kpi[k];});}
+
 /* ---------- sparkline ---------- */
 function spk(vals,color,w=62,h=20){
   const mn=Math.min(...vals),mx=Math.max(...vals),r=mx-mn||1;
@@ -1091,6 +1151,15 @@ function spk(vals,color,w=62,h=20){
   return `<svg width="${w}" height="${h}"><polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.4"/>
     <circle cx="${w}" cy="${(h-2-(vals[vals.length-1]-mn)/r*(h-4)).toFixed(1)}" r="2" fill="${color}"/></svg>`;
 }
+/* A figure this business does not record comes back null. It renders as an
+   em dash and says so on hover. It is never estimated to fill the card —
+   on this screen a plausible wrong number is the whole danger. */
+const NOTRACK={vd:'No void-start date is recorded on a unit, so elapsed void cannot be derived.',
+ cash:'The accounts sweep to near zero daily, so bank balance is not cash availability. Blocked on Q11.',
+ unm:'No bank statement import exists yet.'};
+window.kval=(v,fmt,key)=>(v===null||v===undefined)
+ ?`<span class="notrack" title="${NOTRACK[key]||'Not recorded yet.'}">&mdash;</span>`
+ :(fmt?fmt(v):v);
 const dcls=d=>d>0.05?'up':d<-0.05?'dn':'fl';
 const darr=(d,inv)=> (d>0.05?(inv?'▲ ':'▲ '):d<-0.05?'▼ ':'· ');
 function kdelta(d,goodUp,unit=''){
@@ -1155,26 +1224,49 @@ window.wallWhy=(i,ev)=>{
 };
 
 function renderKPIs(p){
-  const P=KPI[p];
+  const P=KPI[p], live=!!window.DB_LIVE;
+  /* Sparklines and month-on-month deltas come from twelve-month series the
+     server does not send yet. When live they are left off rather than drawn
+     from the prototype's invented history — a real headline figure with a
+     fictional trend under it is the worst of both. */
+  const sp=(vals,c)=>live?'':spk(spark(vals),c);
+  const dl=(v,goodUp,unit)=>(live&&(v===null||v===undefined))?'':kdelta(v||0,goodUp,unit);
+
+  const occV = live
+    ? (P.units?`${(P.occPct||0).toFixed(1)}%`:'\u2014')
+    : pc(occU[11]/276*100);
+  const occL = live?`Occupancy / ${P.units||0}`:'Occupancy / 276';
+
   const cells=[
-   {l:'Net spread '+P.label,v:k(P.spread),d:kdelta(P.spreadP,true,'%'),s:spk(spark(billed.map((b,i)=>b-llcost[i])),'#C9A86A')},
-   {l:'Spread margin',v:pc(P.margin),d:kdelta(P.marginD,true,'pt'),s:spk(spark(billed.map((b,i)=>(b-llcost[i])/b*100)),'#C9A86A')},
-   {l:'Collection rate',v:pc(P.coll),d:kdelta(P.collD,true,'pt'),s:spk(spark(collected.map((c,i)=>c/billed[i]*100)),'#2E6B57'),w:P.coll<93},
-   {l:'Occupancy / 276',v:pc(occU[11]/276*100),d:kdelta(-0.7,true,'pt'),s:spk(spark(occU),'#2E6B57')},
-   {l:'Total arrears',v:k(P.arr),d:kdelta(P.arrD,false,'%'),s:spk([371,380,376,392,388,396,418],'#A63D2F'),w:true},
-   {l:'PDC in · 30d',v:k(P.pdc30),d:kdelta(2.1,true,'%'),s:spk([940,980,1020,995,1050,1010,1085],'#2E6B57')},
-   {l:'Landlord out · 30d',v:k(P.ll30),d:kdelta(1.4,false,'%'),s:spk([958,958,964,964,972,972,986],'#A63D2F')},
-   {l:'Void days '+(p==='jul'?'MTD':''),v:P.vd,d:kdelta(P.vdD,false,'%'),s:spk([160,171,182,168,175,187,212],'#B07C2A'),w:P.vd>200},
-   {l:'Bounce rate 90d',v:pc(P.br),d:kdelta(P.brD,false,'pt'),s:spk([2.6,2.8,3.1,2.7,3.0,2.9,3.4],'#B07C2A'),w:P.br>3.2},
-   {l:'Unmatched bank',v:P.unm+' <span style="font:500 10px var(--mono);color:var(--amber)">'+P.unmA+'</span>',d:kdelta(P.unm-6,false,''),s:spk([4,7,5,8,6,6,9],'#B07C2A')},
-   {l:'MD approvals',v:P.ap+' <span style="font:500 10px var(--mono);color:var(--red)">'+P.apOld+' &gt; 48h</span>',d:'',s:spk([2,3,5,3,4,3,4],'#A63D2F'),c:P.apOld>0}
+   {l:'Net spread '+P.label,v:k(P.spread),d:dl(P.spreadP,true,'%'),
+    s:sp(billed.map((b,i)=>b-llcost[i]),'#C9A86A')},
+   {l:'Spread margin',v:pc(P.margin),d:dl(P.marginD,true,'pt'),
+    s:sp(billed.map((b,i)=>(b-llcost[i])/b*100),'#C9A86A')},
+   {l:'Collection rate',v:pc(P.coll),d:dl(P.collD,true,'pt'),
+    s:sp(collected.map((c,i)=>c/billed[i]*100),'#2E6B57'),w:P.coll<93},
+   {l:occL,v:occV,d:live?'':kdelta(-0.7,true,'pt'),s:sp(occU,'#2E6B57')},
+   {l:'Total arrears',v:k(P.arr),d:dl(P.arrD,false,'%'),
+    s:live?'':spk([371,380,376,392,388,396,418],'#A63D2F'),w:P.arr>0},
+   {l:'PDC in \u00b7 30d',v:k(P.pdc30),d:live?'':kdelta(2.1,true,'%'),
+    s:live?'':spk([940,980,1020,995,1050,1010,1085],'#2E6B57')},
+   {l:'Landlord out \u00b7 30d',v:k(P.ll30),d:live?'':kdelta(1.4,false,'%'),
+    s:live?'':spk([958,958,964,964,972,972,986],'#A63D2F')},
+   {l:'Void days '+(p==='jul'?'MTD':''),v:kval(P.vd,null,'vd'),d:dl(P.vdD,false,'%'),
+    s:live?'':spk([160,171,182,168,175,187,212],'#B07C2A'),w:P.vd>200},
+   {l:'Bounce rate 90d',v:pc(P.br),d:dl(P.brD,false,'pt'),
+    s:live?'':spk([2.6,2.8,3.1,2.7,3.0,2.9,3.4],'#B07C2A'),w:P.br>3.2},
+   {l:'Unmatched bank',v:kval(P.unm,v=>v+(P.unmA?' <span style="font:500 10px var(--mono);color:var(--amber)">'+P.unmA+'</span>':''),'unm'),
+    d:live?'':kdelta((P.unm||0)-6,false,''),s:live?'':spk([4,7,5,8,6,6,9],'#B07C2A')},
+   {l:'MD approvals',v:(P.ap||0)+' <span style="font:500 10px var(--mono);color:var(--red)">'+(P.apOld||0)+' &gt; 48h</span>',
+    d:'',s:live?'':spk([2,3,5,3,4,3,4],'#A63D2F'),c:(P.apOld||0)>0}
   ];
   renderWall();
   $('#kpis').innerHTML=cells.map(c=>`<div class="kpi ${c.c?'crit':c.w?'warn':''}" onclick="go('#/reports')" title="Drills to source">
     <div class="l">${c.l}</div><div class="row"><span class="v">${c.v}</span>${c.s}</div>
     <div style="margin-top:2px">${c.d}</div></div>`).join('');
-  document.querySelectorAll('.plabel#pl1,#pl2,#pl3').forEach(e=>e.textContent=P.label);
   $('#pl1').textContent=P.label; $('#pl2').textContent=P.label; $('#pl3').textContent=P.label;
+  const at=$('#apprTag');
+  if(at) at.textContent=`${P.ap||0} PENDING \u00b7 ${P.apOld||0} > 48h`;
 }
 
 /* ---------- cash runway hero ---------- */
@@ -1491,16 +1583,23 @@ const BD=BLD.map((b,i)=>{
   const ex=Math.round(rnd()*(i===6?6:3));
   return {n:b[0],u:units,occ,rev,cost,m:rev-cost,mp:(rev-cost)/rev*100,arr,vd,om,ex,d:(rnd()*4-2)};
 });
+/* live data · replaces the seed when the server sent rows */
+if(window.DB_SEED&&DB_SEED.health&&DB_SEED.health.length){BD.length=0;BD.push.apply(BD,DB_SEED.health);}
 /* heat colour: 0 good → 1 bad */
 const heat=t=>`rgba(${Math.round(46+t*120)},${Math.round(107-t*46)},${Math.round(87-t*40)},${(0.10+t*0.20).toFixed(2)})`;
 function renderHeatmap(){
+  document.querySelectorAll('.cnt-b').forEach(e=>e.textContent=BD.length+' buildings');
   const cols=[['occ','Occ %',v=>v+'%',(v)=>1-(v-70)/30],['mp','Margin %',v=>v.toFixed(0)+'%',v=>1-(v-8)/18],
    ['arr','Arrears',v=>v+'K',v=>v/58],['vd','Void days',v=>v,v=>v/38],['om','Open maint',v=>v,v=>v/7],['ex','Expiry risk',v=>v,v=>v/6]];
   let h='<table class="hm"><tr><th onclick="hmSort(\'n\')">Building</th>'+cols.map(c=>`<th class="r" onclick="hmSort('${c[0]}')">${c[1]}</th>`).join('')+'</tr>';
   for(const b of BD_view){
     h+=`<tr class="drill" onclick="go('#/buildings')" title="Opens ${b.n} workspace"><td>${b.n}</td>`+cols.map(c=>{
-      const t=Math.max(0,Math.min(1,c[3](b[c[0]])));
-      return `<td style="background:${heat(t)}">${c[2](b[c[0]])}</td>`}).join('')+'</tr>';
+      const v=b[c[0]];
+      /* a metric this business does not record leaves the cell blank and
+         uncoloured rather than shading a made-up score */
+      if(v===null||v===undefined) return `<td>${kval(null,null,c[0])}</td>`;
+      const t=Math.max(0,Math.min(1,c[3](v)))||0;
+      return `<td style="background:${heat(t)}">${c[2](v)}</td>`}).join('')+'</tr>';
   }
   $('#heatmap').innerHTML=h+'</table>';
 }
@@ -1523,7 +1622,7 @@ function renderPortfolio(){
      <td class="r num ${b.d>=0?'d up':'d dn'}">${b.d>=0?'+':''}${b.d.toFixed(1)}%</td></tr>`;
   }
   const T=BD.reduce((a,b)=>({rev:a.rev+b.rev,cost:a.cost+b.cost,arr:a.arr+b.arr}),{rev:0,cost:0,arr:0});
-  $('#portfolio').innerHTML=h+`</table><div class="foot"><span>22 buildings · 276 units</span>
+  $('#portfolio').innerHTML=h+`</table><div class="foot"><span>${BD.length} buildings · ${BD.reduce((a,b)=>a+b.u,0)} units</span>
    <span>Σ rev ${kk(T.rev)} · cost ${kk(T.cost)} · margin ${((T.rev-T.cost)/T.rev*100).toFixed(1)}% · arrears ${T.arr}K</span></div>`;
 }
 let PF_view=[...BD], pfDir=1, pfKey='';
@@ -1595,11 +1694,53 @@ document.addEventListener('change',e=>{if(e.target.id==='ckExp')renderRunway()})
 
 function renderDash(){
 bindDash();
-$('#apprTag').textContent='4 PENDING · 2 > 48h';
 renderKPIs('jul');renderRunway();renderLadder();renderCheques();renderApprovals();renderExceptions();
 renderBounces();renderArrears();renderVoids();renderExpiry();renderSpread();renderWaterfall();
 renderBillCol();renderRenewal();renderMaint();renderUtility();renderDeposits();renderOcc();
 renderHeatmap();renderPortfolio();renderConc();renderClosing();renderUnmatched();renderOverrides();renderTicker();
+  gateDash();
+}
+
+/* ---------- honest gate ----------
+   Wired: the wall, the KPI grid, the building heatmap and the portfolio
+   table. Everything else on this screen is still the prototype's own
+   invented figures, and once a server is sending real rows those two things
+   sitting side by side is worse than useless — there is no way to tell which
+   is which. So when live, the unwired panels say what they are instead of
+   showing a number nobody can trace. */
+const DASH_UNWIRED={
+ runway:'Cash runway needs a reserve denominator and an excess-cash target. Blocked on Q10 and Q11.',
+ pdcLadder:'Ready to wire — api.command.panels() returns this.',
+ llCheques:'Ready to wire — api.command.panels() returns this.',
+ exceptions:'No exceptions feed is generated server-side yet.',
+ bounces:'Ready to wire — api.command.panels() returns this.',
+ arrears:'Ready to wire — api.command.panels() returns this.',
+ voids:'Void days are not recorded. Needs a void-start date on Unit.',
+ expiry:'Ready to wire — api.command.panels() returns this.',
+ spread:'Ready to wire — api.command.panels() returns this.',
+ waterfall:'Needs the cost base split that Stage 2I defines. Blocked on Q21.',
+ billcol:'Ready to wire — api.command.panels() returns this.',
+ renewal:'Renewal outcomes are not tracked as a status yet.',
+ maint:'Ready to wire — api.command.panels() returns this.',
+ utility:'Recovery needs utility invoices raised against allocations.',
+ deposits:'Ready to wire — api.command.panels() returns this.',
+ occ:'Ready to wire — api.command.panels() returns this.',
+ conc:'Ready to wire — api.command.panels() returns this.',
+ closing:'Weekly closing is not a server-side process yet.',
+ unmatched:'No bank statement import exists yet.',
+ overrides:'Override logging is not captured server-side yet.'};
+
+function gateDash(){
+  if(!window.DB_LIVE) return;
+  Object.keys(DASH_UNWIRED).forEach(id=>{
+    const el=document.getElementById(id); if(!el) return;
+    el.innerHTML=`<div class="unwired"><span class="uw-tag">NOT WIRED</span>
+      <p>${DASH_UNWIRED[id]}</p></div>`;
+  });
+  document.querySelectorAll('.card h3').forEach(h=>{
+    const c=h.parentElement.querySelector('.unwired');
+    if(c) h.parentElement.classList.add('is-unwired');
+  });
 }
 
 /* ============ Darkbrown V2 — form engine + action views ============ */
@@ -2067,7 +2208,7 @@ ROUTES.mywork=()=>page('My work','Managing Director · reserved approvals cannot
 window.openAppr=id=>go('#/approval/'+id);
 
 /* ---------------- Buildings ---------------- */
-ROUTES.buildings=()=>page('Buildings','22 buildings · 276 units · sublease portfolio','',
+ROUTES.buildings=()=>page('Buildings',`${BUILDINGS.length} buildings · ${UNITS.length} units · sublease portfolio`,'',
  `<div class="card wiz"><div class="wz">
    <div><h3 style="margin-bottom:4px">Onboard a building</h3>
     <p class="pp">One pass captures the property, the landlord as a party, the documents, the head-lease terms and every unit number.
@@ -2114,7 +2255,7 @@ ROUTES.building=id=>{const b=B(id)||BUILDINGS[0]; const us=UNITS.filter(u=>u.b==
     ags.map(a=>({...a,__id:a.id})),{id:'ba',click:'openA'}):empty('No agreements')}</div>`)};
 
 /* ---------------- Units ---------------- */
-ROUTES.units=()=>page('Units','276 units across 22 buildings','',
+ROUTES.units=()=>page('Units',`${UNITS.length} units across ${BUILDINGS.length} buildings`,'',
  stat([['Total',276],['Occupied',UNITS.filter(u=>u.st==='Occupied').length],
   ['Void',UNITS.filter(u=>u.st==='Void').length,'',
   'r'],['On notice',UNITS.filter(u=>u.st==='Notice').length,'','a']])+
@@ -3749,7 +3890,7 @@ ROUTES.portfolioplan=()=>page('Portfolio plan','Every building against the sprea
   {h:'Margin %',r:1,mono:1,v:b=>b.mp.toFixed(1)+'%',
    style:b=>b.mp<18?'color:var(--red)':b.mp<24?'color:var(--amber)':'color:var(--em)'},
   {h:'Verdict',v:b=>b.mp<18?chip('Below threshold','r'):b.mp<24?chip('Watch','a'):chip('Hold','g')}],
-  BUILDINGS.map(b=>({...b,__id:b.id})),{id:'pp',click:'openB',foot:['22 buildings','click a header to sort']})}</div>
+  BUILDINGS.map(b=>({...b,__id:b.id})),{id:'pp',click:'openB',foot:[BUILDINGS.length+' buildings','click a header to sort']})}</div>
  <div class="card" id="sec-v"><h3>Void units and the plan for each</h3>${voidTable('vp')}</div>`);
 
 ROUTES.model=()=>page('Building model','Quick model for a candidate building · detailed model once terms are agreed',
