@@ -337,6 +337,11 @@ def _kpi():
     return kpis()
 
 
+def _panels():
+    from darkbrown.api.command import panels
+    return panels()
+
+
 def seed():
     """Everything the front end needs at boot, in one round trip.
 
@@ -352,7 +357,8 @@ def seed():
                     ("agreements", agreements), ("invoices", invoices),
                     ("cheques", cheques), ("docs", docs),
                     ("approvals", approvals), ("wall", wall),
-                    ("health", _health), ("kpi", _kpi)):
+                    ("health", _health), ("kpi", _kpi),
+                    ("panels", _panels)):
         try:
             rows = fn()
         except Exception:
