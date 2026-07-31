@@ -787,16 +787,30 @@ def _cover(s):
     days = int(s.wall_cover_days or 60)
     horizon = add_days(today(), days)
 
-    owed = sum(flt(p.amount) for p in frappe.get_all(
+    # Owed splits into the backlog and the window. Both are real obligations
+    # and both stay in the ratio, but a single figure labelled "next 60 days"
+    # that silently carries every unpaid month of history reads as two months
+    # of rent when it is not — the split has to be on the tile.
+    overdue = sum(flt(p.amount) for p in frappe.get_all(
         "Head Lease Payment",
-        filters={"status": ["!=", "Paid"], "due_date": ["<=", horizon]},
+        filters={"status": ["!=", "Paid"], "due_date": ["<", today()]},
         fields=["amount"]))
+    due_window = sum(flt(p.amount) for p in frappe.get_all(
+        "Head Lease Payment",
+        filters={"status": ["!=", "Paid"],
+                 "due_date": ["between", [today(), horizon]]},
+        fields=["amount"]))
+    owed = overdue + due_window
 
+    # A post-dated cheque is bankable until it goes stale — six months in
+    # Qatar. Anything older sitting at Received/Deposited is a data problem,
+    # not money, so it does not count toward cover.
     in_hand = sum(flt(c.amount) for c in frappe.get_all(
         "Cheque",
         filters={"direction": "Incoming",
                  "status": ["in", ("Received", "Deposited", "Presented")],
-                 "cheque_date": ["<=", horizon]},
+                 "cheque_date": ["between",
+                                 [add_days(today(), -180), horizon]]},
         fields=["amount"]))
 
     billed_open = sum(flt(i.outstanding_amount) for i in frappe.get_all(
@@ -805,8 +819,15 @@ def _cover(s):
                  "due_date": ["<=", horizon]},
         fields=["outstanding_amount"]))
 
-    rate = _collection_rate() or 90.0
-    expected = in_hand + billed_open * (rate / 100.0)
+    # No billing history means no achieved rate to discount by. Inventing
+    # one (the old fallback was a flat 90%) puts a made-up number inside the
+    # one tile that can end the business; unpaid invoices simply do not
+    # count toward cover until there is a real rate.
+    rate = _collection_rate()
+    if rate is None:
+        expected = in_hand
+    else:
+        expected = in_hand + billed_open * (rate / 100.0)
 
     if not owed:
         return {"id": "cover", "label": "Obligation cover",
@@ -832,13 +853,20 @@ def _cover(s):
         "green": "",
     }.get(band, "")
 
+    owed_txt = (f"{_kfmt(owed)} owed ({_kfmt(overdue)} overdue + "
+                f"{_kfmt(due_window)} next {days}d)"
+                if overdue else f"{_kfmt(owed)} owed · {days} days")
+    disc_txt = ("unpaid invoices excluded — no collection history to "
+                "discount them by" if rate is None else
+                "unpaid invoices discounted at your actual collection "
+                f"rate of {rate:.1f}%")
     return {
         "id": "cover", "label": "Obligation cover",
         "value": f"{ratio:.2f}×", "band": band,
-        "sub": f"{_kfmt(expected)} expected · {_kfmt(owed)} owed · {days} days",
-        "means": (f"Landlord rent falling due in the next {days} days, set "
-                  "against cheques in hand plus unpaid invoices discounted "
-                  f"at your actual collection rate of {rate:.0f}%."),
+        "sub": f"{_kfmt(expected)} expected · {owed_txt}",
+        "means": ("All unpaid landlord rent — anything overdue plus what "
+                  f"falls due in the next {days} days — set against cheques "
+                  f"in hand, with {disc_txt}."),
         "why": ("Rent to your landlords is fixed and contractual — owed "
                 "whether a building is full or empty. Your bank balance "
                 "cannot answer this because the accounts sweep to near zero "
@@ -910,13 +938,14 @@ def _spread(s):
                f"month: {held_txt}. Its cost is excluded here until you do.")
 
     return {
-        "id": "spread", "label": "Portfolio spread",
+        "id": "spread", "label": "Portfolio spread · gross",
         "value": f"{margin:.1f}%", "band": band,
         "sub": (f"{_kfmt(spread)} on {_kfmt(billed)} billed this month"
                 + (f" \u00b7 excludes {held_txt}" if held_txt else "")),
-        "means": ("What you charged tenants this month, less what you owe "
-                  "landlords for the same month, as a percentage of what you "
-                  "charged."),
+        "means": ("What you charged tenants this month, less head-lease rent "
+                  "for the same month, as a percentage of what you charged. "
+                  "Gross: before maintenance and utilities — the P&L "
+                  "waterfall carries the spread after recorded costs."),
         "why": ("You never buy property — you head-lease it and sub-let it, "
                 "so this gap is the entire business. It compresses slowly and "
                 "quietly, usually through renewals at higher rent, and is "
@@ -948,8 +977,11 @@ def _collection(s):
     }.get(band, "")
 
     return {
-        "id": "collection", "label": "Collection rate",
-        "value": f"{rate:.0f}%", "band": band,
+        "id": "collection", "label": "Collection rate · rolling 90d",
+        # One decimal, deliberately: the runway footnote quotes the same
+        # rate at one decimal, and 91.6% shown here as 92% reads as a
+        # second, disagreeing number on the same screen.
+        "value": f"{rate:.1f}%", "band": band,
         "sub": f"{_kfmt(arrears)} outstanding · rolling 90 days",
         "means": ("Of everything invoiced in the last 90 days, the share that "
                   "has actually been received."),

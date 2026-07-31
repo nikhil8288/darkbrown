@@ -1212,7 +1212,7 @@ function spk(vals,color,w=62,h=20){
 /* A figure this business does not record comes back null. It renders as an
    em dash and says so on hover. It is never estimated to fill the card —
    on this screen a plausible wrong number is the whole danger. */
-const NOTRACK={vd:'No void-start date is recorded on a unit, so elapsed void cannot be derived.',
+const NOTRACK={vd:'Derived from tenancy agreement coverage. A dash means no unit data has been loaded yet.',
  cash:'The accounts sweep to near zero daily, so bank balance is never shown. Declare a counted position (Update cash position on the runway) and it appears here.',
  unm:'Shows once a bank statement has been imported.'};
 window.kval=(v,fmt,key)=>(v===null||v===undefined)
@@ -1310,13 +1310,13 @@ function renderKPIs(p){
    /* Both of these set billed revenue against head-lease cost, so both have
       to say when a building's invoice run has not been issued. Without it the
       strip reports a loss that is really a decision nobody has taken. */
-   {l:'Net spread '+P.label+(P.unissued?' \u00b7 partial':''),v:k(P.spread),d:dl(P.spreadP,true,'%'),
+   {l:'Gross spread '+P.label+(P.unissued?' \u00b7 partial':''),v:k(P.spread),d:dl(P.spreadP,true,'%'),
     s:sp(billed.map((b,i)=>b-llcost[i]),'#C9A86A'),
     n:P.unissued?k(P.unissued)+' not issued':''},
-   {l:'Spread margin'+(P.unissued?' \u00b7 partial':''),v:pc(P.margin),d:dl(P.marginD,true,'pt'),
+   {l:'Gross margin'+(P.unissued?' \u00b7 partial':''),v:pc(P.margin),d:dl(P.marginD,true,'pt'),
     s:sp(billed.map((b,i)=>(b-llcost[i])/b*100),'#C9A86A'),
     n:P.unissued?(P.unissuedN||1)+' building'+((P.unissuedN||1)===1?'':'s')+' excluded':''},
-   {l:'Collection rate',v:pc(P.coll),d:dl(P.collD,true,'pt'),
+   {l:'Collection rate \u00b7 month',v:pc(P.coll),d:dl(P.collD,true,'pt'),
     s:sp(collected.map((c,i)=>c/billed[i]*100),'#2E6B57'),w:P.coll<93},
    {l:occL,v:occV,d:live?'':kdelta(-0.7,true,'pt'),s:sp(occU,'#2E6B57')},
    {l:'Total arrears',v:k(P.arr),d:dl(P.arrD,false,'%'),
@@ -1937,7 +1937,8 @@ function renderOcc(){
     let s=`<path d="M ${L},${y(LP[0].occ||0)} ${LP.map((r,i)=>`L ${L+i*step},${y(r.occ||0)}`).join(' ')} L ${L+(LP.length-1)*step},124 L ${L},124 Z" fill="rgba(46,107,87,.14)"/>
      <polyline points="${pts}" fill="none" stroke="#2E6B57" stroke-width="1.8"/>
      <line x1="${L}" x2="${W-8}" y1="${y(100)}" y2="${y(100)}" stroke="#E7DDD1"/>
-     <text x="${W-8}" y="${y(100)-4}" text-anchor="end" class="n" font-size="9" fill="#75634F">100% · ${units} units</text>`;
+     <text x="${W-8}" y="${y(100)-4}" text-anchor="end" class="n" font-size="9" fill="#75634F">100% · ${units} units</text>
+     <text x="${L-4}" y="127" text-anchor="end" font-size="8" fill="#75634F">${lo}%</text>`;
     LP.forEach((r,i)=>{s+=`<circle cx="${L+i*step}" cy="${y(r.occ||0)}" r="2" fill="#2E6B57" data-tt="${r.m} · ${r.occ}% occupied"/>`;
       if(i%2===0)s+=`<text x="${L+i*step}" y="138" text-anchor="middle" font-size="8" fill="#75634F">${r.m}</text>`;});
     const last=LP[LP.length-1];
@@ -2011,7 +2012,7 @@ function renderPortfolio(){
   for(const b of PF_view){
     const un=(!b.rev&&b.unbilled)?b.unbilled:0;
     h+=`<tr class="drill" onclick="go('#/buildings')"><td>${b.n}${un?` <span class="tag amb">NOT ISSUED</span>`:''}</td><td class="r num">${b.u}</td>
-     <td class="r num" ${un?`style="color:var(--amber)" title="${un}K raised but the invoice run has not been issued"`:''}>${un?un+'K*':b.rev+'K'}</td>
+     <td class="r num" ${un?`title="${un}K raised but the invoice run has not been issued"`:''}>${un?`0K <span style="font:500 10px var(--mono);color:var(--amber)">${un}K held</span>`:b.rev+'K'}</td>
      <td class="r num">${b.cost}K</td><td class="r num">${b.m}K</td>
      <td class="r num" style="color:${!b.rev?'var(--red)':b.mp<12?'var(--red)':b.mp<16?'var(--amber)':'var(--teal)'}">${mpTxt(b)}</td>
      <td class="r num" style="color:${b.arr>30?'var(--red)':'inherit'}">${b.arr}K</td>

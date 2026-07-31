@@ -10,14 +10,16 @@ can trace, and on this screen a plausible wrong number is the whole danger.
 
 What is deliberately None, and why:
 
-    void days       no void-start date is recorded on Unit, so elapsed void
-                    cannot be derived. Needs a field before it can be shown.
     cash on hand    the accounts sweep to near zero daily, so bank balance is
                     never used. Cash shows only once someone has declared a
                     counted position (Bank Balance Declaration); until then
                     it is None.
     unmatched bank  None until a Bank Statement Import has ever run; after
                     that, the live unmatched count.
+
+Void days is derived, not logged: unit-days in the window not covered by a
+tenancy agreement (_void_days). No status log to maintain, recomputable for
+any window, and it agrees with occupancy by construction.
 
 Amounts are returned in thousands of QAR, because that is what the prototype
 renders.
@@ -71,7 +73,8 @@ def health():
             "m": round(margin / K),
             "mp": (margin / rev * 100) if rev else None,
             "arr": round(_arrears(b.name) / K),
-            "vd": None,                       # not tracked — see module note
+            "vd": _void_days(m0, min(get_last_day(m0), getdate(today())),
+                             b.name),
             "om": frappe.db.count("Maintenance Request", {
                 "building": b.name,
                 "status": ["in", ("Open", "Assigned", "Scheduled",
@@ -244,8 +247,10 @@ def _period(months, label):
         "cashD": None,                # swept bank balance (module note)
         "pdc30": _k(_pdc_due(30)),
         "ll30": _k(_landlord_due(30)),
-        "vd": None,                   # not tracked
-        "vdD": None,
+        "vd": _void_days_months(months),
+        "vdD": None,                  # no prior-period delta until a full
+                                      # comparison window exists — a fake
+                                      # movement is worse than none
         "br": _bounce_rate(90),
         "brD": 0.0,
         "unm": _unm_count(),          # None until an import has ever run
@@ -290,6 +295,50 @@ def _landlord_all(period_start, exclude=None):
         where status in ('Active', 'Expiring')
           and start_date <= %s and end_date >= %s
     """, (get_last_day(period_start), period_start))[0][0])
+
+
+def _void_days(period_start, period_end, building=None):
+    """Unit-days inside the window not covered by a tenancy agreement.
+
+    Derived from agreement dates rather than a status log, so it costs
+    nothing to keep and can be recomputed for any window. Overlapping
+    agreements on one unit are clamped to the window length, so a renewal
+    signed before the old agreement ends cannot produce negative voids.
+    Ended agreements count for the days they covered — a tenant who left
+    mid-month covered the first half of it."""
+    a, b = getdate(period_start), getdate(period_end)
+    if b < a:
+        return 0
+    ufilters = {"building": building} if building else {}
+    units = frappe.get_all("Unit", filters=ufilters, fields=["name"])
+    if not units:
+        return 0
+    window = (b - a).days + 1
+    afilters = {"status": ["in", ("Active", "Expiring", "Ended")],
+                "start_date": ["<=", b], "end_date": [">=", a]}
+    if building:
+        afilters["building"] = building
+    covered = {}
+    for ag in frappe.get_all("Tenancy Agreement", filters=afilters,
+                             fields=["unit", "start_date", "end_date"]):
+        s = max(getdate(ag.start_date), a)
+        e = min(getdate(ag.end_date), b)
+        days = (e - s).days + 1
+        if days > 0:
+            covered[ag.unit] = min(window, covered.get(ag.unit, 0) + days)
+    return sum(window - covered.get(u.name, 0) for u in units)
+
+
+def _void_days_months(months):
+    """Void days summed over a list of month offsets, each month clipped at
+    today — days that have not happened yet are not voids."""
+    total = 0
+    for m in months:
+        ms = getdate(_months(m))
+        me = min(get_last_day(ms), getdate(today()))
+        if me >= ms:
+            total += _void_days(ms, me)
+    return total
 
 
 def _arrears_all():
@@ -434,15 +483,12 @@ def _runway_flows():
     the expected overlay discounts outstanding invoices at the rolling
     90-day collection rate, the same discount the obligation-cover tile
     already applies."""
-    billed90 = flt(frappe.db.sql("""
-        select sum(grand_total) from `tabSales Invoice`
-        where docstatus = 1 and posting_date >= %s
-    """, (add_days(today(), -90),))[0][0])
-    coll90 = flt(frappe.db.sql("""
-        select sum(grand_total - outstanding_amount) from `tabSales Invoice`
-        where docstatus = 1 and posting_date >= %s
-    """, (add_days(today(), -90),))[0][0])
-    rate = (coll90 / billed90) if billed90 else 0.0
+    # One function computes the rolling 90-day rate for the whole app. This
+    # panel used to carry its own copy of the query, and the two drifted by
+    # rounding into what read as two different collection rates on one
+    # screen. If the definition ever changes it must change once.
+    from darkbrown.api.app import _collection_rate
+    rate = (_collection_rate() or 0.0) / 100.0
 
     out = []
     for w in range(13):
