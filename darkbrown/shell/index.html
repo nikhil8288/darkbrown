@@ -1787,7 +1787,7 @@ function gateDash(){
 }
 
 /* ============ Darkbrown V2 — form engine + action views ============ */
-let FRM=null,FSTEP=0,FDATA={};
+let FRM=null,FSTEP=0,FDATA={},FKEY=null;
 
 function fld(f,v){
   const id='f_'+f.k, val=v!==undefined&&v!==null?String(v):(f.d!==undefined?f.d:'');
@@ -1832,9 +1832,29 @@ function validate(fields){
 }
 window.openForm=(key,ctx)=>{
   FRM=FORMS[key]; if(!FRM){toast('No form defined');return;}
+  FKEY=key;
+  if(window.DB_LIVE&&BLOCKED[key]){blockedForm(key);return;}
   FSTEP=0; FDATA=Object.assign({},FRM.init?FRM.init(ctx):{}); FDATA.__ctx=ctx;
   document.body.style.overflow='hidden'; drawForm();
 };
+
+/* A form that would collect perfectly and save nothing does not open. */
+function blockedForm(key){
+  const f=FORMS[key]||{t:key};
+  document.body.style.overflow='hidden';
+  document.getElementById('modal').innerHTML=`
+  <div class="ovl" onclick="if(event.target===this)closeForm()"><div class="mdl">
+   <div class="mh"><div><div class="mt2">${f.t}</div><div class="ms">Not wired</div></div>
+    <button class="x" onclick="closeForm()" aria-label="Close">\u2715</button></div>
+   <div class="mb"><div class="unwired big"><span class="uw-tag">NOT WIRED</span>
+     <p>${BLOCKED[key]}</p>
+     <p class="uw-note">The form is built and the fields are right. Nothing behind it
+      would save, so rather than hand you a confirmation for a record that was never
+      created, it stays shut.</p></div></div>
+   <div class="mf"><span class="mfn"></span>
+     <button class="btn pri" onclick="closeForm()">Close</button></div>
+  </div></div>`;
+}
 window.closeForm=()=>{document.getElementById('modal').innerHTML='';document.body.style.overflow=''};
 function drawForm(){
   const steps=FRM.steps, st=steps[FSTEP], last=FSTEP===steps.length-1;
@@ -1868,7 +1888,33 @@ window.formNext=()=>{
   if(st.check&&!st.check(FDATA)){document.getElementById('ferr').style.display='block';
     document.getElementById('ferr').textContent=st.msg||'Check the values above';return}
   if(FSTEP<FRM.steps.length-1){FSTEP++;drawForm();return}
-  const res=FRM.submit?FRM.submit(FDATA):{msg:'Saved'};
+  const w=window.DB_LIVE?WIRE[FKEY]:null;
+  if(w){submitLive(w);return}
+  formDone(FRM.submit?FRM.submit(FDATA):{msg:'Saved'});
+};
+
+/* The write goes to the server, and the success box is built from what came
+   back rather than from what was typed. A failure keeps the form open with
+   what was entered still in it. */
+async function submitLive(w){
+  const err=document.getElementById('ferr');
+  const g=w.guard?w.guard(FDATA):null;
+  if(g){if(err){err.style.display='block';err.textContent=g}return}
+  const btn=document.querySelector('.mf .btn.pri');
+  const label=btn?btn.textContent:'';
+  if(btn){btn.disabled=true;btn.textContent='Saving\u2026'}
+  if(err)err.style.display='none';
+  try{
+    const out=w.calls?await w.calls(FDATA):await dbCall(w.m,w.a(FDATA));
+    await dbRefresh();
+    formDone(w.ok?w.ok(out,FDATA):{msg:'Saved'});
+  }catch(e){
+    if(err){err.style.display='block';err.textContent=e.message||'Could not save that.'}
+    if(btn){btn.disabled=false;btn.textContent=label}
+  }
+}
+
+function formDone(res){
   document.getElementById('modal').innerHTML=`
    <div class="ovl" onclick="if(event.target===this)closeForm()"><div class="mdl">
     <div class="mh"><div><div class="mt2">${res.title||'Done'}</div><div class="ms">${FRM.t}</div></div>
@@ -1880,7 +1926,7 @@ window.formNext=()=>{
       ${res.goto?`<button class="btn" onclick="closeForm();go('${res.goto}')">Open record</button>`:''}
       <button class="btn pri" onclick="closeForm();refresh()">Done</button></div>
    </div></div>`;
-};
+}
 window.refresh=()=>router();
 
 /* ---------- form definitions ---------- */
@@ -2052,12 +2098,13 @@ const FORMS={
  steps:[{n:'Contact',fields:[
    {k:'date',l:'Date',t:'date',d:'2026-07-26',req:1},
    {k:'ch',l:'Channel',t:'sel',o:['Phone','WhatsApp','Email','In person','Letter'],req:1},
-   {k:'out',l:'Outcome',t:'sel',o:['No answer','Promised payment','Disputed','Requested plan','Refused'],req:1},
+   {k:'out',l:'Outcome',t:'sel',o:['No answer','Promised payment','Disputed','Refused','Notice served'],req:1},
    {k:'note',l:'Notes',t:'ta',p:'What was said',req:1}]}],
  submit:d=>({title:'Contact logged',msg:d.ch+' — '+d.out,detail:'Added to the case activity log'})},
 
 'record-promise':{t:'Record promise to pay',s:'Broken promises reopen the case automatically',cta:'Save promise',
  steps:[{n:'Promise',fields:[
+   {k:'ch',l:'Promised over',t:'sel',o:['Phone','WhatsApp','In person','Email','Letter'],req:1},
    {k:'amt',l:'Amount promised (QAR K)',t:'num',step:'0.1',req:1},
    {k:'date',l:'Promised by',t:'date',req:1},
    {k:'method',l:'Method',t:'sel',o:['Cheque','Bank transfer','Cash']},
@@ -2346,7 +2393,7 @@ window.openU=id=>go('#/unit/'+id);
 ROUTES.unit=id=>{const u=U(id)||UNITS[0]; const ag=AGR.find(a=>a.u===u.id);
  return crumb([['Units','#/units'],[u.bn,'#/building/'+u.b],[u.id,'']])+page(u.id,
   `${u.type} · floor ${u.floor} · ${u.sqm} sqm · ${u.bn}`,
-  fbtn('Log maintenance','raise-job',{bn:u.bn,u:u.id})+(u.st==='Occupied'?fbtn('Start move-out','start-moveout'):fbtn('Create agreement','new-agreement',{unit:u.id})),
+  fbtn('Log maintenance','raise-job',{bn:u.bn,u:u.id})+(u.st==='Occupied'?fbtn('Start move-out','start-moveout',{unit:u.id}):fbtn('Create agreement','new-agreement',{unit:u.id})),
   stat([['Status',chip(u.st,stChip(u.st))],['Tenant rent',u.rent+'K'],['Landlord cost',u.llRent+'K'],
    ['Monthly spread','+'+(u.rent-u.llRent).toFixed(1)+'K','','g'],['Void days',u.vd||'—','',u.vd>30?'r':'']])+
   `<div class="grid2">
@@ -2462,7 +2509,7 @@ window.openA=id=>go('#/agreement/'+id);
 ROUTES.agreement=id=>{const a=A(id)||AGR[0]; const t=T(a.t);
  return crumb([['Agreements','#/agreements'],[a.id,'']])+page(a.id,
   `${a.tn} · ${a.u} · ${a.bn}`,
-  fbtn('Renew','renew-agreement',{rent:a.rent})+fbtn('Start move-out','start-moveout')+fbtn('Send to tenant','send-doc'),
+  fbtn('Renew','renew-agreement',{id:a.id,rent:a.rent})+fbtn('Start move-out','start-moveout',{agr:a.id,tn:a.tn,u:a.u})+fbtn('Send to tenant','send-doc'),
   stat([['Status',chip(a.st,stChip(a.st))],['Rent',a.rent+'K / mo'],['Payment',a.freq],
    ['Deposit held',a.dep+'K'],['Start',a.start],['End',a.end],['Renewal',chip(a.ren,stChip(a.ren))]])+
   `<div class="card"><h3>Approval chain — workflow 2E</h3>
@@ -2510,7 +2557,7 @@ window.openCS=id=>go('#/case/'+id);
 ROUTES.moveout=id=>{
  if(id){const m=MO(id);const S=['Notice received','Move-out inspection','Deductions agreed','Deposit release approved','Closed'];
   return crumb([['Move-out','#/moveout'],[m.id,'']])+page(m.id,`${m.tn} · ${m.u} · notice ${m.notice}`,
-   fbtn('Record inspection','record-inspection')+fbtn('Request deposit release','deposit-release'),
+   fbtn('Record inspection','record-inspection',{id:m.id})+fbtn('Request deposit release','deposit-release',{id:m.id,dep:m.dep}),
    stat([['Deposit held',m.dep+'K'],['Deductions',m.ded.reduce((a,d)=>a+d[1],0).toFixed(1)+'K','','a'],
     ['Refund due',(m.dep-m.ded.reduce((a,d)=>a+d[1],0)).toFixed(1)+'K','','g'],
     ['Move-out date',m.out],['Stage',S[m.step]]])+
@@ -2944,7 +2991,7 @@ ROUTES.case=id=>{const c=CS(id)||CASES[0];
  const stgs=['Arrears detected','Reminder sent','Promise to pay','Legal notice','Escalated'];
  const cur=stgs.findIndex(s=>s===c.stage||(c.stage==='Promise broken'&&s==='Promise to pay'));
  return crumb([['Cases','#/cases'],[c.id,'']])+page(c.id,`${c.tn} · ${c.amt}K outstanding · owner ${c.owner}`,
-  fbtn('Log contact','record-contact')+fbtn('Record promise','record-promise')+fbtn('Escalate to legal','escalate-legal'),
+  fbtn('Log contact','record-contact',{id:c.id})+fbtn('Record promise','record-promise',{id:c.id,amt:c.amt})+fbtn('Escalate to legal','escalate-legal',{id:c.id,amt:c.amt}),
   stat([['Amount',c.amt+'K','','r'],['Stage',chip(c.stage,stChip(c.stage))],['Case age',c.age+' days'],
    ['Promise to pay',c.promise],['Owner',c.owner],['Notes',(NOTES[c.id]||[]).length]])+
   `<div class="card"><h3>Case progression</h3>${steps(stgs,Math.max(cur,1))}
@@ -5069,9 +5116,9 @@ const AM=id=>AMEND.find(a=>a.id===id);
 FORMS['amend-invoice']={t:'Amend an issued invoice',s:'The change is proposed, not applied · the GM approves before it posts',
  cta:'Send to the General Manager',
  init:ctx=>{const i=I(ctx&&ctx.id)||INV[0];
-  return{__id:i.id,rent:String(i.lines.find(l=>/^Rent/.test(l[0]))?.[1]||i.amt),
-   util:String(i.lines.find(l=>/Utility/.test(l[0]))?.[1]||0),
-   mnt:String(i.lines.find(l=>/Maintenance/.test(l[0]))?.[1]||0),kind:'Reduce the amount'}},
+  return{__id:i.id,rent:String((i.lines||[]).find(l=>/^Rent/.test(l[0]))?.[1]||i.amt),
+   util:String((i.lines||[]).find(l=>/Utility/.test(l[0]))?.[1]||0),
+   mnt:String((i.lines||[]).find(l=>/Maintenance/.test(l[0]))?.[1]||0),kind:'Reduce the amount'}},
  steps:[
   {n:'What is wrong',body:d=>{const i=I(d.__id)||INV[0];
    return `<div class="kv" style="margin-bottom:12px">
@@ -5291,6 +5338,271 @@ ROUTES.receipt=id=>{const r=RC(id);if(!r)return empty('No receipt with that refe
     :'Cash was received in person, so the receipt was issued on the spot. The collection slip reference is what the bank deposit will be matched against at reconciliation, since the deposit itself will arrive with no payer identity.'}</p></div>`)};
 
 window.openAMD=id=>go('#/amendment/'+id);
+
+/* ============ form wiring ============
+   A form that collects perfectly and saves nothing is worse than no form at
+   all, because it hands back a confirmation. So every form is either in WIRE,
+   naming the API that actually performs it, or in BLOCKED, saying what is
+   missing. Nothing is left in between.
+
+   WIRE entries: `m` is the whitelisted method, `a` builds its arguments from
+   what the form collected, `ok` turns the server's reply into the success
+   box, and `guard` refuses a branch the server cannot honour.
+
+   The demo path is untouched. With no DB_SEED the original submit() runs and
+   the prototype behaves exactly as it did. */
+
+const wNum=v=>+(+v||0);
+const wFirst=s=>String(s||'').split(' \u00b7 ')[0].trim();
+const wTen=n=>{const r=TENANTS.find(x=>x.n===n)||TENANTS.find(x=>x.id===n);return r?r.id:n};
+const wAgrT=t=>{const a=AGR.find(x=>x.t===t&&x.st!=='Terminated');return a?a.id:null};
+const wAgrU=u=>{const a=AGR.find(x=>x.u===u&&x.st!=='Terminated');return a?a.id:null};
+const wBld=n=>{const b=BUILDINGS.find(x=>x.n===n)||BUILDINGS.find(x=>x.id===n);return b?b.id:n};
+const wMap=(m,v,d)=>m[v]||d||v;
+
+const W_JOBCAT={'AC / chiller':'Air Conditioning','Plumbing':'Plumbing','Electrical':'Electrical',
+ 'Carpentry':'Civil','Pest control':'Pest Control','Lift':'Lift','Water leak':'Plumbing'};
+const W_JOBPRI={'Planned':'Low','Routine':'Medium','Emergency':'Emergency'};
+const W_CHAN={'Phone':'Call','WhatsApp':'WhatsApp','Email':'Email','In person':'In Person','Letter':'Letter'};
+const W_OUT={'No answer':'No Answer','Promised payment':'Promised','Disputed':'Disputed',
+ 'Refused':'Refused','Notice served':'Notice Served'};
+const W_RETURN={'Insufficient funds':'Insufficient Funds','Signature mismatch':'Signature Mismatch',
+ 'Account closed':'Account Closed','Post-dated':'Post Dated','Stop payment':'Stop Payment',
+ 'Amount in words differs':'Other','Stale \u2014 over six months':'Other','Technical \u2014 endorsement':'Technical'};
+const W_DOCTYPE={'Auto-detect':'Unknown','Cheque batch':'Cheque Batch','Tenant contract':'Tenancy Agreement',
+ 'Landlord contract':'Head Lease','QID':'QID','Passport':'Passport','Utility invoice':'Utility Bill'};
+
+const WIRE={
+
+/* ---------------- money ---------------- */
+
+'issue-receipt':{
+ guard:d=>d.kind==='Cheque cleared'
+  ?'Clearing the cheque already posted the money against the tenant. Issuing a receipt here would post it a second time. Mark the cheque cleared on the register instead \u2014 that is the receipt.':null,
+ m:'finance.record_receipt',
+ a:d=>({payload:{tenant:wTen(d.party),amount:wNum(d.amt),on:d.date,
+   mode:d.kind==='Cash received'?'Cash':'Bank Transfer',
+   reference:d.kind==='Cash received'?d.slip:d.stmt}}),
+ ok:(r,d)=>({title:'Receipt issued',msg:k(r.allocated)+' recorded against '+d.party,
+   detail:'Allocated oldest invoice first \u00b7 '+r.payment_entry})},
+
+'record-payment':{
+ m:'finance.record_receipt',
+ a:d=>({payload:{tenant:wTen(d.tenant),amount:wNum(d.amt),on:d.date,
+   mode:d.method,reference:d.ref}}),
+ ok:(r,d)=>({title:'Payment posted',msg:k(r.allocated)+' allocated to '+d.tenant,
+   detail:'Oldest invoice first \u00b7 '+r.payment_entry})},
+
+'create-batch':{
+ guard:d=>{const sel=d.sel||{};
+   return Object.keys(sel).some(x=>sel[x]&&x[0]==='h')
+    ?'Cash receipts are not read from the server yet, so the cash rows in this list are prototype data. Deselect them and batch the cheques, or capture the cash through Issue a receipt first.':null},
+ m:'finance.create_deposit_batch',
+ a:d=>{const sel=d.sel||{};
+   const lines=CHQ.filter(c=>sel['c_'+c.id]).map(c=>({type:'Cheque',cheque:c.id,
+     tenant:c.t,unit:(AGR.find(a=>a.t===c.t)||{}).u,amount:c.amt,
+     remarks:'Batched on '+d.date}));
+   /* the bank shown here is a label, not a Bank Account docname; the API
+      falls back to the configured default, which is the real one */
+   return {payload:{date:d.date,bank_account:null,slip_no:d.slip,lines}}},
+ ok:(r,d)=>({title:'Batch created',msg:'Batch '+r.batch+' created',
+   detail:'Banking it is a second person\u2019s job \u2014 the batch is not deposited yet',
+   goto:'#/batches'})},
+
+'cheque-action':{
+ guard:d=>{const a=d.act||'';
+   if(/replace|replacement/i.test(a))
+     return 'A replacement needs the new cheque\u2019s number, date and bank. Log it through Log a cheque, choosing \u201cReplacement for a returned cheque\u201d \u2014 that path records both ends.';
+   if(/cancel|write off|settled another way|reverse|re-present|return to the drawer/i.test(a))
+     return 'There is no server action for \u201c'+a+'\u201d yet. Deposit, Mark cleared and Mark returned are the three the ledger can perform.';
+   return null},
+ calls:async d=>{const a=d.act||'';
+   if(/deposit|presented/i.test(a)) return await dbCall('finance.present_cheque',{cheque:d.__id,on:d.date});
+   if(/cleared/i.test(a))           return await dbCall('finance.clear_cheque',{cheque:d.__id,on:d.date});
+   return await dbCall('finance.return_cheque',{cheque:d.__id,
+     reason:wMap(W_RETURN,d.reason,'Other'),notes:d.note,on:d.date})},
+ ok:(r,d)=>({title:'Cheque updated',msg:d.act+' recorded',
+   detail:r&&r.case?'A collection case was opened: '+r.case:'Recorded on '+d.date})},
+
+'log-cheque':{
+ m:'finance.log_cheque',
+ a:d=>{const out=/landlord|supplier|paid|out/i.test(d.dir||'');
+   return {payload:{direction:out?'Outgoing':'Incoming',
+     tenancy_agreement:out?null:wAgrT(wTen(d.party)),
+     party:wTen(d.party),cheque_no:d.no,cheque_date:d.mat,
+     amount:wNum(d.amt),count:1,bank:d.bank,notes:d.note}}},
+ ok:r=>({title:'Cheque logged',msg:(r.count||1)+' cheque'+((r.count||1)===1?'':'s')+' on the register',
+   goto:'#/cheques'})},
+
+'landlord-cheque':{
+ m:'finance.log_cheque',
+ a:d=>({payload:{direction:'Outgoing',party:(d.__ctx&&d.__ctx.ll)||null,
+   cheque_no:d.no,cheque_date:d.date,amount:wNum(d.amt),count:1,
+   bank:d.bank,notes:d.note}}),
+ ok:()=>({title:'Cheque recorded',msg:'Outgoing cheque on the register',goto:'#/cheques'})},
+
+'amend-invoice':{
+ m:'agreements.request_amendment',
+ a:d=>{const i=INV.find(x=>x.id===(d.__ctx&&d.__ctx.id))||{};
+   const nw=wNum(d.rent)+wNum(d.util)+wNum(d.mnt);
+   return {payload:{agreement:wAgrT(i.t)||i.t,agreement_type:'Tenancy Agreement',
+     field:'monthly_rent',old_value:String(i.amt||''),new_value:String(nw),
+     value_impact:+(nw-(i.amt||0)).toFixed(2),reason:d.why}}},
+ ok:r=>({title:'Amendment requested',msg:'Sent for approval as '+r.amendment,
+   detail:'Routing follows the value, not the requester',goto:'#/approvals'})},
+
+'approve-decision':{
+ m:'approvals.decide',
+ a:d=>{const a=AP(d.__ctx&&d.__ctx.ref)||{};
+   return {kind:a.ty,reference:a.id,
+     decision:/approve/i.test(d.dec)?'approve':'reject',note:d.why}},
+ guard:d=>/more information/i.test(d.dec||'')
+  ?'Requesting more information is not a decision the queue records yet. It stays pending either way \u2014 approve it or reject it with the reason.':null,
+ ok:(r,d)=>({title:'Decision recorded',msg:d.dec+' \u00b7 '+(d.__ctx&&d.__ctx.ref),
+   goto:'#/approvals'})},
+
+/* ---------------- operations ---------------- */
+
+'record-contact':{
+ m:'operations.log_contact',
+ a:d=>({case:d.__ctx&&d.__ctx.id,method:wMap(W_CHAN,d.ch,'Call'),
+   outcome:wMap(W_OUT,d.out,'No Answer'),notes:d.note}),
+ ok:(r,d)=>({title:'Contact logged',msg:d.ch+' \u00b7 '+d.out,
+   detail:'Added to the case log, not over the last entry'})},
+
+'record-promise':{
+ m:'operations.log_contact',
+ a:d=>({case:d.__ctx&&d.__ctx.id,method:wMap(W_CHAN,d.ch,'Call'),
+   outcome:'Promised',promised_amount:wNum(d.amt),promised_date:d.date,
+   notes:(d.note||'')+(d.method?' \u00b7 to pay by '+d.method:'')}),
+ ok:(r,d)=>({title:'Promise recorded',msg:k(wNum(d.amt))+' promised by '+d.date,
+   detail:'If the date passes unpaid the case reopens on its own'})},
+
+'escalate-legal':{
+ m:'operations.escalate',
+ a:d=>({case:d.__ctx&&d.__ctx.id,reason:d.why}),
+ ok:(r,d)=>({title:'Escalated',msg:'Case moved to legal',
+   detail:d.firm+' \u00b7 '+k(wNum(d.amt))+' claimed'})},
+
+'open-case':{
+ m:'operations.open_case',
+ a:d=>({tenancy_agreement:wAgrT(wTen(d.tenant)),reason:d.why}),
+ guard:d=>wAgrT(wTen(d.tenant))?null
+  :'That tenant has no live agreement on record, and a case hangs off an agreement. Check the tenant, or open the case from the agreement itself.',
+ ok:r=>({title:'Case opened',msg:'Collection case '+r+' opened',
+   detail:'Opened by hand \u2014 the reason is on the record',goto:'#/case/'+r})},
+
+'raise-job':{
+ m:'operations.raise_job',
+ a:d=>({payload:{building:wBld(d.building),unit:d.unit||null,
+   category:wMap(W_JOBCAT,d.cat,'Other'),priority:wMap(W_JOBPRI,d.pr,'Medium'),
+   issue:String(d.desc||'').slice(0,120),description:d.desc,
+   rechargeable:d.rch==='true'||d.rch===true?1:0,
+   recharge_amount:d.rch==='true'||d.rch===true?wNum(d.cost):0}}),
+ ok:(r,d)=>({title:'Job raised',msg:'Maintenance request '+r,
+   detail:d.pr==='Emergency'?'Emergency \u2014 it will be checked against the spend ceiling':'Open and unassigned',
+   goto:'#/job/'+r})},
+
+'start-moveout':{
+ m:'operations.open_moveout',
+ a:d=>({payload:{tenancy_agreement:(d.__ctx&&d.__ctx.agr)||wAgrU(d.__ctx&&d.__ctx.unit)||wAgrT(wTen(d.tenant)),
+   reason:/non.?renew/i.test(d.reason||'')?'Non Renewal':/evict/i.test(d.reason||'')?'Eviction'
+     :/mutual/i.test(d.reason||'')?'Mutual':'Tenant Notice',
+   notice_received_on:d.given,planned_move_out:d.out}}),
+ ok:r=>({title:'Move-out opened',msg:'Case '+r.case+' opened',
+   detail:'Inspection, meters and keys are separate steps \u2014 none of them is done yet',
+   goto:'#/moveout/'+r.case})},
+
+'record-inspection':{
+ m:'operations.advance_moveout',
+ a:d=>({case:d.__ctx&&d.__ctx.id,payload:{step:'inspection',
+   inspection_on:d.date,notes:d.notes,
+   damages:+(wNum(d.d1)+wNum(d.d2)+wNum(d.d3)+wNum(d.d4)).toFixed(2)}}),
+ ok:(r,d)=>({title:'Inspection recorded',msg:'Deductions of '+
+   k(wNum(d.d1)+wNum(d.d2)+wNum(d.d3)+wNum(d.d4))+' recorded',
+   detail:'Case is now '+r.status})},
+
+'deposit-release':{
+ m:'operations.advance_moveout',
+ a:d=>{const m=MO(d.__ctx&&d.__ctx.id)||{};
+   return {case:d.__ctx&&d.__ctx.id,payload:{step:'settle',outstanding_rent:0,
+     damages_charged:(m.ded||[]).reduce((a,x)=>a+x[1],0)}}},
+ ok:r=>({title:'Sent to the MD',msg:'Refund of '+k(r.refund)+' waiting on approval',
+   detail:'A deposit release is reserved \u2014 it cannot be delegated',goto:'#/approvals'})},
+
+/* ---------------- the rest ---------------- */
+
+'onboard-building':{
+ m:'portfolio.onboard_building',
+ a:d=>({payload:{building_name:d.name,status:'Onboarding',area_name:d.area,
+   floors:parseInt(d.floors)||0,
+   landlord:{name:d.ll,qid:d.llid,iban:d.llbank},
+   units:Array.from({length:parseInt(d.units)||0},(_,i)=>({
+     unit_no:String(i+1),floor:0,unit_type:d.type,status:'Vacant'})),
+   head_lease:{annual_rent:wNum(d.annual),security_deposit:wNum(d.depll),
+     payment_frequency:d.pay,start_date:d.start,end_date:d.end}}}),
+ ok:r=>({title:'Building onboarded',msg:r.building+' created with '+r.units+' units',
+   detail:'It stays in Onboarding until handover is recorded',goto:'#/building/'+r.building})},
+
+'add-tenant':{
+ m:'agreements.create_agreement',
+ a:d=>({payload:{unit:d.unit,
+   tenant:{name:d.name,corporate:d.type==='Company',qid:d.qid,mobile:d.phone,qid_expiry:d.qidexp},
+   start_date:d.start,
+   end_date:null,rent:wNum(d.rent),deposit:wNum(d.dep),payment_mode:d.method,
+   qid:d.qid,mobile:d.phone,deposit_method:d.depmethod}}),
+ ok:r=>({title:'Tenancy created',msg:r.agreement+' \u00b7 '+r.status,
+   detail:r.status==='Active'?'QID and signed pack were both present, so it activated without an approval'
+     :'Waiting on approval \u2014 something the activation rule needs is missing',
+   goto:'#/agreement/'+r.agreement})},
+
+'new-agreement':{
+ m:'agreements.create_agreement',
+ a:d=>({payload:{unit:(d.__ctx&&d.__ctx.unit)||d.unit,
+   tenant:{name:d.tenant},start_date:d.start,rent:wNum(d.rent),
+   deposit:wNum(d.dep),payment_mode:d.freq}}),
+ ok:r=>({title:'Agreement raised',msg:r.agreement+' \u00b7 '+r.status,
+   goto:'#/agreement/'+r.agreement})},
+
+'renew-agreement':{
+ m:'agreements.renew',
+ a:d=>({agreement:d.__ctx&&d.__ctx.id,
+   payload:{rent:wNum(d.newrent),start_date:d.from}}),
+ guard:d=>(d.__ctx&&d.__ctx.id)?null
+  :'Open the agreement first \u2014 a renewal replaces a specific one, and this was opened without it.',
+ ok:r=>({title:'Renewed',msg:'New agreement '+r.agreement,
+   detail:'The old one is now Expired and the new one points back at it',
+   goto:'#/agreement/'+r.agreement})},
+
+'upload-docs':{
+ m:'documents.register',
+ a:d=>({payload:{file:d.file,type:wMap(W_DOCTYPE,d.type,'Unknown'),
+   status:'Needs Review',pages:1}}),
+ ok:r=>({title:'Filed',msg:'Document '+r.document+' registered',
+   detail:'It is waiting for review \u2014 nothing reads it as true until confirmed',
+   goto:'#/vault'})}
+};
+
+/* Forms with no server behind them. Each says what is missing, and refuses to
+   open rather than printing a confirmation for a save that never happened. */
+const BLOCKED={
+ 'import-statement':'No bank statement import exists yet. QNB and Doha Bank use unrelated formats and need one parser each; neither is built.',
+ 'classify-line':'Classification writes to a reconciliation workbench that has not been built. Blocked behind the statement import.',
+ 'start-close':'Weekly closing is not a server-side process yet. Nothing would be locked, and the close would exist only on this screen.',
+ 'journal-entry':'Manual journals post straight to the ledger, so this stays shut until the posting rules are agreed. Everything the app posts today goes through a named workflow.',
+ 'send-doc':'There is no send path \u2014 no template, no delivery, no record that it went. The document is in the vault and can be downloaded from there.',
+ 'generate-report':'Reporting has not been built against live records. Anything produced here would be the prototype\u2019s own figures.',
+ 'add-unit':'Units are created with their building. Adding one to a building already onboarded needs an API that does not exist yet.',
+ 'dist-run':'Owner distributions belong to Stage 2I. Blocked on Q20 and Q21.',
+ 'submit-run':'Owner distributions belong to Stage 2I. Blocked on Q20 and Q21.',
+ 'reject-run':'Owner distributions belong to Stage 2I. Blocked on Q20 and Q21.',
+ 'revise-policy':'Distribution policy needs the reserve floor. Blocked on Q11.',
+ 'owner-adjust':'Owner current accounts are designed but not built. Blocked on Q21 \u2014 equity or shareholder loan.',
+ 'new-scenario':'Scenario modelling needs the solver. Blocked on Q10.',
+ 'new-target':'Targets need the solver. Blocked on Q10.',
+ 'model-building':'The building model needs the solver. Blocked on Q10.'
+};
+
 router();
 
 /* An empty portfolio is a real state, not an error. Say so once, at the top,
