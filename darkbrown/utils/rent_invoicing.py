@@ -138,6 +138,10 @@ def issue_run(run_name):
             "doctype": "Sales Invoice",
             "customer": line.tenant,
             "company": company,
+            # Without set_posting_time ERPNext resets posting_date to today
+            # on save, which puts it after the due date on any run for a month
+            # already gone and refuses the invoice.
+            "set_posting_time": 1,
             "posting_date": run.period_start,
             "due_date": run.period_start,
             "cost_center": cost_center,

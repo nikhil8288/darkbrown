@@ -46,7 +46,11 @@ class Run:
                 print(f"  ok    {label}")
             return out
         except Exception as e:
-            msg = str(e).split("\n")[0][:160]
+            msg = (str(e) or "").strip().split("\n")[0][:160]
+            if not msg:
+                # Frappe sometimes puts the reason on the message log and
+                # raises bare, which leaves a failure with nothing on it.
+                msg = _last_message() or e.__class__.__name__
             self.steps.append((label, "FAILED", msg))
             self.findings.append(f"{label} — {msg}")
             if self.verbose:
@@ -56,6 +60,20 @@ class Run:
 
     def count(self, key, n=1):
         self.made[key] = self.made.get(key, 0) + n
+
+
+def _last_message():
+    """The most recent thing Frappe put on the message log, stripped."""
+    try:
+        from frappe.utils import strip_html
+        log = getattr(frappe.local, "message_log", None) or []
+        if not log:
+            return ""
+        last = log[-1]
+        text = last.get("message", "") if isinstance(last, dict) else str(last)
+        return strip_html(str(text)).strip().split("\n")[0][:160]
+    except Exception:
+        return ""
 
 
 def _months(n):
@@ -78,6 +96,8 @@ def run(verbose=True):
     if verbose:
         print("\nprerequisites")
     r.step("company, banks, settings", lambda: prereq.ensure(verbose))
+
+    _workflows(r)
 
     if verbose:
         print("\nportfolio")
@@ -125,6 +145,35 @@ def run(verbose=True):
 # ==========================================================================
 #  portfolio
 # ==========================================================================
+
+def _workflows(r):
+    """A Workflow record on one of these doctypes will fight the app.
+
+    The controllers set status themselves. If a Workflow also governs that
+    field, every transition the API makes has to have been declared in the
+    workflow as well, and the two drift apart the moment either changes. This
+    does not fix it — it says so, because deleting someone's workflow is not
+    a decision a seed script should take.
+    """
+    def look():
+        ours = {"Collection Case", "Tenancy Agreement", "Move Out Case",
+                "Maintenance Request", "Invoice Run", "Head Lease",
+                "Document Register", "Agreement Amendment", "Cheque"}
+        found = frappe.get_all("Workflow",
+                               filters={"document_type": ["in", list(ours)]},
+                               fields=["name", "document_type", "is_active"])
+        for w in found:
+            if not w.is_active:
+                continue
+            r.findings.append(
+                f"a Workflow record ({w.name}) governs {w.document_type}. "
+                f"The app sets that status in its own controllers, so any "
+                f"transition the workflow has not declared is refused. "
+                f"Either remove the workflow or declare every transition.")
+        return len(found)
+
+    r.step("check for workflows fighting the app", look)
+
 
 def _buildings(r):
     made = {}
@@ -368,11 +417,15 @@ def _invoice_runs(r):
             # A run carrying a variance goes to the GM first. The current
             # month's runs are left sitting there on purpose so the approvals
             # queue has something real in it.
-            has_variance = frappe.db.get_value("Invoice Run", run_name,
-                                               "has_variance")
+            has_variance, run_status = frappe.db.get_value(
+                "Invoice Run", run_name, ["has_variance", "status"])
             if has_variance:
-                r.step(f"submit {run_name} to GM",
-                       lambda n=run_name: fin_api.submit_invoice_run(n))
+                # build_invoice_run already routes a run carrying a variance,
+                # so submitting again is the caller telling it something it
+                # has already done.
+                if run_status == "Draft":
+                    r.step(f"submit {run_name} to GM",
+                           lambda n=run_name: fin_api.submit_invoice_run(n))
                 if offset == 0 and bname == "Najma Tower":
                     continue          # left waiting, so the queue is not empty
 

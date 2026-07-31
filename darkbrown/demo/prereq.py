@@ -95,32 +95,63 @@ def _bank_account(spec, company):
         frappe.get_doc({"doctype": "Bank", "bank_name": spec["bank"]}) \
             .insert(ignore_permissions=True)
 
-    name = f"{spec['account_name']} - {spec['bank']}"
-    if frappe.db.exists("Bank Account", name):
-        return name
+    # Look it up by its fields. Guessing the docname from the naming rule and
+    # then handing that guess to a Link field is how the settings singleton
+    # ended up pointing at a bank account that did not exist.
+    existing = frappe.db.get_value("Bank Account",
+                                   {"account_name": spec["account_name"],
+                                    "bank": spec["bank"]}, "name")
+    if existing:
+        return existing
 
-    gl = _gl_bank_account(company)
     doc = frappe.get_doc({
         "doctype": "Bank Account",
         "account_name": spec["account_name"],
         "bank": spec["bank"],
         "is_company_account": 1,
         "company": company,
-        "account": gl,
+        "account": _gl_bank_account(company, spec),
     })
     doc.flags.ignore_mandatory = True
     return doc.insert(ignore_permissions=True).name
 
 
-def _gl_bank_account(company):
-    """The ledger account behind the bank account. Payment Entry posts here."""
-    return (frappe.db.get_value("Company", company, "default_bank_account")
-            or frappe.db.get_value("Account", {"company": company,
-                                               "account_type": "Bank",
-                                               "is_group": 0}, "name")
-            or frappe.db.get_value("Account", {"company": company,
-                                               "account_type": "Cash",
-                                               "is_group": 0}, "name"))
+def _gl_bank_account(company, spec):
+    """A ledger account of its own for each bank.
+
+    ERPNext will not let two Bank Accounts share one GL account, so pointing
+    both banks at whatever the company's default happened to be meant the
+    second one could never be created.
+    """
+    abbr = frappe.get_cached_value("Company", company, "abbr")
+    name = f"{spec['bank']} - {abbr}"
+    if frappe.db.exists("Account", name):
+        return name
+
+    parent = (frappe.db.get_value("Account", {"company": company,
+                                              "account_type": "Bank",
+                                              "is_group": 1}, "name")
+              or frappe.db.get_value("Account", {"company": company,
+                                                 "account_name": "Bank Accounts",
+                                                 "is_group": 1}, "name")
+              or frappe.db.get_value("Account", {"company": company,
+                                                 "root_type": "Asset",
+                                                 "is_group": 1}, "name"))
+    if not parent:
+        # nothing to hang it under; fall back to whatever the company uses
+        return frappe.db.get_value("Company", company, "default_bank_account")
+
+    doc = frappe.get_doc({
+        "doctype": "Account",
+        "account_name": spec["bank"],
+        "parent_account": parent,
+        "company": company,
+        "account_type": "Bank",
+        "is_group": 0,
+        "account_currency": CURRENCY,
+    })
+    doc.flags.ignore_mandatory = True
+    return doc.insert(ignore_permissions=True).name
 
 
 # ------------------------------------------------------------------- payment
