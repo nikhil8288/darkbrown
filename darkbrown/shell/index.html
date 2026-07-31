@@ -547,12 +547,12 @@ body.focus main{max-width:none}
     <div class="nv" data-r="landlords">Landlords</div>
     <div class="nv" data-r="agreements">Agreements</div>
     <div class="grp">Operations</div>
-    <div class="nv" data-r="cases">Cases <span class="b r">14</span></div>
-    <div class="nv" data-r="moveout">Move-out <span class="b">3</span></div>
+    <div class="nv" data-r="cases">Cases <span class="b r" id="nbCases">14</span></div>
+    <div class="nv" data-r="moveout">Move-out <span class="b" id="nbMove">3</span></div>
     <div class="nv" data-r="maint">Maintenance</div>
     <div class="nv" data-r="utilities">Utilities</div>
     <div class="grp">Documents</div>
-    <div class="nv" data-r="intake">Intake &amp; OCR <span class="b">2</span></div>
+    <div class="nv" data-r="intake">Intake &amp; OCR <span class="b" id="nbIntake">2</span></div>
     <div class="nv" data-r="vault">Vault</div>
     <div class="grp">Finance</div>
     <div class="nv" data-r="invoices">Invoices</div>
@@ -560,7 +560,7 @@ body.focus main{max-width:none}
     <div class="nv" data-r="receipts">Receipts</div>
     <div class="nv" data-r="cheques">Cheques</div>
     <div class="nv" data-r="batches">Batches</div>
-    <div class="nv" data-r="recon">Reconciliation <span class="b r">9</span></div>
+    <div class="nv" data-r="recon">Reconciliation <span class="b r" id="nbRecon">9</span></div>
     <div class="nv" data-r="closing">Weekly Closing</div>
     <div class="grp">Accounts</div>
     <div class="nv" data-r="coa">Chart of Accounts</div>
@@ -571,7 +571,7 @@ body.focus main{max-width:none}
     <div class="nv" data-r="planning">Planning home</div>
     <div class="nv" data-r="capacity">Capacity curve</div>
     <div class="nv" data-r="forecast">Forecast</div>
-    <div class="nv" data-r="scenarios">Scenarios <span class="b">4</span></div>
+    <div class="nv" data-r="scenarios">Scenarios <span class="b" id="nbScen">4</span></div>
     <div class="nv" data-r="model">Building model</div>
     <div class="nv" data-r="portfolioplan">Portfolio plan</div>
     <div class="nv" data-r="targets">Targets</div>
@@ -581,9 +581,9 @@ body.focus main{max-width:none}
     <div class="grp">Owners</div>
     <div class="nv" data-r="owners">Owners home</div>
     <div class="nv" data-r="policy">Distribution policy</div>
-    <div class="nv" data-r="runs">Distribution runs <span class="b r">1</span></div>
+    <div class="nv" data-r="runs">Distribution runs <span class="b r" id="nbRuns">1</span></div>
     <div class="grp">Governance</div>
-    <div class="nv" data-r="approvals">Approvals <span class="b">4</span></div>
+    <div class="nv" data-r="approvals">Approvals <span class="b" id="nbAppr">4</span></div>
     <div class="nv" data-r="reports">Reports</div>
     <div class="nv" data-r="admin">Admin</div>
     <div class="nv" data-r="data">Data &amp; demo</div>
@@ -618,7 +618,12 @@ body.focus main{max-width:none}
 <!--DB_BOOT-->
 <script>/* ============ Darkbrown V2 — core: data model, components, router ============ */
 const R=(s=>()=>{s|=0;s=s+0x6D2B79F5|0;let t=Math.imul(s^s>>>15,1|s);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296})(20260726);
-const pick=a=>a[Math.floor(R()*a.length)];
+/* Tolerant on purpose. The prototype seed builds demo rows by picking from
+   BUILDINGS and UNITS, which are replaced by live data at boot. A building
+   that arrives with no units — onboarded but not yet filled — made this
+   return undefined, and the dereference that followed took the whole app
+   down before the first screen rendered. */
+const pick=a=>((a&&a.length)?a[Math.floor(R()*a.length)]:{});
 const ri=(a,b)=>a+Math.floor(R()*(b-a+1));
 const money=n=>n>=1000?(n/1000).toFixed(2)+'M':Math.round(n)+'K';
 const esc=s=>String(s).replace(/[<>&]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]));
@@ -832,6 +837,10 @@ const stChip=s=>({'Occupied':'g','Current':'g','Paid':'g','Cleared':'g','Active'
  'Void':'r','In arrears':'r','Unpaid':'r','Bounced':'r','Expired':'r','Not started':'r','Flagged':'r','Emergency':'r','Legal notice':'r','Escalated':'r','Promise broken':'r'}[s]||'n');
 function empty(msg){return `<div class="mt">${msg}</div>`}
 function actbtn(t,p){return `<button class="btn" onclick="toast('${p||t}')">${t}</button>`}
+function mpTxt(b){return (b.mp===null||b.mp===undefined)?'\u2014':b.mp.toFixed(1)+'%'}
+function mpBad(b,t){return (b.mp===null||b.mp===undefined)?!!b.cost:b.mp<t}
+window.mpTxt=mpTxt;window.mpBad=mpBad;
+
 function fbtn(t,key,ctx){return `<button class="btn" onclick='openForm(${JSON.stringify(key)},${JSON.stringify(ctx||null)})'>${t}</button>`}
 window.toast=m=>{const t=el('#toast');t.textContent=m;t.style.opacity=1;clearTimeout(window.__t);window.__t=setTimeout(()=>t.style.opacity=0,2000)};
 
@@ -931,7 +940,11 @@ function go(h){location.hash=h}
 window.go=go;
 function router(){
   const h=(location.hash||'#/dash').slice(2);
-  const [r,id]=h.split('/');
+  const [r,rawId]=h.split('/');
+  /* Real docnames contain spaces — "Najma Tower", "Najma Tower-501" — and the
+     hash encodes them. Without decoding, every lookup missed and the
+     ||first-row fallbacks rendered the wrong record without saying so. */
+  const id=rawId?decodeURIComponent(rawId):rawId;
   const fn=ROUTES[r]||ROUTES.dash;
   document.body.classList.remove('focus');
   el('#view').innerHTML=(typeof roleCan==='function'&&!roleCan(r))?roleBlock(r)
@@ -939,7 +952,7 @@ function router(){
   window.scrollTo(0,0);
   document.querySelectorAll('.nv').forEach(n=>n.classList.toggle('on',n.dataset.r===r));
   el('#ptoggle').style.display=r==='dash'?'flex':'none';
-  gateAlerts(); setBadge();
+  gateAlerts(); setBadge(); gateNav();
   if(r==='dash') renderDash();
   else if(window.DB_LIVE) gateChrome();
   if(r==='data'&&window.dtResume) setTimeout(window.dtResume,0);
@@ -1276,9 +1289,8 @@ function renderKPIs(p){
     <div class="l">${c.l}</div><div class="row"><span class="v">${c.v}</span>${c.s}</div>
     <div style="margin-top:2px">${c.d}</div></div>`).join('');
   $('#pl1').textContent=P.label; $('#pl2').textContent=P.label; $('#pl3').textContent=P.label;
-  const at=$('#apprTag');
-  if(at) at.textContent = (live&&!((window.DB_SEED&&DB_SEED.approvals||[]).length))
-    ? '' : `${P.ap||0} PENDING \u00b7 ${P.apOld||0} > 48h`;
+  /* the badge is written by renderApprovals from the queue itself, so the
+     count and the rows underneath it can never disagree */
 }
 
 /* ---------- cash runway hero ---------- */
@@ -1358,19 +1370,30 @@ function renderCheques(){
 
 /* ---------- approvals ---------- */
 function renderApprovals(){
-  const rows=[
-   ['Deposit release','TA-0231 · Fatima N.',24.0,'62h','r'],
-   ['Rent concession','B14-U103 · GM',8.5,'51h','r'],
-   ['Write-off','TN-0142 · Fatima N.',6.2,'19h','a'],
-   ['Head-lease renewal','B07 · GM',1458,'6h','n']];
-  $('#approvals').innerHTML=rows.map((r,i)=>`<div class="it" id="ap${i}">
-    <span class="t">${r[0]} <span class="m">· ${r[1]}</span></span>
-    <span class="chip ${r[4]}">${r[3]}</span><span class="amt">${r[2]>=1000?kk(r[2]):r[2]+'K'}</span>
-    <button class="btn ok" onclick="act(${i},1)">✓</button><button class="btn no" onclick="act(${i},0)">✕</button></div>`).join('');
+  /* These were four invented rows with tick and cross buttons that saved
+     nothing. On a live screen that is the most dangerous thing in the app:
+     the decision looks taken and no record moves. They now come from the
+     approvals queue, and deciding one goes through the same wired form the
+     Approvals screen uses. */
+  const pend=APPR.filter(a=>a.st==='Pending')
+    .sort((a,b)=>(b.age||0)-(a.age||0)).slice(0,6);
+  const box=$('#approvals'); if(!box) return;
+  if(!pend.length){
+    box.innerHTML='<div class="it"><span class="t m">Nothing is waiting on a decision.</span></div>';
+  } else {
+    box.innerHTML=pend.map(a=>`<div class="it" id="ap_${a.id}">
+      <span class="t">${a.ty} <span class="m">\u00b7 ${a.ref}</span></span>
+      <span class="chip ${a.age>48?'r':a.age>24?'a':'n'}">${a.age}h</span>
+      <span class="amt">${a.amt>=1000?kk(a.amt):a.amt+'K'}</span>
+      <button class="btn ok" title="Approve"
+        onclick="openForm('approve-decision',{ref:'${a.id}',dec:'Approve'})">\u2713</button>
+      <button class="btn no" title="Reject"
+        onclick="openForm('approve-decision',{ref:'${a.id}',dec:'Reject'})">\u2715</button></div>`).join('');
+  }
+  const t=$('#apprTag');
+  if(t) t.textContent=pend.length
+    ? `${pend.length} PENDING \u00b7 ${pend.filter(a=>a.age>48).length} > 48h` : '';
 }
-window.act=(i,ok)=>{const e=$('#ap'+i);e.style.opacity=.35;e.querySelectorAll('.btn').forEach(b=>b.remove());
-  e.insertAdjacentHTML('beforeend',`<span class="chip ${ok?'g':'r'}">${ok?'APPROVED':'REJECTED'}</span>`);
-  const t=$('#apprTag'),n=parseInt(t.dataset.n||4)-1;t.dataset.n=n;t.textContent=n+' PENDING · '+Math.max(0,n-2)+' > 48h';};
 
 /* ---------- exceptions ---------- */
 function renderExceptions(){
@@ -1628,7 +1651,7 @@ function renderPortfolio(){
   for(const b of PF_view){
     h+=`<tr class="drill" onclick="go('#/buildings')"><td>${b.n}</td><td class="r num">${b.u}</td><td class="r num">${b.rev}K</td>
      <td class="r num">${b.cost}K</td><td class="r num">${b.m}K</td>
-     <td class="r num" style="color:${!b.rev?'inherit':b.mp<12?'var(--red)':b.mp<16?'var(--amber)':'var(--teal)'}">${b.rev?b.mp.toFixed(1)+'%':'\u2014'}</td>
+     <td class="r num" style="color:${!b.rev?'var(--red)':b.mp<12?'var(--red)':b.mp<16?'var(--amber)':'var(--teal)'}">${mpTxt(b)}</td>
      <td class="r num" style="color:${b.arr>30?'var(--red)':'inherit'}">${b.arr}K</td>
      <td class="r num">${b.occ}%</td>
      <td class="r num ${b.d>=0?'d up':'d dn'}">${b.d>=0?'+':''}${b.d.toFixed(1)}%</td></tr>`;
@@ -2346,7 +2369,7 @@ ROUTES.buildings=()=>page('Buildings',`${BUILDINGS.length} buildings · ${UNITS.
   {h:'Building',v:b=>b.n},{h:'Area',v:b=>b.area},{h:'Landlord',v:b=>b.ll},
   {h:'Units',r:1,mono:1,v:b=>b.units},{h:'Revenue',r:1,mono:1,v:b=>k(b.rev)},
   {h:'Head-lease',r:1,mono:1,v:b=>k(b.cost)},{h:'Margin',r:1,mono:1,v:b=>k(b.m)},
-  {h:'Margin %',r:1,mono:1,v:b=>b.mp.toFixed(1)+'%',style:b=>b.mp<18?'color:var(--red)':'color:var(--em)'},
+  {h:'Margin %',r:1,mono:1,v:b=>mpTxt(b),style:b=>mpBad(b,18)?'color:var(--red)':'color:var(--em)'},
   {h:'Lease ends',r:1,v:b=>b.hlEnd}],
   BUILDINGS.map(b=>({...b,__id:b.id})),{id:'bl',click:'openB'})}</div>`);
 
@@ -2360,7 +2383,7 @@ ROUTES.building=id=>{const b=B(id)||BUILDINGS[0]; const us=UNITS.filter(u=>u.b==
   fbtn('New unit','add-unit')+fbtn('Log maintenance','raise-job',{bn:b.n}),
   stat([['Units',b.units],['Occupied',us.filter(u=>u.st==='Occupied').length+' / '+b.units],
    ['Monthly revenue',b.rev+'K'],['Head-lease rent',b.cost+'K'],
-   ['Margin',b.m+'K · '+b.mp.toFixed(1)+'%','',b.mp<14?'r':'g'],['Arrears',b.arr+'K','',b.arr>30?'r':''],
+   ['Margin',b.m+'K · '+mpTxt(b),'',mpBad(b,14)?'r':'g'],['Arrears',b.arr+'K','',b.arr>30?'r':''],
    ['Void days',b.vd,'',b.vd>20?'a':''],['Head-lease ends',b.hlEnd]])+
   `<div class="grid2">
    <div class="card"><h3>Units</h3>${tbl([
@@ -2900,6 +2923,35 @@ function gateAlerts(){
       go:'#/approval/'+a.id});
   });
 }
+/* The sidebar carried seven hard counts — 14 cases, 9 unmatched bank items,
+   4 scenarios — none of which came from anywhere. Beside a real portfolio
+   they are the most-read numbers in the app and the least true. Each is now
+   driven by the list it points at, and a badge whose list has no server
+   behind it is removed rather than left showing yesterday's invention. */
+function gateNav(){
+  const set=(id,n)=>{const e=document.getElementById(id); if(!e) return;
+    if(n===null||n===undefined){e.remove();return}
+    if(!n){e.remove();return}
+    e.textContent=n;};
+  if(!window.DB_LIVE){
+    set('nbCases',CASES.length);set('nbMove',MOVEOUT.length);
+    set('nbIntake',DOCS.filter(d=>/review/i.test(d.st||'')).length);
+    set('nbAppr',APPR.filter(a=>a.st==='Pending').length);
+    return;
+  }
+  /* An array that fell back to the prototype seed is not a count of anything.
+     Ask the payload, not the array. */
+  const sent=k=>((window.DB_SEED&&DB_SEED[k])||[]).length;
+  set('nbCases',sent('cases')?CASES.length:null);
+  set('nbMove',sent('moveouts')?MOVEOUT.length:null);
+  set('nbIntake',sent('docs')?DOCS.filter(d=>/review/i.test(d.st||'')).length:null);
+  set('nbAppr',sent('approvals')?APPR.filter(a=>a.st==='Pending').length:null);
+  set('nbRecon',null);   /* no bank statement import exists */
+  set('nbScen',null);    /* planning is not wired */
+  set('nbRuns',null);    /* owner distributions are not built */
+}
+window.gateNav=gateNav;
+
 function setBadge(){
   const b=document.getElementById('nbadge'); if(!b) return;
   const n=NOTIF_READ?0:ALERTS.length;
@@ -4121,7 +4173,7 @@ ROUTES.scenario=id=>{const s=SC(id)||SCEN[0];const cap=capSeries();
 /* ---- portfolio plan · absorbs unit-level planning ---- */
 ROUTES.portfolioplan=()=>page('Portfolio plan','Every building against the spread threshold, and every void beneath it','',
  secnav([['Buildings','sec-b'],['Voids','sec-v']])+
- stat([['Buildings',BUILDINGS.length],['Below threshold',BUILDINGS.filter(b=>b.mp<18).length,'','r'],
+ stat([['Buildings',BUILDINGS.length],['Below threshold',BUILDINGS.filter(b=>mpBad(b,18)).length,'','r'],
   ['Void units',UNITS.filter(u=>u.st==='Void').length],
   ['Rent not being billed',k(UNITS.filter(u=>u.st==='Void').reduce((a,u)=>a+u.rent,0))]])+
  `<div class="note">A building below the threshold for four consecutive quarters becomes an exit question for the MD.
@@ -4129,9 +4181,10 @@ ROUTES.portfolioplan=()=>page('Portfolio plan','Every building against the sprea
  <div class="card" id="sec-b"><h3>Buildings against the 18% threshold</h3>${tbl([
   {h:'Building',v:b=>b.n},{h:'Units',r:1,mono:1,v:b=>b.units},{h:'Revenue',r:1,mono:1,v:b=>k(b.rev)},
   {h:'Head-lease',r:1,mono:1,v:b=>k(b.cost)},{h:'Margin',r:1,mono:1,v:b=>k(b.m)},
-  {h:'Margin %',r:1,mono:1,v:b=>b.mp.toFixed(1)+'%',
-   style:b=>b.mp<18?'color:var(--red)':b.mp<24?'color:var(--amber)':'color:var(--em)'},
-  {h:'Verdict',v:b=>b.mp<18?chip('Below threshold','r'):b.mp<24?chip('Watch','a'):chip('Hold','g')}],
+  {h:'Margin %',r:1,mono:1,v:b=>mpTxt(b),
+   style:b=>mpBad(b,18)?'color:var(--red)':b.mp<24?'color:var(--amber)':'color:var(--em)'},
+  {h:'Verdict',v:b=>mpBad(b,18)?chip(b.mp==null?'No revenue billed':'Below threshold','r')
+    :b.mp<24?chip('Watch','a'):chip('Hold','g')}],
   BUILDINGS.map(b=>({...b,__id:b.id})),{id:'pp',click:'openB',foot:[BUILDINGS.length+' buildings','click a header to sort']})}</div>
  <div class="card" id="sec-v"><h3>Void units and the plan for each</h3>${voidTable('vp')}</div>`);
 
@@ -4203,8 +4256,8 @@ const CFOT=[
    <br><br>I have not calculated any of that. It comes from the reserve service with the classification applied as a hypothetical.`,
   'Reserve service · hypothetical classification'],
  ['Which buildings are dragging the spread?',
-  ()=>{const w=BUILDINGS.slice().sort((a,b)=>a.mp-b.mp).slice(0,2);
-   return `${w[0].n} at ${w[0].mp.toFixed(1)}% and ${w[1].n} at ${w[1].mp.toFixed(1)}%, against a threshold of 18%.
+  ()=>{const w=BUILDINGS.slice().sort((a,b)=>(a.mp==null?-1e9:a.mp)-(b.mp==null?-1e9:b.mp)).slice(0,2);
+   return `${w[0].n} at ${mpTxt(w[0])} and ${w[1].n} at ${mpTxt(w[1])}, against a threshold of 18%.
    Muaither West is also carrying voids worth ${k(38.4)} a month if filled.<br><br>Filling voids is a permitted lever. Raising rent is not,
    so I have not modelled it.`},
   'Portfolio service · void pipeline'],

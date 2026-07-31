@@ -64,7 +64,10 @@ def buildings():
             "rev": rev,
             "cost": cost,
             "m": margin,
-            "mp": round(margin / rev * 100, 1) if rev else 0,
+            # No revenue means the percentage is undefined, not zero.
+            # Zero made a building losing its whole head-lease cost
+            # read as break-even.
+            "mp": round(margin / rev * 100, 1) if rev else None,
             "arr": _k(arrears_by_b.get(b.name, 0)),
             "vd": len(vacant),
             "om": 0,
@@ -920,7 +923,12 @@ def _collection(s):
 def _losers(s):
     """Which buildings are eating the profit the others make?"""
     hl = {}
-    for h in frappe.get_all("Head Lease", filters={"status": "Active"},
+    # Active *and* Expiring. Filtering to Active alone dropped any building
+    # whose head lease was close to renewal, which is exactly the building
+    # this tile exists to surface. It also disagreed with the portfolio
+    # table, which has always counted both.
+    for h in frappe.get_all("Head Lease",
+                            filters={"status": ["in", ("Active", "Expiring")]},
                             fields=["building", "monthly_rent"]):
         hl[h.building] = hl.get(h.building, 0) + flt(h.monthly_rent)
     if not hl:
