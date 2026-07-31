@@ -66,7 +66,7 @@ def health():
             "rev": round(rev / K),
             "cost": round(cost / K),
             "m": round(margin / K),
-            "mp": (margin / rev * 100) if rev else 0.0,
+            "mp": (margin / rev * 100) if rev else None,
             "arr": round(_arrears(b.name) / K),
             "vd": None,                       # not tracked — see module note
             "om": frappe.db.count("Maintenance Request", {
@@ -75,10 +75,28 @@ def health():
                                   "In Progress")]}),
             "ex": _expiry_risk(b.name),
             "d": ((rev - prev) / prev * 100) if prev else 0.0,
+            # Rent that is contracted and drafted but not yet issued.
+            # Without this a building whose run is waiting on approval
+            # is indistinguishable from one earning nothing.
+            "unbilled": round(_unissued(b.name, m0) / K),
         })
 
     rows.sort(key=lambda r: -r["rev"])
     return rows
+
+
+def _unissued(building, period_start):
+    """Invoice runs raised for the period but not yet issued.
+
+    A run sitting at Draft or Pending GM has produced no submitted invoice, so
+    `_billed` correctly returns nothing for it. Reported on its own that reads
+    as a building earning zero against a full head-lease cost, which is a very
+    different thing from a decision nobody has taken yet."""
+    return flt(frappe.db.sql("""
+        select sum(total_amount) from `tabInvoice Run`
+        where building = %s and period_start = %s
+          and status in ('Draft', 'Pending GM')
+    """, (building, period_start))[0][0])
 
 
 def _billed(building, period_start):

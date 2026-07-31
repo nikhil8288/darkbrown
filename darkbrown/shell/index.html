@@ -1649,7 +1649,9 @@ function renderPortfolio(){
    <th class="r" onclick="pfSort('arr')">Arrears</th><th class="r" onclick="pfSort('occ')">Occ</th>
    <th class="r" onclick="pfSort('d')">Δ MoM</th></tr>`;
   for(const b of PF_view){
-    h+=`<tr class="drill" onclick="go('#/buildings')"><td>${b.n}</td><td class="r num">${b.u}</td><td class="r num">${b.rev}K</td>
+    const un=(!b.rev&&b.unbilled)?b.unbilled:0;
+    h+=`<tr class="drill" onclick="go('#/buildings')"><td>${b.n}${un?` <span class="tag amb">NOT ISSUED</span>`:''}</td><td class="r num">${b.u}</td>
+     <td class="r num" ${un?`style="color:var(--amber)" title="${un}K raised but the invoice run has not been issued"`:''}>${un?un+'K*':b.rev+'K'}</td>
      <td class="r num">${b.cost}K</td><td class="r num">${b.m}K</td>
      <td class="r num" style="color:${!b.rev?'var(--red)':b.mp<12?'var(--red)':b.mp<16?'var(--amber)':'var(--teal)'}">${mpTxt(b)}</td>
      <td class="r num" style="color:${b.arr>30?'var(--red)':'inherit'}">${b.arr}K</td>
@@ -1657,8 +1659,10 @@ function renderPortfolio(){
      <td class="r num ${b.d>=0?'d up':'d dn'}">${b.d>=0?'+':''}${b.d.toFixed(1)}%</td></tr>`;
   }
   const T=BD.reduce((a,b)=>({rev:a.rev+b.rev,cost:a.cost+b.cost,arr:a.arr+b.arr}),{rev:0,cost:0,arr:0});
+  const U=BD.reduce((a,b)=>a+((!b.rev&&b.unbilled)?b.unbilled:0),0);
   $('#portfolio').innerHTML=h+`</table><div class="foot"><span>${BD.length} buildings · ${BD.reduce((a,b)=>a+b.u,0)} units</span>
-   <span>Σ rev ${kk(T.rev)} · cost ${kk(T.cost)} · margin ${T.rev?((T.rev-T.cost)/T.rev*100).toFixed(1)+'%':'\u2014'} · arrears ${T.arr}K</span></div>`;
+   <span>Σ rev ${kk(T.rev)} · cost ${kk(T.cost)} · margin ${T.rev?((T.rev-T.cost)/T.rev*100).toFixed(1)+'%':'\u2014'} · arrears ${T.arr}K${
+     U?` <span style="color:var(--amber)">· ${kk(U)} raised but not issued</span>`:''}</span></div>`;
 }
 let PF_view=[...BD], pfDir=1, pfKey='';
 window.pfSort=k=>{pfDir=pfKey===k?-pfDir:1;pfKey=k;
