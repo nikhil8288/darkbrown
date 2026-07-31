@@ -390,13 +390,37 @@ def record_receipt(payload):
     return {"payment_entry": pe, "allocated": _kk(amount)}
 
 
+def _paid_to(value, company):
+    """The ledger account a receipt lands in.
+
+    A Bank Account and an Account are two different doctypes and Payment
+    Entry.paid_to links to the second. Everywhere else in this app a "bank
+    account" means the first, so handing that name straight to paid_to gives
+    "Account: ... is not permitted under Payment Entry" and no receipt can
+    ever be posted. Resolve it here rather than at each of the four call
+    sites, and accept either kind so a caller passing a ledger account
+    directly still works.
+    """
+    if value:
+        gl = frappe.db.get_value("Bank Account", value, "account")
+        if gl:
+            return gl
+        if frappe.db.exists("Account", value):
+            return value
+
+    return (frappe.db.get_value("Account",
+                                {"company": company, "account_type": "Bank",
+                                 "is_group": 0}, "name")
+            or frappe.db.get_value("Account",
+                                   {"company": company, "account_type": "Cash",
+                                    "is_group": 0}, "name"))
+
+
 def _receipt(customer, amount, on, bank_account=None, mode=None,
              reference=None):
     company = _company()
-    account = (bank_account or _settings().default_bank_account
-               or frappe.db.get_value(
-                   "Account", {"company": company, "account_type": "Bank",
-                               "is_group": 0}, "name"))
+    account = _paid_to(bank_account or _settings().default_bank_account,
+                       company)
 
     pe = frappe.new_doc("Payment Entry")
     pe.payment_type = "Receive"
