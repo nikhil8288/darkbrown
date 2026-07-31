@@ -138,18 +138,22 @@ def return_cheque(cheque, reason, charge=None, notes=None, on=None):
     if doc.status == "Returned":
         frappe.throw(_("{0} is already recorded as returned.").format(cheque))
 
+    # Reverse the money first. Cancelling the Payment Entry runs a hook that
+    # writes to this cheque's row, so a copy read before that point carries a
+    # stale timestamp and the save is refused as a conflict. Reload, then
+    # apply the bounce to the fresh copy.
+    if doc.payment_entry:
+        pe = frappe.get_doc("Payment Entry", doc.payment_entry)
+        if pe.docstatus == 1:
+            pe.cancel()
+        doc.reload()
+        doc.payment_entry = None
+
     doc.status = "Returned"
     doc.returned_on = on or today()
     doc.return_reason = reason
     doc.return_charge = flt(charge) * K if charge else 0
     doc.return_notes = notes
-
-    if doc.payment_entry:
-        pe = frappe.get_doc("Payment Entry", doc.payment_entry)
-        if pe.docstatus == 1:
-            pe.cancel()
-        doc.payment_entry = None
-
     doc.save(ignore_permissions=True)
 
     case = None
@@ -513,11 +517,20 @@ def create_deposit_batch(payload):
 
 
 @frappe.whitelist()
-def deposit_batch(batch, on=None):
-    """The slip went in. Cheques in it are presented, cash becomes a receipt."""
+def deposit_batch(batch, on=None, reason=None):
+    """The slip went in. Cheques in it are presented, cash becomes a receipt.
+
+    `reason` is the dual-control override. The controller refuses a batch
+    prepared and banked by the same person unless one is given, and on a
+    finance team this size that is the ordinary case rather than the
+    exception — so there has to be a way to say why, and it has to be
+    recorded on the batch.
+    """
     doc = frappe.get_doc("Deposit Batch", batch)
     if doc.status != "Draft":
         frappe.throw(_("{0} is {1}.").format(batch, doc.status))
+    if reason:
+        doc.override_reason = reason
 
     for l in doc.lines:
         if l.cheque:

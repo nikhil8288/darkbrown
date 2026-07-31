@@ -512,7 +512,9 @@ def _cash_deposits(r):
         r.count("deposit batches")
         r.step(f"bank {out['batch']}",
                lambda b=out["batch"], d=add_days(month, 2):
-               fin_api.deposit_batch(b, d))
+               fin_api.deposit_batch(
+                   b, d, reason="Single-handed collection round; no second "
+                                "person available on the day."))
     frappe.db.commit()
 
 
