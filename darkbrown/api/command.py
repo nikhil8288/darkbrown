@@ -243,8 +243,11 @@ def _landlord_due(days):
 
 def _bounce_rate(days):
     since = add_days(today(), -days)
-    returned = frappe.db.count("Cheque", {"status": "Returned",
-                                          "returned_on": [">=", since]})
+    # Count on returned_on, not on status. A returned cheque that has since
+    # been replaced carries status "Replaced", so counting by status quietly
+    # loses every bounce the tenant made good — which is most of them, and
+    # would make the bounce rate look far better than it is.
+    returned = frappe.db.count("Cheque", {"returned_on": [">=", since]})
     cleared = frappe.db.count("Cheque", {"status": "Cleared",
                                          "cleared_on": [">=", since]})
     total = returned + cleared
@@ -315,8 +318,7 @@ def _due_band(due):
 def _bounce_list():
     rows = frappe.get_all(
         "Cheque",
-        filters={"status": "Returned",
-                 "returned_on": [">=", add_days(today(), -30)]},
+        filters={"returned_on": [">=", add_days(today(), -30)]},
         fields=["party", "amount", "return_reason", "returned_on",
                 "unit", "replaced_by"],
         order_by="returned_on desc")

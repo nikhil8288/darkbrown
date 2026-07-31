@@ -678,15 +678,12 @@ def _moveout(r, tenancies):
                                  {"tenancy_agreement": name}, "name")
         if not sd:
             return None
-        frappe.db.set_value("Security Deposit", sd, {
-            "move_out_case": case, "deductions": 1200})
+        # open_moveout writes the link now; this only adds the deductions
+        # the inspection found.
+        frappe.db.set_value("Security Deposit", sd, "deductions", 1200)
         return sd
 
-    if r.step("link deposit to move-out", link_deposit):
-        r.findings.append(
-            "Security Deposit.move_out_case is not written by "
-            "operations.open_moveout — the demo sets it by hand, so the "
-            "deposit-release approval would not otherwise appear")
+    r.step("deductions on the deposit", link_deposit)
     frappe.db.commit()
 
 

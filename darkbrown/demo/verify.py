@@ -121,7 +121,8 @@ def _checks():
 
     # ---- cheques -------------------------------------------------------
     cleared = frappe.db.count("Cheque", {"status": "Cleared"})
-    returned = frappe.db.count("Cheque", {"status": "Returned"})
+    # on returned_on, because a replaced bounce no longer says "Returned"
+    returned = frappe.db.count("Cheque", {"returned_on": ["is", "set"]})
     replaced = frappe.db.count("Cheque", {"status": "Replaced"})
     check("cheques cleared", cleared >= 20, f"{cleared} cleared")
     check("a cheque bounced", returned >= 1, f"{returned} returned")

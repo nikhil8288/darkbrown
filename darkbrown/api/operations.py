@@ -136,6 +136,13 @@ def open_moveout(payload):
         "security_deposit": frappe.db.get_value(
             "Security Deposit", {"tenancy_agreement": ta}, "name"),
     }).insert()
+
+    # Both ends of the link. The approvals queue reads the deposit's side, so
+    # writing only the case's side means a deposit release never reaches
+    # anyone to approve.
+    if doc.security_deposit:
+        frappe.db.set_value("Security Deposit", doc.security_deposit,
+                            "move_out_case", doc.name)
     return doc.name
 
 
