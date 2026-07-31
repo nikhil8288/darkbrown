@@ -13,16 +13,19 @@ What is deliberately None, and why:
     void days       no void-start date is recorded on Unit, so elapsed void
                     cannot be derived. Needs a field before it can be shown.
     cash on hand    the accounts sweep to near zero daily, so bank balance is
-                    not cash availability. Blocked on Q11.
-    unmatched bank  no statement import exists yet.
+                    never used. Cash shows only once someone has declared a
+                    counted position (Bank Balance Declaration); until then
+                    it is None.
+    unmatched bank  None until a Bank Statement Import has ever run; after
+                    that, the live unmatched count.
 
 Amounts are returned in thousands of QAR, because that is what the prototype
 renders.
 """
 
 import frappe
-from frappe.utils import (add_days, add_months, flt, get_first_day,
-                          get_last_day, getdate, today)
+from frappe.utils import (add_days, add_months, flt, get_datetime,
+                          get_first_day, get_last_day, getdate, today)
 
 K = 1000.0
 
@@ -237,16 +240,16 @@ def _period(months, label):
                  - ((pcollected / pbilled * 100) if pbilled else 0.0),
         "arr": _k(_arrears_all()),
         "arrD": 0.0,
-        "cash": None,                 # blocked on Q11 — see module note
-        "cashD": None,
+        "cash": _declared_cash(),     # a declared fact, or None — never the
+        "cashD": None,                # swept bank balance (module note)
         "pdc30": _k(_pdc_due(30)),
         "ll30": _k(_landlord_due(30)),
         "vd": None,                   # not tracked
         "vdD": None,
         "br": _bounce_rate(90),
         "brD": 0.0,
-        "unm": None,                  # no statement import
-        "unmA": None,
+        "unm": _unm_count(),          # None until an import has ever run
+        "unmA": _unm_aged(),
         "ap": len(_pending_approvals()),
         "apOld": len([a for a in _pending_approvals() if a > 2]),
         "unissued": _k(sum(held.values())) if held else 0,
@@ -323,6 +326,25 @@ def _bounce_rate(days):
     return round(returned / total * 100, 1) if total else 0.0
 
 
+def _declared_cash():
+    from darkbrown.api.cashdesk import latest_declarations
+    dec = latest_declarations()
+    return _k(dec["total"]) if dec else None
+
+
+def _unm_count():
+    from darkbrown.api.cashdesk import unmatched_summary
+    u = unmatched_summary()
+    return u.get("items") if u.get("imports") else None
+
+
+def _unm_aged():
+    from darkbrown.api.cashdesk import unmatched_summary
+    u = unmatched_summary()
+    return (f"{u['aged']} > 5d" if u.get("imports") and u.get("aged")
+            else None)
+
+
 def _pending_approvals():
     """Ages in days of everything waiting on a decision."""
     from darkbrown.api.app import approvals
@@ -352,7 +374,237 @@ def panels():
         "maint": _maintenance_split(),
         "spread12": _spread12(),
         "exceptions": _exceptions(),
+        "runwayFlows": _runway_flows(),
+        "waterfall": _waterfall(),
+        "renewal": _renewal_uplift(),
+        "utility": _utility_recovery(),
+        "overrides": _override_log(),
+        "closing": _closing(),
+        "unmatched": _unmatched_panel(),
     }
+
+
+def _closing():
+    """Latest close, the one in flight, and when the next falls due —
+    Thursday is the closing day this business keeps."""
+    last = frappe.db.get_value(
+        "Weekly Closing", {"status": "Closed"},
+        ["period_end", "closed_on", "discrepancies", "assigned_to"],
+        order_by="period_end desc", as_dict=True)
+    cur = frappe.db.get_value(
+        "Weekly Closing", {"status": ["in", ("Open", "In Progress")]},
+        ["period_end", "status", "discrepancies", "assigned_to"],
+        order_by="period_end desc", as_dict=True)
+    d = getdate(today())
+    days_to_thu = (3 - d.weekday()) % 7 or 7
+    out = {"next": f"{add_days(d, days_to_thu):%a %d %b}",
+           "nextIn": days_to_thu}
+    if last:
+        out["last"] = {
+            "end": f"{getdate(last.period_end):%a %d %b}",
+            "on": (f"{get_datetime(last.closed_on):%H:%M}"
+                   if last.closed_on else ""),
+            "disc": last.discrepancies or 0,
+            "who": _who(last.assigned_to)}
+    if cur:
+        out["open"] = {
+            "end": f"{getdate(cur.period_end):%a %d %b}",
+            "st": cur.status, "disc": cur.discrepancies or 0,
+            "who": _who(cur.assigned_to)}
+    return out
+
+
+def _who(user):
+    if not user:
+        return ""
+    return frappe.db.get_value("User", user, "full_name") or user
+
+
+def _unmatched_panel():
+    from darkbrown.api.cashdesk import unmatched_summary
+    return unmatched_summary()
+
+
+def _runway_flows():
+    """Thirteen weeks of confirmed cash flows. Deliberately not a balance:
+    the accounts sweep to near zero daily and the reserve denominator is
+    blocked on Q10/Q11, so a cumulative line would be an invented opening
+    position dressed as a forecast. The flows themselves are contractual —
+    cheques in hand by maturity date, landlord payments by due date — and
+    the expected overlay discounts outstanding invoices at the rolling
+    90-day collection rate, the same discount the obligation-cover tile
+    already applies."""
+    billed90 = flt(frappe.db.sql("""
+        select sum(grand_total) from `tabSales Invoice`
+        where docstatus = 1 and posting_date >= %s
+    """, (add_days(today(), -90),))[0][0])
+    coll90 = flt(frappe.db.sql("""
+        select sum(grand_total - outstanding_amount) from `tabSales Invoice`
+        where docstatus = 1 and posting_date >= %s
+    """, (add_days(today(), -90),))[0][0])
+    rate = (coll90 / billed90) if billed90 else 0.0
+
+    out = []
+    for w in range(13):
+        a, b = add_days(today(), w * 7), add_days(today(), w * 7 + 6)
+        pdc = flt(frappe.db.sql("""
+            select sum(amount) from `tabCheque`
+            where direction = 'Incoming' and status in ('Received', 'Deposited')
+              and cheque_date between %s and %s
+        """, (a, b))[0][0])
+        if w == 0:
+            # already-overdue book expects its discounted value up front
+            exp = flt(frappe.db.sql("""
+                select sum(outstanding_amount) from `tabSales Invoice`
+                where docstatus = 1 and outstanding_amount > 0
+                  and due_date <= %s""", (b,))[0][0]) * rate
+        else:
+            exp = flt(frappe.db.sql("""
+                select sum(outstanding_amount) from `tabSales Invoice`
+                where docstatus = 1 and outstanding_amount > 0
+                  and due_date between %s and %s""", (a, b))[0][0]) * rate
+        ll_rows = frappe.db.sql("""
+            select hlp.amount, hl.landlord, hl.building
+            from `tabHead Lease Payment` hlp
+            join `tabHead Lease` hl on hl.name = hlp.parent
+            where hlp.status = 'Scheduled' and hlp.due_date between %s and %s
+            order by hlp.amount desc
+        """, (a, b), as_dict=True)
+        out.append({
+            "wk": w + 1,
+            "from": f"{getdate(a):%d %b}",
+            "pdc": _k(pdc),
+            "exp": _k(exp),
+            "ll": _k(sum(flt(r.amount) for r in ll_rows)),
+            "llName": (f"{ll_rows[0].landlord} — {ll_rows[0].building}"
+                       if ll_rows else ""),
+        })
+
+    res = {"weeks": out, "rate": round(rate * 100, 1)}
+
+    # The opening position is a declared fact or nothing. With one, the
+    # server carries the cumulative lines; without one, the front end shows
+    # flows only. Either way no balance is invented.
+    from darkbrown.api.cashdesk import latest_declarations
+    dec = latest_declarations()
+    if dec:
+        res["opening"] = _k(dec["total"])
+        res["declaredOn"] = dec["declared_on"]
+        res["staleDays"] = dec["stale_days"]
+        res["accounts"] = [{"a": x["a"], "b": _k(x["b"]), "on": x["on"]}
+                           for x in dec["accounts"]]
+        balC, balE, c, e = [], [], _k(dec["total"]), _k(dec["total"])
+        for wrow in out:
+            c = round(c + wrow["pdc"] - wrow["ll"], 1)
+            e = round(e + wrow["pdc"] + wrow["exp"] - wrow["ll"], 1)
+            balC.append(c)
+            balE.append(e)
+        res["balC"], res["balE"] = balC, balE
+    return res
+
+
+def _waterfall():
+    """This month's spread bridge from recorded costs only. Bank-side costs
+    have no equity/operating split until Q21 is answered, so they are not
+    here and the end bar is named for what it is — the spread after recorded
+    costs, not a net margin."""
+    m0 = _months(0)
+    held = unbilled_buildings(m0)
+    gross = _billed_all(m0)
+    landlord = _landlord_all(m0, exclude=held)
+    mnt = frappe.db.sql("""
+        select ifnull(sum(cost),0) c,
+               ifnull(sum(case when rechargeable=1 then recharge_amount end),0) r
+        from `tabMaintenance Request`
+        where date(reported_on) between %s and %s
+    """, (m0, get_last_day(m0)), as_dict=True)[0]
+    utl = frappe.db.sql("""
+        select ifnull(sum(ub.amount),0) paid,
+               ifnull((select sum(uba.amount)
+                       from `tabUtility Bill Allocation` uba
+                       join `tabUtility Bill` ub2 on ub2.name = uba.parent
+                       where uba.sales_invoice is not null
+                         and ub2.period_end between %s and %s), 0) rec
+        from `tabUtility Bill` ub
+        where ub.period_end between %s and %s
+    """, (m0, get_last_day(m0), m0, get_last_day(m0)), as_dict=True)[0]
+    maint_net = flt(mnt.c) - flt(mnt.r)
+    util_net = flt(utl.paid) - flt(utl.rec)
+    return {
+        "gross": _k(gross),
+        "landlord": _k(landlord),
+        "maintNet": _k(maint_net),
+        "utilNet": _k(util_net),
+        "spread": _k(gross - landlord - maint_net - util_net),
+        "held": len(held),
+    }
+
+
+def _renewal_uplift():
+    """Achieved renewal uplift, from agreements that carry renewal_of.
+    Uplift is the new rent against the rent of the agreement it renews,
+    bucketed by the month the renewal starts."""
+    months, out = [_months(i) for i in range(-5, 1)], []
+    for start in months:
+        rows = frappe.db.sql("""
+            select ta.monthly_rent as new_rent, old.monthly_rent as old_rent
+            from `tabTenancy Agreement` ta
+            join `tabTenancy Agreement` old on old.name = ta.renewal_of
+            where ta.renewal_of is not null and ta.renewal_of != ''
+              and ta.start_date between %s and %s
+              and old.monthly_rent > 0
+        """, (start, get_last_day(start)), as_dict=True)
+        ups = [(flt(r.new_rent) - flt(r.old_rent)) / flt(r.old_rent) * 100
+               for r in rows]
+        out.append({"m": f"{getdate(start):%b}", "n": len(ups),
+                    "up": round(sum(ups) / len(ups), 1) if ups else None})
+    won = flt(frappe.db.sql("""
+        select count(*) from `tabTenancy Agreement`
+        where renewal_of is not null and renewal_of != ''
+          and start_date >= %s""", (months[0],))[0][0])
+    pending = frappe.db.count("Tenancy Agreement", {"status": "Expiring"})
+    return {"months": out, "won": int(won), "pending": pending}
+
+
+def _utility_recovery():
+    """Utility spend against the share recharged to tenants. Recovered
+    means an allocation line that has a sales invoice behind it — an
+    allocation without one is a plan, not a recovery."""
+    out = []
+    for i in range(-11, 1):
+        a, b = _months(i), get_last_day(_months(i))
+        paid = flt(frappe.db.sql("""
+            select sum(amount) from `tabUtility Bill`
+            where period_end between %s and %s""", (a, b))[0][0])
+        rec = flt(frappe.db.sql("""
+            select sum(uba.amount)
+            from `tabUtility Bill Allocation` uba
+            join `tabUtility Bill` ub on ub.name = uba.parent
+            where uba.sales_invoice is not null
+              and ub.period_end between %s and %s""", (a, b))[0][0])
+        out.append({"m": f"{getdate(a):%b}", "paid": _k(paid),
+                    "rec": _k(rec)})
+    return out
+
+
+def _override_log():
+    """Soft-block overrides this month, read from deposit batches where an
+    override reason was recorded. One row per person, latest reason kept."""
+    rows = frappe.get_all(
+        "Deposit Batch",
+        filters={"override_reason": ["is", "set"],
+                 "deposit_date": [">=", _months(0)]},
+        fields=["prepared_by", "override_reason", "deposit_date", "name"],
+        order_by="deposit_date desc")
+    by = {}
+    for r in rows:
+        who = frappe.db.get_value("User", r.prepared_by, "full_name") \
+            or r.prepared_by or "—"
+        e = by.setdefault(who, {"by": who, "n": 0, "last": "", "ref": ""})
+        e["n"] += 1
+        if not e["last"]:
+            e["last"], e["ref"] = r.override_reason, r.name
+    return sorted(by.values(), key=lambda x: -x["n"])
 
 
 def _spread12():

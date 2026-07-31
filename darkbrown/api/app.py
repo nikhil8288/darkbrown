@@ -363,7 +363,8 @@ def seed():
                     ("cheques", cheques), ("docs", docs),
                     ("approvals", approvals), ("wall", wall),
                     ("health", _health), ("kpi", _kpi),
-                    ("panels", _panels)):
+                    ("panels", _panels),
+                    ("bankAccounts", bank_accounts)):
         try:
             rows = fn()
         except Exception:
@@ -384,6 +385,14 @@ def refresh():
     return {"seed": seed(), "role": role_code(),
             "user": frappe.db.get_value("User", frappe.session.user,
                                         "full_name")}
+
+
+def bank_accounts():
+    rows = frappe.get_all("Bank Account", filters={"is_company_account": 1},
+                          fields=["name", "account_name", "bank"])
+    return [{"name": r.name,
+             "label": f"{r.bank} — {r.account_name}" if r.bank
+             else r.account_name} for r in rows]
 
 
 # ------------------------------------------------------------------- parties

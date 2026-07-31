@@ -1,0 +1,82 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "creation": "2026-08-01 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-08-01 00:00:00.000000",
+ "module": "Darkbrown",
+ "name": "Bank Statement Line",
+ "owner": "Administrator",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "track_changes": 1,
+ "istable": 1,
+ "field_order": [
+  "txn_date",
+  "bank_ref",
+  "narrative",
+  "amount",
+  "direction",
+  "status",
+  "matched_type",
+  "matched_ref"
+ ],
+ "fields": [
+  {
+   "fieldname": "txn_date",
+   "fieldtype": "Date",
+   "label": "Date",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "bank_ref",
+   "fieldtype": "Data",
+   "label": "Bank Ref",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "narrative",
+   "fieldtype": "Data",
+   "label": "Narrative",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "amount",
+   "fieldtype": "Currency",
+   "label": "Amount",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "direction",
+   "fieldtype": "Select",
+   "label": "Direction",
+   "options": "Credit\\nDebit",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Unmatched\\nMatched\\nExcluded",
+   "default": "Unmatched",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "matched_type",
+   "fieldtype": "Data",
+   "label": "Matched Type"
+  },
+  {
+   "fieldname": "matched_ref",
+   "fieldtype": "Data",
+   "label": "Matched Ref"
+  }
+ ],
+ "permissions": []
+}

@@ -1099,10 +1099,12 @@ const DASH_TPL=`<div class="grid">
   <div class="card hero">
     <h3>Cash runway — 13 weeks
       <span class="tag red" id="lowTag">LOW POINT —</span>
-      <label class="ck" style="margin-left:auto"><input type="checkbox" id="ckExp" checked> include expected collections</label>
+      <span class="plabel" id="cashNote"></span>
+      <button class="btn" id="declareBtn" style="margin-left:auto" onclick="openForm('declare-cash')">Update cash position</button>
+      <label class="ck"><input type="checkbox" id="ckExp" checked> include expected collections</label>
     </h3>
     <div id="runway"></div>
-    <div class="legend">
+    <div class="legend" id="runwayLegend">
       <span><b class="sw" style="background:var(--em)"></b>PDC inflow</span>
       <span><b class="sw" style="background:var(--red);border-radius:1px;transform:rotate(45deg)"></b>Landlord cheque</span>
       <span><b class="sw" style="background:#75634F"></b>Payroll / opex</span>
@@ -1211,8 +1213,8 @@ function spk(vals,color,w=62,h=20){
    em dash and says so on hover. It is never estimated to fill the card —
    on this screen a plausible wrong number is the whole danger. */
 const NOTRACK={vd:'No void-start date is recorded on a unit, so elapsed void cannot be derived.',
- cash:'The accounts sweep to near zero daily, so bank balance is not cash availability. Blocked on Q11.',
- unm:'No bank statement import exists yet.'};
+ cash:'The accounts sweep to near zero daily, so bank balance is never shown. Declare a counted position (Update cash position on the runway) and it appears here.',
+ unm:'Shows once a bank statement has been imported.'};
 window.kval=(v,fmt,key)=>(v===null||v===undefined)
  ?`<span class="notrack" title="${NOTRACK[key]||'Not recorded yet.'}">&mdash;</span>`
  :(fmt?fmt(v):v);
@@ -1353,6 +1355,8 @@ function runwaySeries(exp){
   return out;
 }
 function renderRunway(){
+  const LP=livePanel('runwayFlows');
+  if(LP!==undefined){renderRunwayLive(LP);return;}
   const exp=$('#ckExp').checked;
   const A=runwaySeries(true), B=runwaySeries(false), S=exp?A:B;
   const W=880,H=228,L=52,R=14,T=16,BM=34,pw=W-L-R,ph=H-T-BM;
@@ -1384,6 +1388,63 @@ function renderRunway(){
     ${mks}${low}
     <line x1="${L}" x2="${W-R}" y1="${Y(0)}" y2="${Y(0)}" stroke="#A63D2F" stroke-width="1" opacity=".55"/>
   </svg>`;
+}
+
+function renderRunwayLive(LP){
+  const exp=$('#ckExp')?$('#ckExp').checked:true;
+  const wk=LP.weeks||[], hasBal=LP.opening!==undefined&&LP.balC;
+  const note=$('#cashNote');
+  if(note) note.innerHTML=hasBal
+    ?`opens at ${k(LP.opening)} · declared ${LP.declaredOn}${LP.staleDays>7?' <span style="color:var(--red)">· stale</span>':LP.staleDays>2?' <span style="color:var(--amber)">· ageing</span>':''}`
+    :'flows only — no cash position declared yet';
+  const lg=$('#runwayLegend');
+  if(lg) lg.innerHTML=`<span><b class="sw" style="background:var(--em)"></b>PDC inflow</span>
+    <span><b class="sw" style="background:var(--red);border-radius:1px;transform:rotate(45deg)"></b>Landlord cheque</span>
+    ${hasBal?`<span><b class="sw" style="background:#2E6B57;height:2px"></b>balance incl. expected @ ${LP.rate}%</span>
+    <span><b class="sw" style="border-top:1px dashed var(--mut);background:none;height:0"></b>confirmed-only balance</span>`
+    :`<span class="m">expected collections discounted at the rolling 90-day rate (${LP.rate}%) · balance line appears once a cash position is declared</span>`}`;
+  const W=880,H=228,L=52,R=14,T=16,BM=34,pw=W-L-R,ph=H-T-BM;
+  let s='',mks='';
+  if(hasBal){
+    const S=exp?LP.balE:LP.balC, A=LP.balE, B=LP.balC;
+    const all=[...A,...B,0,LP.opening];
+    const mx=Math.max(...all)*1.12+10, mn=Math.min(0,...all)-Math.max(20,Math.max(...all)*0.04);
+    const X=i=>L+i/(wk.length-1)*pw, Y=v=>T+(mx-v)/(mx-mn)*ph;
+    const li=v=>v.map((x,i)=>`${X(i).toFixed(1)},${Y(x).toFixed(1)}`).join(' ');
+    const lowI=S.indexOf(Math.min(...S)), lowV=S[lowI];
+    const lt=$('#lowTag');
+    if(lt){lt.textContent=`LOW POINT WK ${lowI+1} · ${k(lowV)}`;
+      lt.className='tag '+(lowV<0?'red':lowV<200?'amb':'tea');}
+    for(let gi=0;gi<=4;gi++){const gv=mn+(mx-mn)/4*gi;
+      s+=`<line x1="${L}" x2="${W-R}" y1="${Y(gv)}" y2="${Y(gv)}" stroke="#E7DDD1" stroke-dasharray="3 4"/>
+       <text x="${L-8}" y="${Y(gv)+3}" text-anchor="end" class="n" font-size="9" fill="#75634F">${kf(gv)}</text>`;}
+    s+=`<path d="M ${li(S).replace(/ /g,' L ')} L ${X(wk.length-1)},${Y(Math.max(0,mn))} L ${X(0)},${Y(Math.max(0,mn))} Z" fill="rgba(46,107,87,.10)"/>
+     <polyline points="${li(B)}" fill="none" stroke="#7A6A5C" stroke-width="1.2" stroke-dasharray="4 4"/>
+     <polyline points="${li(S)}" fill="none" stroke="#2E6B57" stroke-width="2"/>
+     <line x1="${L}" x2="${W-R}" y1="${Y(0)}" y2="${Y(0)}" stroke="#A63D2F" stroke-width="1" opacity=".55"/>
+     <circle cx="${X(lowI)}" cy="${Y(lowV)}" r="7" fill="none" stroke="#A63D2F" stroke-width="1.6"/>
+     <text x="${X(lowI)+(lowI>9?-12:12)}" y="${Y(lowV)-12}" text-anchor="${lowI>9?'end':'start'}" class="n" font-size="10" fill="#A63D2F">wk ${lowI+1} · ${k(lowV)} headroom</text>`;
+    wk.forEach((r,i)=>{
+      if(r.pdc) mks+=`<line x1="${X(i)}" x2="${X(i)}" y1="${Y(S[i])-14}" y2="${Y(S[i])-5}" stroke="#2E6B57" stroke-width="2.4" data-tt="Wk ${r.wk} from ${r.from} · PDC in ${k(r.pdc)}${exp&&r.exp?' · expected +'+k(r.exp):''}"/>`;
+      if(r.ll){const rr=5+Math.min(r.ll,900)/90;
+        mks+=`<rect x="${(X(i)-rr/1.41).toFixed(1)}" y="${(Y(S[i])+8).toFixed(1)}" width="${(rr*1.41).toFixed(1)}" height="${(rr*1.41).toFixed(1)}" transform="rotate(45 ${X(i)} ${Y(S[i])+8+rr/1.41})" fill="#A63D2F" data-tt="Wk ${r.wk} · ${esc(r.llName||'landlord cheques')} · ${k(r.ll)}"/>`;}
+      mks+=`<text x="${X(i)}" y="${H-BM+12}" text-anchor="middle" class="n" font-size="8.5" fill="#75634F">W${r.wk}</text>`;
+    });
+    $('#runway').innerHTML=`<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto">${s}${mks}</svg>`;
+  } else {
+    /* flows only: inflow bars up, landlord bars down, no balance invented */
+    const lt=$('#lowTag'); if(lt){lt.textContent='';lt.className='tag';}
+    const mx=Math.max(...wk.map(r=>(r.pdc||0)+(exp?(r.exp||0):0)),...wk.map(r=>r.ll||0),1)*1.1;
+    const X=i=>L+8+i*(pw-16)/(wk.length-1), Y0=T+ph/2;
+    s+=`<line x1="${L}" x2="${W-R}" y1="${Y0}" y2="${Y0}" stroke="#C9BBA9"/>`;
+    wk.forEach((r,i)=>{
+      const up=((r.pdc||0)+(exp?(r.exp||0):0))/mx*(ph/2-6), dn=(r.ll||0)/mx*(ph/2-6);
+      s+=`<rect x="${X(i)-8}" y="${Y0-up}" width="16" height="${Math.max(up,0)}" fill="#2E6B57" opacity=".85" data-tt="Wk ${r.wk} from ${r.from} · in ${k(r.pdc||0)}${exp&&r.exp?' + expected '+k(r.exp):''}"/>
+          <rect x="${X(i)-8}" y="${Y0+1}" width="16" height="${Math.max(dn,0)}" fill="#A63D2F" opacity=".8" data-tt="Wk ${r.wk} · ${esc(r.llName||'landlord')} · out ${k(r.ll||0)}"/>
+          <text x="${X(i)}" y="${H-BM+12}" text-anchor="middle" class="n" font-size="8.5" fill="#75634F">W${r.wk}</text>`;
+    });
+    $('#runway').innerHTML=`<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto">${s}</svg>`;
+  }
 }
 
 /* ---------- PDC ladder ---------- */
@@ -1674,6 +1735,31 @@ function renderSpread(){
 
 /* ---------- waterfall ---------- */
 function renderWaterfall(){
+  const LP=livePanel('waterfall');
+  if(LP!==undefined){
+    if(!(LP.gross||LP.landlord)){$('#waterfall').innerHTML=liveEmpty('Nothing billed and no head-lease cost this month.');return;}
+    const st=[['Gross rent',LP.gross||0,'#C9A86A'],['Landlord rent',-(LP.landlord||0),'#75634F'],
+      ['Maint net',-(LP.maintNet||0),'#B4552F'],['Utilities net',-(LP.utilNet||0),'#B4552F'],
+      ['Spread after recorded costs',LP.spread||0,'#2E6B57']];
+    const W=560,H=200,L=44,BW=76,GP=22;
+    const mx=Math.max(LP.gross||0,Math.abs(LP.spread||0),1)*1.15;
+    let run=0,s='';
+    for(let gi=0;gi<=3;gi++){const gv=mx/3*gi;
+      s+=`<line x1="${L}" x2="${W-6}" y1="${160-gv/mx*146}" y2="${160-gv/mx*146}" stroke="#E7DDD1" stroke-dasharray="3 4"/>
+       <text x="${L-6}" y="${163-gv/mx*146}" text-anchor="end" class="n" font-size="8.5" fill="#75634F">${kf(gv)}</text>`;}
+    st.forEach((t,i)=>{
+      const x=L+10+i*(BW+GP); let y0,h;
+      if(i===0||i===st.length-1){y0=160-Math.abs(t[1])/mx*146;h=Math.abs(t[1])/mx*146;run=(i===0)?t[1]:run;}
+      else{const from=run; run+=t[1]; y0=160-Math.max(from,run)/mx*146; h=Math.abs(t[1])/mx*146;}
+      s+=`<rect x="${x}" y="${Math.min(y0,158)}" width="${BW}" height="${Math.max(h,2)}" rx="2" fill="${t[2]}" data-tt="${t[0]} · ${t[1]<0?'−':''}${kf(Math.abs(t[1]))}"/>
+          <text x="${x+BW/2}" y="${Math.min(y0,158)-5}" text-anchor="middle" class="n" font-size="9" fill="${t[2]}">${t[1]<0?'−':''}${kf(Math.abs(t[1]))}</text>
+          <text x="${x+BW/2}" y="176" text-anchor="middle" font-size="7.8" fill="#7A6A5C">${t[0].length>18?t[0].slice(0,16)+'…':t[0]}</text>`;
+    });
+    const mp=LP.gross?((LP.spread||0)/LP.gross*100).toFixed(1):'—';
+    $('#waterfall').innerHTML=`<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto">${s}</svg>
+    <div class="foot"><span>recorded costs only — bank-side cost split blocked on Q21${LP.held?' · '+LP.held+' unissued run'+(LP.held>1?'s':'')+' held out':''}</span><span>spread ${mp}%</span></div>`;
+    return;
+  }
   const steps=[['Gross rent',1834,'#C9A86A'],['Landlord rent',-1458,'#75634F'],['Maint net',-63,'#B4552F'],
    ['Utilities net',-15,'#B4552F'],['Other',-9,'#B4552F'],['Net margin',289,'#2E6B57']];
   const W=560,H=200,L=44,BW=58,GP=24,mx=1900;
@@ -1723,6 +1809,23 @@ function renderBillCol(){
 
 /* ---------- renewal uplift ---------- */
 function renderRenewal(){
+  const LP=livePanel('renewal');
+  if(LP!==undefined){
+    const ms=LP.months||[];
+    if(!ms.some(r=>r.n)){
+      $('#renewal').innerHTML=liveEmpty('No renewals signed in the last six months.'+((LP.pending||0)?' '+LP.pending+' agreement'+(LP.pending===1?'':'s')+' expiring.':''));return;}
+    const W=380,H=150,L=30,step=(W-L-8)/ms.length;
+    const mx=Math.max(8,...ms.map(r=>r.up||0))*1.15;
+    let s='';
+    ms.forEach((r,i)=>{const x=L+10+i*step;
+      if(r.n){const h=Math.max((r.up||0)/mx*110,2);
+        s+=`<rect x="${x}" y="${124-h}" width="22" height="${h}" rx="2" fill="${(r.up||0)>=0?'#2E6B57':'#A63D2F'}" opacity=".9" data-tt="${r.m} · ${r.n} renewal${r.n===1?'':'s'} · avg ${(r.up||0).toFixed(1)}%"/>
+            <text x="${x+11}" y="${118-h}" text-anchor="middle" class="n" font-size="9" fill="#2E6B57">${(r.up||0).toFixed(1)}%</text>`;}
+      s+=`<text x="${x+11}" y="138" text-anchor="middle" font-size="8.5" fill="#75634F">${r.m}</text>`;});
+    $('#renewal').innerHTML=`<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto">${s}</svg>
+    <div class="foot"><span>renewed ${LP.won||0} · expiring ${LP.pending||0}</span><span>uplift = new rent vs the agreement it renews</span></div>`;
+    return;
+  }
   const m=['Feb','Mar','Apr','May','Jun','Jul'], up=[4.2,5.1,3.8,6.2,5.6,4.9], ask=6.5;
   const W=380,H=150,L=30,step=(W-L-8)/6;
   let s=`<line x1="${L}" x2="${W-6}" y1="${124-ask/8*110}" y2="${124-ask/8*110}" stroke="#C9A86A" stroke-dasharray="4 4" data-tt="asking uplift ${ask}%"/>
@@ -1766,6 +1869,24 @@ function renderMaint(){
 
 /* ---------- utility recovery ---------- */
 function renderUtility(){
+  const LP=livePanel('utility');
+  if(LP!==undefined){
+    if(!LP.some(r=>r.paid)){$('#utility').innerHTML=liveEmpty('No utility bills captured in the last twelve months.');return;}
+    const W=380,H=150,L=30,step=(W-L-8)/12;
+    const mx=Math.max(...LP.map(r=>r.paid||0),1)*1.1;
+    let s='';
+    const lp=LP.map((r,i)=>`${L+8+i*step},${124-(r.paid||0)/mx*110}`).join(' ');
+    const lb=LP.map((r,i)=>`${L+8+i*step},${124-(r.rec||0)/mx*110}`).join(' ');
+    s+=`<polyline points="${lp}" fill="none" stroke="#B4552F" stroke-width="1.8"/>
+        <polyline points="${lb}" fill="none" stroke="#2E6B57" stroke-width="1.8"/>`;
+    LP.forEach((r,i)=>{s+=`<text x="${L+8+i*step}" y="138" text-anchor="middle" font-size="8" fill="#75634F">${r.m}</text>
+      <circle cx="${L+8+i*step}" cy="${124-(r.paid||0)/mx*110}" r="2" fill="#B4552F" data-tt="${r.m} · paid ${kf(r.paid||0)}"/>
+      <circle cx="${L+8+i*step}" cy="${124-(r.rec||0)/mx*110}" r="2" fill="#2E6B57" data-tt="${r.m} · recovered ${kf(r.rec||0)} (invoiced allocations only)"/>`;});
+    const tp=LP.reduce((a,r)=>a+(r.paid||0),0), tr=LP.reduce((a,r)=>a+(r.rec||0),0);
+    $('#utility').innerHTML=`<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto">${s}</svg>
+    <div class="foot"><span><span class="sw" style="background:#B4552F"></span>paid <span class="sw" style="background:#2E6B57;margin-left:8px"></span>recovered · invoiced only</span><span>recovery ${tp?Math.round(tr/tp*100)+'%':'—'}</span></div>`;
+    return;
+  }
   const W=380,H=150,L=30,mx=110,step=(W-L-8)/12;
   let s='';
   const lp=uPaid.map((v,i)=>`${L+8+i*step},${124-v/mx*110}`).join(' ');
@@ -1930,6 +2051,20 @@ function renderConc(){
 
 /* ---------- closing ---------- */
 function renderClosing(){
+  const LP=livePanel('closing');
+  if(LP!==undefined){
+    const t=$('#closeTag');
+    if(t){t.textContent=LP.open?LP.open.st.toUpperCase():'';t.className='tag '+(LP.open?'amb':'tea');}
+    const rows=[];
+    if(LP.last) rows.push(`<div class="it"><span class="dot g"></span><span class="t">${LP.last.end} close — completed ${LP.last.on||''}</span><span class="chip g">DONE</span></div>`,
+      `<div class="it"><span class="dot ${LP.last.disc?'a':'g'}"></span><span class="t">Discrepancies carried</span><span class="chip ${LP.last.disc?'a':'g'}">${LP.last.disc}</span></div>`);
+    if(LP.open) rows.push(`<div class="it"><span class="dot a"></span><span class="t">${LP.open.end} close — ${LP.open.st.toLowerCase()}${LP.open.who?' · '+esc(LP.open.who):''}</span><span class="chip a">${LP.open.disc} OPEN</span></div>`);
+    if(!LP.last&&!LP.open) rows.push(`<div class="it"><span class="t m">No close recorded yet. The first one starts from this card.</span></div>`);
+    rows.push(`<div class="it"><span class="dot n"></span><span class="t">Next close — ${LP.next}</span><span class="chip n">IN ${LP.nextIn} DAY${LP.nextIn===1?'':'S'}</span></div>`);
+    $('#closing').innerHTML=`<div class="list">${rows.join('')}</div>
+     <div style="margin-top:8px">${fbtn(LP.open?'Continue close':'Start close','start-close')}</div>`;
+    return;
+  }
   $('#closing').innerHTML=`<div class="list">
    <div class="it"><span class="dot g"></span><span class="t">Thu 23 Jul close — completed 19:42</span><span class="chip g">DONE</span></div>
    <div class="it"><span class="dot a"></span><span class="t">Open discrepancies</span><span class="chip a">3</span></div>
@@ -1939,6 +2074,23 @@ function renderClosing(){
 
 /* ---------- unmatched ---------- */
 function renderUnmatched(){
+  const LP=livePanel('unmatched');
+  if(LP!==undefined){
+    if(!LP.imports){
+      $('#unmatched').innerHTML=liveEmpty('No bank statement imported yet. Paste one from the bank portal to start matching deposits to slips.')+
+       `<div style="margin-top:8px">${fbtn('Import statement','import-statement')}</div>`;
+      return;}
+    const v=(LP.weeks||[]).map(x=>x.n||0);
+    const W=380,H=130,L=26,step=(W-L-10)/Math.max(v.length-1,1);
+    const mx=Math.max(...v,5);
+    const y=x=>108-x/mx*92;
+    let s=`<polyline points="${v.map((x,i)=>`${L+i*step},${y(x)}`).join(' ')}" fill="none" stroke="#B07C2A" stroke-width="1.8"/>`;
+    v.forEach((x,i)=>s+=`<circle cx="${L+i*step}" cy="${y(x)}" r="2.2" fill="#B07C2A" data-tt="wk −${v.length-1-i} · ${x} unmatched"/>`);
+    if(LP.items) s+=`<text x="${L+(v.length-1)*step}" y="${y(v[v.length-1])-8}" text-anchor="end" class="n" font-size="10" fill="#B07C2A">${LP.items} items · ${kf(LP.value||0)}</text>`;
+    $('#unmatched').innerHTML=`<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto">${s}</svg>
+    <div class="foot"><span>${LP.items?LP.items+' open · '+(LP.aged||0)+' over 5 days':'nothing open — fully matched'}</span><span>${fbtn('Import','import-statement')}</span></div>`;
+    return;
+  }
   const v=[3,5,4,7,6,4,8,5,6,7,6,9];
   const W=380,H=130,L=26,step=(W-L-10)/11;
   const y=x=>108-x/10*92;
@@ -1951,6 +2103,18 @@ function renderUnmatched(){
 
 /* ---------- overrides ---------- */
 function renderOverrides(){
+  const LP=livePanel('overrides');
+  if(LP!==undefined){
+    if(!LP.length){$('#overrides').innerHTML=liveEmpty('No soft-block overrides recorded this month.');return;}
+    const mx=Math.max(...LP.map(r=>r.n||0),3);
+    $('#overrides').innerHTML=`<svg viewBox="0 0 380 ${Math.max(LP.length,1)*28+12}" style="width:100%;height:auto">${LP.map((r,i)=>{
+      const y=8+i*28,w=(r.n||0)/mx*210;
+      return `<text x="0" y="${y+12}" font-size="11" fill="#3E2723">${esc(r.by)}</text>
+        <rect x="96" y="${y+2}" width="${Math.max(w,2)}" height="13" rx="3" fill="${(r.n||0)>2?'#B07C2A':'#A08A63'}" data-tt="${esc(r.by)} · ${r.n} override${r.n===1?'':'s'} · latest: ${esc(r.last||'')}"/>
+        <text x="${104+w}" y="${y+12}" class="n" font-size="10" fill="#7A6A5C">${r.n}</text>`}).join('')}</svg>
+    <div class="foot"><span>latest: "${esc((LP[0].last||'').slice(0,44))}" — ${esc(LP[0].ref||'')}</span><span>from deposit batches</span></div>`;
+    return;
+  }
   const rows=[['Fatima N.',4,'"Yusuf on leave" · batch + reconcile'],['Yusuf K.',1,'"month-end rush" · same-day recon'],['Aisha R.',0,'—']];
   $('#overrides').innerHTML=`<svg viewBox="0 0 380 92" style="width:100%;height:auto">${rows.map((r,i)=>{
     const y=8+i*28,w=r[1]/5*230;
@@ -1982,6 +2146,8 @@ document.addEventListener('change',e=>{if(e.target.id==='ckExp')renderRunway()})
 
 function renderDash(){
 bindDash();
+const db=$('#declareBtn'); if(db) db.style.display=window.DB_LIVE?'':'none';
+const cn=$('#cashNote'); if(cn&&!window.DB_LIVE) cn.textContent='';
 renderKPIs('jul');renderRunway();renderLadder();renderCheques();renderApprovals();renderExceptions();
 renderBounces();renderArrears();renderVoids();renderExpiry();renderSpread();renderWaterfall();
 renderBillCol();renderRenewal();renderMaint();renderUtility();renderDeposits();renderOcc();
@@ -1996,14 +2162,10 @@ renderHeatmap();renderPortfolio();renderConc();renderClosing();renderUnmatched()
    sitting side by side is worse than useless — there is no way to tell which
    is which. So when live, the unwired panels say what they are instead of
    showing a number nobody can trace. */
-const DASH_UNWIRED={
- runway:'Cash runway needs a reserve denominator and an excess-cash target. Blocked on Q10 and Q11.',
- waterfall:'Needs the cost base split that Stage 2I defines. Blocked on Q21.',
- renewal:'Renewal outcomes are not tracked as a status yet.',
- utility:'Recovery needs utility invoices raised against allocations.',
- closing:'Weekly closing is not a server-side process yet.',
- unmatched:'No bank statement import exists yet.',
- overrides:'Override logging is not captured server-side yet.'};
+/* Nothing on this screen is permanently unwired any more. A panel the seed
+   did not carry is stubbed below with the seed-error message; everything
+   else renders from records. */
+const DASH_UNWIRED={};
 
 /* Panels the server computes. The renderer draws them when the seed carries
    them; a panel the seed does not carry gets stubbed here, because a
@@ -2011,9 +2173,12 @@ const DASH_UNWIRED={
    book — the difference is exactly what this screen must not blur. */
 const DASH_WIRABLE={pdcLadder:'pdcLadder',llCheques:'llCheques',exceptions:'exceptions',
  bounces:'bounces',arrears:'arrears',voids:'voids',expiry:'expiry',spread:'spread12',
- billcol:'billcol',maint:'maint',deposits:'deposits',occ:'occ',conc:'conc'};
+ billcol:'billcol',maint:'maint',deposits:'deposits',occ:'occ',conc:'conc',
+ runway:'runwayFlows',waterfall:'waterfall',renewal:'renewal',utility:'utility',
+ overrides:'overrides',closing:'closing',unmatched:'unmatched'};
 /* the badge each wirable panel owns, blanked with it if the panel is stubbed */
-const PANEL_TAGS={pdcLadder:'undepTag',voids:'voidTag',exceptions:'exTag'};
+const PANEL_TAGS={pdcLadder:'undepTag',voids:'voidTag',exceptions:'exTag',
+ runway:'lowTag',closing:'closeTag'};
 
 function gateChrome(){
   const sy=document.getElementById('sync');
@@ -2031,10 +2196,6 @@ window.gateChrome=gateChrome;
 function gateDash(){
   if(!window.DB_LIVE) return;
   gateChrome();
-  /* badges owned by permanently stubbed panels are prototype fiction */
-  ['lowTag','closeTag'].forEach(id=>{
-    const e=document.getElementById(id); if(e){e.textContent='';e.className='tag';}
-  });
   /* fresh each call — a refresh that brings a panel back must un-stub it */
   const stubs=Object.assign({},DASH_UNWIRED);
   Object.entries(DASH_WIRABLE).forEach(([id,key])=>{
@@ -2209,36 +2370,70 @@ function formDone(res){
 }
 window.refresh=()=>router();
 
+/* ---------- bank accounts + statement parsing ---------- */
+const BANKS=()=>((window.DB_SEED&&DB_SEED.bankAccounts)||[]);
+const bankName=label=>{const b=BANKS().find(x=>x.label===label);return b?b.name:label};
+/* One line per transaction: date,ref,narrative,amount,direction.
+   Narratives may carry commas; date is first, direction last, amount
+   second-last, ref second — everything between is the narrative. */
+function parseStmt(text){
+  const out=[];
+  String(text||'').split(/\r?\n/).forEach(ln=>{
+    const p=ln.split(',').map(x=>x.trim()).filter((x,i,a)=>!(i===a.length&&!x));
+    if(p.length<4||!p[0]) return;
+    const dir=(p[p.length-1]||'').toLowerCase();
+    const amt=parseFloat(String(p[p.length-2]).replace(/[^0-9.\-]/g,''));
+    if(!(dir==='credit'||dir==='debit')||!amt||!/^\d{4}-\d{2}-\d{2}$/.test(p[0])) return;
+    out.push({date:p[0],ref:p[1]||'',narrative:p.slice(2,p.length-2).join(', '),
+      amount:amt,direction:dir==='credit'?'Credit':'Debit'});
+  });
+  return out;
+}
+
 /* ---------- form definitions ---------- */
 const FORMS={
 
-'import-statement':{t:'Import bank statement',s:'Reconciliation · workflow 2C',cta:'Post matched entries',
+'declare-cash':{t:'Update cash position',s:'Counted balances, one per account',cta:'Declare balances',
+ steps:[{n:'Balances',body:d=>{
+   const b=BANKS();
+   if(!b.length) return `<div class="unwired"><span class="uw-tag">NO ACCOUNTS</span>
+     <p>No company Bank Account records exist yet. Create the QNB and Doha Bank accounts in ERPNext first, then declare against them.</p></div>`;
+   return `<p class="pp">This is the balance you actually counted or read off the portal just now — not a projection.
+     The runway opens from the sum of the latest declaration per account, and the card shows how old it is.</p>
+    <div class="fg">${b.map((x,i)=>fld({k:'bal_'+i,l:x.label+' (QAR)',t:'num',step:'0.01',p:'0.00'},d['bal_'+i])).join('')}
+    ${fld({k:'notes',l:'Notes',t:'ta',p:'e.g. after this morning\'s sweep'},d.notes)}</div>`},
+  fields:[]}],
+ submit:()=>({msg:'Declared'})},
+
+
+'import-statement':{t:'Import bank statement',s:'Reconciliation · workflow 2C',cta:'Import and match',
  steps:[
-  {n:'Upload',fields:[
-    {k:'bank',l:'Bank account',t:'sel',o:['QNB — 0021 4478','Doha Bank — 7741 2200','CBQ — 3390 8871'],req:1},
-    {k:'from',l:'Period from',t:'date',d:'2026-07-19',req:1},
-    {k:'to',l:'Period to',t:'date',d:'2026-07-26',req:1},
-    {k:'file',l:'Statement file',t:'file',sample:'QNB_stmt_19-26Jul.csv',hint:'CSV or MT940 export from the bank portal',req:1}]},
-  {n:'Preview',body:d=>`<p class="pp">Parsed <b>${148}</b> lines from ${d.file||'the file'} covering ${d.from} to ${d.to}.
-    Nothing is posted until you confirm on the next step.</p>
-   <div class="tw"><table><tr><th>Bank ref</th><th>Date</th><th class="r">Amount</th><th>Narrative</th><th>Type</th></tr>
-   ${[['8871','24 Jul','12.4K','TRF FROM A ALMARRI','Credit'],['8872','24 Jul','6.8K','CASH DEP BRANCH 12','Credit'],
-      ['8873','25 Jul','486.0K','CHQ 100294 PRESENTED','Debit'],['8874','25 Jul','8.2K','TRF GULFSERVE CATER','Credit'],
-      ['8875','26 Jul','4.1K','RETURNED ITEM FEE','Debit']]
-    .map(r=>`<tr><td>${r[0]}</td><td>${r[1]}</td><td class="r num">${r[2]}</td><td>${r[3]}</td>
-      <td>${chip(r[4],r[4]==='Credit'?'g':'n')}</td></tr>`).join('')}</table></div>
-   <div class="foot"><span>showing 5 of 148 lines</span><span>duplicate check: 0 already imported</span></div>`},
-  {n:'Auto-match',body:()=>`<p class="pp">Auto-match ran against open invoices and deposited cheques.
-    Confident matches post automatically; the rest go to the exceptions queue for review.</p>
-   ${stat([['Lines',148],['Matched',139,'auto-posted','g'],['Needs review',9,'to exceptions','a'],['Value unmatched','41.2K','','r']])}
-   <div class="tw"><table><tr><th>Bank ref</th><th class="r">Amount</th><th>Suggested match</th><th class="r">Confidence</th><th>Action</th></tr>
-   ${[['8871','12.4K','CHQ-3118 · A. Al-Marri',92,'auto'],['8874','8.2K','INV-2417 · GulfServe',88,'auto'],
-      ['8872','6.8K','no suggestion',0,'review'],['8875','4.1K','bank charge account',71,'review']]
-    .map(r=>`<tr><td>${r[0]}</td><td class="r num">${r[1]}</td><td>${r[2]}</td>
-      <td class="r num">${r[3]?r[3]+'%':'—'}</td><td>${chip(r[4]==='auto'?'Auto-post':'Review',r[4]==='auto'?'g':'a')}</td></tr>`).join('')}</table></div>`}],
- submit:d=>{RECON.imported=true;RECON.unmatched=9;RECON.lastRun='just now';
-  return{title:'Statement imported',msg:'139 of 148 lines matched and posted',
-   detail:'9 items moved to the exceptions queue for review',goto:'#/recon'}}},
+  {n:'Statement',body:d=>{
+    const b=BANKS();
+    return `<p class="pp">Paste the lines from the bank export — one transaction per line as
+      <b class="num">date,ref,narrative,amount,direction</b> (date YYYY-MM-DD, direction Credit or Debit).
+      Matching identifies lines against deposit batches, deposited cheques and scheduled landlord payments;
+      it never posts money. Clearing stays in the cheque workflow.</p>
+     <div class="fg">
+      ${fld({k:'bank',l:'Bank account',t:'sel',o:b.length?b.map(x=>x.label):['— no company bank accounts —'],req:1},d.bank)}
+      ${fld({k:'from',l:'Period from',t:'date',req:1},d.from)}
+      ${fld({k:'to',l:'Period to',t:'date',req:1},d.to)}
+      ${fld({k:'lines',l:'Statement lines',t:'ta',p:'2026-07-28,8871,CASH DEP BRANCH 12,6800,Credit',req:1},d.lines)}</div>`},
+   fields:[{k:'bank',req:1},{k:'from',req:1},{k:'to',req:1},{k:'lines',req:1}],
+   check:d=>parseStmt(d.lines).length>0,
+   msg:'No usable lines. Each needs date (YYYY-MM-DD), an amount and Credit or Debit at the end.'},
+  {n:'Preview',body:d=>{
+    const rows=parseStmt(d.lines);
+    const cr=rows.filter(r=>r.direction==='Credit').reduce((a,r)=>a+r.amount,0);
+    const dr=rows.filter(r=>r.direction==='Debit').reduce((a,r)=>a+r.amount,0);
+    return `<p class="pp">Parsed <b>${rows.length}</b> line${rows.length===1?'':'s'} for ${esc(d.bank||'')} covering ${d.from} to ${d.to}.
+      Nothing is posted — matched lines are identified, unmatched ones surface on the Command Centre.</p>
+     ${stat([['Lines',rows.length],['Credits',(cr/1000).toFixed(1)+'K','','g'],['Debits',(dr/1000).toFixed(1)+'K','','a']])}
+     <div class="tw"><table><tr><th>Date</th><th>Ref</th><th>Narrative</th><th class="r">Amount</th><th>Dir</th></tr>
+     ${rows.slice(0,8).map(r=>`<tr><td>${r.date}</td><td>${esc(r.ref)}</td><td>${esc(r.narrative)}</td>
+       <td class="r num">${(r.amount/1000).toFixed(1)}K</td><td>${chip(r.direction,r.direction==='Credit'?'g':'n')}</td></tr>`).join('')}</table></div>
+     ${rows.length>8?`<div class="foot"><span>showing 8 of ${rows.length}</span><span></span></div>`:''}`}}],
+ submit:d=>({msg:'Imported'})},
 
 'raise-job':{t:'Raise maintenance job',s:'Workflow 2D',cta:'Raise job',
  init:c=>({building:c&&c.bn?c.bn:'',unit:c&&c.u?c.u:'',pr:'Planned'}),
@@ -2333,13 +2528,13 @@ const FORMS={
  submit:()=>({title:'Sent for review',msg:'DOC-0913 added to the intake queue',
    detail:'Average confidence 88% · awaiting validation by Documentation',goto:'#/intake'})},
 
-'start-close':{t:'Start weekly close',s:'Thursday evening close',cta:'Complete close',
- steps:[{n:'Checklist',body:()=>`<p class="pp">Work through the checklist. Anything left open carries to the MD dashboard
-   as a discrepancy with an owner against it.</p>
+'start-close':{t:'Weekly close',s:'Thursday evening close',cta:'Complete close',
+ steps:[{n:'Checklist',body:d=>`<p class="pp">Work through the checklist. Anything left unticked is counted as an open
+   discrepancy on the close record and carries to the MD dashboard.</p>
   ${[['All cheques for the week logged',1],['Deposits matched to batches',1],['Bank statement imported',1],
      ['Reconciliation exceptions cleared',0],['Maintenance costs posted',1],['Utility invoices captured',0],
      ['Landlord cheque schedule confirmed',1],['Arrears cases reviewed',0]]
-   .map((r,i)=>`<label class="fc"><input type="checkbox" ${r[1]?'checked':''} data-k="ck${i}"><span>${r[0]}</span></label>`).join('')}
+   .map((r,i)=>`<label class="fc"><input type="checkbox" ${d['ck'+i]===undefined?(r[1]?'checked':''):(d['ck'+i]?'checked':'')} data-k="ck${i}"><span>${r[0]}</span></label>`).join('')}
   <div class="fg" style="margin-top:10px">${fld({k:'note',l:'Notes for the MD',t:'ta',p:'Anything the MD should know before Monday'})}</div>`}],
  submit:()=>({title:'Close completed',msg:'Week to 30 Jul closed',
    detail:'3 discrepancies carried forward and assigned to Fatima N.',goto:'#/closing'})},
@@ -5684,6 +5879,37 @@ const W_DOCTYPE={'Auto-detect':'Unknown','Cheque batch':'Cheque Batch','Tenant c
 
 const WIRE={
 
+/* ---------------- cash desk ---------------- */
+
+'declare-cash':{
+ guard:d=>{const any=BANKS().some((x,i)=>d['bal_'+i]!==undefined&&d['bal_'+i]!=='');
+   return BANKS().length?(any?null:'Enter at least one balance.')
+    :'No company Bank Account records exist yet.'},
+ m:'cashdesk.declare_balances',
+ a:d=>({payload:{notes:d.notes,
+   rows:BANKS().map((x,i)=>({bank_account:x.name,balance:d['bal_'+i]}))
+     .filter(r=>r.balance!==undefined&&r.balance!=='')}}),
+ ok:r=>({title:'Cash position declared',msg:k(r.total/1000)+' across '+r.declared.length+' account'+(r.declared.length===1?'':'s'),
+   detail:'Declared '+r.on+' · the runway now opens from this figure'})},
+
+'import-statement':{
+ guard:d=>BANKS().length?null:'No company Bank Account records exist yet.',
+ m:'cashdesk.import_statement',
+ a:d=>({payload:{bank_account:bankName(d.bank),from_date:d.from,to_date:d.to,
+   source:'pasted',lines:parseStmt(d.lines)}}),
+ ok:r=>({title:'Statement imported',msg:r.matched+' of '+r.total+' lines matched',
+   detail:(r.unmatched?r.unmatched+' unmatched — visible on the Command Centre and in '+r.name
+     :'Fully matched · '+r.name),goto:'#/recon'})},
+
+'start-close':{
+ m:'cashdesk.record_close',
+ a:d=>{let open=0;for(let i=0;i<8;i++)if(!d['ck'+i])open++;
+   return {payload:{period_end:new Date().toISOString().slice(0,10),
+     status:'Closed',discrepancies:open,notes:d.note}}},
+ ok:r=>({title:'Close recorded',msg:'Week to '+r.period_end+' closed',
+   detail:r.discrepancies?r.discrepancies+' discrepanc'+(r.discrepancies===1?'y':'ies')+' carried on the record':'No discrepancies',
+   goto:'#/closing'})},
+
 /* ---------------- money ---------------- */
 
 'issue-receipt':{
@@ -5896,9 +6122,7 @@ const WIRE={
 /* Forms with no server behind them. Each says what is missing, and refuses to
    open rather than printing a confirmation for a save that never happened. */
 const BLOCKED={
- 'import-statement':'No bank statement import exists yet. QNB and Doha Bank use unrelated formats and need one parser each; neither is built.',
- 'classify-line':'Classification writes to a reconciliation workbench that has not been built. Blocked behind the statement import.',
- 'start-close':'Weekly closing is not a server-side process yet. Nothing would be locked, and the close would exist only on this screen.',
+ 'classify-line':'Classification writes to a reconciliation workbench that has not been built. Until it is, open the Bank Statement Import in the desk and set the line to Matched or Excluded there.',
  'journal-entry':'Manual journals post straight to the ledger, so this stays shut until the posting rules are agreed. Everything the app posts today goes through a named workflow.',
  'send-doc':'There is no send path \u2014 no template, no delivery, no record that it went. The document is in the vault and can be downloaded from there.',
  'generate-report':'Reporting has not been built against live records. Anything produced here would be the prototype\u2019s own figures.',
