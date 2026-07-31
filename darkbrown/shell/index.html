@@ -911,6 +911,12 @@ const UNWIRED={
  journal:'Reads ERPNext journal entries. Not pointed at them yet.',
  trial:'Reads ERPNext trial balance. Not pointed at them yet.'};
 
+/* one panel inside an otherwise live screen */
+function uw(msg){
+  return `<div class="unwired"><span class="uw-tag">NOT WIRED</span><p>${msg}</p></div>`;
+}
+window.uw=uw;
+
 function unwiredPage(r){
   const t=({owners:'Owners & shareholders',planning:'Planning',cfo:'Digital CFO'}[r])||r;
   return `<div class="hd"><h1>${t}</h1><p class="sub">Not wired to live data</p></div>
@@ -933,6 +939,7 @@ function router(){
   window.scrollTo(0,0);
   document.querySelectorAll('.nv').forEach(n=>n.classList.toggle('on',n.dataset.r===r));
   el('#ptoggle').style.display=r==='dash'?'flex':'none';
+  gateAlerts(); setBadge();
   if(r==='dash') renderDash();
   else if(window.DB_LIVE) gateChrome();
   if(r==='data'&&window.dtResume) setTimeout(window.dtResume,0);
@@ -1077,7 +1084,7 @@ const DASH_TPL=`<div class="grid">
   </div>
 
   <div class="card c4"><h3>MD approvals <span class="tag amb" id="apprTag">—</span></h3><div id="approvals" class="list"></div></div>
-  <div class="card c4"><h3>Exceptions feed <span class="tag red">LIVE</span></h3><div id="exceptions" class="list"></div></div>
+  <div class="card c4"><h3>Exceptions feed <span class="tag red" id="exTag">LIVE</span></h3><div id="exceptions" class="list"></div></div>
   <div class="card c4"><h3>Bounce list <span class="plabel">rolling 30d</span></h3><div id="bounces"></div></div>
 
   <div class="card c4"><h3>Arrears + promises <span class="plabel" id="pl1"></span></h3><div id="arrears"></div></div>
@@ -1103,7 +1110,7 @@ const DASH_TPL=`<div class="grid">
   <div class="card c8"><h3>Portfolio table <span class="plabel" id="pl3"></span></h3><div style="overflow-x:auto" id="portfolio"></div></div>
   <div class="card c4"><h3>Tenant concentration <span class="plabel">bulk tenants · % of book</span></h3><div id="conc"></div></div>
 
-  <div class="card c4"><h3>Closing status <span class="tag tea">ON TIME</span></h3><div id="closing"></div></div>
+  <div class="card c4"><h3>Closing status <span class="tag tea" id="closeTag">ON TIME</span></h3><div id="closing"></div></div>
   <div class="card c4"><h3>Unmatched bank items <span class="plabel">12 weeks</span></h3><div id="unmatched"></div></div>
   <div class="card c4"><h3>Override log <span class="plabel">this month · soft blocks</span></h3><div id="overrides"></div></div>
 </div>`;
@@ -1752,7 +1759,7 @@ function gateDash(){
   if(!window.DB_LIVE) return;
   gateChrome();
   /* the badge on an unwired panel is prototype fiction too */
-  ['lowTag','undepTag','voidTag'].forEach(id=>{
+  ['lowTag','undepTag','voidTag','exTag','closeTag'].forEach(id=>{
     const e=document.getElementById(id); if(e){e.textContent='';e.className='tag';}
   });
   const sy=document.getElementById('sync');
@@ -2227,20 +2234,52 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape'&&document.getElement
 ROUTES.dash=()=>DASH_TPL;
 
 /* ---------------- My Work ---------------- */
-ROUTES.mywork=()=>page('My work','Managing Director · reserved approvals cannot be delegated','',
- stat([['Awaiting me',APPR.filter(a=>a.st==='Pending').length,'2 over 48h','r'],
-   ['Reserved category',APPR.filter(a=>a.res&&a.st==='Pending').length,'MD only'],
-   ['Exceptions today','6','since 07:00','a'],['Next close','Thu 30 Jul','in 4 days']])+
- `<div class="grid2">
-  <div class="card"><h3>Approvals waiting on me</h3>${tbl(
-   [{h:'Ref',v:r=>r.id},{h:'Type',v:r=>r.ty},{h:'Detail',v:r=>r.ref},
-    {h:'Amount',r:1,mono:1,v:r=>money(r.amt)},{h:'Age',r:1,v:r=>chip(r.age+'h',r.age>48?'r':'a')}],
-   APPR.filter(a=>a.st==='Pending').map(a=>({...a,__id:a.id})),{id:'mw1',click:'openAppr'})}</div>
-  <div class="card"><h3>Flagged for my attention</h3><div class="list">
+/* Approvals are read from the server. The exception tiles and the flagged
+   list never were — they are the prototype talking. Beside a real queue that
+   is worse than an empty panel, because nothing on the screen tells you which
+   is which. So when live, they say what they are. */
+ROUTES.mywork=()=>{
+ const live=!!window.DB_LIVE;
+ const pend=APPR.filter(a=>a.st==='Pending');
+ const over=pend.filter(a=>a.age>48).length;
+ const oldest=pend.length?Math.max.apply(null,pend.map(a=>a.age)):0;
+ const wired=!live||((window.DB_SEED&&DB_SEED.approvals||[]).length>0);
+
+ const tiles=live
+  ?(wired
+    ?[['Awaiting me',pend.length,over?over+' over 48h':'none over 48h',over?'r':''],
+      ['Reserved category',pend.filter(a=>a.res).length,'MD only'],
+      ['Oldest waiting',pend.length?oldest+'h':'—','',oldest>48?'r':'']]
+    :[['Awaiting me','—','queue not read'],['Reserved category','—','queue not read'],
+      ['Oldest waiting','—','queue not read']])
+  :[['Awaiting me',pend.length,'2 over 48h','r'],
+    ['Reserved category',pend.filter(a=>a.res).length,'MD only'],
+    ['Exceptions today','6','since 07:00','a'],['Next close','Thu 30 Jul','in 4 days']];
+
+ const queue=wired
+  ?(pend.length?tbl(
+    [{h:'Ref',v:r=>r.id},{h:'Type',v:r=>r.ty},{h:'Detail',v:r=>r.ref},
+     {h:'Amount',r:1,mono:1,v:r=>money(r.amt)},{h:'Age',r:1,v:r=>chip(r.age+'h',r.age>48?'r':'a')}],
+    pend.map(a=>({...a,__id:a.id})),{id:'mw1',click:'openAppr'})
+   :empty('Nothing is waiting on you'))
+  :uw('The approvals queue has not been read. Rather than show you the prototype\'s '+
+      'list next to your own records, it has been withheld.');
+
+ const flagged=live
+  ?uw('No attention feed is generated server-side yet. The rules exist in '+
+      'api/attention.py but nothing routes them to this screen.')
+  :`<div class="list">
    ${['Cheque bounced — Horizon Facilities · 42.5K','Promise broken — TN-0142 · 18.0K',
       'Emergency maint over ceiling — B14 chiller · 3.2K','Override — Fatima N. batched + reconciled BATCH-0871',
       'Head-lease B07 ends before 4 subleases'].map(t=>`<div class="it"><span class="dot r"></span><span class="t">${t}</span></div>`).join('')}
-   </div></div></div>`);
+   </div>`;
+
+ return page('My work','Managing Director · reserved approvals cannot be delegated','',
+  stat(tiles)+
+  `<div class="grid2">
+   <div class="card${wired?'':' is-unwired'}"><h3>Approvals waiting on me</h3>${queue}</div>
+   <div class="card${live?' is-unwired':''}"><h3>Flagged for my attention</h3>${flagged}</div></div>`);
+};
 window.openAppr=id=>go('#/approval/'+id);
 
 /* ---------------- Buildings ---------------- */
@@ -2795,6 +2834,32 @@ function vaultFiltered(){
   });
 }
 
+/* ---------- honest gate · the bell ----------
+   The seeded feed is invented, and a badge reading 6 over a queue the server
+   never sent is the same lie as an invented number. When live the feed is
+   rebuilt from the only alert source that is genuinely live — the approvals
+   queue. Alerts raised by an action taken in this session are real events and
+   survive the rebuild, because they happen after it. */
+let ALERTS_GATED=false, NOTIF_READ=false;
+function gateAlerts(){
+  if(!window.DB_LIVE||ALERTS_GATED) return; ALERTS_GATED=true;
+  ALERTS.length=0;
+  /* APPR falls back to the prototype seed when the server sent no rows —
+     those are not alerts, they are decoration. */
+  if(!((window.DB_SEED&&DB_SEED.approvals||[]).length)) return;
+  APPR.filter(a=>a.st==='Pending').sort((a,b)=>b.age-a.age).slice(0,6).forEach(a=>{
+    ALERTS.push({ty:(a.res?'Reserved approval waiting':'Approval waiting'),
+      t:a.id+' · '+a.ty+' · '+a.ref, w:a.age+'h', s:a.age>48?'r':'a',
+      go:'#/approval/'+a.id});
+  });
+}
+function setBadge(){
+  const b=document.getElementById('nbadge'); if(!b) return;
+  const n=NOTIF_READ?0:ALERTS.length;
+  b.textContent=n||''; b.style.display=n?'':'none';
+}
+window.gateAlerts=gateAlerts; window.setBadge=setBadge;
+
 /* ---------- notifications ---------- */
 const NOTIF=[
  ['r','Cheque bounced','Horizon Facilities · 42.5K · insufficient funds','07:02','#/cheques'],
@@ -2806,15 +2871,20 @@ const NOTIF=[
 window.toggleNotif=()=>{
   const p=document.getElementById('npanel');
   const open=p.classList.toggle('on');
-  p.innerHTML=open?`<div class="nfh">Notifications<span class="chip r">${ALERTS.filter(n=>n.s==='r').length} urgent</span>
+  const live=!!window.DB_LIVE;
+  p.innerHTML=open?`<div class="nfh">Notifications<span class="chip ${ALERTS.filter(n=>n.s==='r').length?'r':''}">${ALERTS.filter(n=>n.s==='r').length} urgent</span>
      <button class="btn" onclick="markAllRead()">Mark all read</button></div>
-    <div class="nfl">${ALERTS.map(n=>`<div class="nf" onclick="closeNotif();go('${n.go}')">
+    <div class="nfl">${ALERTS.length?ALERTS.map(n=>`<div class="nf" onclick="closeNotif();go('${n.go}')">
       <span class="dot ${n.s}"></span><div><b>${n.ty}</b><div class="m">${n.t}</div></div>
-      <span class="m t">${n.w}</span></div>`).join('')}</div>
+      <span class="m t">${n.w}</span></div>`).join(''):
+      `<div class="nf"><div><b>Nothing waiting</b><div class="m">${live
+        ?'Nothing is pending in the approvals queue.':'No alerts.'}</div></div></div>`}</div>
+    ${live?`<div class="nff" style="opacity:.7;font-style:italic">Approvals only —
+      no general alert feed is generated server-side yet.</div>`:''}
     <div class="nff"><a onclick="closeNotif();go('#/mywork')">Open My Work →</a></div>`:'';
 };
 window.closeNotif=()=>{const p=document.getElementById('npanel');p.classList.remove('on');p.innerHTML=''};
-window.markAllRead=()=>{const b=document.getElementById('nbadge');if(b)b.style.display='none';closeNotif();toast('All notifications marked read')};
+window.markAllRead=()=>{NOTIF_READ=true;setBadge();closeNotif();toast('All notifications marked read')};
 document.addEventListener('click',e=>{
   const p=document.getElementById('npanel');
   if(p&&p.classList.contains('on')&&!e.target.closest('#notif')&&!e.target.closest('#bell'))closeNotif();
