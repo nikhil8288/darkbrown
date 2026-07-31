@@ -29,7 +29,7 @@ values rather than showing zeros.
 | Operations | collection cases, maintenance, move-out | contact log, escalation, job lifecycle, move-out steps |
 
 Everything else — Finance, Documents, Planning, Owners, Command Centre — still
-renders from the prototype's own seeded values.
+renders from the prototype's own seeded values
 
 ## Schema
 
