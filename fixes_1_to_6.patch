@@ -1,0 +1,283 @@
+diff --git a/darkbrown/api/app.py b/darkbrown/api/app.py
+index 90616e3..0634ae3 100644
+--- a/darkbrown/api/app.py
++++ b/darkbrown/api/app.py
+@@ -787,16 +787,30 @@ def _cover(s):
+     days = int(s.wall_cover_days or 60)
+     horizon = add_days(today(), days)
+ 
+-    owed = sum(flt(p.amount) for p in frappe.get_all(
++    # Owed splits into the backlog and the window. Both are real obligations
++    # and both stay in the ratio, but a single figure labelled "next 60 days"
++    # that silently carries every unpaid month of history reads as two months
++    # of rent when it is not — the split has to be on the tile.
++    overdue = sum(flt(p.amount) for p in frappe.get_all(
+         "Head Lease Payment",
+-        filters={"status": ["!=", "Paid"], "due_date": ["<=", horizon]},
++        filters={"status": ["!=", "Paid"], "due_date": ["<", today()]},
+         fields=["amount"]))
++    due_window = sum(flt(p.amount) for p in frappe.get_all(
++        "Head Lease Payment",
++        filters={"status": ["!=", "Paid"],
++                 "due_date": ["between", [today(), horizon]]},
++        fields=["amount"]))
++    owed = overdue + due_window
+ 
++    # A post-dated cheque is bankable until it goes stale — six months in
++    # Qatar. Anything older sitting at Received/Deposited is a data problem,
++    # not money, so it does not count toward cover.
+     in_hand = sum(flt(c.amount) for c in frappe.get_all(
+         "Cheque",
+         filters={"direction": "Incoming",
+                  "status": ["in", ("Received", "Deposited", "Presented")],
+-                 "cheque_date": ["<=", horizon]},
++                 "cheque_date": ["between",
++                                 [add_days(today(), -180), horizon]]},
+         fields=["amount"]))
+ 
+     billed_open = sum(flt(i.outstanding_amount) for i in frappe.get_all(
+@@ -805,8 +819,15 @@ def _cover(s):
+                  "due_date": ["<=", horizon]},
+         fields=["outstanding_amount"]))
+ 
+-    rate = _collection_rate() or 90.0
+-    expected = in_hand + billed_open * (rate / 100.0)
++    # No billing history means no achieved rate to discount by. Inventing
++    # one (the old fallback was a flat 90%) puts a made-up number inside the
++    # one tile that can end the business; unpaid invoices simply do not
++    # count toward cover until there is a real rate.
++    rate = _collection_rate()
++    if rate is None:
++        expected = in_hand
++    else:
++        expected = in_hand + billed_open * (rate / 100.0)
+ 
+     if not owed:
+         return {"id": "cover", "label": "Obligation cover",
+@@ -832,13 +853,20 @@ def _cover(s):
+         "green": "",
+     }.get(band, "")
+ 
++    owed_txt = (f"{_kfmt(owed)} owed ({_kfmt(overdue)} overdue + "
++                f"{_kfmt(due_window)} next {days}d)"
++                if overdue else f"{_kfmt(owed)} owed · {days} days")
++    disc_txt = ("unpaid invoices excluded — no collection history to "
++                "discount them by" if rate is None else
++                "unpaid invoices discounted at your actual collection "
++                f"rate of {rate:.1f}%")
+     return {
+         "id": "cover", "label": "Obligation cover",
+         "value": f"{ratio:.2f}×", "band": band,
+-        "sub": f"{_kfmt(expected)} expected · {_kfmt(owed)} owed · {days} days",
+-        "means": (f"Landlord rent falling due in the next {days} days, set "
+-                  "against cheques in hand plus unpaid invoices discounted "
+-                  f"at your actual collection rate of {rate:.0f}%."),
++        "sub": f"{_kfmt(expected)} expected · {owed_txt}",
++        "means": ("All unpaid landlord rent — anything overdue plus what "
++                  f"falls due in the next {days} days — set against cheques "
++                  f"in hand, with {disc_txt}."),
+         "why": ("Rent to your landlords is fixed and contractual — owed "
+                 "whether a building is full or empty. Your bank balance "
+                 "cannot answer this because the accounts sweep to near zero "
+@@ -910,13 +938,14 @@ def _spread(s):
+                f"month: {held_txt}. Its cost is excluded here until you do.")
+ 
+     return {
+-        "id": "spread", "label": "Portfolio spread",
++        "id": "spread", "label": "Portfolio spread · gross",
+         "value": f"{margin:.1f}%", "band": band,
+         "sub": (f"{_kfmt(spread)} on {_kfmt(billed)} billed this month"
+                 + (f" \u00b7 excludes {held_txt}" if held_txt else "")),
+-        "means": ("What you charged tenants this month, less what you owe "
+-                  "landlords for the same month, as a percentage of what you "
+-                  "charged."),
++        "means": ("What you charged tenants this month, less head-lease rent "
++                  "for the same month, as a percentage of what you charged. "
++                  "Gross: before maintenance and utilities — the P&L "
++                  "waterfall carries the spread after recorded costs."),
+         "why": ("You never buy property — you head-lease it and sub-let it, "
+                 "so this gap is the entire business. It compresses slowly and "
+                 "quietly, usually through renewals at higher rent, and is "
+@@ -948,8 +977,11 @@ def _collection(s):
+     }.get(band, "")
+ 
+     return {
+-        "id": "collection", "label": "Collection rate",
+-        "value": f"{rate:.0f}%", "band": band,
++        "id": "collection", "label": "Collection rate · rolling 90d",
++        # One decimal, deliberately: the runway footnote quotes the same
++        # rate at one decimal, and 91.6% shown here as 92% reads as a
++        # second, disagreeing number on the same screen.
++        "value": f"{rate:.1f}%", "band": band,
+         "sub": f"{_kfmt(arrears)} outstanding · rolling 90 days",
+         "means": ("Of everything invoiced in the last 90 days, the share that "
+                   "has actually been received."),
+diff --git a/darkbrown/api/command.py b/darkbrown/api/command.py
+index 905b270..2341dcd 100644
+--- a/darkbrown/api/command.py
++++ b/darkbrown/api/command.py
+@@ -10,8 +10,6 @@ can trace, and on this screen a plausible wrong number is the whole danger.
+ 
+ What is deliberately None, and why:
+ 
+-    void days       no void-start date is recorded on Unit, so elapsed void
+-                    cannot be derived. Needs a field before it can be shown.
+     cash on hand    the accounts sweep to near zero daily, so bank balance is
+                     never used. Cash shows only once someone has declared a
+                     counted position (Bank Balance Declaration); until then
+@@ -19,6 +17,10 @@ What is deliberately None, and why:
+     unmatched bank  None until a Bank Statement Import has ever run; after
+                     that, the live unmatched count.
+ 
++Void days is derived, not logged: unit-days in the window not covered by a
++tenancy agreement (_void_days). No status log to maintain, recomputable for
++any window, and it agrees with occupancy by construction.
++
+ Amounts are returned in thousands of QAR, because that is what the prototype
+ renders.
+ """
+@@ -71,7 +73,8 @@ def health():
+             "m": round(margin / K),
+             "mp": (margin / rev * 100) if rev else None,
+             "arr": round(_arrears(b.name) / K),
+-            "vd": None,                       # not tracked — see module note
++            "vd": _void_days(m0, min(get_last_day(m0), getdate(today())),
++                             b.name),
+             "om": frappe.db.count("Maintenance Request", {
+                 "building": b.name,
+                 "status": ["in", ("Open", "Assigned", "Scheduled",
+@@ -244,8 +247,10 @@ def _period(months, label):
+         "cashD": None,                # swept bank balance (module note)
+         "pdc30": _k(_pdc_due(30)),
+         "ll30": _k(_landlord_due(30)),
+-        "vd": None,                   # not tracked
+-        "vdD": None,
++        "vd": _void_days_months(months),
++        "vdD": None,                  # no prior-period delta until a full
++                                      # comparison window exists — a fake
++                                      # movement is worse than none
+         "br": _bounce_rate(90),
+         "brD": 0.0,
+         "unm": _unm_count(),          # None until an import has ever run
+@@ -292,6 +297,50 @@ def _landlord_all(period_start, exclude=None):
+     """, (get_last_day(period_start), period_start))[0][0])
+ 
+ 
++def _void_days(period_start, period_end, building=None):
++    """Unit-days inside the window not covered by a tenancy agreement.
++
++    Derived from agreement dates rather than a status log, so it costs
++    nothing to keep and can be recomputed for any window. Overlapping
++    agreements on one unit are clamped to the window length, so a renewal
++    signed before the old agreement ends cannot produce negative voids.
++    Ended agreements count for the days they covered — a tenant who left
++    mid-month covered the first half of it."""
++    a, b = getdate(period_start), getdate(period_end)
++    if b < a:
++        return 0
++    ufilters = {"building": building} if building else {}
++    units = frappe.get_all("Unit", filters=ufilters, fields=["name"])
++    if not units:
++        return 0
++    window = (b - a).days + 1
++    afilters = {"status": ["in", ("Active", "Expiring", "Ended")],
++                "start_date": ["<=", b], "end_date": [">=", a]}
++    if building:
++        afilters["building"] = building
++    covered = {}
++    for ag in frappe.get_all("Tenancy Agreement", filters=afilters,
++                             fields=["unit", "start_date", "end_date"]):
++        s = max(getdate(ag.start_date), a)
++        e = min(getdate(ag.end_date), b)
++        days = (e - s).days + 1
++        if days > 0:
++            covered[ag.unit] = min(window, covered.get(ag.unit, 0) + days)
++    return sum(window - covered.get(u.name, 0) for u in units)
++
++
++def _void_days_months(months):
++    """Void days summed over a list of month offsets, each month clipped at
++    today — days that have not happened yet are not voids."""
++    total = 0
++    for m in months:
++        ms = getdate(_months(m))
++        me = min(get_last_day(ms), getdate(today()))
++        if me >= ms:
++            total += _void_days(ms, me)
++    return total
++
++
+ def _arrears_all():
+     return flt(frappe.db.sql("""
+         select sum(outstanding_amount) from `tabSales Invoice`
+@@ -434,15 +483,12 @@ def _runway_flows():
+     the expected overlay discounts outstanding invoices at the rolling
+     90-day collection rate, the same discount the obligation-cover tile
+     already applies."""
+-    billed90 = flt(frappe.db.sql("""
+-        select sum(grand_total) from `tabSales Invoice`
+-        where docstatus = 1 and posting_date >= %s
+-    """, (add_days(today(), -90),))[0][0])
+-    coll90 = flt(frappe.db.sql("""
+-        select sum(grand_total - outstanding_amount) from `tabSales Invoice`
+-        where docstatus = 1 and posting_date >= %s
+-    """, (add_days(today(), -90),))[0][0])
+-    rate = (coll90 / billed90) if billed90 else 0.0
++    # One function computes the rolling 90-day rate for the whole app. This
++    # panel used to carry its own copy of the query, and the two drifted by
++    # rounding into what read as two different collection rates on one
++    # screen. If the definition ever changes it must change once.
++    from darkbrown.api.app import _collection_rate
++    rate = (_collection_rate() or 0.0) / 100.0
+ 
+     out = []
+     for w in range(13):
+diff --git a/darkbrown/shell/index.html b/darkbrown/shell/index.html
+index 990c275..cb129ff 100644
+--- a/darkbrown/shell/index.html
++++ b/darkbrown/shell/index.html
+@@ -1212,7 +1212,7 @@ function spk(vals,color,w=62,h=20){
+ /* A figure this business does not record comes back null. It renders as an
+    em dash and says so on hover. It is never estimated to fill the card —
+    on this screen a plausible wrong number is the whole danger. */
+-const NOTRACK={vd:'No void-start date is recorded on a unit, so elapsed void cannot be derived.',
++const NOTRACK={vd:'Derived from tenancy agreement coverage. A dash means no unit data has been loaded yet.',
+  cash:'The accounts sweep to near zero daily, so bank balance is never shown. Declare a counted position (Update cash position on the runway) and it appears here.',
+  unm:'Shows once a bank statement has been imported.'};
+ window.kval=(v,fmt,key)=>(v===null||v===undefined)
+@@ -1310,13 +1310,13 @@ function renderKPIs(p){
+    /* Both of these set billed revenue against head-lease cost, so both have
+       to say when a building's invoice run has not been issued. Without it the
+       strip reports a loss that is really a decision nobody has taken. */
+-   {l:'Net spread '+P.label+(P.unissued?' \u00b7 partial':''),v:k(P.spread),d:dl(P.spreadP,true,'%'),
++   {l:'Gross spread '+P.label+(P.unissued?' \u00b7 partial':''),v:k(P.spread),d:dl(P.spreadP,true,'%'),
+     s:sp(billed.map((b,i)=>b-llcost[i]),'#C9A86A'),
+     n:P.unissued?k(P.unissued)+' not issued':''},
+-   {l:'Spread margin'+(P.unissued?' \u00b7 partial':''),v:pc(P.margin),d:dl(P.marginD,true,'pt'),
++   {l:'Gross margin'+(P.unissued?' \u00b7 partial':''),v:pc(P.margin),d:dl(P.marginD,true,'pt'),
+     s:sp(billed.map((b,i)=>(b-llcost[i])/b*100),'#C9A86A'),
+     n:P.unissued?(P.unissuedN||1)+' building'+((P.unissuedN||1)===1?'':'s')+' excluded':''},
+-   {l:'Collection rate',v:pc(P.coll),d:dl(P.collD,true,'pt'),
++   {l:'Collection rate \u00b7 month',v:pc(P.coll),d:dl(P.collD,true,'pt'),
+     s:sp(collected.map((c,i)=>c/billed[i]*100),'#2E6B57'),w:P.coll<93},
+    {l:occL,v:occV,d:live?'':kdelta(-0.7,true,'pt'),s:sp(occU,'#2E6B57')},
+    {l:'Total arrears',v:k(P.arr),d:dl(P.arrD,false,'%'),
+@@ -1937,7 +1937,8 @@ function renderOcc(){
+     let s=`<path d="M ${L},${y(LP[0].occ||0)} ${LP.map((r,i)=>`L ${L+i*step},${y(r.occ||0)}`).join(' ')} L ${L+(LP.length-1)*step},124 L ${L},124 Z" fill="rgba(46,107,87,.14)"/>
+      <polyline points="${pts}" fill="none" stroke="#2E6B57" stroke-width="1.8"/>
+      <line x1="${L}" x2="${W-8}" y1="${y(100)}" y2="${y(100)}" stroke="#E7DDD1"/>
+-     <text x="${W-8}" y="${y(100)-4}" text-anchor="end" class="n" font-size="9" fill="#75634F">100% · ${units} units</text>`;
++     <text x="${W-8}" y="${y(100)-4}" text-anchor="end" class="n" font-size="9" fill="#75634F">100% · ${units} units</text>
++     <text x="${L-4}" y="127" text-anchor="end" font-size="8" fill="#75634F">${lo}%</text>`;
+     LP.forEach((r,i)=>{s+=`<circle cx="${L+i*step}" cy="${y(r.occ||0)}" r="2" fill="#2E6B57" data-tt="${r.m} · ${r.occ}% occupied"/>`;
+       if(i%2===0)s+=`<text x="${L+i*step}" y="138" text-anchor="middle" font-size="8" fill="#75634F">${r.m}</text>`;});
+     const last=LP[LP.length-1];
+@@ -2011,7 +2012,7 @@ function renderPortfolio(){
+   for(const b of PF_view){
+     const un=(!b.rev&&b.unbilled)?b.unbilled:0;
+     h+=`<tr class="drill" onclick="go('#/buildings')"><td>${b.n}${un?` <span class="tag amb">NOT ISSUED</span>`:''}</td><td class="r num">${b.u}</td>
+-     <td class="r num" ${un?`style="color:var(--amber)" title="${un}K raised but the invoice run has not been issued"`:''}>${un?un+'K*':b.rev+'K'}</td>
++     <td class="r num" ${un?`title="${un}K raised but the invoice run has not been issued"`:''}>${un?`0K <span style="font:500 10px var(--mono);color:var(--amber)">${un}K held</span>`:b.rev+'K'}</td>
+      <td class="r num">${b.cost}K</td><td class="r num">${b.m}K</td>
+      <td class="r num" style="color:${!b.rev?'var(--red)':b.mp<12?'var(--red)':b.mp<16?'var(--amber)':'var(--teal)'}">${mpTxt(b)}</td>
+      <td class="r num" style="color:${b.arr>30?'var(--red)':'inherit'}">${b.arr}K</td>
