@@ -18,6 +18,7 @@
   --amber:#8A5F1D; --amberbg:rgba(176,124,42,.13);
   --red:#A63D2F; --redbg:rgba(166,61,47,.10);
   --mono:'IBM Plex Mono',ui-monospace,monospace; --serif:'Cormorant Garamond',serif;
+  --sans:'Montserrat',sans-serif; --card:var(--bg2); --ink2:var(--db3);
 }
 *{box-sizing:border-box;margin:0}
 html{scrollbar-color:var(--ne3) var(--bg0)}
@@ -1132,7 +1133,7 @@ const DASH_TPL=`<div class="grid">
 
   <div class="card c4"><h3>Utility recovery <span class="plabel">12 months</span></h3><div id="utility"></div></div>
   <div class="card c4"><h3>Deposit gauge <span class="plabel">balance-sheet exposure</span></h3><div id="deposits"></div></div>
-  <div class="card c4"><h3>Occupancy trend <span class="plabel">12 months · 276 units</span></h3><div id="occ"></div></div>
+  <div class="card c4"><h3>Occupancy trend <span class="plabel" id="occLbl">12 months · 276 units</span></h3><div id="occ"></div></div>
 
   <div class="card c12"><h3>Building health — <span class="cnt-b">—</span> × 6 raw metrics <span class="plabel">click any cell to drill · headers sort</span></h3>
     <div class="hmwrap" id="heatmap"></div></div>
@@ -1150,6 +1151,20 @@ const $=el;
 const k=n=>'QAR '+(Math.abs(n)>=1000?(n/1000).toFixed(2)+'M':Math.round(n)+'K');
 const kk=n=>(n/1000).toFixed(2)+'M';
 const pc=n=>n.toFixed(1)+'%';
+const kf=n=>Math.abs(n)>=1000?(n/1000).toFixed(2)+'M':(Math.round(n*10)/10)+'K';
+
+/* A panel the server answered for renders the server's rows; a panel it did
+   not answer for is stubbed by gateDash. The difference matters: an empty
+   array is a fact about the business — no bounces, no voids — while an
+   absent key means the calculation never ran. undefined = not sent,
+   [] / {} = sent and genuinely empty. */
+function livePanel(key){
+  if(!window.DB_LIVE) return undefined;
+  const p=window.DB_SEED&&DB_SEED.panels;
+  if(!p||p[key]===undefined||p[key]===null) return undefined;
+  return p[key];
+}
+function liveEmpty(msg){return `<div class="mt">${msg}</div>`}
 
 /* ---------- core monthly series (Aug '25 → Jul '26), QAR thousands ---------- */
 const MON=['Aug','Sep','Oct','Nov','Dec','Jan','Feb','Mar','Apr','May','Jun','Jul'];
@@ -1373,6 +1388,24 @@ function renderRunway(){
 
 /* ---------- PDC ladder ---------- */
 function renderLadder(){
+  const L=livePanel('pdcLadder');
+  if(L!==undefined){
+    const tot=L.reduce((a,r)=>a+(r.dep||0)+(r.hand||0),0);
+    const hand=L.reduce((a,r)=>a+(r.hand||0),0);
+    const t=$('#undepTag');
+    if(t){t.textContent=hand?kf(hand)+' ON HAND':'';t.className='tag '+(hand?'amb':'');}
+    if(!tot){$('#pdcLadder').innerHTML=liveEmpty('No post-dated cheques on the book.');return;}
+    const mx=Math.max(...L.map(r=>(r.dep||0)+(r.hand||0)),1);
+    $('#pdcLadder').innerHTML=`<svg viewBox="0 0 380 118" style="width:100%;height:auto">${L.map((r,i)=>{
+      const y=8+i*27, w1=(r.dep||0)/mx*250, w2=(r.hand||0)/mx*250;
+      return `<text x="0" y="${y+11}" font-size="10" fill="#7A6A5C">${r.label}</text>
+       <rect x="52" y="${y}" width="${w1}" height="14" rx="3" fill="#2E6B57" opacity=".85" data-tt="${r.label} · deposited ${k(r.dep||0)}"/>
+       <rect x="${52+w1+2}" y="${y}" width="${w2}" height="14" rx="3" fill="#A08A63" data-tt="${r.label} · on hand ${k(r.hand||0)}"/>
+       <text x="${58+w1+w2}" y="${y+11}" class="n" font-size="9.5" fill="#7A6A5C">${kf((r.dep||0)+(r.hand||0))}</text>`;
+    }).join('')}</svg>
+    <div class="foot"><span><span class="sw" style="background:#2E6B57"></span>deposited <span class="sw" style="background:#A08A63;margin-left:10px"></span>on hand</span><span>total ${kf(tot)}</span></div>`;
+    return;
+  }
   const rows=[['0–30d',680,240,1],['31–60d',520,310,0],['61–90d',300,280,0],['90d+',210,540,0]];
   const mx=1000;
   $('#undepTag').textContent='2 UNDEPOSITED < 7d';
@@ -1389,6 +1422,15 @@ function renderLadder(){
 
 /* ---------- landlord cheques ---------- */
 function renderCheques(){
+  const L=livePanel('llCheques');
+  if(L!==undefined){
+    if(!L.length){$('#llCheques').innerHTML=liveEmpty('No scheduled landlord payments.');return;}
+    $('#llCheques').innerHTML=L.map(r=>`<div class="it drill" onclick="go('#/landlords')" title="Opens the landlord record">
+      <span class="dot ${r.band||'n'}" title="${r.band==='r'?'due within 7 days':r.band==='a'?'due within 21 days':'scheduled'}"></span>
+      <span class="t">${esc(r.ll||'—')} <span class="m">· ${esc(r.b||'')}</span></span>
+      <span class="m">${r.due||''}</span><span class="amt">${kf(r.amt||0)}</span></div>`).join('');
+    return;
+  }
   const rows=[
    ['Al Kuwari Estates','Al Sadd Tower',486,'02 Aug','g'],
    ['Mannai Properties','West Bay 12',512,'23 Aug','g'],
@@ -1430,6 +1472,14 @@ function renderApprovals(){
 
 /* ---------- exceptions ---------- */
 function renderExceptions(){
+  const L=livePanel('exceptions');
+  if(L!==undefined){
+    const t=$('#exTag'); if(t){t.textContent='LIVE';t.className='tag tea';}
+    if(!L.length){$('#exceptions').innerHTML=liveEmpty('Nothing needs a second look this morning.');return;}
+    $('#exceptions').innerHTML=L.map(r=>`<div class="it drill" onclick="go('${r.go||'#/mywork'}')"><span class="dot ${r.s||'n'}"></span>
+      <span class="t">${esc(r.t)}</span><span class="m">${esc(r.w||'')}</span></div>`).join('');
+    return;
+  }
   const rows=[
    ['r','Cheque bounced — Horizon Facilities · 42.5K · insufficient funds','07:02'],
    ['r','Promise broken — TN-0142 · 18.0K due 24 Jul, unpaid','06:40'],
@@ -1443,6 +1493,17 @@ function renderExceptions(){
 
 /* ---------- bounce list ---------- */
 function renderBounces(){
+  const L=livePanel('bounces');
+  if(L!==undefined){
+    if(!L.length){$('#bounces').innerHTML=liveEmpty('No returned cheques in the last 30 days.');return;}
+    const tot=L.reduce((a,r)=>a+(r.amt||0),0);
+    $('#bounces').innerHTML=`<div class="tw"><table><tr><th>Tenant</th><th class="r">Amt</th><th>Action</th><th class="r">Days</th></tr>
+    ${L.map(r=>{const c=r.action==='Replacement recd'?'g':(r.days||0)>7?'r':'a';
+      return `<tr class="drill" onclick="go('#/cheques')"><td><span class="dot ${c}"></span>${esc(r.t||'—')}${r.u?` <span style="color:var(--dim);font-size:10px">${esc(r.u)}</span>`:''}<div style="font-size:10px;color:var(--dim)">${esc(r.why||'')}</div></td>
+       <td class="r num">${kf(r.amt||0)}</td><td><span class="chip ${c}">${esc(r.action||'')}</span></td><td class="r num">${r.days??'—'}</td></tr>`}).join('')}</table></div>
+    <div class="foot"><span>${L.length} cheque${L.length===1?'':'s'} · ${kf(tot)} exposed</span><span>workflow 2G</span></div>`;
+    return;
+  }
   const rows=[
    ['Horizon Facilities',42.5,'Insufficient funds','Redeposit 30 Jul','a',0],
    ['A. Al-Marri · U214',6.8,'Signature mismatch','Replacement recd','g',3],
@@ -1456,6 +1517,21 @@ function renderBounces(){
 
 /* ---------- arrears + promises ---------- */
 function renderArrears(){
+  const L=livePanel('arrears');
+  if(L!==undefined){
+    const tot=L.reduce((a,r)=>a+(r.amt||0),0);
+    if(!tot){$('#arrears').innerHTML=liveEmpty('Nothing outstanding. Every issued invoice is settled.');return;}
+    const cols=['#C9A86A','#B07C2A','#B4552F','#A63D2F'];
+    const mx=Math.max(...L.map(r=>r.amt||0),1);
+    const late=L.filter(r=>/61|90/.test(r.label)).reduce((a,r)=>a+(r.amt||0),0);
+    $('#arrears').innerHTML=`<svg viewBox="0 0 380 112" style="width:100%;height:auto">${L.map((r,i)=>{
+      const y=6+i*26,w=(r.amt||0)/mx*268;
+      return `<text x="0" y="${y+11}" font-size="10" fill="#7A6A5C">${r.label}</text>
+       <rect x="42" y="${y}" width="${Math.max(w,1)}" height="14" rx="3" fill="${cols[i%4]}" data-tt="${r.label} days · ${k(r.amt||0)}"/>
+       <text x="${48+w}" y="${y+11}" class="n" font-size="10" fill="#3E2723">${kf(r.amt||0)}</text>`;}).join('')}</svg>
+    <div class="foot"><span>total ${kf(tot)}</span><span>60d+ = ${kf(late)}</span></div>`;
+    return;
+  }
   const b=[['0–30',168],['31–60',112],['61–90',74],['90+',64]], mx=180;
   const cols=['#C9A86A','#B07C2A','#B4552F','#A63D2F'];
   $('#arrears').innerHTML=`<svg viewBox="0 0 380 112" style="width:100%;height:auto">${b.map((r,i)=>{
@@ -1470,6 +1546,21 @@ function renderArrears(){
 
 /* ---------- void pipeline ---------- */
 function renderVoids(){
+  const L=livePanel('voids');
+  if(L!==undefined){
+    const t=$('#voidTag');
+    if(!L.length){if(t){t.textContent='';t.className='tag';}
+      $('#voids').innerHTML=liveEmpty('Every unit is occupied or on notice. No voids.');return;}
+    const bleed=L.reduce((a,r)=>a+(r.bleed||0),0);
+    if(t){t.textContent=`${L.length} UNITS${bleed?' · '+kf(bleed)+'/MO':''}`;t.className='tag red';}
+    $('#voids').innerHTML=`<div class="tw"><table><tr><th>Unit</th><th>Stage</th><th class="r">Days</th><th class="r">Bleed/mo</th></tr>
+    ${L.slice(0,6).map(r=>`<tr class="drill" onclick="go('#/units')" title="${esc(r.b||'')}"><td>${esc(r.u||'—')} <span style="color:var(--dim);font-size:10px">${esc(r.b||'')}</span></td>
+     <td><span class="chip ${r.stage==='Vacant'?'r':'a'}">${esc(r.stage||'')}</span></td>
+     <td class="r num">${kval(r.days,null,'vd')}</td><td class="r num">${r.bleed?kf(r.bleed):'—'}</td></tr>`).join('')}</table></div>
+    <div class="foot"><span>${L.length} void unit${L.length===1?'':'s'}${L.length>6?' · +'+(L.length-6)+' more':''}</span>
+     <span style="color:var(--red)">${bleed?'bleeding '+kf(bleed)+' / mo at avg rents':''}</span></div>`;
+    return;
+  }
   const rows=[
    ['U187','Old Airport 7',44,'Marketing','Aisha R.',5.9],
    ['U031','Najma House',37,'Make-ready','Maint.',6.4],
@@ -1486,6 +1577,27 @@ function renderVoids(){
 
 /* ---------- expiry runway ---------- */
 function renderExpiry(){
+  const LP=livePanel('expiry');
+  if(LP!==undefined){
+    if(!LP.some(r=>(r.tenancy||0)+(r.headlease||0)+(r.docs||0))){
+      $('#expiry').innerHTML=liveEmpty('Nothing expires in the next twelve months.');return;}
+    const W=380,H=150,L0=6,BW=24,GP=7;
+    const mx=Math.max(...LP.map(r=>(r.tenancy||0)+(r.docs||0)),4);
+    let s='';
+    LP.forEach((r,i)=>{
+      const x=L0+i*(BW+GP); let y=118;
+      const seg=(v,c,l)=>{const h=(v||0)/mx*96; y-=h;
+        return v?`<rect x="${x}" y="${y}" width="${BW}" height="${h}" fill="${c}" data-tt="${r.m} · ${l}: ${v}"/>`:''};
+      s+=seg(r.tenancy,'#2E6B57','tenancies ending')+seg(r.docs,'#B07C2A','documents expiring');
+      if(r.headlease) s+=`<path d="M ${x+BW/2} 4 l 5 8 h -10 z" fill="#C9A86A" data-tt="${r.m} · head-lease${r.headlease>1?'s':''} ending: ${r.headlease}"/>`;
+      s+=`<text x="${x+BW/2}" y="132" text-anchor="middle" font-size="8.5" fill="#75634F">${r.m}</text>`;
+    });
+    $('#expiry').innerHTML=`<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto">${s}</svg>
+    <div class="legend"><span><b class="sw" style="background:#2E6B57"></b>tenancies ending</span>
+    <span><b class="sw" style="background:#B07C2A"></b>documents expiring</span>
+    <span><b class="sw" style="background:#C9A86A;clip-path:polygon(50% 0,100% 100%,0 100%)"></b>head-lease</span></div>`;
+    return;
+  }
   const ren=[6,4,3,5,2,3,2,1,1,0,0,0], neg=[3,4,5,3,6,4,3,2,3,2,1,1], ns=[1,2,3,4,5,8,9,11,10,12,13,12];
   const heads=[{i:2,b:'B07'},{i:8,b:'B14'}]; const danger=2;
   const W=380,H=150,L=6,BW=24,GP=7;
@@ -1510,6 +1622,36 @@ function renderExpiry(){
 
 /* ---------- spread chart ---------- */
 function renderSpread(){
+  const LP=livePanel('spread12');
+  if(LP!==undefined){
+    if(!LP.some(r=>(r.billed||0)||(r.cost||0))){
+      $('#spread').innerHTML=liveEmpty('No billing or head-lease cost recorded in the last twelve months.');return;}
+    const W=560,H=200,L=40,BW=14;
+    const mx=Math.max(...LP.map(r=>Math.max(r.billed||0,r.cost||0)),1)*1.1;
+    const mmax=Math.max(25,Math.ceil(Math.max(...LP.map(r=>r.mp||0))/5)*5);
+    let s='';
+    for(let gi=0;gi<=4;gi++){const gv=mx/4*gi;
+      s+=`<line x1="${L}" x2="${W-6}" y1="${160-gv/mx*150}" y2="${160-gv/mx*150}" stroke="#E7DDD1" stroke-dasharray="3 4"/>
+       <text x="${L-6}" y="${163-gv/mx*150}" text-anchor="end" class="n" font-size="8.5" fill="#75634F">${kf(gv)}</text>`;}
+    const step=(W-L-14)/12;
+    LP.forEach((r,i)=>{
+      const x=L+8+i*step;
+      s+=`<rect x="${x}" y="${160-(r.billed||0)/mx*150}" width="${BW}" height="${(r.billed||0)/mx*150}" fill="#C9A86A" opacity=".85" data-tt="${r.m} · billed ${k(r.billed||0)}${r.held?' · '+r.held+' run'+(r.held>1?'s':'')+' not issued':''}"/>
+          <rect x="${x+BW+2}" y="${160-(r.cost||0)/mx*150}" width="${BW}" height="${(r.cost||0)/mx*150}" fill="#75634F" data-tt="${r.m} · landlord ${k(r.cost||0)}"/>
+          <text x="${x+BW}" y="176" text-anchor="middle" font-size="8.5" fill="#75634F">${r.m}</text>`;
+    });
+    const mp=LP.filter(r=>r.mp!==null&&r.mp!==undefined);
+    if(mp.length>1){
+      const pts=LP.map((r,i)=>(r.mp===null||r.mp===undefined)?null:`${L+8+i*step+BW},${160-(r.mp/mmax)*150}`).filter(Boolean).join(' ');
+      s+=`<polyline points="${pts}" fill="none" stroke="#2E6B57" stroke-width="1.8"/>`;
+      LP.forEach((r,i)=>{if(r.mp!==null&&r.mp!==undefined)s+=`<circle cx="${L+8+i*step+BW}" cy="${160-(r.mp/mmax)*150}" r="2.4" fill="#2E6B57" data-tt="${r.m} · margin ${r.mp.toFixed(1)}%"/>`});
+    }
+    $('#spread').innerHTML=`<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto">${s}</svg>
+    <div class="legend"><span><b class="sw" style="background:#C9A86A"></b>tenant billing</span>
+    <span><b class="sw" style="background:#75634F"></b>landlord cost</span>
+    <span><b class="sw" style="background:#2E6B57"></b>margin % (right axis 0–${mmax})</span></div>`;
+    return;
+  }
   const W=560,H=200,L=40,BW=14;
   const mx=2000; let s='';
   for(const gv of [0,500,1000,1500,2000]) s+=`<line x1="${L}" x2="${W-6}" y1="${160-gv/mx*150}" y2="${160-gv/mx*150}" stroke="#E7DDD1" stroke-dasharray="3 4"/>
@@ -1553,6 +1695,22 @@ function renderWaterfall(){
 
 /* ---------- billed vs collected ---------- */
 function renderBillCol(){
+  const LP=livePanel('billcol');
+  if(LP!==undefined){
+    if(!LP.some(r=>(r.billed||0))){
+      $('#billcol').innerHTML=liveEmpty('No invoicing recorded in the last twelve months.');return;}
+    const W=380,H=150,L=34,step=(W-L-8)/12;
+    const mx=Math.max(...LP.map(r=>r.billed||0),1)*1.1;
+    let s='';
+    LP.forEach((r,i)=>{const x=L+4+i*step;
+      s+=`<rect x="${x}" y="${124-(r.billed||0)/mx*112}" width="9" height="${(r.billed||0)/mx*112}" fill="#C9BBA9" data-tt="${r.m} · billed ${k(r.billed||0)}"/>
+          <rect x="${x+10}" y="${124-(r.collected||0)/mx*112}" width="9" height="${(r.collected||0)/mx*112}" fill="#2E6B57" data-tt="${r.m} · collected ${k(r.collected||0)} · gap ${k((r.billed||0)-(r.collected||0))}"/>
+          <text x="${x+9}" y="138" text-anchor="middle" font-size="8" fill="#75634F">${r.m}</text>`;});
+    const tb=LP.reduce((a,r)=>a+(r.billed||0),0), tc=LP.reduce((a,r)=>a+(r.collected||0),0);
+    $('#billcol').innerHTML=`<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto">${s}</svg>
+    <div class="foot"><span><span class="sw" style="background:#C9BBA9"></span>billed <span class="sw" style="background:#2E6B57;margin-left:8px"></span>collected</span><span>avg gap ${tb?((tb-tc)/tb*100).toFixed(1)+'%':'—'}</span></div>`;
+    return;
+  }
   const W=380,H=150,L=34,mx=1900,step=(W-L-8)/12;
   let s='';
   for(let i=0;i<12;i++){const x=L+4+i*step;
@@ -1579,6 +1737,22 @@ function renderRenewal(){
 
 /* ---------- maintenance split ---------- */
 function renderMaint(){
+  const LP=livePanel('maint');
+  if(LP!==undefined){
+    if(!LP.some(r=>(r.total||0))){
+      $('#maint').innerHTML=liveEmpty('No maintenance cost recorded in the last twelve months.');return;}
+    const W=380,H=150,L=30,step=(W-L-8)/12;
+    const mx=Math.max(...LP.map(r=>(r.planned||0)+(r.emergency||0)+(r.recharged||0)),1)*1.1;
+    let s='';
+    LP.forEach((r,i)=>{const x=L+3+i*step;let y=124;
+      const seg=(v,c,l)=>{const h=(v||0)/mx*110;y-=h;return v?`<rect x="${x}" y="${y}" width="16" height="${h}" fill="${c}" data-tt="${r.m} · ${l} ${kf(v)}"/>`:''};
+      s+=seg(r.planned,'#A08A63','planned')+seg(r.emergency,'#A63D2F','emergency')+seg(r.recharged,'#2E6B57','recharged');
+      s+=`<text x="${x+8}" y="138" text-anchor="middle" font-size="8" fill="#75634F">${r.m}</text>`;});
+    const tt=LP.reduce((a,r)=>a+(r.total||0),0), tr=LP.reduce((a,r)=>a+(r.recharged||0),0);
+    $('#maint').innerHTML=`<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto">${s}</svg>
+    <div class="foot"><span><span class="sw" style="background:#A08A63"></span>planned <span class="sw" style="background:#A63D2F;margin-left:6px"></span>emergency <span class="sw" style="background:#2E6B57;margin-left:6px"></span>recharged</span><span>recovery ${tt?Math.round(tr/tt*100)+'%':'—'}</span></div>`;
+    return;
+  }
   const W=380,H=150,L=30,mx=100,step=(W-L-8)/12;
   let s='';
   for(let i=0;i<12;i++){const x=L+3+i*step;let y=124;
@@ -1607,6 +1781,18 @@ function renderUtility(){
 
 /* ---------- deposits ---------- */
 function renderDeposits(){
+  const LP=livePanel('deposits');
+  if(LP!==undefined){
+    const held=LP.held||0, due=LP.due||0, cases=LP.cases||0, tot=held+due;
+    if(!tot){$('#deposits').innerHTML=liveEmpty('No security deposits held.');return;}
+    $('#deposits').innerHTML=`<svg viewBox="0 0 380 60" style="width:100%;height:auto">
+      <rect x="0" y="14" width="${held/tot*372}" height="20" rx="4" fill="#A08A63" data-tt="held ${k(held)}"/>
+      <rect x="${held/tot*372+2}" y="14" width="${Math.max(due/tot*372,due?3:0)}" height="20" rx="4" fill="#B07C2A" data-tt="attached to a move-out case ${k(due)} · ${cases} case${cases===1?'':'s'}"/>
+      <text x="4" y="50" class="n" font-size="10" fill="#7A6A5C">held ${kf(held)}</text>
+      <text x="376" y="50" text-anchor="end" class="n" font-size="10" fill="#B07C2A">${due?'in move-out '+kf(due)+' · '+cases+' case'+(cases===1?'':'s'):'no releases pending'}</text></svg>
+    <div class="foot"><span>release mirrors receipt method</span><span>drills to move-out cases</span></div>`;
+    return;
+  }
   const held=1620,due=184,rel=96,tot=held+due;
   $('#deposits').innerHTML=`<svg viewBox="0 0 380 60" style="width:100%;height:auto">
     <rect x="0" y="14" width="${held/tot*372}" height="20" rx="4" fill="#A08A63" data-tt="held ${k(held)} · 249 tenancies"/>
@@ -1618,6 +1804,26 @@ function renderDeposits(){
 
 /* ---------- occupancy ---------- */
 function renderOcc(){
+  const LP=livePanel('occ');
+  if(LP!==undefined){
+    const units=(LP[LP.length-1]||{}).units||0;
+    const lbl=$('#occLbl'); if(lbl)lbl.textContent='12 months · '+units+' units';
+    if(!LP.some(r=>r.occ)){$('#occ').innerHTML=liveEmpty('No tenancy history to plot yet.');return;}
+    const W=380,H=150,L=30,step=(W-L-10)/11;
+    const lo=Math.max(0,Math.min(...LP.map(r=>r.occ||0))-5);
+    const y=v=>124-(v-lo)/(100-lo)*110;
+    const pts=LP.map((r,i)=>`${L+i*step},${y(r.occ||0)}`).join(' ');
+    let s=`<path d="M ${L},${y(LP[0].occ||0)} ${LP.map((r,i)=>`L ${L+i*step},${y(r.occ||0)}`).join(' ')} L ${L+(LP.length-1)*step},124 L ${L},124 Z" fill="rgba(46,107,87,.14)"/>
+     <polyline points="${pts}" fill="none" stroke="#2E6B57" stroke-width="1.8"/>
+     <line x1="${L}" x2="${W-8}" y1="${y(100)}" y2="${y(100)}" stroke="#E7DDD1"/>
+     <text x="${W-8}" y="${y(100)-4}" text-anchor="end" class="n" font-size="9" fill="#75634F">100% · ${units} units</text>`;
+    LP.forEach((r,i)=>{s+=`<circle cx="${L+i*step}" cy="${y(r.occ||0)}" r="2" fill="#2E6B57" data-tt="${r.m} · ${r.occ}% occupied"/>`;
+      if(i%2===0)s+=`<text x="${L+i*step}" y="138" text-anchor="middle" font-size="8" fill="#75634F">${r.m}</text>`;});
+    const last=LP[LP.length-1];
+    $('#occ').innerHTML=`<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto">${s}</svg>
+    <div class="foot"><span><span class="sw" style="background:#2E6B57"></span>occupied, from agreements live in the month</span><span>${last.m}: ${last.occ}%</span></div>`;
+    return;
+  }
   const W=380,H=150,L=30,step=(W-L-10)/11;
   const y=v=>124-(v-240)/40*110;
   let area=`M ${L},${y(occU[0])} `+occU.map((v,i)=>`L ${L+i*step},${y(v)}`).join(' ')+` L ${L+11*step},124 L ${L},124 Z`;
@@ -1703,6 +1909,16 @@ window.pfSort=k=>{pfDir=pfKey===k?-pfDir:1;pfKey=k;
 
 /* ---------- concentration ---------- */
 function renderConc(){
+  const L=livePanel('conc');
+  if(L!==undefined){
+    if(!L.length){$('#conc').innerHTML=liveEmpty('No active tenancies to rank.');return;}
+    const top=Math.max(...L.map(r=>r.pct||0));
+    $('#conc').innerHTML=`<div class="tw"><table><tr><th>Tenant</th><th class="r">Units</th><th class="r">QAR/mo</th><th class="r">Cum %</th></tr>
+    ${L.map(r=>`<tr class="drill" onclick="go('#/tenants')"><td>${esc(r.t||'—')}</td><td class="r num">${r.units||0}</td>
+     <td class="r num" ${(r.pct||0)>=8?'style="color:var(--red)"':''}>${kf(r.rent||0)}</td><td class="r num">${(r.cum||0).toFixed(1)}%</td></tr>`).join('')}</table></div>
+    <div class="foot"><span>largest single exposure ${top.toFixed(1)}%</span><span>threshold flag ≥ 8%</span></div>`;
+    return;
+  }
   const rows=[['GulfServe Catering',14,92.4],['Horizon Facilities',11,73.8],['Medline Clinics',8,55.2],
    ['TransQatar Logistics',7,47.6],['Falcon Security',5,33.5],['Top 10 individuals',10,64.1]];
   const book=1834; let cum=0;
@@ -1782,25 +1998,22 @@ renderHeatmap();renderPortfolio();renderConc();renderClosing();renderUnmatched()
    showing a number nobody can trace. */
 const DASH_UNWIRED={
  runway:'Cash runway needs a reserve denominator and an excess-cash target. Blocked on Q10 and Q11.',
- pdcLadder:'Ready to wire — api.command.panels() returns this.',
- llCheques:'Ready to wire — api.command.panels() returns this.',
- exceptions:'No exceptions feed is generated server-side yet.',
- bounces:'Ready to wire — api.command.panels() returns this.',
- arrears:'Ready to wire — api.command.panels() returns this.',
- voids:'Void days are not recorded. Needs a void-start date on Unit.',
- expiry:'Ready to wire — api.command.panels() returns this.',
- spread:'Ready to wire — api.command.panels() returns this.',
  waterfall:'Needs the cost base split that Stage 2I defines. Blocked on Q21.',
- billcol:'Ready to wire — api.command.panels() returns this.',
  renewal:'Renewal outcomes are not tracked as a status yet.',
- maint:'Ready to wire — api.command.panels() returns this.',
  utility:'Recovery needs utility invoices raised against allocations.',
- deposits:'Ready to wire — api.command.panels() returns this.',
- occ:'Ready to wire — api.command.panels() returns this.',
- conc:'Ready to wire — api.command.panels() returns this.',
  closing:'Weekly closing is not a server-side process yet.',
  unmatched:'No bank statement import exists yet.',
  overrides:'Override logging is not captured server-side yet.'};
+
+/* Panels the server computes. The renderer draws them when the seed carries
+   them; a panel the seed does not carry gets stubbed here, because a
+   calculation that raised on the server is not the same thing as a quiet
+   book — the difference is exactly what this screen must not blur. */
+const DASH_WIRABLE={pdcLadder:'pdcLadder',llCheques:'llCheques',exceptions:'exceptions',
+ bounces:'bounces',arrears:'arrears',voids:'voids',expiry:'expiry',spread:'spread12',
+ billcol:'billcol',maint:'maint',deposits:'deposits',occ:'occ',conc:'conc'};
+/* the badge each wirable panel owns, blanked with it if the panel is stubbed */
+const PANEL_TAGS={pdcLadder:'undepTag',voids:'voidTag',exceptions:'exTag'};
 
 function gateChrome(){
   const sy=document.getElementById('sync');
@@ -1818,9 +2031,17 @@ window.gateChrome=gateChrome;
 function gateDash(){
   if(!window.DB_LIVE) return;
   gateChrome();
-  /* the badge on an unwired panel is prototype fiction too */
-  ['lowTag','undepTag','voidTag','exTag','closeTag'].forEach(id=>{
+  /* badges owned by permanently stubbed panels are prototype fiction */
+  ['lowTag','closeTag'].forEach(id=>{
     const e=document.getElementById(id); if(e){e.textContent='';e.className='tag';}
+  });
+  /* fresh each call — a refresh that brings a panel back must un-stub it */
+  const stubs=Object.assign({},DASH_UNWIRED);
+  Object.entries(DASH_WIRABLE).forEach(([id,key])=>{
+    if(livePanel(key)!==undefined) return;
+    stubs[id]='The server did not return this panel. If it should have data, check the darkbrown seed error log.';
+    const tid=PANEL_TAGS[id];
+    if(tid){const e=document.getElementById(tid);if(e){e.textContent='';e.className='tag';}}
   });
   const sy=document.getElementById('sync');
   if(sy) sy.textContent='Live \u00b7 '+new Date().toLocaleString('en-GB',
@@ -1832,17 +2053,16 @@ function gateDash(){
     else{tk.textContent='\u2014';td.textContent='\u00b7 no scheduled landlord payment';}
   }
   /* a panel whose array fell back to the prototype seed is not live either */
-  if(!((window.DB_SEED&&DB_SEED.approvals||[]).length)) DASH_UNWIRED.approvals=
+  if(!((window.DB_SEED&&DB_SEED.approvals||[]).length)) stubs.approvals=
     'No approvals are pending, or the queue has not been read. This list is prototype data.';
-  else delete DASH_UNWIRED.approvals;
-  Object.keys(DASH_UNWIRED).forEach(id=>{
+  Object.keys(stubs).forEach(id=>{
     const el=document.getElementById(id); if(!el) return;
     el.innerHTML=`<div class="unwired"><span class="uw-tag">NOT WIRED</span>
-      <p>${DASH_UNWIRED[id]}</p></div>`;
+      <p>${stubs[id]}</p></div>`;
   });
   document.querySelectorAll('.card h3').forEach(h=>{
     const c=h.parentElement.querySelector('.unwired');
-    if(c) h.parentElement.classList.add('is-unwired');
+    h.parentElement.classList.toggle('is-unwired',!!c);
   });
 }
 

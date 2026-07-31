@@ -350,7 +350,75 @@ def panels():
         "billcol": _billed_vs_collected(),
         "occ": _occupancy_trend(),
         "maint": _maintenance_split(),
+        "spread12": _spread12(),
+        "exceptions": _exceptions(),
     }
+
+
+def _spread12():
+    """Twelve months of tenant billing against head-lease cost. A month in
+    which a building's invoice run was never issued holds that building's
+    cost out, same rule as the KPI strip — otherwise the chart reports a
+    loss that is really an unmade decision."""
+    out = []
+    for i in range(-11, 1):
+        start = _months(i)
+        held = unbilled_buildings(start)
+        billed = _billed_all(start)
+        cost = _landlord_all(start, exclude=held)
+        out.append({
+            "m": f"{getdate(start):%b}",
+            "billed": _k(billed),
+            "cost": _k(cost),
+            "mp": round((billed - cost) / billed * 100, 1) if billed else None,
+            "held": len(held),
+        })
+    return out
+
+
+def _exceptions():
+    """The morning exceptions feed, assembled from records that already
+    exist. Nothing here is a new judgement — each line restates a fact the
+    system holds somewhere less visible."""
+    out = []
+    for r in frappe.get_all(
+            "Cheque",
+            filters={"returned_on": [">=", add_days(today(), -7)]},
+            fields=["party", "amount", "return_reason", "returned_on"],
+            order_by="returned_on desc", limit_page_length=5):
+        out.append({"s": "r",
+                    "t": f"Cheque bounced — {r.party} · {_k(r.amount)}K"
+                         + (f" · {r.return_reason.lower()}"
+                            if r.return_reason else ""),
+                    "w": f"{getdate(r.returned_on):%d %b}",
+                    "go": "#/cheques"})
+
+    aged = [a for a in _pending_approvals() if a > 2]
+    if aged:
+        out.append({"s": "r",
+                    "t": f"{len(aged)} approval"
+                         f"{'s' if len(aged) > 1 else ''}"
+                         " waiting over 48 hours",
+                    "w": "now", "go": "#/approvals"})
+
+    for r in frappe.get_all(
+            "Maintenance Request",
+            filters={"priority": "Emergency", "cost": [">", 2000],
+                     "reported_on": [">=", add_days(today(), -14)]},
+            fields=["name", "building", "cost", "reported_on"],
+            order_by="reported_on desc", limit_page_length=3):
+        out.append({"s": "a",
+                    "t": f"Emergency maint over ceiling — {r.building}"
+                         f" · {_k(r.cost)}K vs 2.0K limit",
+                    "w": f"{getdate(r.reported_on):%d %b}",
+                    "go": "#/maint"})
+
+    for b, amt in (unissued(_months(0)) or {}).items():
+        out.append({"s": "a",
+                    "t": f"Invoice run not issued — {b}"
+                         f" · {_k(amt)}K raised",
+                    "w": "this month", "go": "#/generate"})
+    return out[:8]
 
 
 def _arrears_buckets():
