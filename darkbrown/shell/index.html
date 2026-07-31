@@ -1262,10 +1262,15 @@ function renderKPIs(p){
   const occL = live?`Occupancy / ${P.units||0}`:'Occupancy / 276';
 
   const cells=[
-   {l:'Net spread '+P.label,v:k(P.spread),d:dl(P.spreadP,true,'%'),
-    s:sp(billed.map((b,i)=>b-llcost[i]),'#C9A86A')},
-   {l:'Spread margin',v:pc(P.margin),d:dl(P.marginD,true,'pt'),
-    s:sp(billed.map((b,i)=>(b-llcost[i])/b*100),'#C9A86A')},
+   /* Both of these set billed revenue against head-lease cost, so both have
+      to say when a building's invoice run has not been issued. Without it the
+      strip reports a loss that is really a decision nobody has taken. */
+   {l:'Net spread '+P.label+(P.unissued?' \u00b7 partial':''),v:k(P.spread),d:dl(P.spreadP,true,'%'),
+    s:sp(billed.map((b,i)=>b-llcost[i]),'#C9A86A'),
+    n:P.unissued?k(P.unissued)+' not issued':''},
+   {l:'Spread margin'+(P.unissued?' \u00b7 partial':''),v:pc(P.margin),d:dl(P.marginD,true,'pt'),
+    s:sp(billed.map((b,i)=>(b-llcost[i])/b*100),'#C9A86A'),
+    n:P.unissued?(P.unissuedN||1)+' building'+((P.unissuedN||1)===1?'':'s')+' excluded':''},
    {l:'Collection rate',v:pc(P.coll),d:dl(P.collD,true,'pt'),
     s:sp(collected.map((c,i)=>c/billed[i]*100),'#2E6B57'),w:P.coll<93},
    {l:occL,v:occV,d:live?'':kdelta(-0.7,true,'pt'),s:sp(occU,'#2E6B57')},
@@ -1287,7 +1292,7 @@ function renderKPIs(p){
   renderWall();
   $('#kpis').innerHTML=cells.map(c=>`<div class="kpi ${c.c?'crit':c.w?'warn':''}" onclick="go('#/reports')" title="Drills to source">
     <div class="l">${c.l}</div><div class="row"><span class="v">${c.v}</span>${c.s}</div>
-    <div style="margin-top:2px">${c.d}</div></div>`).join('');
+    <div style="margin-top:2px">${c.n?`<span style="font:500 10px var(--mono);color:var(--amber)">${c.n}</span>`:c.d}</div></div>`).join('');
   $('#pl1').textContent=P.label; $('#pl2').textContent=P.label; $('#pl3').textContent=P.label;
   /* the badge is written by renderApprovals from the queue itself, so the
      count and the rows underneath it can never disagree */

@@ -85,6 +85,34 @@ def health():
     return rows
 
 
+@frappe.whitelist()
+def unissued(period_start=None):
+    """Invoice runs raised for a period but never issued, by building.
+
+    This is the difference between a building that earned nothing and a
+    building whose invoices are sitting in the approvals queue. Every figure
+    on the Command Centre that sets billed revenue against head-lease cost
+    has to know about it, because the cost is always complete and the billing
+    is not."""
+    period_start = period_start or _months(0)
+    rows = frappe.db.sql("""
+        select ir.building as building, sum(ir.total_amount) as amount
+        from `tabInvoice Run` ir
+        where ir.period_start = %s and ir.status in ('Draft', 'Pending GM')
+        group by ir.building
+    """, (period_start,), as_dict=True)
+    return {r.building: flt(r.amount) for r in rows}
+
+
+def unbilled_buildings(period_start=None):
+    """Buildings carrying a head-lease cost this period with an unissued run
+    and nothing billed. Their cost has no revenue to sit against, so counting
+    it reports a loss that has not happened."""
+    period_start = period_start or _months(0)
+    return {b: amt for b, amt in unissued(period_start).items()
+            if not _billed(b, period_start)}
+
+
 def _unissued(building, period_start):
     """Invoice runs raised for the period but not yet issued.
 
@@ -175,12 +203,24 @@ def _ytd_months():
 def _period(months, label):
     billed = sum(_billed_all(_months(m)) for m in months)
     collected = sum(_collected_all(_months(m)) for m in months)
-    cost = sum(_landlord_all(_months(m)) for m in months)
+    # Same rule as the spread tile: a building whose run was never issued
+    # contributes no billing, so its cost is held out rather than counted
+    # against nothing. Otherwise net spread reports a loss that is an
+    # unmade decision.
+    held = {}
+    for m in months:
+        held.update(unbilled_buildings(_months(m)))
+    cost = sum(_landlord_all(_months(m), exclude=held) for m in months)
 
     prev = [m - len(months) for m in months]
     pbilled = sum(_billed_all(_months(m)) for m in prev)
     pcollected = sum(_collected_all(_months(m)) for m in prev)
-    pcost = sum(_landlord_all(_months(m)) for m in prev)
+    pheld = {}
+    for m in prev:
+        pheld.update(unbilled_buildings(_months(m)))
+    # the comparison period gets the same treatment, or the movement is
+    # measured between two different definitions
+    pcost = sum(_landlord_all(_months(m), exclude=pheld) for m in prev)
 
     spread, pspread = billed - cost, pbilled - pcost
     units = frappe.db.count("Unit")
@@ -209,6 +249,8 @@ def _period(months, label):
         "unmA": None,
         "ap": len(_pending_approvals()),
         "apOld": len([a for a in _pending_approvals() if a > 2]),
+        "unissued": _k(sum(held.values())) if held else 0,
+        "unissuedN": len(held),
         "units": units,
         "occupied": occupied,
         "occPct": round(occupied / units * 100, 1) if units else 0.0,
@@ -230,7 +272,16 @@ def _collected_all(period_start):
     """, (period_start, get_last_day(period_start)))[0][0])
 
 
-def _landlord_all(period_start):
+def _landlord_all(period_start, exclude=None):
+    exclude = list(exclude or [])
+    if exclude:
+        placeholders = ", ".join(["%s"] * len(exclude))
+        return flt(frappe.db.sql(f"""
+            select sum(annual_rent) / 12 from `tabHead Lease`
+            where status in ('Active', 'Expiring')
+              and start_date <= %s and end_date >= %s
+              and building not in ({placeholders})
+        """, [get_last_day(period_start), period_start] + exclude)[0][0])
     return flt(frappe.db.sql("""
         select sum(annual_rent) / 12 from `tabHead Lease`
         where status in ('Active', 'Expiring')

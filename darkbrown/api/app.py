@@ -847,7 +847,8 @@ def _spread(s):
     if not billed:
         return {"id": "spread", "label": "Portfolio spread",
                 "value": "—", "band": "grey",
-                "sub": "Nothing billed this month yet.",
+                "sub": (f"Nothing issued this month yet \u00b7 {held_txt}"
+                        if held_txt else "Nothing billed this month yet."),
                 "means": ("What you charge tenants, less what you pay "
                           "landlords."),
                 "why": ("This is your entire profit model in one number. You "
@@ -867,11 +868,17 @@ def _spread(s):
                   "whether it is one building or the whole book."),
         "green": "",
     }.get(band, "")
+    if held_txt:
+        # Naming a loss-making building is the wrong instruction when the
+        # real one is to issue an invoice run someone already raised.
+        act = ("Issue the outstanding invoice run before reading this "
+               f"month: {held_txt}. Its cost is excluded here until you do.")
 
     return {
         "id": "spread", "label": "Portfolio spread",
         "value": f"{margin:.1f}%", "band": band,
-        "sub": f"{_kfmt(spread)} on {_kfmt(billed)} billed this month",
+        "sub": (f"{_kfmt(spread)} on {_kfmt(billed)} billed this month"
+                + (f" \u00b7 excludes {held_txt}" if held_txt else "")),
         "means": ("What you charged tenants this month, less what you owe "
                   "landlords for the same month, as a percentage of what you "
                   "charged."),
