@@ -174,6 +174,10 @@ def _settings(company, bank_account):
     doc.default_company = company
     if bank_account:
         doc.default_bank_account = bank_account
+    if not doc.emergency_maintenance_ceiling:
+        # Left unset, the controller reads zero and treats it as "no ceiling",
+        # so no emergency job is ever flagged for approval.
+        doc.emergency_maintenance_ceiling = 2000
     if not doc.amendment_md_threshold:
         # Q14 sits open at a provisional QAR 50,000. The demo runs on that
         # figure so the routing can be seen working; change it here when the

@@ -111,8 +111,11 @@ def clear():
 def execute(action, confirm=None, wide=0, user=None):
     """Runs in the background. Everything the demo scripts print is captured
     line by line so the screen can show it as it happens."""
-    if user:
-        frappe.set_user(user)
+    # Deliberately not the user who pressed the button. Seeding writes
+    # Payment Entries and Sales Invoices, and whether the MD happens to hold
+    # the ERPNext accounting roles is beside the point for a data tool. The
+    # gate is on start(), which is where it belongs.
+    frappe.set_user("Administrator")
 
     from darkbrown.demo import run as run_mod
 

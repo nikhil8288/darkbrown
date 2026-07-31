@@ -321,6 +321,10 @@ def _rent_invoice(run, line):
         "doctype": "Sales Invoice",
         "customer": line.tenant,
         "company": run.company,
+        # Without this ERPNext resets posting_date to today on save, which
+        # puts it after the due date on any run for a month already gone and
+        # refuses the invoice. A catch-up run could never be issued.
+        "set_posting_time": 1,
         "posting_date": run.period_start,
         "due_date": add_days(run.period_start,
                              int(_settings().grace_days or 0)),
@@ -336,6 +340,9 @@ def _rent_invoice(run, line):
         }],
     })
     si.flags.ignore_mandatory = True
+    # on flags, not just on insert: submit() saves again and checks
+    # permissions afresh, so a one-shot argument does not carry
+    si.flags.ignore_permissions = True
     si.insert(ignore_permissions=True)
     si.submit()
     return si.name
@@ -425,6 +432,10 @@ def _receipt(customer, amount, on, bank_account=None, mode=None,
         pe.unallocated_amount = left
 
     pe.flags.ignore_mandatory = True
+    # The app decides who may clear a cheque; ERPNext should not then ask
+    # whether that person holds the Payment Entry role as well. Without this
+    # every receipt fails on submit for anyone but a System Manager.
+    pe.flags.ignore_permissions = True
     pe.insert(ignore_permissions=True)
     pe.submit()
     return pe.name
