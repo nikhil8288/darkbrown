@@ -348,12 +348,14 @@ def _panels():
 def seed():
     """Everything the front end needs at boot, in one round trip.
 
-    A module that returns nothing is left out entirely, and the prototype
-    falls back to its own seeded values for that module. That is deliberate:
-    Finance, Documents, Planning and Owners are not wired yet, and a screen
-    showing its demo data is far better than a screen showing zero.
+    A module that returns nothing is left out, and the front end decides what
+    to do about it. What it must not do is quietly fall back to demo values,
+    because an exception in one function then reads as four confident tiles
+    about a portfolio that does not exist. Anything that raised is named in
+    `_failed` so the screen can say the server broke rather than invent.
     """
     data = {}
+    failed = []
     for key, fn in (("buildings", buildings), ("units", units),
                     ("cases", cases), ("jobs", jobs),
                     ("moveouts", moveouts), ("tenants", tenants),
@@ -366,9 +368,12 @@ def seed():
             rows = fn()
         except Exception:
             frappe.log_error(frappe.get_traceback(), f"darkbrown seed: {key}")
+            failed.append(key)
             rows = []
         if rows:
             data[key] = rows
+    if failed:
+        data["_failed"] = failed
     return data
 
 
@@ -834,15 +839,36 @@ def _cover(s):
 
 
 def _spread(s):
-    """Is the business making money this month?"""
+    """Is the business making money this month?
+
+    Billed revenue and head-lease cost have to cover the same buildings. A
+    building whose invoice run is still sitting in the approvals queue
+    contributes nothing to billing while contributing its whole cost, and the
+    tile then reports a loss that is really an unmade decision. Those
+    buildings come out of both sides and are named instead.
+    """
+    from darkbrown.api.command import unbilled_buildings
+
     start = getdate(today()).replace(day=1)
+    pending = unbilled_buildings(start)
+
     billed = sum(flt(i.grand_total) for i in frappe.get_all(
         "Sales Invoice",
         filters={"docstatus": 1, "posting_date": [">=", start]},
         fields=["grand_total"]))
     cost = sum(flt(h.monthly_rent) for h in frappe.get_all(
-        "Head Lease", filters={"status": "Active"},
-        fields=["monthly_rent"]))
+        "Head Lease",
+        filters={"status": ["in", ("Active", "Expiring")]},
+        fields=["building", "monthly_rent"])
+        if h.building not in pending)
+
+    if pending:
+        names = _building_names(list(pending.keys()))
+        held = sum(pending.values())
+        held_txt = (", ".join(names.get(b, b) for b in pending)
+                    + f" \u00b7 {_kfmt(held)} raised but not issued")
+    else:
+        held_txt = ""
 
     if not billed:
         return {"id": "spread", "label": "Portfolio spread",

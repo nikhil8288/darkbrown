@@ -837,6 +837,17 @@ const stChip=s=>({'Occupied':'g','Current':'g','Paid':'g','Cleared':'g','Active'
  'Void':'r','In arrears':'r','Unpaid':'r','Bounced':'r','Expired':'r','Not started':'r','Flagged':'r','Emergency':'r','Legal notice':'r','Escalated':'r','Promise broken':'r'}[s]||'n');
 function empty(msg){return `<div class="mt">${msg}</div>`}
 function actbtn(t,p){return `<button class="btn" onclick="toast('${p||t}')">${t}</button>`}
+function notFound(what,back){
+  return page(what+' not found','',''
+    ,`<div class="card"><div class="unwired big"><span class="uw-tag">NO RECORD</span>
+      <p>That ${what.toLowerCase()} is not in the data currently loaded.</p>
+      <p class="uw-note">Either it does not exist, or the list it belongs to has
+       not been read from the server. Nothing has been substituted for it.</p>
+      ${back?`<div style="margin-top:14px"><button class="btn" onclick="go('${back}')">Back to the list</button></div>`:''}
+    </div></div>`);
+}
+window.notFound=notFound;
+
 function mpTxt(b){return (b.mp===null||b.mp===undefined)?'\u2014':b.mp.toFixed(1)+'%'}
 function mpBad(b,t){return (b.mp===null||b.mp===undefined)?!!b.cost:b.mp<t}
 window.mpTxt=mpTxt;window.mpBad=mpBad;
@@ -850,6 +861,12 @@ window.toast=m=>{const t=el('#toast');t.textContent=m;t.style.opacity=1;clearTim
    Every write goes through here so the screen redraws from what was actually
    saved, not from what the browser hoped was saved. */
 window.DB_LIVE = !!window.DB_SEED;
+
+/* DB_MISSING is filled by gatePayload() once every list below has been
+   declared. Declared here so anything can ask before then without throwing. */
+window.DB_MISSING={};
+window.dbMissing=key=>window.DB_LIVE?DB_MISSING[key]:null;
+
 
 async function dbCall(method, args){
   const res = await fetch('/api/method/darkbrown.api.'+method, {
@@ -1225,6 +1242,17 @@ if(window.DB_SEED&&DB_SEED.wall&&DB_SEED.wall.length){WALL.length=0;WALL.push.ap
 const BANDW={red:'ACT NOW',amber:'WATCH',green:'CLEAR',grey:'NO DATA'};
 function renderWall(){
   const w=document.getElementById('wall'); if(!w)return;
+  const miss=dbMissing('wall');
+  if(miss){
+    w.innerHTML=`<div class="card" style="grid-column:1/-1"><div class="unwired big">
+      <span class="uw-tag">${miss==='error'?'SERVER ERROR':'NO DATA'}</span>
+      <p>${miss==='error'
+        ?'The wall calculation failed on the server, so these four tiles have nothing behind them. They have been withheld rather than filled with demonstration figures.'
+        :'The wall returned no tiles.'}</p>
+      <p class="uw-note">Every other number on this screen is unaffected.</p>
+    </div></div>`;
+    return;
+  }
   w.innerHTML=WALL.map((t,i)=>`<div class="wt ${t.band}" id="wt${i}">
     <span class="wb">${BANDW[t.band]||''}</span>
     <div class="wl">${t.label}</div>
@@ -2385,7 +2413,7 @@ ROUTES.buildings=()=>page('Buildings',`${BUILDINGS.length} buildings · ${UNITS.
 /* ---------- Landlords, now with everything the wizard captured ---------- */
 window.openB=id=>go('#/building/'+id);
 
-ROUTES.building=id=>{const b=B(id)||BUILDINGS[0]; const us=UNITS.filter(u=>u.b===b.id);
+ROUTES.building=id=>{const b=id?B(id):BUILDINGS[0]; if(!b) return notFound('Building','#/buildings'); const us=UNITS.filter(u=>u.b===b.id);
  const js=JOBS.filter(j=>j.b===b.id); const ags=AGR.filter(a=>a.b===b.id);
  return crumb([['Buildings','#/buildings'],[b.n,'']])+page(b.n,
   `${b.id} · ${b.area} · ${b.floors} floors · head-lease from ${b.ll}`,
@@ -2422,7 +2450,7 @@ ROUTES.units=()=>page('Units',`${UNITS.length} units across ${BUILDINGS.length} 
   UNITS.map(u=>({...u,__id:u.id})),{id:'ul',click:'openU',foot:['276 units','sorted by building — click any header']})}</div>`);
 window.openU=id=>go('#/unit/'+id);
 
-ROUTES.unit=id=>{const u=U(id)||UNITS[0]; const ag=AGR.find(a=>a.u===u.id);
+ROUTES.unit=id=>{const u=id?U(id):UNITS[0]; if(!u) return notFound('Unit','#/units'); const ag=AGR.find(a=>a.u===u.id);
  return crumb([['Units','#/units'],[u.bn,'#/building/'+u.b],[u.id,'']])+page(u.id,
   `${u.type} · floor ${u.floor} · ${u.sqm} sqm · ${u.bn}`,
   fbtn('Log maintenance','raise-job',{bn:u.bn,u:u.id})+(u.st==='Occupied'?fbtn('Start move-out','start-moveout',{unit:u.id}):fbtn('Create agreement','new-agreement',{unit:u.id})),
@@ -2454,7 +2482,7 @@ ROUTES.tenants=()=>page('Tenants',TENANTS.length+' tenants · 5 corporate, rest 
    'Σ arrears '+TENANTS.reduce((a,t)=>a+t.arr,0)+'K']})}</div>`);
 window.openT=id=>go('#/tenant/'+id);
 
-ROUTES.tenant=id=>{const t=T(id)||TENANTS[0]; const ags=AGR.filter(a=>a.t===t.id);
+ROUTES.tenant=id=>{const t=id?T(id):TENANTS[0]; if(!t) return notFound('Tenant','#/tenants'); const ags=AGR.filter(a=>a.t===t.id);
  const ins=INV.filter(i=>i.t===t.id); const cs=CASES.find(c=>c.t===t.id);
  const chs=CHQ.filter(c=>c.t===t.id);
  return crumb([['Tenants','#/tenants'],[t.n,'']])+page(t.n,
@@ -2538,7 +2566,7 @@ const CASERULES=[
  ['Anything a person judges needs chasing','Collections officer','Opened by hand, reason required']];
 window.openA=id=>go('#/agreement/'+id);
 
-ROUTES.agreement=id=>{const a=A(id)||AGR[0]; const t=T(a.t);
+ROUTES.agreement=id=>{const a=id?A(id):AGR[0]; if(!a) return notFound('Agreement','#/agreements'); const t=T(a.t);
  return crumb([['Agreements','#/agreements'],[a.id,'']])+page(a.id,
   `${a.tn} · ${a.u} · ${a.bn}`,
   fbtn('Renew','renew-agreement',{id:a.id,rent:a.rent})+fbtn('Start move-out','start-moveout',{agr:a.id,tn:a.tn,u:a.u})+fbtn('Send to tenant','send-doc'),
@@ -2587,7 +2615,7 @@ window.openCS=id=>go('#/case/'+id);
 
 /* ---------------- Move-out (workflow 2G) ---------------- */
 ROUTES.moveout=id=>{
- if(id){const m=MO(id);const S=['Notice received','Move-out inspection','Deductions agreed','Deposit release approved','Closed'];
+ if(id){const m=MO(id); if(!m) return notFound('Move-out case','#/moveout');const S=['Notice received','Move-out inspection','Deductions agreed','Deposit release approved','Closed'];
   return crumb([['Move-out','#/moveout'],[m.id,'']])+page(m.id,`${m.tn} · ${m.u} · notice ${m.notice}`,
    fbtn('Record inspection','record-inspection',{id:m.id})+fbtn('Request deposit release','deposit-release',{id:m.id,dep:m.dep}),
    stat([['Deposit held',m.dep+'K'],['Deductions',m.ded.reduce((a,d)=>a+d[1],0).toFixed(1)+'K','','a'],
@@ -2638,7 +2666,7 @@ ROUTES.maint=()=>page('Maintenance',JOBS.length+' jobs · emergency ceiling QAR 
    foot:['Recharges post as a line on the next rent invoice','emergency ceiling QAR 2,000']})}</div>`);
 window.openJ=id=>go('#/job/'+id);
 
-ROUTES.job=id=>{const j=J(id)||JOBS[0];
+ROUTES.job=id=>{const j=id?J(id):JOBS[0]; if(!j) return notFound('Maintenance job','#/maint');
  return crumb([['Maintenance','#/maint'],[j.id,'']])+page(j.id,`${j.cat} · ${j.u} · ${j.bn}`,
   fbtn('Update job','raise-job',{bn:j.bn,u:j.u}),
   stat([['Priority',chip(j.pr,j.pr==='Emergency'?'r':'n')],['Cost',j.cost+'K','',j.ceil?'r':''],
@@ -2702,7 +2730,7 @@ ROUTES.invoices=()=>page('Invoices','Raised by an invoice run, one building at a
      foot:['nothing posts until the GM decides','the invoice stands as issued in the meantime']})}</div>`:''));
 window.openI=id=>go('#/invoice/'+id);
 
-ROUTES.invoice=id=>{const i=I(id)||INV[0];
+ROUTES.invoice=id=>{const i=id?I(id):INV[0]; if(!i) return notFound('Invoice','#/invoices');
  const pend=i.pending?AM(i.pending):null;
  const hist=AMEND.filter(a=>a.inv===i.id);
  return crumb([['Invoices','#/invoices'],[i.id,'']])+page(i.id,`${i.tn} · ${i.bn} · due ${i.due}`,
@@ -2744,7 +2772,7 @@ ROUTES.cheques=()=>page('Cheques','Post-dated cheque register · deposit, clear,
   CHQ.map(c=>({...c,__id:c.id})),{id:'chl',click:'openC'})}</div>`);
 window.openC=id=>go('#/cheque/'+id);
 
-ROUTES.cheque=id=>{const c=C(id)||CHQ[0];
+ROUTES.cheque=id=>{const c=id?C(id):CHQ[0]; if(!c) return notFound('Cheque','#/cheques');
  return crumb([['Cheques','#/cheques'],[c.id,'']])+page(c.id,`${c.tn} · ${c.bank} · cheque ${c.no}`,
   fbtn('Update status','cheque-action'),
   stat([['Amount',c.amt+'K'],['Bank',c.bank],['Matures',c.mat],['Status',chip(c.st,stChip(c.st))],
@@ -3033,7 +3061,7 @@ ROUTES.vault=()=>{
 window.openVDoc=id=>{const d=VDOCS.find(x=>x.id===id);toast(d.f+' — preview opens in the viewer')};
 
 /* ---------- Approval with notes ---------- */
-ROUTES.approval=id=>{const a=AP(id)||APPR[0];
+ROUTES.approval=id=>{const a=id?AP(id):APPR[0]; if(!a) return notFound('Approval','#/approvals');
  return crumb([['Approvals','#/approvals'],[a.id,'']])+page(a.id,`${a.ty} · ${a.ref}`,
   a.st==='Pending'?`<button class="btn ok" onclick="openForm('approve-decision',{dec:'Approve',ref:'${a.id}'})">Approve</button>
    <button class="btn no" onclick="openForm('approve-decision',{dec:'Reject',ref:'${a.id}'})">Reject</button>
@@ -3048,7 +3076,7 @@ ROUTES.approval=id=>{const a=AP(id)||APPR[0];
     .map(r=>`<div class="it"><span class="dot n"></span><span class="t">${r[0]}</span><span class="m">${r[1]}</span></div>`).join('')}</div></div>`)};
 
 /* ---------- Case with notes ---------- */
-ROUTES.case=id=>{const c=CS(id)||CASES[0];
+ROUTES.case=id=>{const c=id?CS(id):CASES[0]; if(!c) return notFound('Collection case','#/cases');
  const stgs=['Arrears detected','Reminder sent','Promise to pay','Legal notice','Escalated'];
  const cur=stgs.findIndex(s=>s===c.stage||(c.stage==='Promise broken'&&s==='Promise to pay'));
  return crumb([['Cases','#/cases'],[c.id,'']])+page(c.id,`${c.tn} · ${c.amt}K outstanding · owner ${c.owner}`,
@@ -3817,7 +3845,7 @@ ROUTES.owners=()=>{
    <div class="card"><h3>Distribution runs</h3>${runsTable('dr')}</div></div>`)};
 window.openRun=id=>go('#/run/'+id);
 
-ROUTES.shareholder=id=>{const s=SH(id)||SHOLD[0];
+ROUTES.shareholder=id=>{const s=id?SH(id):SHOLD[0]; if(!s) return notFound('Shareholder','#/owners');
  const es=OWNE.filter(e=>e.sh===s.id);let run=0;
  const rows=es.map(e=>{run+=(e.ty==='Drawing'?-e.amt:e.amt);return{...e,bal:run,__id:e.src}});
  const other=SHOLD.find(x=>x.id!==s.id), div=drawnOf(s.id)-drawnOf(other.id);
@@ -4156,7 +4184,7 @@ ROUTES.scenarios=()=>page('Scenarios','Modelled against the base case · approva
    <div class="foot"><span>${SCEN.map((s,i)=>['grey','green','red','gold'][i]+' '+s.id).join(' · ')}</span>
     <span>dark line is the target</span></div></div></div>`);
 
-ROUTES.scenario=id=>{const s=SC(id)||SCEN[0];const cap=capSeries();
+ROUTES.scenario=id=>{const s=id?SC(id):SCEN[0]; if(!s) return notFound('Scenario','#/scenarios');const cap=capSeries();
  return crumb([['Scenarios','#/scenarios'],[s.n,'']])+page(s.n,s.note,
   (ROLEV==='MD'&&s.st!=='Approved'?actbtn('Approve','Approved — this scenario becomes the planning base'):''),
   stat([['Effect on capacity',(s.d>0?'+':'')+k(s.d),'monthly at steady state',s.d>0?'g':s.d<0?'r':''],
@@ -5138,7 +5166,7 @@ ROUTES.cheques=()=>page('Cheques','Money in and money out · custody, presentati
   {h:'Then what',v:c=>c.act||'—'}],
   CHQ.map(c=>({...c,__id:c.id})),{id:'chl',click:'openC'})}</div>`);
 
-ROUTES.cheque=id=>{const c=C(id)||CHQ[0];const inc=c.dir!=='out';
+ROUTES.cheque=id=>{const c=id?C(id):CHQ[0]; if(!c) return notFound('Cheque','#/cheques');const inc=c.dir!=='out';
  const life=inc?['Logged','Deposited','Cleared']:['Issued','Handed over','Presented'];
  const at=c.st==='Cleared'||c.st==='Presented'?2:(c.st==='Deposited'||c.st==='Handed to the payee'?1:0);
  return crumb([['Cheques','#/cheques'],[c.id,'']])+page(c.id,
@@ -5664,6 +5692,30 @@ const BLOCKED={
  'new-target':'Targets need the solver. Blocked on Q10.',
  'model-building':'The building model needs the solver. Blocked on Q10.'
 };
+
+/* ---------- honest gate · the payload itself ----------
+   Every list in this file falls back to its prototype seed when the server
+   sends nothing. That fallback is why one exception inside wall() put four
+   invented tiles on a live dashboard — a portfolio spread of 28.4%, a
+   building called Al Wakra Residences — with nothing to say they were not
+   real. When live, a list the server did not send is emptied, and the screen
+   that reads it says so instead of inventing.
+
+   Runs after every array is declared, not before. */
+function gatePayload(){
+  if(!window.DB_LIVE) return;
+  const SEEDED={buildings:BUILDINGS,units:UNITS,tenants:TENANTS,agreements:AGR,
+   invoices:INV,cheques:CHQ,cases:CASES,approvals:APPR,jobs:JOBS,
+   moveouts:MOVEOUT,docs:DOCS,health:BD,wall:WALL};
+  const broke=(DB_SEED._failed||[]);
+  Object.keys(SEEDED).forEach(key=>{
+    if(((DB_SEED[key]||[]).length)) return;
+    DB_MISSING[key]=broke.indexOf(key)>=0?'error':'empty';
+    SEEDED[key].length=0;
+  });
+}
+window.gatePayload=gatePayload;
+gatePayload();
 
 router();
 
