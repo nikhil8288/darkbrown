@@ -3612,7 +3612,7 @@ FORMS['onboard-building']={t:'Onboard a building',s:'Workflow 2A · property, la
      ['Lease end','31 Jul 2029',89],['Payment terms','4 cheques per year',78]],
     'Upload the signed head-lease and the landlord, value, term and payment terms are read straight off it.',
     {ll:'Al Emadi Enterprises',name:'Al Sadd Tower 2',area:'Al Sadd',units:'14',floors:'8',
-     annual:'1152000',start:'2026-08-01',end:'2029-07-31',nchq:'4',pay:'Cheque',chqfrom:'100295',
+     annual:'1152',start:'2026-08-01',end:'2029-07-31',nchq:'4',pay:'Cheque',chqfrom:'100295',
      type:'Apartment block'}),
   {n:'Property',body:d=>`<div class="fg">
     ${fld({k:'name',l:'Building name',t:'txt',p:'Al Sadd Tower 2',req:1,full:1},d.name)}
@@ -3644,14 +3644,14 @@ FORMS['onboard-building']={t:'Onboard a building',s:'Workflow 2A · property, la
     const annual=+d.annual||0, mo=annual/12, units=+d.units||1;
     return `<p class="pp">Enter the lease in money, not years — the annual value is what the cheques and the ledger work from.</p>
      <div class="fg">
-      ${fld({k:'annual',l:'Annual head-lease value (QAR)',t:'num',step:'1000',p:'1152000',req:1,live:1},d.annual)}
+      ${fld({k:'annual',l:'Annual head-lease value (QAR K)',t:'num',step:'1',p:'1152',req:1,live:1},d.annual)}
       ${fld({k:'start',l:'Lease start',t:'date',d:'2026-08-01',req:1},d.start)}
       ${fld({k:'end',l:'Lease end',t:'date',d:'2029-07-31',req:1},d.end)}
       ${fld({k:'esc',l:'Agreed escalation (% per renewal)',t:'num',step:'0.5',d:'4'},d.esc)}
       ${fld({k:'free',l:'Rent-free period (months)',t:'num',d:'0'},d.free)}
-      ${fld({k:'depll',l:'Deposit paid to landlord (QAR)',t:'num',step:'1000',p:'96000'},d.depll)}</div>
-     ${stat([['Annual value','QAR '+(annual/1000).toFixed(0)+'K'],['Monthly equivalent','QAR '+(mo/1000).toFixed(1)+'K'],
-       ['Per unit / month','QAR '+(units?(mo/units/1000).toFixed(2):'0')+'K'],
+      ${fld({k:'depll',l:'Deposit paid to landlord (QAR K)',t:'num',step:'1',p:'96'},d.depll)}</div>
+     ${stat([['Annual value','QAR '+annual.toFixed(0)+'K'],['Monthly equivalent','QAR '+mo.toFixed(1)+'K'],
+       ['Per unit / month','QAR '+(units?(mo/units).toFixed(2):'0')+'K'],
        ['Escalation',(d.esc||0)+'% per renewal']])}`},
    fields:[{k:'annual',req:1},{k:'start',req:1},{k:'end',req:1}]},
   {n:'Payment',body:d=>{
@@ -3663,16 +3663,16 @@ FORMS['onboard-building']={t:'Onboard a building',s:'Workflow 2A · property, la
       posting against landlord payables.</p>
      <div class="fg">
       ${fld({k:'pay',l:'Payment method',t:'sel',o:['Cheque','Bank transfer','Cash'],req:1,live:1},d.pay)}
-      ${fld({k:'nchq',l:'Instalments per year',t:'sel',o:['1','2','4','6','12'],req:1,live:1},d.nchq)}
+      ${fld({k:'nchq',l:'Instalments per year',t:'sel',o:['1','2','4','12'],req:1,live:1},d.nchq)}
       ${fld({k:'first',l:'First payment date',t:'date',d:'2026-08-01',req:1,live:1},first)}
       ${fld({k:'bank',l:'Drawn on',t:'sel',o:['QNB — 0021 4478','Doha Bank — 7741 2200','CBQ — 3390 8871']},d.bank)}
       ${fld({k:'chqfrom',l:'First cheque number',t:'txt',p:'100295'},d.chqfrom)}
       ${fld({k:'adv',l:'Days notice before presentation',t:'sel',o:['14','0','3','7'],d:'14'},d.adv)}</div>
      <div class="tw"><table><tr><th>#</th><th>Due</th><th class="r">Amount</th><th>Instrument</th><th>Status</th></tr>
-     ${dates.map((dt,i)=>`<tr><td>${i+1}</td><td>${dt}</td><td class="r num">QAR ${(per/1000).toFixed(1)}K</td>
+     ${dates.map((dt,i)=>`<tr><td>${i+1}</td><td>${dt}</td><td class="r num">QAR ${per.toFixed(1)}K</td>
        <td>${d.pay==='Cheque'?(d.chqfrom?'Cheque '+(+d.chqfrom+i):'Cheque'):d.pay}</td>
        <td>${chip(i===0?'To issue':'Scheduled',i===0?'a':'n')}</td></tr>`).join('')}</table></div>
-     <div class="foot"><span>${n} instalment${n>1?'s':''} per year</span><span>total QAR ${(annual/1000).toFixed(0)}K</span></div>`},
+     <div class="foot"><span>${n} instalment${n>1?'s':''} per year</span><span>total QAR ${annual.toFixed(0)}K</span></div>`},
    fields:[{k:'nchq',req:1},{k:'first',req:1}]},
   {n:'Units',body:d=>unitEditor(d),
    check:()=>{wzCollect();const nos=WZU.map(u=>(u.no||'').trim()).filter(Boolean);
@@ -3686,7 +3686,7 @@ FORMS['onboard-building']={t:'Onboard a building',s:'Workflow 2A · property, la
    bank:d.llbank||'—',rep:d.llrep||'—',buildings:[id],since:fdate(TODAY),
    docs:[['Identity',d.doc_llid],['Title deed',d.doc_deed],['Power of attorney',d.doc_poa],['Head-lease',d.doc]]
     .filter(x=>x[1]).map(x=>({t:x[0],f:x[1]}))});
-  const moCost=(+d.annual||0)/12/1000, cost=Math.round(moCost);
+  const moCost=(+d.annual||0)/12, cost=Math.round(moCost);
   const rev=Math.round(WZU.reduce((a,u)=>a+(+u.rent||0),0));
   BUILDINGS.push({id,n:d.name,units:WZU.length,rev,cost,m:rev-cost,mp:rev?(rev-cost)/rev*100:0,
     arr:0,vd:0,om:0,ex:0,occ:0,d:0,ll:d.ll,llId:llid,hlEnd:d.end||d.start,hlRent:cost,
@@ -5040,6 +5040,11 @@ BUILDINGS.forEach((b,i)=>b.llId=LL[i].id);
 const L_=id=>LL.find(x=>x.id===id)||LL.find(x=>x.n===id);
 
 /* ---------- unit editor used by the onboarding wizard ---------- */
+/* These are the Unit doctype's unit_type options verbatim. A value that is not
+   on this list is rejected by the server on insert, so the two lists move
+   together or not at all. */
+const UNIT_TYPES=['Studio','1BR','2BR','3BR','4BR','Penthouse','Villa','Shop','Office',
+ 'Warehouse','Labour Accommodation'];
 let WZU=[];
 window.wzCollect=()=>{document.querySelectorAll('#fbody [data-u]').forEach(e=>{
  const i=+e.dataset.u; if(WZU[i]) WZU[i][e.dataset.f]=e.value})};
@@ -5056,7 +5061,7 @@ function unitEditor(d){
  const rows=WZU.map((u,i)=>`<tr>
    <td><input data-u="${i}" data-f="no" value="${u.no||''}" placeholder="e.g. 101"
      style="${dupe(i)?'border-color:var(--red);background:var(--redbg)':''}"></td>
-   <td><select data-u="${i}" data-f="type">${['Studio','1BR','2BR','3BR','4BR','Shop','Office']
+   <td><select data-u="${i}" data-f="type">${UNIT_TYPES
      .map(t=>`<option ${t===u.type?'selected':''}>${t}</option>`).join('')}</select></td>
    <td><input data-u="${i}" data-f="floor" value="${u.floor||''}" placeholder="—" style="max-width:70px"></td>
    <td><input data-u="${i}" data-f="sqm" value="${u.sqm||''}" placeholder="—" style="max-width:80px"></td>
@@ -5866,6 +5871,13 @@ const wAgrU=u=>{const a=AGR.find(x=>x.u===u&&x.st!=='Terminated');return a?a.id:
 const wBld=n=>{const b=BUILDINGS.find(x=>x.n===n)||BUILDINGS.find(x=>x.id===n);return b?b.id:n};
 const wMap=(m,v,d)=>m[v]||d||v;
 
+/* Instalments per year is what the wizard asks for, because that is what the
+   lease says. The head lease stores a frequency. */
+const W_FREQ={'1':'Annual','2':'Half Yearly','4':'Quarterly','12':'Monthly'};
+/* Bedrooms are implied by the type rather than typed twice. Studio, Shop and
+   the rest fall through to zero. */
+const wBeds=t=>{const m=/^(\d)\s*B/.exec(t||'');return m?+m[1]:0};
+
 const W_JOBCAT={'AC / chiller':'Air Conditioning','Plumbing':'Plumbing','Electrical':'Electrical',
  'Carpentry':'Civil','Pest control':'Pest Control','Lift':'Lift','Water leak':'Plumbing'};
 const W_JOBPRI={'Planned':'Low','Routine':'Medium','Emergency':'Emergency'};
@@ -6071,13 +6083,20 @@ const WIRE={
 
 'onboard-building':{
  m:'portfolio.onboard_building',
- a:d=>({payload:{building_name:d.name,status:'Onboarding',area_name:d.area,
+ a:d=>{wzCollect();
+  return {payload:{building_name:d.name,status:'Onboarding',area_name:d.area,
    floors:parseInt(d.floors)||0,
    landlord:{name:d.ll,qid:d.llid,iban:d.llbank},
-   units:Array.from({length:parseInt(d.units)||0},(_,i)=>({
-     unit_no:String(i+1),floor:0,unit_type:d.type,status:'Vacant'})),
+   /* The units are the ones typed against the doors, not a sequence built from
+      the count read off the lease. `d.type` is the property type and has no
+      business here. */
+   units:WZU.filter(u=>String(u.no||'').trim()).map(u=>({
+     unit_no:String(u.no).trim(),floor:String(u.floor||'').trim()||null,
+     unit_type:u.type||null,status:'Vacant',bedrooms:wBeds(u.type),
+     area_sqm:wNum(u.sqm),asking_rent:wNum(u.rent)})),
    head_lease:{annual_rent:wNum(d.annual),security_deposit:wNum(d.depll),
-     payment_frequency:d.pay,start_date:d.start,end_date:d.end}}}),
+     payment_frequency:wMap(W_FREQ,String(d.nchq),'Quarterly'),
+     start_date:d.start,end_date:d.end}}}},
  ok:r=>({title:'Building onboarded',msg:r.building+' created with '+r.units+' units',
    detail:'It stays in Onboarding until handover is recorded',goto:'#/building/'+r.building})},
 

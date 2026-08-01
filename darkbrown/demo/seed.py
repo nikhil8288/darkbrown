@@ -773,7 +773,7 @@ def _amendment(r, tenancies):
                 "new_value": "12800",
                 "value_impact": 15.6,      # QAR 15,600 over the year
                 "effective_from": _months(1),
-                "reason": "Market review at renewal. Two comparable 3 BHK "
+                "reason": "Market review at renewal. Two comparable 3BR "
                           "units in the same zone are letting at 13,000.",
             }))))
         if out:

@@ -74,6 +74,7 @@ def onboard_building(payload):
             "bedrooms": cint(u.get("bedrooms")),
             "bathrooms": cint(u.get("bathrooms")),
             "area_sqm": flt(u.get("area_sqm")),
+            "asking_rent": flt(u.get("asking_rent")) * K,
             "furnishing": u.get("furnishing") or "Unfurnished",
             "landlord": landlord,
             "kahramaa_meter_no": u.get("kahramaa_meter_no"),

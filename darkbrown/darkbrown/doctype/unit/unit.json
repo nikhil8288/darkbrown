@@ -8,7 +8,7 @@
  "field_order": [
   "building", "unit_no", "floor", "column_break_ident",
   "status", "unit_type", "landlord",
-  "section_spec", "bedrooms", "bathrooms", "area_sqm",
+  "section_spec", "bedrooms", "bathrooms", "area_sqm", "asking_rent",
   "column_break_spec", "furnishing", "balcony", "maid_room",
   "section_utilities", "kahramaa_meter_no", "column_break_util", "water_meter_no",
   "section_notes", "notes"
@@ -24,7 +24,7 @@
    "options": "Not Ready\nVacant\nReserved\nOccupied\nUnder Maintenance",
    "in_list_view": 1, "in_standard_filter": 1},
   {"fieldname": "unit_type", "fieldtype": "Select", "label": "Unit Type", "in_standard_filter": 1,
-   "options": "\nStudio\n1 BHK\n2 BHK\n3 BHK\n4 BHK\nPenthouse\nShop\nOffice\nWarehouse\nLabour Accommodation"},
+   "options": "\nStudio\n1BR\n2BR\n3BR\n4BR\nPenthouse\nVilla\nShop\nOffice\nWarehouse\nLabour Accommodation"},
   {"fieldname": "landlord", "fieldtype": "Link", "label": "Landlord", "options": "Supplier",
    "fetch_from": "building.landlord", "read_only": 1},
 
@@ -32,6 +32,8 @@
   {"fieldname": "bedrooms", "fieldtype": "Int", "label": "Bedrooms"},
   {"fieldname": "bathrooms", "fieldtype": "Int", "label": "Bathrooms"},
   {"fieldname": "area_sqm", "fieldtype": "Float", "label": "Area (sqm)", "precision": "2"},
+  {"fieldname": "asking_rent", "fieldtype": "Currency", "label": "Asking Rent (monthly)", "options": "QAR",
+   "description": "What the unit is offered at while it is void. Optional at onboarding. The agreed rent on a tenancy is what is actually billed \u2014 this is the pricing intent, not a charge."},
   {"fieldname": "column_break_spec", "fieldtype": "Column Break"},
   {"fieldname": "furnishing", "fieldtype": "Select", "label": "Furnishing", "default": "Unfurnished",
    "options": "Unfurnished\nSemi Furnished\nFully Furnished"},

@@ -35,7 +35,7 @@ function open_unit_dialog(frm) {
                 fieldname: "unit_type",
                 fieldtype: "Select",
                 label: __("Unit Type"),
-                options: "\nStudio\n1 BHK\n2 BHK\n3 BHK\n4 BHK\nPenthouse\nShop\nOffice\nWarehouse\nLabour Accommodation",
+                options: "\nStudio\n1BR\n2BR\n3BR\n4BR\nPenthouse\nVilla\nShop\nOffice\nWarehouse\nLabour Accommodation",
                 description: __("Applied to every unit in this batch. Edit individually afterwards where they differ."),
             },
             { fieldtype: "Column Break" },
