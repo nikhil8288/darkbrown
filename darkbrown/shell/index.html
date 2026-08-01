@@ -709,7 +709,7 @@ const AGR=TENANTS.map((t,i)=>{
     rent:t.rent, dep:Math.round(t.rent*2), start:dplus(-ri(120,900)), end:dplus(endD), endD,
     st:endD<0?'Expired':endD<60?'Expiring':'Active',
     ren:endD<180?pick(['Renewed','Negotiating','Not started','Not started']):'—',
-    freq:pick(['Monthly','Quarterly','Quarterly','Semi-annual'])};
+    freq:pick(['Monthly','Quarterly','Quarterly','Half Yearly'])};
 });
 
 /* live data · replaces the seed when the server sent rows */
@@ -894,7 +894,7 @@ async function dbRefresh(){
   try{
     const r = await dbCall('app.refresh', {});
     window.DB_SEED = r.seed || {};
-    const map={buildings:BUILDINGS,units:UNITS,cases:CASES,jobs:JOBS,moveouts:MOVEOUT,tenants:TENANTS,agreements:AGR,invoices:INV,cheques:CHQ,docs:DOCS,approvals:APPR};
+    const map={buildings:BUILDINGS,units:UNITS,cases:CASES,jobs:JOBS,moveouts:MOVEOUT,tenants:TENANTS,agreements:AGR,invoices:INV,cheques:CHQ,docs:DOCS,approvals:APPR,landlords:LL};
     Object.keys(map).forEach(k=>{
       const rows=DB_SEED[k];
       if(rows&&rows.length){map[k].length=0;map[k].push.apply(map[k],rows);}
@@ -2638,7 +2638,7 @@ const FORMS={
    fields:[{k:'tenant',req:1},{k:'unit',req:1}]},
   {n:'Terms',fields:[
     {k:'rent',l:'Monthly rent (QAR)',t:'num',step:'100',req:1},
-    {k:'freq',l:'Payment frequency',t:'sel',o:['Monthly','Quarterly','Semi-annual','Annual'],req:1},
+    {k:'freq',l:'Payment frequency',t:'sel',o:['Monthly','Quarterly','Half Yearly','Annual'],req:1},
     {k:'start',l:'Start date',t:'date',d:'2026-08-01',req:1},
     {k:'months',l:'Term (months)',t:'sel',o:['12','24','36'],req:1},
     {k:'dep',l:'Deposit (QAR)',t:'num',step:'100',req:1},
@@ -3022,19 +3022,53 @@ ROUTES.agreement=id=>{const a=id?A(id):AGR[0]; if(!a) return notFound('Agreement
   fbtn('Renew','renew-agreement',{id:a.id,rent:a.rent})+fbtn('Start move-out','start-moveout',{agr:a.id,tn:a.tn,u:a.u})+fbtn('Send to tenant','send-doc'),
   stat([['Status',chip(a.st,stChip(a.st))],['Rent',n0(a.rent)+' / mo'],['Payment',a.freq],
    ['Deposit held',n0(a.dep)],['Start',a.start],['End',a.end],['Renewal',chip(a.ren,stChip(a.ren))]])+
-  `<div class="card"><h3>Approval chain — workflow 2E</h3>
-   ${steps(['Drafted — Aisha R.','Legal review','GM approval','MD approval','Active'],4)}</div>
-  <div class="grid2">
+  agrChain(a)+
+  `<div class="grid2">
    <div class="card"><h3>Terms</h3><div class="kv">
     ${[['Tenant',a.tn],['Tenant ID',a.t],['Unit',a.u],['Building',a.bn],
-      ['Rent',n0(a.rent)+' per month'],['Payment frequency',a.freq],['Security deposit',n0(a.dep)],
+      ['Rent',n0(a.rent)+' per month'],['Payment frequency',a.freq||'—'],
+      ['Payment method',a.mode||'—'],['Security deposit',n0(a.dep)],
       ['Deposit release','mirrors receipt method'],['Notice period','60 days']]
      .map(r=>`<div><span>${r[0]}</span><b>${r[1]}</b></div>`).join('')}</div></div>
-   <div class="card"><h3>Linked documents</h3><div class="list">
-    ${[['Signed agreement PDF','Validated'],['Tenant QID','Validated'],['Deposit receipt','Validated'],
-       ['Move-in inspection','Validated']].map(r=>`<div class="it"><span class="dot g"></span>
-      <span class="t">${r[0]}</span>${chip(r[1],'g')}</div>`).join('')}</div>
-    <button class="btn" style="margin-top:9px" onclick="go('#/vault')">Open in vault</button></div></div>`)};
+   ${agrDocs(a)}</div>`)};
+
+/* The chain shows where this agreement actually is. Activation is
+   self-approving: a complete pack needs no approver, so drawing four ticks on
+   an agreement that is still waiting on the GM is not a cosmetic problem — it
+   tells the MD a decision was taken that nobody took. */
+function agrChain(a){
+  const routed=a.route==='Routed for Approval'||a.st==='Pending';
+  const active=a.st==='Active'||a.st==='Expiring';
+  if(!routed&&active) return `<div class="card"><h3>Activation — workflow 2E</h3>
+    ${steps(['Drafted','Pack complete','Active — self approved'],3)}
+    <div class="note">The QID was on file and the signed pack was attached, so this
+     activated without an approver. ${a.apby?'Recorded by '+esc(a.apby)+(a.apon?' on '+esc(a.apon):'')+'.':''}</div></div>`;
+  return `<div class="card"><h3>Approval chain — workflow 2E</h3>
+   ${steps(['Drafted','GM approval','Active'],active?3:1)}
+   ${active
+    ? `<div class="note">Routed rather than self-approved${a.missing?' \u2014 '+esc(a.missing):''}, and
+       approved${a.apby?' by '+esc(a.apby):''}${a.apon?' on '+esc(a.apon):''}. The approver stood in
+       for what was missing; it is not evidence the paperwork arrived.</div>`
+    : a.missing
+      ? `<div class="note" style="border-left-color:var(--amber)">
+         <b>Waiting on the General Manager.</b> Routed because: ${esc(a.missing)}.</div>`
+      : `<div class="note" style="border-left-color:var(--amber)"><b>Waiting on the General Manager.</b></div>`}</div>`;
+}
+
+/* Only what is genuinely on the register. An empty list is a fact worth
+   showing — it is the difference between paperwork missing and paperwork
+   never asked for. */
+function agrDocs(a){
+  const d=a.docs||[];
+  return `<div class="card"><h3>Linked documents</h3>
+   ${d.length?`<div class="list">${d.map(x=>`<div class="it">
+      <span class="dot ${x.st==='Validated'?'g':'a'}"></span>
+      <span class="t">${esc(x.t)}${x.f&&x.f!=='\u2014'?' · '+esc(x.f):''}</span>
+      ${chip(x.st,stChip(x.st))}</div>`).join('')}</div>`
+    :`<div class="mt">Nothing on file against this tenancy yet. Documents attached
+      through intake appear here once they are on the register.</div>`}
+   <button class="btn" style="margin-top:9px" onclick="go('#/vault')">Open in vault</button></div>`;
+}
 
 /* ---------------- Collection cases ---------------- */
 ROUTES.cases=()=>page('Collection cases',
@@ -3374,6 +3408,20 @@ const VDOCS=[];
  }
  VDOCS.sort((a,b)=>b.filed-a.filed);
 })();
+/* live data · replaces the seed when the server sent rows.
+   Nothing is invented here. Against a live server the vault holds exactly what
+   is on the Document Register — if that is empty, the vault is empty, and the
+   screen says so rather than showing a wall of ticks for files nobody
+   uploaded. */
+if(window.DB_LIVE){
+  VDOCS.length=0;
+  ((window.DB_SEED&&DB_SEED.docs)||[]).forEach(d=>VDOCS.push({
+    id:d.id, f:d.f||'\u2014', ty:d.ty||'Unknown',
+    link:d.link||'\u2014', ent:d.ent||'Unfiled',
+    filed:d.filed?new Date(d.filed):TODAY,
+    by:d.by||'\u2014', st:d.st||'Needs review', size:'\u2014'}));
+  VDOCS.sort((a,b)=>b.filed-a.filed);
+}
 const VF={q:'',ty:'All types',ent:'All records',st:'All',age:'Any time',by:'Anyone'};
 window.vfSet=(k,v)=>{VF[k]=v;router()};
 window.vfClear=()=>{Object.assign(VF,{q:'',ty:'All types',ent:'All records',st:'All',age:'Any time',by:'Anyone'});router()};
@@ -3484,7 +3532,10 @@ ROUTES.vault=()=>{
  const sel=(k,opts)=>`<select onchange="vfSet('${k}',this.value)">${opts.map(o=>
    `<option ${VF[k]===o?'selected':''}>${o}</option>`).join('')}</select>`;
  const active=Object.entries(VF).filter(([k,v])=>v&&!String(v).startsWith('All')&&v!=='Any time'&&v!=='Anyone').length;
- return page('Document vault',VDOCS.length+' validated documents · filed against buildings, tenants and agreements',
+ const okN=VDOCS.filter(d=>d.st==='Validated').length;
+ return page('Document vault',VDOCS.length?VDOCS.length+' on the register \u00b7 '+okN+
+   ' validated \u00b7 filed against buildings, tenants and agreements'
+   :'Nothing on the register yet \u00b7 documents appear here once intake has filed them',
   fbtn('Upload documents','upload-docs'),
   `<div class="card"><h3>Find a document ${active?`<span class="tag amb">${active} filter${active>1?'s':''} active</span>`:''}
      <span class="plabel">${res.length} of ${VDOCS.length} shown</span></h3>
@@ -3759,13 +3810,13 @@ FORMS['add-tenant']={t:'Add tenant',s:'Workflow 2B · tenancy onboarding',cta:'C
      ${fld({k:'building',l:'Building',t:'sel',o:BUILDINGS.map(b=>b.n),req:1,live:1},d.building)}
      ${unitField(d)}
      ${fld({k:'rent',l:'Monthly rent (QAR)',t:'num',step:'100',p:'6800',req:1,live:1},d.rent)}
-     ${fld({k:'freq',l:'Payment frequency',t:'sel',o:['Monthly','Quarterly','Semi-annual','Annual'],req:1},d.freq)}
+     ${fld({k:'freq',l:'Payment frequency',t:'sel',o:['Monthly','Quarterly','Half Yearly','Annual'],req:1},d.freq)}
      ${fld({k:'start',l:'Start date',t:'date',d:'2026-08-01',req:1},d.start)}
      ${fld({k:'months',l:'Term (months)',t:'sel',o:['12','24','36'],req:1},d.months)}
      ${fld({k:'dep',l:'Security deposit (QAR)',t:'num',step:'100',req:1},d.dep||(d.rent?String(Math.round(d.rent*2)):''))}</div>`,
    fields:[{k:'building',req:1},{k:'unit',req:1},{k:'rent',req:1},{k:'dep',req:1}]},
   {n:'Payment',body:d=>{
-    const rent=+d.rent||0, per={'Monthly':1,'Quarterly':3,'Semi-annual':6,'Annual':12}[d.freq||'Quarterly'];
+    const rent=+d.rent||0, per={'Monthly':1,'Quarterly':3,'Half Yearly':6,'Annual':12}[d.freq||'Quarterly'];
     const n=Math.round(12/per), amt=rent*per;
     return `<p class="pp">Record the cheques or transfer arrangement now so the cash runway and PDC ladder are accurate
       from day one.</p>
@@ -3802,7 +3853,7 @@ FORMS['add-tenant']={t:'Add tenant',s:'Workflow 2B · tenancy onboarding',cta:'C
   AGR.push({id:aid,t:id,tn:d.name,u:d.unit,b:u.b,bn:u.bn,rent:+(+d.rent||0).toFixed(1),dep:+(+d.dep||0).toFixed(1),
     start:d.start,end:d.start,endD:300,st:'Active',ren:'—',freq:d.freq});
   if(u){u.st='Occupied';u.vd=0}
-  const per={'Monthly':1,'Quarterly':3,'Semi-annual':6,'Annual':12}[d.freq||'Quarterly'];
+  const per={'Monthly':1,'Quarterly':3,'Half Yearly':6,'Annual':12}[d.freq||'Quarterly'];
   if(d.method!=='Bank transfer'&&d.chqfrom){[...Array(Math.round(12/per))].map((_,i)=>{
     CHQ.push({id:'CHQ-'+String(3100+CHQ.length),t:id,tn:d.name,amt:+((+d.rent||0)*per).toFixed(1),
       bank:d.bank||'QNB',no:String(+d.chqfrom+i),mat:d.start,matD:30*per*(i+1),st:'On hand',reason:'',act:''})})}
@@ -5071,7 +5122,20 @@ const LL=BUILDINGS.map((b,i)=>({id:'LL-'+String(i+1).padStart(3,'0'),n:b.ll,
  phone:'+974 55'+(40+i)+' '+(1000+i*7),email:'—',bank:'QNB · QA'+(58+i)+' QNBA ••••',rep:'—',
  buildings:[b.id],since:'01 Mar 2'+(1+i%5),
  docs:[{t:'Identity',f:'landlord_id.pdf'},{t:'Title deed',f:'title_deed.pdf'}]}));
-BUILDINGS.forEach((b,i)=>b.llId=LL[i].id);
+/* live data · replaces the seed when the server sent rows */
+if(window.DB_SEED&&DB_SEED.landlords&&DB_SEED.landlords.length){LL.length=0;LL.push.apply(LL,DB_SEED.landlords);}
+/* Buildings point at the landlord the server gave them. Falling back to
+   position was safe only while both lists were generated from the same seed;
+   against live data it would attach a building to whichever landlord happened
+   to sort into the same slot. */
+function linkLandlords(){
+  BUILDINGS.forEach((b,i)=>{
+    const m=LL.find(l=>(l.buildings||[]).includes(b.id))||LL.find(l=>l.n===b.ll)
+      ||(window.DB_LIVE?null:LL[i]);
+    b.llId=m?m.id:null;});
+}
+linkLandlords();
+window.linkLandlords=linkLandlords;
 const L_=id=>LL.find(x=>x.id===id)||LL.find(x=>x.n===id);
 
 /* ---------- unit editor used by the onboarding wizard ---------- */
@@ -5162,7 +5226,7 @@ Object.assign(FORMS,{
 /* ================================================================
    Billing · run per building, review every line, change with a reason
    ================================================================ */
-const PER={'Monthly':1,'Quarterly':3,'Semi-annual':6,'Annual':12};
+const PER={'Monthly':1,'Quarterly':3,'Half Yearly':6,'Annual':12};
 const PERIODS=['August 2026','September 2026','October 2026'];
 let BILLRUN=null;
 const BILLRUNS=[];
@@ -5913,6 +5977,10 @@ const W_FREQ={'1':'Annual','2':'Half Yearly','4':'Quarterly','12':'Monthly'};
    the rest fall through to zero. */
 const wBeds=t=>{const m=/^(\d)\s*B/.exec(t||'');return m?+m[1]:0};
 
+/* The wizard names the arrangement; the doctype names the instrument. */
+const W_PAYMODE={'Post-dated cheques':'Cheque','Bank transfer':'Transfer',
+ 'Cash':'Cash','Mixed':'Cheque'};
+
 const W_JOBCAT={'AC / chiller':'Air Conditioning','Plumbing':'Plumbing','Electrical':'Electrical',
  'Carpentry':'Civil','Pest control':'Pest Control','Lift':'Lift','Water leak':'Plumbing'};
 const W_JOBPRI={'Planned':'Low','Routine':'Medium','Emergency':'Emergency'};
@@ -6140,7 +6208,8 @@ const WIRE={
  a:d=>({payload:{unit:d.unit,
    tenant:{name:d.name,corporate:d.type==='Company',qid:d.qid,mobile:d.phone,qid_expiry:d.qidexp},
    start_date:d.start,
-   end_date:null,rent:wNum(d.rent),deposit:wNum(d.dep),payment_mode:d.method,
+   end_date:null,rent:wNum(d.rent),deposit:wNum(d.dep),
+   payment_mode:wMap(W_PAYMODE,d.method,'Cheque'),payment_frequency:d.freq,
    qid:d.qid,mobile:d.phone,deposit_method:d.depmethod}}),
  ok:r=>({title:'Tenancy created',msg:r.agreement+' \u00b7 '+r.status,
    detail:r.status==='Active'?'QID and signed pack were both present, so it activated without an approval'
@@ -6151,7 +6220,7 @@ const WIRE={
  m:'agreements.create_agreement',
  a:d=>({payload:{unit:(d.__ctx&&d.__ctx.unit)||d.unit,
    tenant:{name:d.tenant},start_date:d.start,rent:wNum(d.rent),
-   deposit:wNum(d.dep),payment_mode:d.freq}}),
+   deposit:wNum(d.dep),payment_frequency:d.freq}}),
  ok:r=>({title:'Agreement raised',msg:r.agreement+' \u00b7 '+r.status,
    goto:'#/agreement/'+r.agreement})},
 
@@ -6205,13 +6274,16 @@ function gatePayload(){
   if(!window.DB_LIVE) return;
   const SEEDED={buildings:BUILDINGS,units:UNITS,tenants:TENANTS,agreements:AGR,
    invoices:INV,cheques:CHQ,cases:CASES,approvals:APPR,jobs:JOBS,
-   moveouts:MOVEOUT,docs:DOCS,health:BD,wall:WALL};
+   moveouts:MOVEOUT,docs:DOCS,health:BD,wall:WALL,landlords:LL};
   const broke=(DB_SEED._failed||[]);
   Object.keys(SEEDED).forEach(key=>{
     if(((DB_SEED[key]||[]).length)) return;
     DB_MISSING[key]=broke.indexOf(key)>=0?'error':'empty';
     SEEDED[key].length=0;
   });
+  // The gate can empty the landlord list after buildings were linked to it.
+  // Re-link, or a building points at a landlord that no longer exists.
+  linkLandlords();
 }
 window.gatePayload=gatePayload;
 gatePayload();

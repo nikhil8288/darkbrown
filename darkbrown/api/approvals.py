@@ -41,6 +41,7 @@ def decide(kind, reference, decision, note=None):
 
     handler = {
         "Amendment": _amendment,
+        "Tenancy activation": _tenancy,
         "Emergency maint.": _maintenance,
         "Deposit release": _deposit,
         "Invoice run": _invoice_run,
@@ -64,6 +65,28 @@ def decide(kind, reference, decision, note=None):
 def _amendment(reference, decision, note):
     from darkbrown.api.agreements import decide_amendment
     return decide_amendment(reference, decision, note)
+
+
+def _tenancy(reference, decision, note):
+    """Approving stands in for the paperwork that was missing.
+
+    Approval runs the same activation the self-approved route runs, so a
+    tenancy that arrived here ends up in exactly the state one that never
+    needed an approver would. Rejection leaves it Draft rather than deleting
+    it — the tenant and the terms were real, only the pack was not.
+    """
+    from darkbrown.api.agreements import activate
+    doc = frappe.get_doc("Tenancy Agreement", reference)
+    if doc.status != "Pending Approval":
+        frappe.throw(_("{0} is already {1}.").format(reference, doc.status))
+
+    if decision == "reject":
+        doc.status = "Draft"
+        doc.notes = (doc.notes or "") + f"\n\nApproval refused: {note}"
+        doc.save(ignore_permissions=True)
+        return {"reference": doc.name, "status": doc.status}
+
+    return activate(reference, note)
 
 
 def _maintenance(reference, decision, note):
@@ -111,7 +134,7 @@ def _deposit(reference, decision, note):
             mo.save(ignore_permissions=True)
 
     return {"reference": doc.name, "status": doc.status,
-            "refund": round(refund / 1000.0, 1)}
+            "refund": round(refund)}
 
 
 def _invoice_run(reference, decision, note):

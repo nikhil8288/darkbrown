@@ -25,6 +25,7 @@
   "security_deposit",
   "cb_money",
   "payment_mode",
+  "payment_frequency",
   "cheques_held",
   "sec_charges",
   "charges",
@@ -172,6 +173,15 @@
    "options": "Cheque\nCash\nTransfer",
    "default": "Cheque",
    "reqd": 1
+  },
+  {
+   "fieldname": "payment_frequency",
+   "fieldtype": "Select",
+   "label": "Payment Frequency",
+   "options": "Monthly\nQuarterly\nHalf Yearly\nAnnual",
+   "default": "Monthly",
+   "reqd": 1,
+   "description": "How often rent falls due. Separate from the mode, which is how it arrives \u2014 a tenant can pay quarterly in cash or monthly by cheque."
   },
   {
    "fieldname": "cheques_held",

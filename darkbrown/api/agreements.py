@@ -67,6 +67,7 @@ def create_agreement(payload):
         "monthly_rent": flt(data.get("rent")),
         "security_deposit": flt(data.get("deposit")),
         "payment_mode": data.get("payment_mode") or "Cheque",
+        "payment_frequency": _freq(data.get("payment_frequency")),
         "cheques_held": int(data.get("cheques_held") or 0),
         "qid_number": data.get("qid"),
         "qid_expiry": data.get("qid_expiry"),
@@ -102,10 +103,67 @@ def create_agreement(payload):
     if doc.status == "Active":
         _claim_unit(unit)
         _open_deposit(doc, data)
+    else:
+        _notify_gm(doc, missing)
 
     return {"agreement": doc.name, "status": doc.status,
             "route": doc.activation_route,
             "missing": missing}
+
+
+def _notify_gm(doc, missing):
+    """A routed agreement that nobody is told about is not routed, it is lost.
+
+    The queue is the record; this is the nudge. It goes to every user holding
+    the General Manager role, on the bell rather than by email, and it names
+    what is missing so the approver knows why it arrived before opening it.
+    """
+    users = _role_users("General Manager") or _role_users("Managing Director")
+    if not users:
+        frappe.log_error(
+            "Tenancy {0} routed for approval but no user holds the General "
+            "Manager or Managing Director role, so nobody was told.".format(
+                doc.name),
+            "darkbrown: approval notification")
+        return
+
+    subject = _("Tenancy {0} needs approval").format(doc.name)
+    body = _("{0} at {1} is waiting on the General Manager. Missing: {2}.").format(
+        doc.tenant, doc.unit, ", ".join(missing) or _("nothing recorded"))
+    for user in users:
+        frappe.get_doc({
+            "doctype": "Notification Log",
+            "for_user": user,
+            "type": "Alert",
+            "document_type": "Tenancy Agreement",
+            "document_name": doc.name,
+            "subject": subject,
+            "email_content": body,
+        }).insert(ignore_permissions=True)
+
+
+def _role_users(role):
+    """Enabled users holding a role. Administrator is excluded — it is not a
+    person who checks a queue."""
+    return [u.parent for u in frappe.get_all(
+        "Has Role", filters={"role": role, "parenttype": "User"},
+        fields=["parent"])
+        if u.parent not in ("Administrator", "Guest")
+        and frappe.db.get_value("User", u.parent, "enabled")]
+
+
+FREQUENCIES = {
+    "monthly": "Monthly", "quarterly": "Quarterly",
+    "semi-annual": "Half Yearly", "semi annual": "Half Yearly",
+    "half yearly": "Half Yearly", "half-yearly": "Half Yearly",
+    "annual": "Annual", "yearly": "Annual",
+}
+
+
+def _freq(value):
+    """How often rent falls due. Distinct from payment mode, which is how it
+    arrives. Collapsing the two loses the billing cycle entirely."""
+    return FREQUENCIES.get(str(value or "").strip().lower(), "Monthly")
 
 
 def _missing(doc):
@@ -137,6 +195,11 @@ def activate(agreement, note=None):
         doc.notes = (doc.notes or "") + f"\n\nActivated on override: {note}"
     doc.save(ignore_permissions=True)
     _claim_unit(doc.unit)
+    # The self-approved route opens the deposit at creation. One that waited on
+    # an approver has to open it here, or the liability only ever exists for
+    # tenancies that happened to arrive complete.
+    if not frappe.db.exists("Security Deposit", {"tenancy_agreement": doc.name}):
+        _open_deposit(doc, {"deposit_method": doc.payment_mode})
     return {"agreement": doc.name, "status": doc.status}
 
 

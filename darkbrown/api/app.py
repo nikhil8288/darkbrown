@@ -360,6 +360,7 @@ def seed():
                     ("agreements", agreements), ("invoices", invoices),
                     ("cheques", cheques), ("docs", docs),
                     ("approvals", approvals), ("wall", wall),
+                    ("landlords", landlords),
                     ("health", _health), ("kpi", _kpi),
                     ("panels", _panels),
                     ("bankAccounts", bank_accounts)):
@@ -429,10 +430,58 @@ def tenants():
             "units": units.get(c.name, 0),
             "rent": _k(rent.get(c.name, 0)),
             "arr": arr,
-            "st": "In arrears" if arr > 25 else "Late" if arr > 0 else "Current",
+            "st": "In arrears" if arr > 25000 else "Late" if arr > 0 else "Current",
             "qid": c.db_cr_no or c.db_qid or "—",
             "since": _fdate(c.creation),
             "phone": c.db_mobile or "—",
+        })
+    return out
+
+
+def landlords():
+    """Landlords are parties in their own right, not a text field on a
+    building. What comes back here is what the head lease, the payment run and
+    the document vault all hang off, so it is read from the Supplier record
+    rather than derived from the building list."""
+    rows = frappe.get_all(
+        "Supplier",
+        filters={"db_is_landlord": 1},
+        fields=["name", "supplier_name", "supplier_type", "creation",
+                "db_landlord_qid", "db_nationality", "db_iban", "db_bank_name",
+                "db_mobile", "email_id"])
+    if not rows:
+        return []
+
+    by_landlord = {}
+    for b in frappe.get_all("Building", fields=["name", "landlord"]):
+        if b.landlord:
+            by_landlord.setdefault(b.landlord, []).append(b.name)
+
+    docs = {}
+    for d in frappe.get_all(
+            "Document Register",
+            filters={"party_type": "Supplier",
+                     "status": ["!=", "Superseded"]},
+            fields=["party", "document_type", "source_file", "status"]):
+        docs.setdefault(d.party, []).append({
+            "t": d.document_type or "Unknown",
+            "f": (d.source_file or "").split("/")[-1] or "\u2014",
+            "st": DOC_STATE.get(d.status, d.status)})
+
+    out = []
+    for s in rows:
+        out.append({
+            "id": s.name,
+            "n": s.supplier_name or s.name,
+            "type": "Company" if s.supplier_type == "Company" else "Individual",
+            "idno": s.db_landlord_qid or "—",
+            "phone": s.db_mobile or "—",
+            "email": s.email_id or "—",
+            "bank": " · ".join(x for x in (s.db_bank_name, s.db_iban) if x) or "—",
+            "rep": "—",
+            "buildings": by_landlord.get(s.name, []),
+            "since": _fdate(s.creation),
+            "docs": docs.get(s.name, []),
         })
     return out
 
@@ -460,7 +509,9 @@ def agreements():
         filters={"status": ["!=", "Terminated"]},
         fields=["name", "tenant", "unit", "building", "status", "start_date",
                 "end_date", "monthly_rent", "security_deposit",
-                "payment_mode", "renewal_of"],
+                "payment_mode", "payment_frequency", "renewal_of",
+                "activation_route", "missing_items", "signed_pack",
+                "qid_number", "approved_by", "approved_on"],
         order_by="end_date asc")
     if not rows:
         return []
@@ -468,6 +519,7 @@ def agreements():
     tnames = _customer_names([r.tenant for r in rows])
     bnames = _building_names([r.building for r in rows])
     renewed = {r.renewal_of for r in rows if r.renewal_of}
+    linked = _agreement_docs(rows)
 
     out = []
     for a in rows:
@@ -487,8 +539,57 @@ def agreements():
             "st": TA_STATE.get(a.status, a.status),
             "ren": ("Renewed" if a.name in renewed
                     else "Not started" if end_d < 180 else "—"),
-            "freq": a.payment_mode or "Monthly",
+            # Mode is how rent arrives; frequency is how often it falls due.
+            # They were one key, which is why a cash tenancy read as a cash
+            # billing cycle.
+            "freq": a.payment_frequency or "Monthly",
+            "mode": a.payment_mode or "Cheque",
+            "route": a.activation_route or "",
+            "missing": a.missing_items or "",
+            "apby": _short_name(a.approved_by) if a.approved_by else "",
+            "apon": _fdate(a.approved_on) if a.approved_on else "",
+            "docs": linked.get(a.name, []),
         })
+    return out
+
+
+def _agreement_docs(rows):
+    """The documents actually on file against each tenancy.
+
+    Nothing is assumed present. A tenancy with no register entries comes back
+    with an empty list, and the screen says so rather than showing a tidy row
+    of ticks for paperwork that was never uploaded.
+    """
+    units = {r.unit for r in rows if r.unit}
+    tenants = {r.tenant for r in rows if r.tenant}
+    by_unit, by_party = {}, {}
+    if units or tenants:
+        filters = {"status": ["!=", "Superseded"]}
+        for d in frappe.get_all(
+                "Document Register", filters=filters,
+                fields=["name", "document_type", "source_file", "status",
+                        "unit", "party", "expiry_date"]):
+            item = {
+                "id": d.name,
+                "t": d.document_type or "Unknown",
+                "f": (d.source_file or "").split("/")[-1] or "\u2014",
+                "st": DOC_STATE.get(d.status, d.status),
+                "exp": _fdate(d.expiry_date) if d.expiry_date else "",
+            }
+            if d.unit:
+                by_unit.setdefault(d.unit, []).append(item)
+            if d.party:
+                by_party.setdefault(d.party, []).append(item)
+
+    out = {}
+    for r in rows:
+        seen, items = set(), []
+        for item in by_unit.get(r.unit, []) + by_party.get(r.tenant, []):
+            if item["id"] in seen:
+                continue
+            seen.add(item["id"])
+            items.append(item)
+        out[r.name] = items
     return out
 
 
@@ -609,7 +710,7 @@ def docs():
         fields=["name", "document_type", "source_file", "status",
                 "extraction_confidence", "owner", "modified", "document_no",
                 "expiry_date", "party", "building"],
-        order_by="modified desc", limit=60)
+        order_by="modified desc", limit=200)
     if not rows:
         return []
     out = []
@@ -634,6 +735,12 @@ def docs():
             "by": _short_name(d.owner),
             "when": _fdate(d.modified),
             "ext": " · ".join(bits) or "—",
+            # what the vault needs to file it against something
+            "link": (str(d.party) if d.party
+                     else str(d.building) if d.building else "—"),
+            "ent": ("Tenant" if d.party else "Building" if d.building
+                    else "Unfiled"),
+            "filed": str(d.modified)[:10] if d.modified else "",
         })
     return out
 
@@ -661,6 +768,24 @@ def approvals():
             "st": "Pending",
             "why": a.reason or (f"{a.field_changed}: {a.old_value} → "
                                 f"{a.new_value}"),
+        })
+
+    for t in frappe.get_all(
+            "Tenancy Agreement",
+            filters={"status": "Pending Approval"},
+            fields=["name", "tenant", "unit", "building", "monthly_rent",
+                    "missing_items", "creation", "owner"]):
+        out.append({
+            "id": t.name,
+            "ty": "Tenancy activation",
+            "ref": f"{t.unit or t.building} · {_short_name(t.owner)}",
+            "amt": _k(t.monthly_rent),
+            "age": _age(t.creation),
+            "res": 0,
+            "st": "Pending",
+            "why": (f"Routed rather than self-approved. Missing: "
+                    f"{t.missing_items}." if t.missing_items
+                    else "Routed for approval; nothing was recorded as missing."),
         })
 
     ceiling = flt(frappe.db.get_single_value(
