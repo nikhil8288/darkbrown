@@ -15,9 +15,6 @@ import frappe
 from frappe import _
 from frappe.utils import flt, today, getdate, add_days, add_months, date_diff
 
-K = 1000.0
-
-
 def _settings():
     return frappe.get_single("DBR Settings")
 
@@ -49,7 +46,7 @@ def log_cheque(payload):
     if not first_no:
         frappe.throw(_("A cheque needs its number."))
 
-    amount = flt(data.get("amount")) * K
+    amount = flt(data.get("amount"))
     if not amount and ta:
         amount = flt(ta.monthly_rent)
     if not amount:
@@ -152,7 +149,7 @@ def return_cheque(cheque, reason, charge=None, notes=None, on=None):
     doc.status = "Returned"
     doc.returned_on = on or today()
     doc.return_reason = reason
-    doc.return_charge = flt(charge) * K if charge else 0
+    doc.return_charge = flt(charge) if charge else 0
     doc.return_notes = notes
     doc.save(ignore_permissions=True)
 
@@ -209,7 +206,7 @@ def replace_cheque(cheque, payload):
     old = frappe.get_doc("Cheque", cheque)
     data.setdefault("party", old.party)
     data.setdefault("tenancy_agreement", old.tenancy_agreement)
-    data.setdefault("amount", flt(old.amount) / K)
+    data.setdefault("amount", flt(old.amount))
     data.setdefault("count", 1)
     made = log_cheque(frappe.as_json(data))
     new = made["cheques"][0]
@@ -384,7 +381,7 @@ def record_receipt(payload):
     """
     data = frappe.parse_json(payload)
     tenant = data.get("tenant")
-    amount = flt(data.get("amount")) * K
+    amount = flt(data.get("amount"))
     if not tenant or not amount:
         frappe.throw(_("A receipt needs a tenant and an amount."))
 
@@ -498,7 +495,7 @@ def create_deposit_batch(payload):
 
     total = 0
     for l in lines:
-        amount = flt(l.get("amount")) * K
+        amount = flt(l.get("amount"))
         doc.append("lines", {
             "payment_type": l.get("type") or "Cash",
             "collection_slip_no": l.get("slip_no"),
@@ -592,4 +589,5 @@ def nightly():
 
 
 def _kk(v):
-    return round(flt(v) / K, 1)
+    """Money crosses to the shell in whole riyals. No scaling anywhere."""
+    return round(flt(v))

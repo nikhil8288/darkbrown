@@ -14,11 +14,9 @@ formatters expect. One place converts, here.
 import frappe
 from frappe.utils import flt, getdate, today, date_diff, add_days
 
-K = 1000.0
-
-
 def _k(v):
-    return round(flt(v) / K, 1)
+    """Money crosses to the shell in whole riyals. No scaling anywhere."""
+    return round(flt(v))
 
 
 def _fdate(d):
@@ -1076,7 +1074,5 @@ def _collection_rate():
 
 
 def _kfmt(v):
-    v = flt(v)
-    if abs(v) >= 1_000_000:
-        return f"QAR {v / 1_000_000:.2f}M"
-    return f"QAR {v / 1000:.0f}K"
+    """Full number with thousands separators. No K or M abbreviation."""
+    return "QAR {:,.0f}".format(flt(v))

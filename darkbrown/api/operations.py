@@ -4,8 +4,6 @@ import frappe
 from frappe import _
 from frappe.utils import flt, cint, today
 
-K = 1000.0
-
 STAGE_STATUS = {
     "Reminder sent": "Contacted",
     "Promise to pay": "Promised",
@@ -33,7 +31,7 @@ def log_contact(case, method, outcome, notes=None, promised_amount=None,
             frappe.throw(_("A promise needs a date."))
         doc.status = "Promised"
         doc.promised_date = promised_date
-        doc.promised_amount = flt(promised_amount) * K
+        doc.promised_amount = flt(promised_amount)
         doc.broken_promise = 0
     elif outcome in ("No Answer", "Disputed") and doc.status == "Open":
         doc.status = "Contacted"
@@ -84,7 +82,7 @@ def raise_job(payload):
         "status": "Open",
         "rechargeable": cint(data.get("rechargeable")),
         "recharge_to": data.get("recharge_to"),
-        "recharge_amount": flt(data.get("recharge_amount")) * K,
+        "recharge_amount": flt(data.get("recharge_amount")),
     }).insert()
     return doc.name
 
@@ -102,7 +100,7 @@ def advance_job(job, status, cost=None, notes=None, assigned_to=None):
     if cost is not None:
         doc.cost_lines = []
         doc.append("cost_lines", {"item": "Job cost",
-                                  "amount": flt(cost) * K})
+                                  "amount": flt(cost)})
     doc.save()
     return {"job": doc.name, "status": doc.status,
             "over_ceiling": bool(doc.over_ceiling)}
@@ -159,7 +157,7 @@ def advance_moveout(case, payload):
         doc.inspection_on = data.get("inspection_on") or today()
         doc.inspected_by = frappe.session.user
         doc.inspection_notes = data.get("notes")
-        doc.damages_amount = flt(data.get("damages")) * K
+        doc.damages_amount = flt(data.get("damages"))
     elif step == "meters":
         doc.meter_readings = []
         for r in data.get("readings") or []:
@@ -168,7 +166,7 @@ def advance_moveout(case, payload):
                 "meter_no": r.get("meter_no"),
                 "reading": flt(r.get("reading")),
                 "reading_date": r.get("reading_date") or today(),
-                "amount_due": flt(r.get("amount_due")) * K,
+                "amount_due": flt(r.get("amount_due")),
             })
         doc.utilities_due = sum(flt(r.amount_due) for r in doc.meter_readings)
         doc.status = "Settlement Pending"
@@ -177,8 +175,8 @@ def advance_moveout(case, payload):
         doc.keys_returned_on = data.get("on") or today()
         doc.access_cards_returned = cint(data.get("cards"))
     elif step == "settle":
-        doc.outstanding_rent = flt(data.get("outstanding_rent")) * K
-        doc.damages_charged = flt(data.get("damages_charged")) * K
+        doc.outstanding_rent = flt(data.get("outstanding_rent"))
+        doc.damages_charged = flt(data.get("damages_charged"))
         doc.settlement_approved_by = frappe.session.user
         doc.status = "Refund Pending"
     elif step == "refund":
@@ -190,4 +188,4 @@ def advance_moveout(case, payload):
 
     doc.save()
     return {"case": doc.name, "status": doc.status,
-            "refund": flt(doc.refund_amount) / K}
+            "refund": flt(doc.refund_amount)}

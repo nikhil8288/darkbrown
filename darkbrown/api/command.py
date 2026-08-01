@@ -29,11 +29,14 @@ import frappe
 from frappe.utils import (add_days, add_months, flt, get_datetime,
                           get_first_day, get_last_day, getdate, today)
 
-K = 1000.0
-
-
 def _k(v):
-    return round(flt(v) / K, 1)
+    """Money crosses to the shell in whole riyals. No scaling anywhere."""
+    return round(flt(v))
+
+
+def _q(v):
+    """Full number with thousands separators, for text the MD reads."""
+    return "{:,.0f}".format(flt(v))
 
 
 def _months(n):
@@ -68,11 +71,11 @@ def health():
             "n": b.name,
             "u": units,
             "occ": round(occupied / units * 100) if units else 0,
-            "rev": round(rev / K),
-            "cost": round(cost / K),
-            "m": round(margin / K),
+            "rev": round(rev),
+            "cost": round(cost),
+            "m": round(margin),
             "mp": (margin / rev * 100) if rev else None,
-            "arr": round(_arrears(b.name) / K),
+            "arr": round(_arrears(b.name)),
             "vd": _void_days(m0, min(get_last_day(m0), getdate(today())),
                              b.name),
             "om": frappe.db.count("Maintenance Request", {
@@ -84,7 +87,7 @@ def health():
             # Rent that is contracted and drafted but not yet issued.
             # Without this a building whose run is waiting on approval
             # is indistinguishable from one earning nothing.
-            "unbilled": round(_unissued(b.name, m0) / K),
+            "unbilled": round(_unissued(b.name, m0)),
         })
 
     rows.sort(key=lambda r: -r["rev"])
@@ -685,7 +688,7 @@ def _exceptions():
             fields=["party", "amount", "return_reason", "returned_on"],
             order_by="returned_on desc", limit_page_length=5):
         out.append({"s": "r",
-                    "t": f"Cheque bounced — {r.party} · {_k(r.amount)}K"
+                    "t": f"Cheque bounced — {r.party} · QAR {_q(r.amount)}"
                          + (f" · {r.return_reason.lower()}"
                             if r.return_reason else ""),
                     "w": f"{getdate(r.returned_on):%d %b}",
@@ -707,14 +710,14 @@ def _exceptions():
             order_by="reported_on desc", limit_page_length=3):
         out.append({"s": "a",
                     "t": f"Emergency maint over ceiling — {r.building}"
-                         f" · {_k(r.cost)}K vs 2.0K limit",
+                         f" · QAR {_q(r.cost)} vs QAR 2,000 limit",
                     "w": f"{getdate(r.reported_on):%d %b}",
                     "go": "#/maint"})
 
     for b, amt in (unissued(_months(0)) or {}).items():
         out.append({"s": "a",
                     "t": f"Invoice run not issued — {b}"
-                         f" · {_k(amt)}K raised",
+                         f" · QAR {_q(amt)} raised",
                     "w": "this month", "go": "#/generate"})
     return out[:8]
 

@@ -14,9 +14,6 @@ import frappe
 from frappe import _
 from frappe.utils import flt, today, getdate, add_days, date_diff
 
-K = 1000.0
-
-
 def _settings():
     return frappe.get_single("DBR Settings")
 
@@ -67,8 +64,8 @@ def create_agreement(payload):
         "end_date": end,
         "notice_days": (data.get("notice_days")
                         or settings.default_tenancy_notice_days or 60),
-        "monthly_rent": flt(data.get("rent")) * K,
-        "security_deposit": flt(data.get("deposit")) * K,
+        "monthly_rent": flt(data.get("rent")),
+        "security_deposit": flt(data.get("deposit")),
         "payment_mode": data.get("payment_mode") or "Cheque",
         "cheques_held": int(data.get("cheques_held") or 0),
         "qid_number": data.get("qid"),
@@ -83,7 +80,7 @@ def create_agreement(payload):
     for c in data.get("charges") or []:
         doc.append("charges", {
             "charge_type": c.get("type") or "Other",
-            "amount": flt(c.get("amount")) * K,
+            "amount": flt(c.get("amount")),
             "frequency": c.get("frequency") or "Monthly",
             "remarks": c.get("remarks"),
         })
@@ -233,7 +230,7 @@ def request_amendment(payload):
         frappe.throw(_("An amendment needs a reason."))
 
     ty = data.get("agreement_type") or "Tenancy Agreement"
-    impact = flt(data.get("value_impact")) * K
+    impact = flt(data.get("value_impact"))
     threshold = flt(_settings().amendment_md_threshold or 0)
     status = "Pending MD" if threshold and abs(impact) >= threshold else "Pending GM"
 
@@ -309,8 +306,8 @@ def renew(agreement, payload):
 
     data.setdefault("unit", old.unit)
     data.setdefault("tenant", old.tenant)
-    data.setdefault("rent", flt(data.get("rent") or old.monthly_rent / K))
-    data.setdefault("deposit", flt(old.security_deposit) / K)
+    data.setdefault("rent", flt(data.get("rent") or old.monthly_rent))
+    data.setdefault("deposit", flt(old.security_deposit))
     data.setdefault("start_date", add_days(old.end_date, 1))
     data["renewal_of"] = old.name
     data.setdefault("qid", old.qid_number)

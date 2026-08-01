@@ -21,8 +21,6 @@ from darkbrown.api import portfolio as port_api
 from darkbrown.demo import dataset as D
 from darkbrown.demo import prereq
 
-K = 1000.0
-
 
 class Run:
     """Collects what happened so the caller gets one readable report."""
@@ -207,9 +205,8 @@ def _buildings(r):
                 "kahramaa_meter_no": u["meter"],
             } for u in b["units"]],
             "head_lease": {
-                # the wizard collects thousands; the API multiplies by 1000
-                "annual_rent": hl["annual_rent"] / K,
-                "security_deposit": hl["security_deposit"] / K,
+                "annual_rent": hl["annual_rent"],
+                "security_deposit": hl["security_deposit"],
                 "payment_frequency": hl["payment_frequency"],
                 "start_date": start,
                 "end_date": add_days(add_months(start, hl["months"]), -1),
@@ -312,8 +309,8 @@ def _tenancies(r):
             },
             "start_date": start,
             "end_date": add_days(add_months(start, 12), -1),
-            "rent": t["rent"] / K,
-            "deposit": t["deposit"] / K,
+            "rent": t["rent"],
+            "deposit": t["deposit"],
             "payment_mode": t["mode"],
             # cheques_held is what makes an agreement self-approve; the real
             # cheques are logged in the next step and add to this.
@@ -382,7 +379,7 @@ def _cheques(r, tenancies):
             "direction": "Incoming",
             "cheque_no": t["first_cheque"],
             "cheque_date": _months(t["start_months"]),
-            "amount": t["rent"] / K,
+            "amount": t["rent"],
             "count": t["cheques"],
             "months_apart": 1,
             "bank": t.get("bank"),
@@ -499,7 +496,7 @@ def _cash_deposits(r):
                 "slip_no": f"{slip}-{j + 1:02d}",
                 "tenant": t["tenant"],
                 "unit": f"{bname}-{t['unit']}",
-                "amount": t["rent"] / K,
+                "amount": t["rent"],
                 "remarks": f"Rent {getdate(month):%b %Y}, collected at unit",
             })
         payload = {"date": add_days(month, 2), "bank_account": bank,
@@ -594,7 +591,7 @@ def _maintenance(r):
             "description": j["description"],
             "rechargeable": 1 if j.get("rechargeable") else 0,
             "recharge_to": j.get("recharge_to"),
-            "recharge_amount": (j.get("recharge_amount") or 0) / K,
+            "recharge_amount": (j.get("recharge_amount") or 0),
         }
         job = r.step(f"job — {j['issue']}",
                      lambda p=payload: ops_api.raise_job(_json(p)))
@@ -607,7 +604,7 @@ def _maintenance(r):
         for i, status in enumerate(j["advance"]):
             last = i == len(j["advance"]) - 1
             r.step(f"{job} → {status}",
-                   lambda n=job, s=status, c=(j["cost"] / K if last else None):
+                   lambda n=job, s=status, c=(j["cost"] if last else None):
                    ops_api.advance_job(
                        n, s, cost=c,
                        notes=("Attended and closed." if s == "Resolved"

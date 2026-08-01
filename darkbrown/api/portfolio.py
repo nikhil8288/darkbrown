@@ -10,9 +10,6 @@ import frappe
 from frappe import _
 from frappe.utils import flt, cint
 
-K = 1000.0
-
-
 @frappe.whitelist()
 def onboard_building(payload):
     """One atomic pass. Raises before anything commits if any part fails."""
@@ -74,7 +71,7 @@ def onboard_building(payload):
             "bedrooms": cint(u.get("bedrooms")),
             "bathrooms": cint(u.get("bathrooms")),
             "area_sqm": flt(u.get("area_sqm")),
-            "asking_rent": flt(u.get("asking_rent")) * K,
+            "asking_rent": flt(u.get("asking_rent")),
             "furnishing": u.get("furnishing") or "Unfurnished",
             "landlord": landlord,
             "kahramaa_meter_no": u.get("kahramaa_meter_no"),
@@ -91,9 +88,9 @@ def onboard_building(payload):
             "status": "Active",
             "start_date": hl.get("start_date"),
             "end_date": hl.get("end_date"),
-            "annual_rent": flt(hl.get("annual_rent")) * K,
+            "annual_rent": flt(hl.get("annual_rent")),
             "payment_frequency": hl.get("payment_frequency") or "Quarterly",
-            "security_deposit": flt(hl.get("security_deposit")) * K,
+            "security_deposit": flt(hl.get("security_deposit")),
             "units_covered": len(units),
             "signed_document": hl.get("signed_document"),
         }).insert().name

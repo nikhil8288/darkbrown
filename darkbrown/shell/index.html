@@ -600,7 +600,7 @@ body.focus main{max-width:none}
     <button data-p="jul" class="on">Jul '26</button><button data-p="jun">Jun '26</button>
     <button data-p="q3">Q3</button><button data-p="ytd">YTD</button>
   </div>
-  <div class="ticker" id="ticker">Next landlord cheque <b id="tickAmt">486K</b><span id="tickDays">· Al Kuwari Est. · in 7 days</span></div>
+  <div class="ticker" id="ticker">Next landlord cheque <b id="tickAmt">486,000</b><span id="tickDays">· Al Kuwari Est. · in 7 days</span></div>
   <div class="sync" id="sync">Synced 07:12 · Sun 26 Jul</div>
   <div class="bellwrap">
     <button class="bell" id="bell" onclick="toggleNotif()" aria-label="Notifications">
@@ -624,9 +624,13 @@ const R=(s=>()=>{s|=0;s=s+0x6D2B79F5|0;let t=Math.imul(s^s>>>15,1|s);t=t+Math.im
    that arrives with no units — onboarded but not yet filled — made this
    return undefined, and the dereference that followed took the whole app
    down before the first screen rendered. */
+/* Every money value in this shell is whole Qatari riyals. There is no K or M
+   scale anywhere — not in the fields, not on screen, not over the wire. n0 is
+   the only money renderer. */
+const n0=n=>Math.round(+n||0).toLocaleString('en-US');
 const pick=a=>((a&&a.length)?a[Math.floor(R()*a.length)]:{});
 const ri=(a,b)=>a+Math.floor(R()*(b-a+1));
-const money=n=>n>=1000?(n/1000).toFixed(2)+'M':Math.round(n)+'K';
+const money=n=>n0(n);
 const esc=s=>String(s).replace(/[<>&]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]));
 const DAY=864e5, TODAY=new Date('2026-07-26');
 const fdate=d=>d.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'2-digit'});
@@ -650,12 +654,12 @@ const STAFF=['Aisha R.','Fatima N.','Yusuf K.','Maint. team','GM','MD'];
 
 const BUILDINGS=BNAMES.map((n,i)=>{
   const units=[18,14,16,12,10,15,12,8,13,16,11,14,12,10,15,13,12,9,11,12,13,10][i];
-  const rate=ri(52,78)/10;
+  const rate=ri(52,78)*100;
   const rev=Math.round(units*rate*(0.92+R()*0.2));
   const cost=Math.round(rev*(0.74+R()*0.12));
   const troubled=[2,5,8].includes(i);
   return {id:'B'+String(i+1).padStart(2,'0'),n,units,rev,cost,m:rev-cost,mp:(rev-cost)/rev*100,
-    arr:Math.round(R()*(troubled?58:26)), vd:Math.round(R()*(troubled?38:12)),
+    arr:Math.round(R()*(troubled?58000:26000)), vd:Math.round(R()*(troubled?38:12)),
     om:Math.round(R()*(i===13?7:4)), ex:Math.round(R()*(i===6?6:3)),
     occ:Math.max(78,Math.round(100-R()*(troubled?20:8))), d:(R()*4-2),
     ll:LNAMES[i], hlEnd:dplus(ri(60,900)), hlRent:cost, area:pick(['Al Sadd','Musheireb','West Bay','The Pearl','Najma','Old Airport','Bin Mahmoud','Duhail','Al Wakrah','Lusail']),
@@ -670,11 +674,11 @@ BUILDINGS.forEach(b=>{for(let u=1;u<=b.units;u++){
   const vac=R()<(100-b.occ)/100;
   UNITS.push({id:b.id+'-U'+String(u*101%400+100).padStart(3,'0'),b:b.id,bn:b.n,
     type:pick(['Studio','1 BR','2 BR','2 BR','3 BR','Villa']),floor:ri(1,b.floors),
-    sqm:ri(48,190), rent:+(4.2+R()*5.4).toFixed(1), llRent:0,
+    sqm:ri(48,190), rent:Math.round(4200+R()*5400), llRent:0,
     st:vac?pick(['Void','Void','Make-ready','Marketing','Reserved']):(R()<0.05?'Notice':'Occupied'),
     vd:vac?ri(4,52):0});
 }});
-UNITS.forEach(u=>u.llRent=+(u.rent*0.78).toFixed(1));
+UNITS.forEach(u=>u.llRent=Math.round(u.rent*0.78));
 const U=id=>UNITS.find(u=>u.id===id);
 /* live data · replaces the seed when the server sent rows */
 if(window.DB_SEED&&DB_SEED.units&&DB_SEED.units.length){UNITS.length=0;UNITS.push.apply(UNITS,DB_SEED.units);}
@@ -684,10 +688,10 @@ for(let i=0;i<64;i++){
   const corp=i<5;
   const nm=corp?CORP[i]:pick(FIRST)+' '+pick(LAST);
   const units=corp?ri(5,14):1;
-  const arr=R()<0.28?Math.round(R()*46):0;
+  const arr=R()<0.28?Math.round(R()*46000):0;
   TENANTS.push({id:'TN-'+String(i+1).padStart(4,'0'),n:nm,corp,units,
-    rent:+(corp?units*6.4:4.2+R()*5.4).toFixed(1), arr,
-    st:arr>25?'In arrears':arr>0?'Late':'Current',
+    rent:Math.round(corp?units*6400:4200+R()*5400), arr,
+    st:arr>25000?'In arrears':arr>0?'Late':'Current',
     qid:corp?'CR '+ri(10000,99999):'2'+ri(80,99)+ri(10000,99999),
     since:dplus(-ri(60,1400)), phone:'+974 '+ri(3000,7999)+' '+ri(1000,9999)});
 }
@@ -702,7 +706,7 @@ const AGR=TENANTS.map((t,i)=>{
   const u=UNITS[i*3%UNITS.length];
   const endD=ri(-20,360);
   return {id:'TA-'+String(i+201).padStart(4,'0'),t:t.id,tn:t.n,u:u.id,b:u.b,bn:u.bn,
-    rent:t.rent, dep:+(t.rent*2).toFixed(1), start:dplus(-ri(120,900)), end:dplus(endD), endD,
+    rent:t.rent, dep:Math.round(t.rent*2), start:dplus(-ri(120,900)), end:dplus(endD), endD,
     st:endD<0?'Expired':endD<60?'Expiring':'Active',
     ren:endD<180?pick(['Renewed','Negotiating','Not started','Not started']):'—',
     freq:pick(['Monthly','Quarterly','Quarterly','Semi-annual'])};
@@ -716,7 +720,7 @@ const INV=[];
 AGR.slice(0,46).forEach((a,i)=>{
   const paid=R()<0.72, part=!paid&&R()<0.4;
   INV.push({id:'INV-'+String(2401+i),t:a.t,tn:a.tn,a:a.id,b:a.b,bn:a.bn,
-    amt:a.rent, paid:paid?a.rent:part?+(a.rent*0.5).toFixed(1):0,
+    amt:a.rent, paid:paid?a.rent:part?Math.round(a.rent*0.5):0,
     due:dplus(-ri(0,70)), dueD:-ri(0,70),
     st:paid?'Paid':part?'Part paid':'Unpaid',
     lines:[['Rent — '+a.u,a.rent],...(R()<0.25?[['Maintenance recharge',+(R()*2).toFixed(1)]]:[])]});
@@ -730,7 +734,7 @@ const CHQ=[];
 for(let i=0;i<58;i++){
   const t=pick(TENANTS), d=ri(-40,110);
   const st=d<-10?pick(['Cleared','Cleared','Cleared','Bounced']):d<0?pick(['Cleared','Deposited']):pick(['On hand','On hand','Deposited']);
-  CHQ.push({id:'CHQ-'+String(3100+i),t:t.id,tn:t.n,amt:+(t.rent*(t.corp?1:1)).toFixed(1),
+  CHQ.push({id:'CHQ-'+String(3100+i),t:t.id,tn:t.n,amt:Math.round(t.rent*(t.corp?1:1)),
     bank:pick(['QNB','Doha Bank','CBQ','Masraf Al Rayan','QIB','Ahli Bank']),
     no:String(ri(100000,999999)), mat:dplus(d), matD:d, st,
     reason:st==='Bounced'?pick(['Insufficient funds','Signature mismatch','Account closed']):'',
@@ -744,7 +748,7 @@ const C=id=>CHQ.find(c=>c.id===id);
 const CASES=[];
 TENANTS.filter(t=>t.arr>0).slice(0,14).forEach((t,i)=>{
   CASES.push({id:'TOC-'+String(180+i).padStart(4,'0'),t:t.id,tn:t.n,amt:t.arr,
-    stage:t.arr>30?pick(['Legal notice','Escalated']):pick(['Reminder sent','Promise to pay','Promise broken']),
+    stage:t.arr>30000?pick(['Legal notice','Escalated']):pick(['Reminder sent','Promise to pay','Promise broken']),
     age:ri(6,88), owner:pick(['Aisha R.','Fatima N.']), promise:R()<0.5?dplus(ri(2,14)):'—'});
 });
 const CS=id=>CASES.find(c=>c.id===id);
@@ -759,25 +763,25 @@ for(let i=0;i<26;i++){
     pr:em?'Emergency':pick(['Planned','Planned','Routine']), cost,
     st:pick(['Open','Assigned','In progress','Awaiting parts','Completed','Completed']),
     rch:R()<0.3, age:ri(0,22), owner:pick(['Maint. team','Yusuf K.']),
-    ceil:em&&cost>2});
+    ceil:em&&cost>2000});
 }
 if(B('B14')&&UNITS.some(u=>u.b==='B14'))Object.assign(JOBS.find(j=>j.id==='MNT-0231')||JOBS[11],
- {b:'B14',bn:B('B14').n,u:UNITS.find(u=>u.b==='B14').id,cat:'AC / chiller',pr:'Emergency',cost:3.2,st:'Completed',
+ {b:'B14',bn:B('B14').n,u:UNITS.find(u=>u.b==='B14').id,cat:'AC / chiller',pr:'Emergency',cost:3200,st:'Completed',
   rch:false,age:1,owner:'Maint. team',ceil:true});
 const J=id=>JOBS.find(j=>j.id===id);
 
 const APPR=[
- {id:'APR-0102',ty:'Deposit release',ref:'TA-0231 · Fatima N.',amt:24.0,age:62,res:1,st:'Pending',
+ {id:'APR-0102',ty:'Deposit release',ref:'TA-0231 · Fatima N.',amt:24000,age:62,res:1,st:'Pending',
   why:'Move-out MO-0044 closed, no deductions raised. Release mirrors original receipt method (bank transfer).'},
- {id:'APR-0103',ty:'Rent concession',ref:'B14-U103 · GM',amt:8.5,age:51,res:1,st:'Pending',
+ {id:'APR-0103',ty:'Rent concession',ref:'B14-U103 · GM',amt:8500,age:51,res:1,st:'Pending',
   why:'Tenant requests 2-month 15% concession citing hardship. GM recommends approval to avoid a 44-day void.'},
- {id:'APR-0104',ty:'Write-off',ref:'TN-0142 · Fatima N.',amt:6.2,age:19,res:1,st:'Pending',
+ {id:'APR-0104',ty:'Write-off',ref:'TN-0142 · Fatima N.',amt:6200,age:19,res:1,st:'Pending',
   why:'Balance uncollectable — tenant departed Qatar. Legal advises cost of pursuit exceeds recovery.'},
- {id:'APR-0105',ty:'Head-lease renewal',ref:'B07 · GM',amt:1458,age:6,res:1,st:'Pending',
+ {id:'APR-0105',ty:'Head-lease renewal',ref:'B07 · GM',amt:1458000,age:6,res:1,st:'Pending',
   why:'Landlord proposes 4% uplift on renewal. Sublease book on B07 supports it at current occupancy.'},
- {id:'APR-0099',ty:'Emergency maint.',ref:'MNT-0231 · B14 chiller',amt:3.2,age:26,res:0,st:'Approved',
+ {id:'APR-0099',ty:'Emergency maint.',ref:'MNT-0231 · B14 chiller',amt:3200,age:26,res:0,st:'Approved',
   why:'Above QAR 2,000 emergency ceiling — chiller failure affecting 6 units.'},
- {id:'APR-0098',ty:'Agreement — new',ref:'TA-0298 · Aisha R.',amt:78,age:40,res:0,st:'Approved',why:'Standard terms, Legal cleared.'}];
+ {id:'APR-0098',ty:'Agreement — new',ref:'TA-0298 · Aisha R.',amt:78000,age:40,res:0,st:'Approved',why:'Standard terms, Legal cleared.'}];
 
 /* live data · replaces the seed when the server sent rows */
 if(window.DB_SEED&&DB_SEED.approvals&&DB_SEED.approvals.length){APPR.length=0;APPR.push.apply(APPR,DB_SEED.approvals);}
@@ -787,11 +791,11 @@ const AP=id=>APPR.find(a=>a.id===id);
 /* live data · replaces the seed when the server sent rows */
 if(window.DB_SEED&&DB_SEED.jobs&&DB_SEED.jobs.length){JOBS.length=0;JOBS.push.apply(JOBS,DB_SEED.jobs);}
 const MOVEOUT=[
- {id:'MO-0051',t:'TN-0018',tn:TN('TN-0018'),u:'B03-U204',dep:11.2,step:2,notice:dplus(-18),out:dplus(9),
-  ded:[['Deep clean',0.6],['Wall repair',0.4]]},
- {id:'MO-0052',t:'TN-0027',tn:TN('TN-0027'),u:'B09-U107',dep:9.8,step:1,notice:dplus(-6),out:dplus(24),ded:[]},
- {id:'MO-0050',t:'TN-0009',tn:TN('TN-0009'),u:'B01-U301',dep:13.4,step:4,notice:dplus(-44),out:dplus(-8),
-  ded:[['Missing keys',0.2]]}];
+ {id:'MO-0051',t:'TN-0018',tn:TN('TN-0018'),u:'B03-U204',dep:11200,step:2,notice:dplus(-18),out:dplus(9),
+  ded:[['Deep clean',600],['Wall repair',400]]},
+ {id:'MO-0052',t:'TN-0027',tn:TN('TN-0027'),u:'B09-U107',dep:9800,step:1,notice:dplus(-6),out:dplus(24),ded:[]},
+ {id:'MO-0050',t:'TN-0009',tn:TN('TN-0009'),u:'B01-U301',dep:13400,step:4,notice:dplus(-44),out:dplus(-8),
+  ded:[['Missing keys',200]]}];
 const MO=id=>MOVEOUT.find(m=>m.id===id);
 /* live data · replaces the seed when the server sent rows */
 if(window.DB_SEED&&DB_SEED.moveouts&&DB_SEED.moveouts.length){MOVEOUT.length=0;MOVEOUT.push.apply(MOVEOUT,DB_SEED.moveouts);}
@@ -1018,18 +1022,18 @@ const NOTES={
 function addNote(id,by,role,t){(NOTES[id]=NOTES[id]||[]).push({by,role,when:fdate(TODAY),t})}
 
 const ALERTS=[
- {ty:'Cheque bounced',t:'Horizon Facilities · 42.5K · insufficient funds',w:'07:02',s:'r',go:'#/cheques'},
- {ty:'Promise broken',t:'TN-0142 · 18.0K due 24 Jul, unpaid',w:'06:40',s:'r',go:'#/cases'},
+ {ty:'Cheque bounced',t:'Horizon Facilities · QAR 42,500 · insufficient funds',w:'07:02',s:'r',go:'#/cheques'},
+ {ty:'Promise broken',t:'TN-0142 · QAR 18,000 due 24 Jul, unpaid',w:'06:40',s:'r',go:'#/cases'},
  {ty:'Approval ageing',t:'2 reserved approvals over 48 hours',w:'06:00',s:'r',go:'#/approvals'},
- {ty:'Over ceiling',t:'MNT-0231 · B14 chiller · 3.2K vs 2.0K limit',w:'Yesterday',s:'a',go:'#/job/MNT-0231'},
+ {ty:'Over ceiling',t:'MNT-0231 · B14 chiller · QAR 3,200 vs QAR 2,000 limit',w:'Yesterday',s:'a',go:'#/job/MNT-0231'},
  {ty:'Override logged',t:'Fatima N. batched and reconciled BATCH-0871',w:'Yesterday',s:'a',go:'#/batches'},
  {ty:'Reconciliation',t:'9 unmatched bank items · 2 over 5 days',w:'24 Jul',s:'a',go:'#/recon'}];
 
 const CASH=[
- {id:'RCT-0441',t:'TN-0006',tn:TN('TN-0006'),amt:4.2,when:dplus(-1),by:'Aisha R.',loc:'Office',st:'Undeposited'},
- {id:'RCT-0442',t:'TN-0011',tn:TN('TN-0011'),amt:6.5,when:dplus(-1),by:'Aisha R.',loc:'Office',st:'Undeposited'},
- {id:'RCT-0443',t:'TN-0019',tn:TN('TN-0019'),amt:3.8,when:dplus(-2),by:'Yusuf K.',loc:'Safe',st:'Undeposited'},
- {id:'RCT-0444',t:'TN-0024',tn:TN('TN-0024'),amt:5.1,when:dplus(-3),by:'Aisha R.',loc:'Safe',st:'Deposited'}];
+ {id:'RCT-0441',t:'TN-0006',tn:TN('TN-0006'),amt:4200,when:dplus(-1),by:'Aisha R.',loc:'Office',st:'Undeposited'},
+ {id:'RCT-0442',t:'TN-0011',tn:TN('TN-0011'),amt:6500,when:dplus(-1),by:'Aisha R.',loc:'Office',st:'Undeposited'},
+ {id:'RCT-0443',t:'TN-0019',tn:TN('TN-0019'),amt:3800,when:dplus(-2),by:'Yusuf K.',loc:'Safe',st:'Undeposited'},
+ {id:'RCT-0444',t:'TN-0024',tn:TN('TN-0024'),amt:5100,when:dplus(-3),by:'Aisha R.',loc:'Safe',st:'Deposited'}];
 
 const COA=[
  ['1010','Bank — QNB current','Asset','Dr'],['1020','Bank — Doha Bank','Asset','Dr'],
@@ -1150,10 +1154,10 @@ const DASH_TPL=`<div class="grid">
 
 /* DarkBrown MD Command Centre — dummy data + renderers */
 const $=el;
-const k=n=>'QAR '+(Math.abs(n)>=1000?(n/1000).toFixed(2)+'M':Math.round(n)+'K');
-const kk=n=>(n/1000).toFixed(2)+'M';
+const k=n=>'QAR '+n0(n);
+const kk=n=>'QAR '+n0(n);
 const pc=n=>n.toFixed(1)+'%';
-const kf=n=>Math.abs(n)>=1000?(n/1000).toFixed(2)+'M':(Math.round(n*10)/10)+'K';
+const kf=n=>n0(n);
 
 /* A panel the server answered for renders the server's rows; a panel it did
    not answer for is stubbed by gateDash. The difference matters: an empty
@@ -1168,13 +1172,13 @@ function livePanel(key){
 }
 function liveEmpty(msg){return `<div class="mt">${msg}</div>`}
 
-/* ---------- core monthly series (Aug '25 → Jul '26), QAR thousands ---------- */
+/* ---------- core monthly series (Aug '25 → Jul '26), whole QAR ---------- */
 const MON=['Aug','Sep','Oct','Nov','Dec','Jan','Feb','Mar','Apr','May','Jun','Jul'];
-const billed   =[1742,1748,1755,1761,1768,1779,1786,1794,1801,1812,1821,1834];
-const collected=[1638,1651,1622,1673,1644,1691,1668,1705,1687,1722,1706,1689];
-const llcost   =[1421,1421,1428,1428,1436,1436,1443,1443,1451,1451,1458,1458];
-const mPlan=[41,44,39,46,42,40,45,43,47,44,46,48], mEmg=[12,9,22,14,11,26,10,13,9,17,12,29], mRch=[11,12,10,13,11,10,12,12,13,12,13,14];
-const uPaid=[78,74,69,64,61,63,66,71,79,86,91,94], uBill=[64,62,58,55,52,54,56,60,67,73,77,79];
+const billed   =[1742000,1748000,1755000,1761000,1768000,1779000,1786000,1794000,1801000,1812000,1821000,1834000];
+const collected=[1638000,1651000,1622000,1673000,1644000,1691000,1668000,1705000,1687000,1722000,1706000,1689000];
+const llcost   =[1421000,1421000,1428000,1428000,1436000,1436000,1443000,1443000,1451000,1451000,1458000,1458000];
+const mPlan=[41000,44000,39000,46000,42000,40000,45000,43000,47000,44000,46000,48000], mEmg=[12000,9000,22000,14000,11000,26000,10000,13000,9000,17000,12000,29000], mRch=[11000,12000,10000,13000,11000,10000,12000,12000,13000,12000,13000,14000];
+const uPaid=[78000,74000,69000,64000,61000,63000,66000,71000,79000,86000,91000,94000], uBill=[64000,62000,58000,55000,52000,54000,56000,60000,67000,73000,77000,79000];
 const occU =[258,259,260,258,261,262,261,263,264,262,263,261]; /* of 276 */
 const noteU=[6,5,6,7,4,5,6,4,4,6,5,7];
 
@@ -1189,13 +1193,13 @@ function pack(f,t,prevF,prevT){
     coll:c/b*100, collD:(c/b-pcl/pb)*100};
 }
 const KPI={
- jul:{...pack(11,11,10,10), arr:418, arrD:+3.1, cash:2140, cashD:-4.2, pdc30:1085, ll30:986,
+ jul:{...pack(11,11,10,10), arr:418000, arrD:+3.1, cash:2140000, cashD:-4.2, pdc30:1085000, ll30:986000,
       vd:212, vdD:+11, br:3.4, brD:+0.5, unm:9, unmA:'2 > 5d', ap:4, apOld:2, label:"Jul '26"},
- jun:{...pack(10,10,9,9), arr:396, arrD:-1.8, cash:2245, cashD:+2.9, pdc30:1010, ll30:972,
+ jun:{...pack(10,10,9,9), arr:396000, arrD:-1.8, cash:2245000, cashD:+2.9, pdc30:1010000, ll30:972000,
       vd:187, vdD:-6, br:2.9, brD:-0.3, unm:6, unmA:'1 > 5d', ap:3, apOld:1, label:"Jun '26"},
- q3: {...pack(9,11,6,8), arr:418, arrD:+5.6, cash:2140, cashD:-1.1, pdc30:1085, ll30:986,
+ q3: {...pack(9,11,6,8), arr:418000, arrD:+5.6, cash:2140000, cashD:-1.1, pdc30:1085000, ll30:986000,
       vd:566, vdD:+21, br:3.1, brD:+0.2, unm:9, unmA:'2 > 5d', ap:4, apOld:2, label:"May–Jul '26"},
- ytd:{...pack(5,11,0,4),  arr:418, arrD:+9.4, cash:2140, cashD:+6.3, pdc30:1085, ll30:986,
+ ytd:{...pack(5,11,0,4),  arr:418000, arrD:+9.4, cash:2140000, cashD:+6.3, pdc30:1085000, ll30:986000,
       vd:1240, vdD:-4, br:3.2, brD:-0.6, unm:9, unmA:'2 > 5d', ap:4, apOld:2, label:"Jan–Jul '26"}
 };
 
@@ -1233,22 +1237,22 @@ function kdelta(d,goodUp,unit=''){
    teaches nobody what red looks like. */
 const WALL=[
  {id:'cover',label:'Obligation cover',value:'1.34x',band:'green',
-  sub:'QAR 1.32M expected \u00b7 QAR 986K owed \u00b7 60 days',
+  sub:'QAR 1,320,000 expected \u00b7 QAR 986,000 owed \u00b7 60 days',
   means:'Landlord rent falling due in the next 60 days, set against cheques in hand plus unpaid invoices discounted at your actual collection rate.',
   why:'Rent to your landlords is fixed and contractual \u2014 owed whether a building is full or empty. Your bank balance cannot answer this because the accounts sweep to near zero daily. This is the one number that can end the business.',
   act:'',go:'#/cheques'},
  {id:'spread',label:'Portfolio spread',value:'28.4%',band:'green',
-  sub:'QAR 391K on QAR 1.38M billed this month',
+  sub:'QAR 391,000 on QAR 1,380,000 billed this month',
   means:'What you charged tenants this month, less what you owe landlords for the same month, as a percentage of what you charged.',
   why:'You never buy property \u2014 you head-lease it and sub-let it, so this gap is the entire business. It compresses slowly and quietly, usually through renewals at higher rent, and is easy to miss until a year has gone.',
   act:'',go:'#/reports'},
  {id:'collection',label:'Collection rate',value:'91%',band:'amber',
-  sub:'QAR 418K outstanding \u00b7 rolling 90 days',
+  sub:'QAR 418,000 outstanding \u00b7 rolling 90 days',
   means:'Of everything invoiced in the last 90 days, the share that has actually been received.',
   why:'A healthy spread on paper means nothing if the money does not arrive. Most of your rent comes in by cheque, and a cheque is a promise until it clears. This is the number that separates a profitable business from a failing one with good invoices.',
-  act:'QAR 418K outstanding. Worth a pass through the oldest cases before it hardens.',go:'#/arrears'},
+  act:'QAR 418,000 outstanding. Worth a pass through the oldest cases before it hardens.',go:'#/arrears'},
  {id:'losers',label:'Buildings losing money',value:'2',band:'amber',
-  sub:'Al Wakra Residences worst at QAR -18K/month \u00b7 QAR 26K total',
+  sub:'Al Wakra Residences worst at QAR -18,000/month \u00b7 QAR 26,000 total',
   means:'Buildings where the rent you collect from tenants is less than the rent you pay the landlord.',
   why:'The portfolio average hides the loser. A building at low occupancy still owes its landlord in full, so it quietly eats the profit the good buildings make. A negative building does not recover on its own \u2014 something has to change.',
   act:'Al Wakra Residences is running at a loss. Check its occupancy and when its head lease is next up.',go:'#/portfolio'}];
@@ -1320,11 +1324,11 @@ function renderKPIs(p){
     s:sp(collected.map((c,i)=>c/billed[i]*100),'#2E6B57'),w:P.coll<93},
    {l:occL,v:occV,d:live?'':kdelta(-0.7,true,'pt'),s:sp(occU,'#2E6B57')},
    {l:'Total arrears',v:k(P.arr),d:dl(P.arrD,false,'%'),
-    s:live?'':spk([371,380,376,392,388,396,418],'#A63D2F'),w:P.arr>0},
+    s:live?'':spk([371000,380000,376000,392000,388000,396000,418000],'#A63D2F'),w:P.arr>0},
    {l:'PDC in \u00b7 30d',v:k(P.pdc30),d:live?'':kdelta(2.1,true,'%'),
-    s:live?'':spk([940,980,1020,995,1050,1010,1085],'#2E6B57')},
+    s:live?'':spk([940000,980000,1020000,995000,1050000,1010000,1085000],'#2E6B57')},
    {l:'Landlord out \u00b7 30d',v:k(P.ll30),d:live?'':kdelta(1.4,false,'%'),
-    s:live?'':spk([958,958,964,964,972,972,986],'#A63D2F')},
+    s:live?'':spk([958000,958000,964000,964000,972000,972000,986000],'#A63D2F')},
    {l:'Void days '+(p==='jul'?'MTD':''),v:kval(P.vd,null,'vd'),d:dl(P.vdD,false,'%'),
     s:live?'':spk([160,171,182,168,175,187,212],'#B07C2A'),w:P.vd>200},
    {l:'Bounce rate 90d',v:pc(P.br),d:dl(P.brD,false,'pt'),
@@ -1368,7 +1372,7 @@ function renderRunway(){
   $('#lowTag').className='tag '+(lowV<400?'red':lowV<900?'amb':'tea');
   let g='';
   for(const gv of [0,600,1200,1800,2400]) g+=`<line x1="${L}" x2="${W-R}" y1="${Y(gv)}" y2="${Y(gv)}" stroke="#E7DDD1" stroke-width="1" ${gv===0?'stroke-dasharray="0"':'stroke-dasharray="3 4"'}/>
-    <text x="${L-8}" y="${Y(gv)+3}" text-anchor="end" class="n" font-size="9" fill="#75634F">${gv===0?'0':(gv/1000).toFixed(1)+'M'}</text>`;
+    <text x="${L-8}" y="${Y(gv)+3}" text-anchor="end" class="n" font-size="9" fill="#75634F">${n0(gv)}</text>`;
   const area=`M ${li(S).replace(/ /g,' L ')} L ${X(12)},${Y(Math.max(0,mn))} L ${X(0)},${Y(Math.max(0,mn))} Z`;
   let mks='';
   for(let i=0;i<13;i++){
@@ -1478,7 +1482,7 @@ function renderLadder(){
      <text x="${58+w1+w2}" y="${y+11}" class="n" font-size="9.5" fill="#7A6A5C">${((r[1]+r[2])/1000).toFixed(2)}M</text>
      ${r[3]?`<circle cx="46" cy="${y+7}" r="3" fill="#B07C2A"><animate attributeName="opacity" values="1;.2;1" dur="1.6s" repeatCount="indefinite"/></circle>`:''}`;
   }).join('')}</svg>
-  <div class="foot"><span><span class="sw" style="background:#2E6B57"></span>deposited <span class="sw" style="background:#A08A63;margin-left:10px"></span>on hand</span><span>total 3.08M</span></div>`;
+  <div class="foot"><span><span class="sw" style="background:#2E6B57"></span>deposited <span class="sw" style="background:#A08A63;margin-left:10px"></span>on hand</span><span>total QAR 3,080,000</span></div>`;
 }
 
 /* ---------- landlord cheques ---------- */
@@ -1501,7 +1505,7 @@ function renderCheques(){
   $('#llCheques').innerHTML=rows.map(r=>`<div class="it drill" onclick="go('#/landlords')" title="Opens the landlord record">
     <span class="dot ${r[4]}" title="${r[4]==='g'?'funded':'funding depends on expected collections'}"></span>
     <span class="t">${r[0]} <span class="m">· ${r[1]}</span></span>
-    <span class="m">${r[3]}</span><span class="amt">${r[2]}K</span></div>`).join('');
+    <span class="m">${r[3]}</span><span class="amt">${n0(r[2])}</span></div>`).join('');
 }
 
 /* ---------- approvals ---------- */
@@ -1520,7 +1524,7 @@ function renderApprovals(){
     box.innerHTML=pend.map(a=>`<div class="it" id="ap_${a.id}">
       <span class="t">${a.ty} <span class="m">\u00b7 ${a.ref}</span></span>
       <span class="chip ${a.age>48?'r':a.age>24?'a':'n'}">${a.age}h</span>
-      <span class="amt">${a.amt>=1000?kk(a.amt):a.amt+'K'}</span>
+      <span class="amt">${k(a.amt)}</span>
       <button class="btn ok" title="Approve"
         onclick="openForm('approve-decision',{ref:'${a.id}',dec:'Approve'})">\u2713</button>
       <button class="btn no" title="Reject"
@@ -1542,11 +1546,11 @@ function renderExceptions(){
     return;
   }
   const rows=[
-   ['r','Cheque bounced — Horizon Facilities · 42.5K · insufficient funds','07:02'],
-   ['r','Promise broken — TN-0142 · 18.0K due 24 Jul, unpaid','06:40'],
-   ['a','Emergency maint over ceiling — B14 chiller · 3.2K vs 2.0K limit','Yesterday'],
+   ['r','Cheque bounced — Horizon Facilities · QAR 42,500 · insufficient funds','07:02'],
+   ['r','Promise broken — TN-0142 · QAR 18,000 due 24 Jul, unpaid','06:40'],
+   ['a','Emergency maint over ceiling — B14 chiller · QAR 3,200 vs QAR 2,000 limit','Yesterday'],
    ['a','Override — Fatima N. batched + reconciled BATCH-0871 · "Yusuf on leave"','Yesterday'],
-   ['a','Recon item unmatched 6d — bank ref 8842 · 12.4K','24 Jul'],
+   ['a','Recon item unmatched 6d — bank ref 8842 · QAR 12,400','24 Jul'],
    ['n','Utility invoice variance — Kahramaa B09 +38% vs trailing avg','23 Jul']];
   $('#exceptions').innerHTML=rows.map(r=>`<div class="it drill" onclick="go('#/mywork')"><span class="dot ${r[0]}"></span>
     <span class="t">${r[1]}</span><span class="m">${r[2]}</span></div>`).join('');
@@ -1572,8 +1576,8 @@ function renderBounces(){
    ['S. Rahman · U045',5.9,'Account closed','Replacement pending','a',5]];
   $('#bounces').innerHTML=`<div class="tw"><table><tr><th>Tenant</th><th class="r">Amt</th><th>Action</th><th class="r">Days</th></tr>
   ${rows.map(r=>`<tr class="drill" onclick="go('#/cheques')"><td><span class="dot ${r[4]}"></span>${r[0]}<div style="font-size:10px;color:var(--dim)">${r[2]}</div></td>
-   <td class="r num">${r[1]}K</td><td><span class="chip ${r[4]}">${r[3]}</span></td><td class="r num">${r[5]}</td></tr>`).join('')}</table></div>
-  <div class="foot"><span>4 cheques · 83.2K exposed</span><span>workflow 2G</span></div>`;
+   <td class="r num">${n0(r[1])}</td><td><span class="chip ${r[4]}">${r[3]}</span></td><td class="r num">${r[5]}</td></tr>`).join('')}</table></div>
+  <div class="foot"><span>4 cheques · QAR 83,200 exposed</span><span>workflow 2G</span></div>`;
 }
 
 /* ---------- arrears + promises ---------- */
@@ -1599,10 +1603,10 @@ function renderArrears(){
     const y=6+i*26,w=r[1]/mx*268;
     return `<text x="0" y="${y+11}" font-size="10" fill="#7A6A5C">${r[0]}</text>
      <rect x="42" y="${y}" width="${w}" height="14" rx="3" fill="${cols[i]}" data-tt="${r[0]} days · ${k(r[1])} · click for tenant list"/>
-     <text x="${48+w}" y="${y+11}" class="n" font-size="10" fill="#3E2723">${r[1]}K</text>`;}).join('')}</svg>
+     <text x="${48+w}" y="${y+11}" class="n" font-size="10" fill="#3E2723">${n0(r[1])}</text>`;}).join('')}</svg>
   <div style="display:flex;gap:8px;margin-top:8px">
     <span class="chip g">9 promises kept</span><span class="chip a">4 due this wk</span><span class="chip r">2 broken</span>
-  </div><div class="foot"><span>total 418K · 23 tenants</span><span>60d+ = 138K</span></div>`;
+  </div><div class="foot"><span>total QAR 418,000 · 23 tenants</span><span>60d+ = QAR 138,000</span></div>`;
 }
 
 /* ---------- void pipeline ---------- */
@@ -1631,9 +1635,9 @@ function renderVoids(){
   $('#voids').innerHTML=`<div class="tw"><table><tr><th>Unit</th><th>Stage</th><th class="r">Days</th><th class="r">Bleed/mo</th></tr>
   ${rows.map(r=>`<tr class="drill" onclick="go('#/units')" title="${r[1]} · owner ${r[4]}"><td>${r[0]} <span style="color:var(--dim);font-size:10px">${r[1]}</span></td>
    <td><span class="chip ${r[2]>30?'r':r[2]>14?'a':'n'}">${r[3]}</span></td>
-   <td class="r num">${r[2]}</td><td class="r num">${r[5].toFixed(1)}K</td></tr>`).join('')}</table></div>
-  <div class="foot"><span>15 void units total · +10 more</span><span style="color:var(--red)">bleeding 76.3K / mo</span></div>`;
-  $('#voidTag').textContent='15 UNITS · 76K/MON';
+   <td class="r num">${r[2]}</td><td class="r num">${n0(r[5])}</td></tr>`).join('')}</table></div>
+  <div class="foot"><span>15 void units total · +10 more</span><span style="color:var(--red)">bleeding QAR 76,300 / mo</span></div>`;
+  $('#voidTag').textContent='15 UNITS · QAR 76,000/MON';
 }
 
 /* ---------- expiry runway ---------- */
@@ -1771,7 +1775,7 @@ function renderWaterfall(){
     if(i===0||i===steps.length-1){y0=160-Math.abs(st[1])/mx*146;h=Math.abs(st[1])/mx*146;run=(i===0)?st[1]:run;}
     else{const from=run; run+=st[1]; y0=160-Math.max(from,run)/mx*146; h=Math.abs(st[1])/mx*146;}
     s+=`<rect x="${x}" y="${y0}" width="${BW}" height="${Math.max(h,2)}" rx="2" fill="${st[2]}" data-tt="${st[0]} · ${st[1]>0?'':'−'}${k(st[1])}"/>
-        <text x="${x+BW/2}" y="${y0-5}" text-anchor="middle" class="n" font-size="9" fill="${st[2]}">${st[1]>0?'':'−'}${Math.abs(st[1])>=1000?kk(Math.abs(st[1])):Math.abs(st[1])+'K'}</text>
+        <text x="${x+BW/2}" y="${y0-5}" text-anchor="middle" class="n" font-size="9" fill="${st[2]}">${st[1]>0?'':'−'}${n0(Math.abs(st[1]))}</text>
         <text x="${x+BW/2}" y="176" text-anchor="middle" font-size="8.5" fill="#7A6A5C">${st[0]}</text>`;
     if(i>0&&i<steps.length-1) s+=`<line x1="${x-GP}" x2="${x}" y1="${160-(run-(i===steps.length-1?0:0)-0)/mx*146}" y2="${160-(run)/mx*146}" stroke="#C9BBA9" stroke-dasharray="2 3"/>`;
   });
@@ -1859,7 +1863,7 @@ function renderMaint(){
   const W=380,H=150,L=30,mx=100,step=(W-L-8)/12;
   let s='';
   for(let i=0;i<12;i++){const x=L+3+i*step;let y=124;
-    const seg=(v,c,l)=>{const h=v/mx*110;y-=h;return `<rect x="${x}" y="${y}" width="16" height="${h}" fill="${c}" data-tt="${MON[i]} · ${l} ${v}K"/>`};
+    const seg=(v,c,l)=>{const h=v/mx*110;y-=h;return `<rect x="${x}" y="${y}" width="16" height="${h}" fill="${c}" data-tt="${MON[i]} · ${l} ${n0(v)}"/>`};
     s+=seg(mPlan[i],'#A08A63','planned')+seg(mEmg[i],'#A63D2F','emergency')+seg(mRch[i],'#2E6B57','recharged');
     s+=`<text x="${x+8}" y="138" text-anchor="middle" font-size="8" fill="#75634F">${MON[i]}</text>`;
     if(mEmg[i]>20)s+=`<text x="${x+8}" y="${y-4}" text-anchor="middle" font-size="9" fill="#A63D2F">!</text>`;}
@@ -1894,8 +1898,8 @@ function renderUtility(){
   s+=`<polyline points="${lp}" fill="none" stroke="#B4552F" stroke-width="1.8"/>
       <polyline points="${lb}" fill="none" stroke="#2E6B57" stroke-width="1.8"/>`;
   for(let i=0;i<12;i++){s+=`<text x="${L+8+i*step}" y="138" text-anchor="middle" font-size="8" fill="#75634F">${MON[i]}</text>
-    <circle cx="${L+8+i*step}" cy="${124-uPaid[i]/mx*110}" r="2" fill="#B4552F" data-tt="${MON[i]} · paid ${uPaid[i]}K"/>
-    <circle cx="${L+8+i*step}" cy="${124-uBill[i]/mx*110}" r="2" fill="#2E6B57" data-tt="${MON[i]} · recovered ${uBill[i]}K"/>`;}
+    <circle cx="${L+8+i*step}" cy="${124-uPaid[i]/mx*110}" r="2" fill="#B4552F" data-tt="${MON[i]} · paid ${n0(uPaid[i])}"/>
+    <circle cx="${L+8+i*step}" cy="${124-uBill[i]/mx*110}" r="2" fill="#2E6B57" data-tt="${MON[i]} · recovered ${n0(uBill[i])}"/>`;}
   $('#utility').innerHTML=`<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto">${s}</svg>
   <div class="foot"><span><span class="sw" style="background:#B4552F"></span>paid Kahramaa <span class="sw" style="background:#2E6B57;margin-left:8px"></span>recovered</span><span>84% · worst: B09 · B16 · B03</span></div>`;
 }
@@ -1919,8 +1923,8 @@ function renderDeposits(){
     <rect x="0" y="14" width="${held/tot*372}" height="20" rx="4" fill="#A08A63" data-tt="held ${k(held)} · 249 tenancies"/>
     <rect x="${held/tot*372+2}" y="14" width="${due/tot*372}" height="20" rx="4" fill="#B07C2A" data-tt="due for release ${k(due)} · 11 move-out cases"/>
     <text x="4" y="50" class="n" font-size="10" fill="#7A6A5C">held ${kk(held)}</text>
-    <text x="376" y="50" text-anchor="end" class="n" font-size="10" fill="#B07C2A">due ${due}K · 11 cases</text></svg>
-  <div class="foot"><span>released MTD ${rel}K · mirrors receipt method</span><span>drills to move-out cases</span></div>`;
+    <text x="376" y="50" text-anchor="end" class="n" font-size="10" fill="#B07C2A">due ${n0(due)} · 11 cases</text></svg>
+  <div class="foot"><span>released MTD ${n0(rel)} · mirrors receipt method</span><span>drills to move-out cases</span></div>`;
 }
 
 /* ---------- occupancy ---------- */
@@ -1971,9 +1975,9 @@ const rnd=mulberry(7);
 const BD=BLD.map((b,i)=>{
   const units=b[1];
   const occ=Math.max(70,Math.round(100-rnd()*(i===5||i===8?22:9)));
-  const rev=Math.round(units*6.6*(0.9+rnd()*0.25));
+  const rev=Math.round(units*6600*(0.9+rnd()*0.25));
   const cost=Math.round(rev*(0.74+rnd()*0.12));
-  const arr=Math.round(rnd()*(i===5||i===2?58:26));
+  const arr=Math.round(rnd()*(i===5||i===2?58000:26000));
   const vd=Math.round(rnd()*(occ<85?38:12));
   const om=Math.round(rnd()*(i===13?7:4));
   const ex=Math.round(rnd()*(i===6?6:3));
@@ -1986,7 +1990,7 @@ const heat=t=>`rgba(${Math.round(46+t*120)},${Math.round(107-t*46)},${Math.round
 function renderHeatmap(){
   document.querySelectorAll('.cnt-b').forEach(e=>e.textContent=BD.length+' buildings');
   const cols=[['occ','Occ %',v=>v+'%',(v)=>1-(v-70)/30],['mp','Margin %',v=>v.toFixed(0)+'%',v=>1-(v-8)/18],
-   ['arr','Arrears',v=>v+'K',v=>v/58],['vd','Void days',v=>v,v=>v/38],['om','Open maint',v=>v,v=>v/7],['ex','Expiry risk',v=>v,v=>v/6]];
+   ['arr','Arrears',v=>n0(v),v=>v/58],['vd','Void days',v=>v,v=>v/38],['om','Open maint',v=>v,v=>v/7],['ex','Expiry risk',v=>v,v=>v/6]];
   let h='<table class="hm"><tr><th onclick="hmSort(\'n\')">Building</th>'+cols.map(c=>`<th class="r" onclick="hmSort('${c[0]}')">${c[1]}</th>`).join('')+'</tr>';
   for(const b of BD_view){
     h+=`<tr class="drill" onclick="go('#/buildings')" title="Opens ${b.n} workspace"><td>${b.n}</td>`+cols.map(c=>{
@@ -2012,17 +2016,17 @@ function renderPortfolio(){
   for(const b of PF_view){
     const un=(!b.rev&&b.unbilled)?b.unbilled:0;
     h+=`<tr class="drill" onclick="go('#/buildings')"><td>${b.n}${un?` <span class="tag amb">NOT ISSUED</span>`:''}</td><td class="r num">${b.u}</td>
-     <td class="r num" ${un?`title="${un}K raised but the invoice run has not been issued"`:''}>${un?`0K <span style="font:500 10px var(--mono);color:var(--amber)">${un}K held</span>`:b.rev+'K'}</td>
-     <td class="r num">${b.cost}K</td><td class="r num">${b.m}K</td>
+     <td class="r num" ${un?`title="${n0(un)} raised but the invoice run has not been issued"`:''}>${un?`0 <span style="font:500 10px var(--mono);color:var(--amber)">${n0(un)} held</span>`:n0(b.rev)}</td>
+     <td class="r num">${n0(b.cost)}</td><td class="r num">${n0(b.m)}</td>
      <td class="r num" style="color:${!b.rev?'var(--red)':b.mp<12?'var(--red)':b.mp<16?'var(--amber)':'var(--teal)'}">${mpTxt(b)}</td>
-     <td class="r num" style="color:${b.arr>30?'var(--red)':'inherit'}">${b.arr}K</td>
+     <td class="r num" style="color:${b.arr>30000?'var(--red)':'inherit'}">${n0(b.arr)}</td>
      <td class="r num">${b.occ}%</td>
      <td class="r num ${b.d>=0?'d up':'d dn'}">${b.d>=0?'+':''}${b.d.toFixed(1)}%</td></tr>`;
   }
   const T=BD.reduce((a,b)=>({rev:a.rev+b.rev,cost:a.cost+b.cost,arr:a.arr+b.arr}),{rev:0,cost:0,arr:0});
   const U=BD.reduce((a,b)=>a+((!b.rev&&b.unbilled)?b.unbilled:0),0);
   $('#portfolio').innerHTML=h+`</table><div class="foot"><span>${BD.length} buildings · ${BD.reduce((a,b)=>a+b.u,0)} units</span>
-   <span>Σ rev ${kk(T.rev)} · cost ${kk(T.cost)} · margin ${T.rev?((T.rev-T.cost)/T.rev*100).toFixed(1)+'%':'\u2014'} · arrears ${T.arr}K${
+   <span>Σ rev ${kk(T.rev)} · cost ${kk(T.cost)} · margin ${T.rev?((T.rev-T.cost)/T.rev*100).toFixed(1)+'%':'\u2014'} · arrears ${n0(T.arr)}${
      U?` <span style="color:var(--amber)">· ${kk(U)} raised but not issued</span>`:''}</span></div>`;
 }
 let PF_view=[...BD], pfDir=1, pfKey='';
@@ -2046,7 +2050,7 @@ function renderConc(){
   const book=1834; let cum=0;
   $('#conc').innerHTML=`<div class="tw"><table><tr><th>Tenant</th><th class="r">Units</th><th class="r">QAR/mo</th><th class="r">Cum %</th></tr>
   ${rows.map(r=>{cum+=r[2]/book*100;return `<tr class="drill"><td>${r[0]}</td><td class="r num">${r[1]}</td>
-   <td class="r num">${r[2].toFixed(1)}K</td><td class="r num">${cum.toFixed(1)}%</td></tr>`}).join('')}</table></div>
+   <td class="r num">${n0(r[2])}</td><td class="r num">${cum.toFixed(1)}%</td></tr>`}).join('')}</table></div>
   <div class="foot"><span>largest single exposure 5.0%</span><span>threshold flag ≥ 8%</span></div>`;
 }
 
@@ -2097,7 +2101,7 @@ function renderUnmatched(){
   const y=x=>108-x/10*92;
   let s=`<polyline points="${v.map((x,i)=>`${L+i*step},${y(x)}`).join(' ')}" fill="none" stroke="#B07C2A" stroke-width="1.8"/>`;
   v.forEach((x,i)=>s+=`<circle cx="${L+i*step}" cy="${y(x)}" r="2.2" fill="#B07C2A" data-tt="wk −${11-i} · ${x} items"/>`);
-  s+=`<text x="${L+11*step}" y="${y(9)-8}" text-anchor="end" class="n" font-size="10" fill="#B07C2A">9 items · 41.2K</text>`;
+  s+=`<text x="${L+11*step}" y="${y(9)-8}" text-anchor="end" class="n" font-size="10" fill="#B07C2A">9 items · QAR 41,200</text>`;
   $('#unmatched').innerHTML=`<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto">${s}</svg>
   <div class="foot"><span>rising 4 wks — recon discipline slipping</span><span style="color:var(--amber)">flag Accounts</span></div>`;
 }
@@ -2126,7 +2130,7 @@ function renderOverrides(){
 }
 
 /* ---------- ticker + tooltip + toggle ---------- */
-function renderTicker(){if(!$('#tickAmt'))return;$('#tickAmt').textContent='486K';$('#tickDays').textContent='· Al Kuwari Est. · in 7 days';}
+function renderTicker(){if(!$('#tickAmt'))return;$('#tickAmt').textContent='486,000';$('#tickDays').textContent='· Al Kuwari Est. · in 7 days';}
 const tt=$('#tt');
 document.addEventListener('mousemove',e=>{
   const el=e.target.closest('[data-tt]');
@@ -2188,7 +2192,7 @@ function gateChrome(){
   const tk=document.getElementById('tickAmt'), td=document.getElementById('tickDays');
   const next=((window.DB_SEED&&DB_SEED.panels&&DB_SEED.panels.llCheques)||[])[0];
   if(tk&&td){
-    if(next){tk.textContent=next.amt+'K';td.textContent='\u00b7 '+next.ll+' \u00b7 '+next.due;}
+    if(next){tk.textContent=n0(next.amt);td.textContent='\u00b7 '+next.ll+' \u00b7 '+next.due;}
     else{tk.textContent='\u2014';td.textContent='\u00b7 no scheduled landlord payment';}
   }
 }
@@ -2211,7 +2215,7 @@ function gateDash(){
   const tk=document.getElementById('tickAmt'), td=document.getElementById('tickDays');
   if(tk&&td){
     const next=(window.DB_SEED&&DB_SEED.panels&&DB_SEED.panels.llCheques||[])[0];
-    if(next){tk.textContent=next.amt+'K';td.textContent='\u00b7 '+next.ll+' \u00b7 '+next.due;}
+    if(next){tk.textContent=n0(next.amt);td.textContent='\u00b7 '+next.ll+' \u00b7 '+next.due;}
     else{tk.textContent='\u2014';td.textContent='\u00b7 no scheduled landlord payment';}
   }
   /* a panel whose array fell back to the prototype seed is not live either */
@@ -2256,6 +2260,36 @@ window.pickFile=(k,name)=>{collect();FDATA[k]=name;
   if(st&&st.ocr){FDATA.__ocr=1;
     Object.entries(st.ocr.set||{}).forEach(([kk,vv])=>{if(!FDATA[kk])FDATA[kk]=vv});}
   drawForm()};
+/* The unit list is the vacant units of the building that was chosen, and
+   nothing else. Offering a unit from another building is how a tenancy ends up
+   filed against the wrong head lease. Changing the building drops a unit that
+   no longer belongs to it rather than carrying it silently. */
+function vacantIn(bname){
+  const b=BUILDINGS.find(x=>x.n===bname)||BUILDINGS.find(x=>x.id===bname);
+  if(!b) return [];
+  return UNITS.filter(u=>u.b===b.id&&u.st!=='Occupied');
+}
+function unitField(d){
+  const b=d.building||(BUILDINGS[0]&&BUILDINGS[0].n);
+  const list=vacantIn(b);
+  if(d.unit&&!list.some(u=>u.id===d.unit)) d.unit='';
+  if(!list.length) return fld({k:'unit',l:'Unit',t:'ro'},
+    b?'No vacant unit in '+b:'Choose a building first');
+  return fld({k:'unit',l:'Unit',t:'sel',o:list.map(u=>u.id),req:1},d.unit)+
+    `<div class="mini" style="grid-column:1/-1;margin-top:-6px">${list.length} vacant unit${
+      list.length===1?'':'s'} in ${b}</div>`;
+}
+/* The instalment row says what will actually arrive. A tenant paying cash is
+   not handed a cheque number, and calling it one puts a cheque on the PDC
+   ladder that nobody will ever present. Mixed stays deliberately vague because
+   the split is agreed per instalment, not here. */
+const payTakesCheques=m=>m==='Post-dated cheques'||m==='Mixed'||!m;
+function instrument(method,chqfrom,i){
+  if(method==='Cash') return 'Cash';
+  if(method==='Bank transfer') return 'Transfer';
+  if(method==='Mixed') return chqfrom?'Cheque '+(+chqfrom+i)+' / transfer':'Cheque or transfer';
+  return chqfrom?'Cheque '+(+chqfrom+i):'Cheque';
+}
 function collect(){
   document.querySelectorAll('#fbody [data-k]').forEach(e=>{
     FDATA[e.dataset.k]=e.type==='checkbox'?e.checked:e.value;
@@ -2429,10 +2463,10 @@ const FORMS={
     const dr=rows.filter(r=>r.direction==='Debit').reduce((a,r)=>a+r.amount,0);
     return `<p class="pp">Parsed <b>${rows.length}</b> line${rows.length===1?'':'s'} for ${esc(d.bank||'')} covering ${d.from} to ${d.to}.
       Nothing is posted — matched lines are identified, unmatched ones surface on the Command Centre.</p>
-     ${stat([['Lines',rows.length],['Credits',(cr/1000).toFixed(1)+'K','','g'],['Debits',(dr/1000).toFixed(1)+'K','','a']])}
+     ${stat([['Lines',rows.length],['Credits',n0(cr),'','g'],['Debits',n0(dr),'','a']])}
      <div class="tw"><table><tr><th>Date</th><th>Ref</th><th>Narrative</th><th class="r">Amount</th><th>Dir</th></tr>
      ${rows.slice(0,8).map(r=>`<tr><td>${r.date}</td><td>${esc(r.ref)}</td><td>${esc(r.narrative)}</td>
-       <td class="r num">${(r.amount/1000).toFixed(1)}K</td><td>${chip(r.direction,r.direction==='Credit'?'g':'n')}</td></tr>`).join('')}</table></div>
+       <td class="r num">${n0(r.amount)}</td><td>${chip(r.direction,r.direction==='Credit'?'g':'n')}</td></tr>`).join('')}</table></div>
      ${rows.length>8?`<div class="foot"><span>showing 8 of ${rows.length}</span><span></span></div>`:''}`}}],
  submit:d=>({msg:'Imported'})},
 
@@ -2449,7 +2483,7 @@ const FORMS={
   {n:'Cost & recharge',body:d=>{
     const c=+d.cost||0, over=d.pr==='Emergency'&&c>2;
     return `<div class="fg">
-      ${fld({k:'cost',l:'Estimated cost (QAR K)',t:'num',step:'0.1',p:'1.4',req:1,live:1},d.cost)}
+      ${fld({k:'cost',l:'Estimated cost (QAR)',t:'num',step:'100',p:'1400',req:1,live:1},d.cost)}
       ${fld({k:'owner',l:'Assign to',t:'sel',o:['Maint. team','Yusuf K.','External contractor'],req:1},d.owner)}
       ${fld({k:'rch',l:'Recharge to tenant',t:'chk'},d.rch)}</div>
      ${over?`<div class="merr" style="display:block">Emergency cost exceeds the QAR 2,000 ceiling — this job will route to the MD for approval before settlement.</div>`
@@ -2458,7 +2492,7 @@ const FORMS={
  submit:d=>{
   const id='MNT-'+String(220+JOBS.length).padStart(4,'0');
   const b=BUILDINGS.find(x=>x.n===d.building)||BUILDINGS[0];
-  const cost=+(+d.cost||0).toFixed(1), ceil=d.pr==='Emergency'&&cost>2;
+  const cost=Math.round(+d.cost||0), ceil=d.pr==='Emergency'&&cost>2000;
   JOBS.push({id,b:b.id,bn:b.n,u:d.unit,cat:d.cat,pr:d.pr,cost,st:'Open',rch:!!d.rch,age:0,owner:d.owner||'Maint. team',ceil});
   return{title:'Job raised',msg:id+' created for '+d.unit,
    detail:ceil?'Over the emergency ceiling — routed to MD approval':'Assigned to '+(d.owner||'Maint. team'),goto:'#/job/'+id}}},
@@ -2468,7 +2502,7 @@ const FORMS={
     ${fld({k:'tenant',l:'Tenant',t:'sel',o:TENANTS.slice(0,24).map(t=>t.n),req:1},d.tenant)}
     ${fld({k:'bank',l:'Bank',t:'sel',o:['QNB','Doha Bank','CBQ','Masraf Al Rayan','QIB','Ahli Bank'],req:1},d.bank)}
     ${fld({k:'no',l:'Cheque number',t:'txt',p:'482991',req:1},d.no)}
-    ${fld({k:'amt',l:'Amount (QAR K)',t:'num',step:'0.1',req:1},d.amt)}
+    ${fld({k:'amt',l:'Amount (QAR)',t:'num',step:'100',req:1},d.amt)}
     ${fld({k:'mat',l:'Maturity date',t:'date',req:1},d.mat)}
     ${fld({k:'loc',l:'Held at',t:'sel',o:['Office safe','With Accounts','Deposited']},d.loc)}</div>
    <div class="note">Cheques are allocated on clearing: oldest invoice first, rent before recharge.</div>`,
@@ -2477,14 +2511,14 @@ const FORMS={
   const id='CHQ-'+String(3100+CHQ.length);
   CHQ.push({id,t:t.id,tn:t.n,amt:+(+d.amt||0).toFixed(1),bank:d.bank,no:d.no,mat:d.mat,matD:30,
     st:d.loc==='Deposited'?'Deposited':'On hand',reason:'',act:''});
-  return{title:'Cheque logged',msg:id+' recorded for '+t.n,detail:d.bank+' · '+d.amt+'K · matures '+d.mat,goto:'#/cheque/'+id}}},
+  return{title:'Cheque logged',msg:id+' recorded for '+t.n,detail:d.bank+' · '+k(d.amt)+' · matures '+d.mat,goto:'#/cheque/'+id}}},
 
 'record-payment':{t:'Record payment',s:'Workflow 2C · allocation',cta:'Post payment',
  init:c=>({tenant:c&&c.n?c.n:'',method:'Cheque'}),
  steps:[
   {n:'Payment',body:d=>`<div class="fg">
     ${fld({k:'tenant',l:'Tenant',t:'sel',o:TENANTS.slice(0,24).map(t=>t.n),req:1},d.tenant)}
-    ${fld({k:'amt',l:'Amount received (QAR K)',t:'num',step:'0.1',req:1},d.amt)}
+    ${fld({k:'amt',l:'Amount received (QAR)',t:'num',step:'100',req:1},d.amt)}
     ${fld({k:'method',l:'Method',t:'sel',o:['Cheque','Bank transfer','Cash','Card'],req:1},d.method)}
     ${fld({k:'date',l:'Received on',t:'date',d:'2026-07-26',req:1},d.date)}
     ${fld({k:'ref',l:'Reference',t:'txt',p:'cheque no or bank ref'},d.ref)}</div>`,
@@ -2497,19 +2531,19 @@ const FORMS={
     return `<p class="pp">Allocation follows the standing rule: <b>oldest invoice first, rent before recharge</b>.
       You can override on the invoice itself if needed.</p>
      ${rows.length?`<div class="tw"><table><tr><th>Invoice</th><th>Due</th><th class="r">Balance</th><th class="r">Allocated</th><th class="r">Remaining</th></tr>
-      ${rows.map(r=>`<tr><td>${r[0]}</td><td>${r[1]}</td><td class="r num">${r[2]}K</td>
-        <td class="r num" style="color:var(--em)">${r[3]}K</td><td class="r num">${r[4]}K</td></tr>`).join('')}</table></div>`
+      ${rows.map(r=>`<tr><td>${r[0]}</td><td>${r[1]}</td><td class="r num">${n0(r[2])}</td>
+        <td class="r num" style="color:var(--em)">${n0(r[3])}</td><td class="r num">${n0(r[4])}</td></tr>`).join('')}</table></div>`
       :empty('No open invoices for this tenant — the payment will sit on account.')}
-     ${stat([['Received',(+d.amt||0).toFixed(1)+'K'],['Allocated',((+d.amt||0)-Math.max(left,0)).toFixed(1)+'K','','g'],
-       ['On account',Math.max(left,0).toFixed(1)+'K','',left>0?'a':'']])}`}}],
+     ${stat([['Received',n0((+d.amt||0))],['Allocated',n0(((+d.amt||0)-Math.max(left,0))),'','g'],
+       ['On account',n0(Math.max(left,0)),'',left>0?'a':'']])}`}}],
  submit:d=>{
   const t=TENANTS.find(x=>x.n===d.tenant); let left=+d.amt||0;
   if(t){INV.filter(i=>i.t===t.id&&i.amt-i.paid>0).forEach(i=>{
      const take=Math.min(i.amt-i.paid,left); i.paid=+(i.paid+take).toFixed(1); left-=take;
      i.st=i.paid>=i.amt?'Paid':i.paid>0?'Part paid':'Unpaid'});
-   t.arr=Math.max(0,+(t.arr-(+d.amt||0)).toFixed(1)); t.st=t.arr>25?'In arrears':t.arr>0?'Late':'Current';}
-  return{title:'Payment posted',msg:(+d.amt||0).toFixed(1)+'K received from '+d.tenant,
-   detail:'Allocated oldest-first'+(left>0?' · '+left.toFixed(1)+'K left on account':''),
+   t.arr=Math.max(0,Math.round(t.arr-(+d.amt||0))); t.st=t.arr>25000?'In arrears':t.arr>0?'Late':'Current';}
+  return{title:'Payment posted',msg:k(+d.amt||0)+' received from '+d.tenant,
+   detail:'Allocated oldest-first'+(left>0?' · '+k(left)+' left on account':''),
    goto:t?'#/tenant/'+t.id:'#/tenants'}}},
 
 'upload-docs':{t:'Upload documents',s:'Workflow 2F · intake and OCR',cta:'Send to extraction',
@@ -2549,18 +2583,18 @@ const FORMS={
     {k:'keys',l:'All keys returned',t:'chk',d:'true'},
     {k:'notes',l:'Notes',t:'ta',p:'Room-by-room observations'}]},
   {n:'Deductions',body:d=>`<p class="pp">Deductions are agreed with the tenant before the deposit release goes to the MD.</p>
-   <div class="fg">${fld({k:'d1',l:'Deep clean (QAR K)',t:'num',step:'0.1',d:'0.6',live:1},d.d1)}
-    ${fld({k:'d2',l:'Repairs (QAR K)',t:'num',step:'0.1',d:'0.4',live:1},d.d2)}
-    ${fld({k:'d3',l:'Missing items (QAR K)',t:'num',step:'0.1',d:'0'},d.d3)}
-    ${fld({k:'d4',l:'Outstanding utilities (QAR K)',t:'num',step:'0.1',d:'0'},d.d4)}</div>
-   ${stat([['Deposit held','11.2K'],['Total deductions',((+d.d1||0)+(+d.d2||0)+(+d.d3||0)+(+d.d4||0)).toFixed(1)+'K','','a'],
-     ['Refund due',(11.2-((+d.d1||0)+(+d.d2||0)+(+d.d3||0)+(+d.d4||0))).toFixed(1)+'K','','g']])}`}],
- submit:d=>({title:'Inspection recorded',msg:'Deductions total '+((+d.d1||0)+(+d.d2||0)+(+d.d3||0)+(+d.d4||0)).toFixed(1)+'K',
+   <div class="fg">${fld({k:'d1',l:'Deep clean (QAR)',t:'num',step:'100',d:'600',live:1},d.d1)}
+    ${fld({k:'d2',l:'Repairs (QAR)',t:'num',step:'100',d:'400',live:1},d.d2)}
+    ${fld({k:'d3',l:'Missing items (QAR)',t:'num',step:'100',d:'0'},d.d3)}
+    ${fld({k:'d4',l:'Outstanding utilities (QAR)',t:'num',step:'100',d:'0'},d.d4)}</div>
+   ${stat([['Deposit held',n0(11200)],['Total deductions',n0(((+d.d1||0)+(+d.d2||0)+(+d.d3||0)+(+d.d4||0))),'','a'],
+     ['Refund due',n0((11200-((+d.d1||0)+(+d.d2||0)+(+d.d3||0)+(+d.d4||0)))),'','g']])}`}],
+ submit:d=>({title:'Inspection recorded',msg:'Deductions total '+n0(((+d.d1||0)+(+d.d2||0)+(+d.d3||0)+(+d.d4||0))),
    detail:'Deposit release request ready to send to the MD',goto:'#/moveout'})},
 
 'deposit-release':{t:'Request deposit release',s:'Reserved MD approval',cta:'Send to MD',
  steps:[{n:'Release',body:d=>`<div class="kv">
-   ${[['Deposit held','11.2K'],['Deductions agreed','1.0K'],['Refund due','10.2K'],
+   ${[['Deposit held',n0(11200)],['Deductions agreed',n0(1000)],['Refund due',n0(10200)],
       ['Original receipt method','Bank transfer'],['Release method','Bank transfer — mirrors receipt']]
     .map(r=>`<div><span>${r[0]}</span><b>${r[1]}</b></div>`).join('')}</div>
    <div class="fg" style="margin-top:10px">${fld({k:'iban',l:'Tenant IBAN',t:'txt',p:'QA00 QNBA 0000 0000 0000',req:1},d.iban)}
@@ -2581,17 +2615,17 @@ const FORMS={
 'record-promise':{t:'Record promise to pay',s:'Broken promises reopen the case automatically',cta:'Save promise',
  steps:[{n:'Promise',fields:[
    {k:'ch',l:'Promised over',t:'sel',o:['Phone','WhatsApp','In person','Email','Letter'],req:1},
-   {k:'amt',l:'Amount promised (QAR K)',t:'num',step:'0.1',req:1},
+   {k:'amt',l:'Amount promised (QAR)',t:'num',step:'100',req:1},
    {k:'date',l:'Promised by',t:'date',req:1},
    {k:'method',l:'Method',t:'sel',o:['Cheque','Bank transfer','Cash']},
    {k:'note',l:'Notes',t:'ta'}]}],
- submit:d=>({title:'Promise recorded',msg:d.amt+'K promised by '+d.date,
+ submit:d=>({title:'Promise recorded',msg:k(d.amt)+' promised by '+d.date,
    detail:'If the date passes unpaid, the case reopens and appears in the MD exceptions feed'})},
 
 'escalate-legal':{t:'Escalate to legal',s:'Reserved MD approval',cta:'Request escalation',
  steps:[{n:'Escalation',fields:[
    {k:'firm',l:'Legal counsel',t:'sel',o:['Al Tamimi & Co.','Sharq Law','In-house'],req:1},
-   {k:'amt',l:'Amount claimed (QAR K)',t:'num',step:'0.1',req:1},
+   {k:'amt',l:'Amount claimed (QAR)',t:'num',step:'100',req:1},
    {k:'why',l:'Grounds for escalation',t:'ta',p:'Contact history, broken promises, evidence held',req:1}]}],
  submit:()=>({title:'Escalation requested',msg:'Sent to the MD for approval',
    detail:'Legal escalation is a reserved category and cannot be delegated',goto:'#/approvals'})},
@@ -2603,15 +2637,15 @@ const FORMS={
     ${fld({k:'unit',l:'Unit',t:'sel',o:UNITS.filter(u=>u.st!=='Occupied').slice(0,14).map(u=>u.id),req:1},d.unit)}</div>`,
    fields:[{k:'tenant',req:1},{k:'unit',req:1}]},
   {n:'Terms',fields:[
-    {k:'rent',l:'Monthly rent (QAR K)',t:'num',step:'0.1',req:1},
+    {k:'rent',l:'Monthly rent (QAR)',t:'num',step:'100',req:1},
     {k:'freq',l:'Payment frequency',t:'sel',o:['Monthly','Quarterly','Semi-annual','Annual'],req:1},
     {k:'start',l:'Start date',t:'date',d:'2026-08-01',req:1},
     {k:'months',l:'Term (months)',t:'sel',o:['12','24','36'],req:1},
-    {k:'dep',l:'Deposit (QAR K)',t:'num',step:'0.1',req:1},
+    {k:'dep',l:'Deposit (QAR)',t:'num',step:'100',req:1},
     {k:'notice',l:'Notice period (days)',t:'sel',o:['30','60','90']}]},
   {n:'Review',body:d=>`<p class="pp">On submission this routes Documentation → Legal → GM → MD.</p>
-   <div class="kv">${[['Tenant',d.tenant],['Unit',d.unit],['Rent',(d.rent||0)+'K'],['Payment',d.freq],
-     ['Start',d.start],['Term',(d.months||12)+' months'],['Deposit',(d.dep||0)+'K']]
+   <div class="kv">${[['Tenant',d.tenant],['Unit',d.unit],['Rent',n0((d.rent||0))],['Payment',d.freq],
+     ['Start',d.start],['Term',(d.months||12)+' months'],['Deposit',n0((d.dep||0))]]
     .map(r=>`<div><span>${r[0]}</span><b>${r[1]||'—'}</b></div>`).join('')}</div>`}],
  submit:d=>{const t=TENANTS.find(x=>x.n===d.tenant)||TENANTS[0]; const u=U(d.unit)||UNITS[0];
   const id='TA-'+String(AGR.length+201).padStart(4,'0');
@@ -2622,17 +2656,17 @@ const FORMS={
 'renew-agreement':{t:'Renew agreement',s:'Renewal is the main lever on spread',cta:'Send renewal offer',
  steps:[
   {n:'Terms',body:d=>{const cur=+(d.__ctx&&d.__ctx.rent)||6.8, ask=+d.newrent||+(cur*1.065).toFixed(1);
-   return `<div class="fg">${fld({k:'newrent',l:'New rent (QAR K)',t:'num',step:'0.1',req:1,live:1},d.newrent||ask.toFixed(1))}
+   return `<div class="fg">${fld({k:'newrent',l:'New rent (QAR)',t:'num',step:'100',req:1,live:1},d.newrent||String(Math.round(ask)))}
      ${fld({k:'months',l:'New term (months)',t:'sel',o:['12','24','36'],req:1},d.months)}
      ${fld({k:'from',l:'Effective from',t:'date',d:'2026-09-01',req:1},d.from)}</div>
-    ${stat([['Current rent',cur.toFixed(1)+'K'],['Proposed',ask.toFixed(1)+'K'],
+    ${stat([['Current rent',n0(cur)],['Proposed',n0(ask)],
       ['Uplift',(((ask-cur)/cur)*100).toFixed(1)+'%','','g'],['Asking benchmark','6.5%']])}`},
    fields:[{k:'newrent',req:1}]},
   {n:'Send',body:()=>`<p class="pp">The offer goes to the tenant with a response deadline. Unanswered offers appear
     in the expiry runway as "negotiating" until resolved.</p>
    <div class="fg">${fld({k:'deadline',l:'Response deadline',t:'date',d:'2026-08-15',req:1})}
     ${fld({k:'msg',l:'Message to tenant',t:'ta',p:'Optional covering note'})}</div>`}],
- submit:d=>({title:'Renewal offer sent',msg:'Offer at '+d.newrent+'K sent to the tenant',
+ submit:d=>({title:'Renewal offer sent',msg:'Offer at '+k(d.newrent)+' sent to the tenant',
    detail:'Tracked as negotiating until a response is received'})},
 
 'start-moveout':{t:'Record a move-out',s:'Workflow 2G · notice, inspection, meters, settlement',cta:'Open the move-out case',
@@ -2673,13 +2707,13 @@ const FORMS={
   {n:'Settlement',body:d=>{const t=TENANTS.find(x=>x.n===d.tenant)||TENANTS[0];
    const dep=+(d.dep||(t?(t.rent*2).toFixed(1):0)), arr=t?t.arr:0, ded=+d.ded||0;
    return `<div class="fg">
-    ${fld({k:'dep',l:'Deposit held (QAR K)',t:'num',step:'0.1',req:1,live:1},String(dep))}
-    ${fld({k:'ded',l:'Expected deductions (QAR K)',t:'num',step:'0.1',live:1},d.ded)}
+    ${fld({k:'dep',l:'Deposit held (QAR)',t:'num',step:'100',req:1,live:1},String(dep))}
+    ${fld({k:'ded',l:'Expected deductions (QAR)',t:'num',step:'100',live:1},d.ded)}
     ${fld({k:'method',l:'Refund method',t:'sel',o:['Same as receipt','Bank transfer','Cheque'],req:1},d.method)}
     ${fld({k:'notes',l:'Settlement notes',t:'ta',p:'anything the approver needs to know',full:1},d.notes)}</div>
-   ${stat([['Deposit held',dep.toFixed(1)+'K'],['Arrears outstanding',arr.toFixed(1)+'K','',arr?'r':'g'],
-     ['Expected deductions',ded.toFixed(1)+'K','',ded?'a':''],
-     ['Indicative refund',(dep-arr-ded).toFixed(1)+'K','',dep-arr-ded<0?'r':'g']])}
+   ${stat([['Deposit held',n0(dep)],['Arrears outstanding',n0(arr),'',arr?'r':'g'],
+     ['Expected deductions',n0(ded),'',ded?'a':''],
+     ['Indicative refund',n0((dep-arr-ded)),'',dep-arr-ded<0?'r':'g']])}
    ${dep-arr-ded<0?`<div class="note" style="border-left-color:var(--red)"><b>The deposit does not cover what is owed.</b>
      The shortfall follows the tenant as a balance and the collection case stays open after handover.</div>`:''}
    <div class="note">The refund mirrors how the deposit was received. A deposit taken in cash is not refunded by transfer without MD approval.</div>`},
@@ -2688,7 +2722,7 @@ const FORMS={
     is a separate MD approval once they are agreed.</p>
    <div class="kv">${[['Tenant',d.tenant],['Unit',d.unit],['Notice given',d.given],['Handover',d.out],
      ['Reason',d.reason],['Inspection',(d.insp||'—')+' · '+(d.inspby||'—')],
-     ['Keys and fobs',(d.keys||0)+' keys, '+(d.fobs||0)+' fobs'],['Deposit',(d.dep||0)+'K'],
+     ['Keys and fobs',(d.keys||0)+' keys, '+(d.fobs||0)+' fobs'],['Deposit',n0((d.dep||0))],
      ['Refund method',d.method],['Forwarding contact',d.fwd||'—']]
     .map(r=>`<div><span>${r[0]}</span><b>${r[1]||'—'}</b></div>`).join('')}</div>`}],
  submit:d=>{const id='MO-'+String(MOVEOUT.length+51).padStart(4,'0');
@@ -2706,9 +2740,9 @@ const FORMS={
    {k:'type',l:'Type',t:'sel',o:['Studio','1 BR','2 BR','3 BR','Villa'],req:1},
    {k:'floor',l:'Floor',t:'num',req:1},
    {k:'sqm',l:'Area (sqm)',t:'num',req:1},
-   {k:'rent',l:'Target rent (QAR K)',t:'num',step:'0.1',req:1},
-   {k:'cost',l:'Head-lease cost share (QAR K)',t:'num',step:'0.1',req:1}]}],
- submit:d=>({title:'Unit created',msg:d.no+' added',detail:'Spread +'+((+d.rent||0)-(+d.cost||0)).toFixed(1)+'K per month'})},
+   {k:'rent',l:'Target rent (QAR)',t:'num',step:'100',req:1},
+   {k:'cost',l:'Head-lease cost share (QAR)',t:'num',step:'100',req:1}]}],
+ submit:d=>({title:'Unit created',msg:d.no+' added',detail:'Spread +'+k((+d.rent||0)-(+d.cost||0))+' per month'})},
 
 'cheque-action':{t:'Update cheque status',s:'Workflow 2G applies to bounces',cta:'Save',
  init:c=>({act:c&&c.act?c.act:'Deposit'}),
@@ -2724,12 +2758,12 @@ const FORMS={
 
 'landlord-cheque':{t:'Record cheque to landlord',s:'Outgoing payment',cta:'Record cheque',
  steps:[{n:'Cheque',fields:[
-   {k:'amt',l:'Amount (QAR K)',t:'num',step:'0.1',req:1},
+   {k:'amt',l:'Amount (QAR)',t:'num',step:'100',req:1},
    {k:'bank',l:'Drawn on',t:'sel',o:['QNB — 0021 4478','Doha Bank — 7741 2200','CBQ — 3390 8871'],req:1},
    {k:'no',l:'Cheque number',t:'txt',req:1},
    {k:'date',l:'Value date',t:'date',req:1},
    {k:'note',l:'Notes',t:'ta'}]}],
- submit:d=>({title:'Cheque recorded',msg:d.amt+'K to landlord',
+ submit:d=>({title:'Cheque recorded',msg:k(d.amt)+' to landlord',
    detail:'Appears on the cash runway as an outflow on '+(d.date||'value date'),goto:'#/dash'})},
 
 'send-doc':{t:'Send document',s:'',cta:'Send',
@@ -2792,8 +2826,8 @@ ROUTES.mywork=()=>{
   ?uw('No attention feed is generated server-side yet. The rules exist in '+
       'api/attention.py but nothing routes them to this screen.')
   :`<div class="list">
-   ${['Cheque bounced — Horizon Facilities · 42.5K','Promise broken — TN-0142 · 18.0K',
-      'Emergency maint over ceiling — B14 chiller · 3.2K','Override — Fatima N. batched + reconciled BATCH-0871',
+   ${['Cheque bounced — Horizon Facilities · QAR 42,500','Promise broken — TN-0142 · QAR 18,000',
+      'Emergency maint over ceiling — B14 chiller · QAR 3,200','Override — Fatima N. batched + reconciled BATCH-0871',
       'Head-lease B07 ends before 4 subleases'].map(t=>`<div class="it"><span class="dot r"></span><span class="t">${t}</span></div>`).join('')}
    </div>`;
 
@@ -2835,20 +2869,20 @@ ROUTES.building=id=>{const b=id?B(id):BUILDINGS[0]; if(!b) return notFound('Buil
   `${b.id} · ${b.area} · ${b.floors} floors · head-lease from ${b.ll}`,
   fbtn('New unit','add-unit')+fbtn('Log maintenance','raise-job',{bn:b.n}),
   stat([['Units',b.units],['Occupied',us.filter(u=>u.st==='Occupied').length+' / '+b.units],
-   ['Monthly revenue',b.rev+'K'],['Head-lease rent',b.cost+'K'],
-   ['Margin',b.m+'K · '+mpTxt(b),'',mpBad(b,14)?'r':'g'],['Arrears',b.arr+'K','',b.arr>30?'r':''],
+   ['Monthly revenue',n0(b.rev)],['Head-lease rent',n0(b.cost)],
+   ['Margin',n0(b.m)+' · '+mpTxt(b),'',mpBad(b,14)?'r':'g'],['Arrears',n0(b.arr),'',b.arr>30000?'r':''],
    ['Void days',b.vd,'',b.vd>20?'a':''],['Head-lease ends',b.hlEnd]])+
   `<div class="grid2">
    <div class="card"><h3>Units</h3>${tbl([
     {h:'Unit',v:u=>u.id},{h:'Type',v:u=>u.type},{h:'Floor',r:1,mono:1,v:u=>u.floor},
-    {h:'Rent',r:1,mono:1,v:u=>u.rent+'K'},{h:'Status',v:u=>chip(u.st,stChip(u.st))}],
+    {h:'Rent',r:1,mono:1,v:u=>n0(u.rent)},{h:'Status',v:u=>chip(u.st,stChip(u.st))}],
     us.map(u=>({...u,__id:u.id})),{id:'bu',click:'openU'})}</div>
    <div class="card"><h3>Open maintenance</h3>${js.length?tbl([
     {h:'Job',v:j=>j.id},{h:'Category',v:j=>j.cat},{h:'Priority',v:j=>chip(j.pr,j.pr==='Emergency'?'r':'n')},
-    {h:'Cost',r:1,mono:1,v:j=>j.cost+'K'},{h:'Status',v:j=>chip(j.st,stChip(j.st))}],
+    {h:'Cost',r:1,mono:1,v:j=>n0(j.cost)},{h:'Status',v:j=>chip(j.st,stChip(j.st))}],
     js.map(j=>({...j,__id:j.id})),{id:'bj',click:'openJ'}):empty('No open jobs')}</div></div>
    <div class="card"><h3>Agreements in this building</h3>${ags.length?tbl([
-    {h:'Ref',v:a=>a.id},{h:'Tenant',v:a=>a.tn},{h:'Unit',v:a=>a.u},{h:'Rent',r:1,mono:1,v:a=>a.rent+'K'},
+    {h:'Ref',v:a=>a.id},{h:'Tenant',v:a=>a.tn},{h:'Unit',v:a=>a.u},{h:'Rent',r:1,mono:1,v:a=>n0(a.rent)},
     {h:'Ends',r:1,v:a=>a.end},{h:'Status',v:a=>chip(a.st,stChip(a.st))},{h:'Renewal',v:a=>chip(a.ren,stChip(a.ren))}],
     ags.map(a=>({...a,__id:a.id})),{id:'ba',click:'openA'}):empty('No agreements')}</div>`)};
 
@@ -2860,8 +2894,8 @@ ROUTES.units=()=>page('Units',`${UNITS.length} units across ${BUILDINGS.length} 
  `<div class="card">${tbl([
   {h:'Unit',v:u=>u.id},{h:'Building',v:u=>u.bn},{h:'Type',v:u=>u.type},
   {h:'Floor',r:1,mono:1,v:u=>u.floor},{h:'Sqm',r:1,mono:1,v:u=>u.sqm},
-  {h:'Tenant rent',r:1,mono:1,v:u=>u.rent+'K'},{h:'Landlord cost',r:1,mono:1,v:u=>u.llRent+'K'},
-  {h:'Spread',r:1,mono:1,v:u=>'+'+(u.rent-u.llRent).toFixed(1)+'K',style:()=>'color:var(--em)'},
+  {h:'Tenant rent',r:1,mono:1,v:u=>n0(u.rent)},{h:'Landlord cost',r:1,mono:1,v:u=>n0(u.llRent)},
+  {h:'Spread',r:1,mono:1,v:u=>'+'+n0((u.rent-u.llRent)),style:()=>'color:var(--em)'},
   {h:'Status',v:u=>chip(u.st,stChip(u.st))},{h:'Void days',r:1,mono:1,v:u=>u.vd||'—'}],
   UNITS.map(u=>({...u,__id:u.id})),{id:'ul',click:'openU',foot:['276 units','sorted by building — click any header']})}</div>`);
 window.openU=id=>go('#/unit/'+id);
@@ -2870,12 +2904,12 @@ ROUTES.unit=id=>{const u=id?U(id):UNITS[0]; if(!u) return notFound('Unit','#/uni
  return crumb([['Units','#/units'],[u.bn,'#/building/'+u.b],[u.id,'']])+page(u.id,
   `${u.type} · floor ${u.floor} · ${u.sqm} sqm · ${u.bn}`,
   fbtn('Log maintenance','raise-job',{bn:u.bn,u:u.id})+(u.st==='Occupied'?fbtn('Start move-out','start-moveout',{unit:u.id}):fbtn('Create agreement','new-agreement',{unit:u.id})),
-  stat([['Status',chip(u.st,stChip(u.st))],['Tenant rent',u.rent+'K'],['Landlord cost',u.llRent+'K'],
-   ['Monthly spread','+'+(u.rent-u.llRent).toFixed(1)+'K','','g'],['Void days',u.vd||'—','',u.vd>30?'r':'']])+
+  stat([['Status',chip(u.st,stChip(u.st))],['Tenant rent',n0(u.rent)],['Landlord cost',n0(u.llRent)],
+   ['Monthly spread','+'+n0((u.rent-u.llRent)),'','g'],['Void days',u.vd||'—','',u.vd>30?'r':'']])+
   `<div class="grid2">
    <div class="card"><h3>Current agreement</h3>${ag?`<div class="kv">
-    ${[['Reference',ag.id],['Tenant',ag.tn],['Rent',ag.rent+'K / month'],['Payment',ag.freq],
-      ['Deposit held',ag.dep+'K'],['Start',ag.start],['End',ag.end],['Status',chip(ag.st,stChip(ag.st))]]
+    ${[['Reference',ag.id],['Tenant',ag.tn],['Rent',n0(ag.rent)+' / month'],['Payment',ag.freq],
+      ['Deposit held',n0(ag.dep)],['Start',ag.start],['End',ag.end],['Status',chip(ag.st,stChip(ag.st))]]
      .map(r=>`<div><span>${r[0]}</span><b>${r[1]}</b></div>`).join('')}</div>
     <button class="btn" style="margin-top:9px" onclick="go('#/agreement/${ag.id}')">Open agreement</button>`:empty('No active agreement — unit is '+u.st.toLowerCase())}</div>
    <div class="card"><h3>Unit history</h3><div class="list">
@@ -2891,11 +2925,11 @@ ROUTES.tenants=()=>page('Tenants',TENANTS.length+' tenants · 5 corporate, rest 
   ['Late',TENANTS.filter(t=>t.st==='Late').length,'','a'],['In arrears',TENANTS.filter(t=>t.st==='In arrears').length,'','r']])+
  `<div class="card">${tbl([
   {h:'ID',v:t=>t.id},{h:'Tenant',v:t=>t.n+(t.corp?' <span class="chip n">CORP</span>':'')},
-  {h:'Units',r:1,mono:1,v:t=>t.units},{h:'Rent / mo',r:1,mono:1,v:t=>t.rent+'K'},
-  {h:'Arrears',r:1,mono:1,v:t=>t.arr?t.arr+'K':'—',style:t=>t.arr>25?'color:var(--red)':''},
+  {h:'Units',r:1,mono:1,v:t=>t.units},{h:'Rent / mo',r:1,mono:1,v:t=>n0(t.rent)},
+  {h:'Arrears',r:1,mono:1,v:t=>t.arr?n0(t.arr):'—',style:t=>t.arr>25000?'color:var(--red)':''},
   {h:'Status',v:t=>chip(t.st,stChip(t.st))},{h:'Since',r:1,v:t=>t.since}],
   TENANTS.map(t=>({...t,__id:t.id})),{id:'tl',click:'openT',foot:[TENANTS.length+' tenants',
-   'Σ arrears '+TENANTS.reduce((a,t)=>a+t.arr,0)+'K']})}</div>`);
+   'Σ arrears '+n0(TENANTS.reduce((a,t)=>a+t.arr,0))]})}</div>`);
 window.openT=id=>go('#/tenant/'+id);
 
 ROUTES.tenant=id=>{const t=id?T(id):TENANTS[0]; if(!t) return notFound('Tenant','#/tenants'); const ags=AGR.filter(a=>a.t===t.id);
@@ -2904,25 +2938,25 @@ ROUTES.tenant=id=>{const t=id?T(id):TENANTS[0]; if(!t) return notFound('Tenant',
  return crumb([['Tenants','#/tenants'],[t.n,'']])+page(t.n,
   `${t.id} · ${t.corp?'Corporate tenant':'Individual'} · ${t.qid} · ${t.phone}`,
   fbtn('Record payment','record-payment',{n:t.n})+fbtn('Send statement','send-doc'),
-  stat([['Units held',t.units],['Rent / month',t.rent+'K'],['Arrears',t.arr?t.arr+'K':'—','',t.arr>25?'r':''],
+  stat([['Units held',t.units],['Rent / month',n0(t.rent)],['Arrears',t.arr?n0(t.arr):'—','',t.arr>25000?'r':''],
    ['Status',chip(t.st,stChip(t.st))],['Tenant since',t.since],['Open case',cs?cs.id:'—','',cs?'r':'']])+
   `<div class="grid2">
    <div class="card"><h3>Agreements</h3>${ags.length?tbl([
-    {h:'Ref',v:a=>a.id},{h:'Unit',v:a=>a.u},{h:'Rent',r:1,mono:1,v:a=>a.rent+'K'},
+    {h:'Ref',v:a=>a.id},{h:'Unit',v:a=>a.u},{h:'Rent',r:1,mono:1,v:a=>n0(a.rent)},
     {h:'Ends',r:1,v:a=>a.end},{h:'Status',v:a=>chip(a.st,stChip(a.st))}],
     ags.map(a=>({...a,__id:a.id})),{id:'ta',click:'openA'}):empty('None')}</div>
    <div class="card"><h3>Cheques on file</h3>${chs.length?tbl([
-    {h:'Ref',v:c=>c.id},{h:'Bank',v:c=>c.bank},{h:'Amount',r:1,mono:1,v:c=>c.amt+'K'},
+    {h:'Ref',v:c=>c.id},{h:'Bank',v:c=>c.bank},{h:'Amount',r:1,mono:1,v:c=>n0(c.amt)},
     {h:'Matures',r:1,v:c=>c.mat},{h:'Status',v:c=>chip(c.st,stChip(c.st))}],
     chs.map(c=>({...c,__id:c.id})),{id:'tc',click:'openC'}):empty('No cheques on file')}</div></div>
    <div class="card"><h3>Invoices</h3>${ins.length?tbl([
-    {h:'Invoice',v:i=>i.id},{h:'Unit',v:i=>i.bn},{h:'Amount',r:1,mono:1,v:i=>i.amt+'K'},
-    {h:'Paid',r:1,mono:1,v:i=>i.paid+'K'},{h:'Balance',r:1,mono:1,v:i=>(i.amt-i.paid).toFixed(1)+'K',
+    {h:'Invoice',v:i=>i.id},{h:'Unit',v:i=>i.bn},{h:'Amount',r:1,mono:1,v:i=>n0(i.amt)},
+    {h:'Paid',r:1,mono:1,v:i=>n0(i.paid)},{h:'Balance',r:1,mono:1,v:i=>n0((i.amt-i.paid)),
      style:i=>i.amt-i.paid>0?'color:var(--red)':''},{h:'Due',r:1,v:i=>i.due},
     {h:'Status',v:i=>chip(i.st,stChip(i.st))}],
     ins.map(i=>({...i,__id:i.id})),{id:'ti',click:'openI'}):empty('No invoices')}</div>
    ${cs?`<div class="card"><h3>Collection case ${cs.id} <span class="tag red">OPEN</span></h3>
-    ${stat([['Amount',cs.amt+'K'],['Stage',chip(cs.stage,stChip(cs.stage))],['Age',cs.age+' days'],
+    ${stat([['Amount',n0(cs.amt)],['Stage',chip(cs.stage,stChip(cs.stage))],['Age',cs.age+' days'],
       ['Owner',cs.owner],['Promise to pay',cs.promise]])}
     <button class="btn" onclick="go('#/case/${cs.id}')">Open case</button></div>`:''}`)};
 
@@ -2986,14 +3020,14 @@ ROUTES.agreement=id=>{const a=id?A(id):AGR[0]; if(!a) return notFound('Agreement
  return crumb([['Agreements','#/agreements'],[a.id,'']])+page(a.id,
   `${a.tn} · ${a.u} · ${a.bn}`,
   fbtn('Renew','renew-agreement',{id:a.id,rent:a.rent})+fbtn('Start move-out','start-moveout',{agr:a.id,tn:a.tn,u:a.u})+fbtn('Send to tenant','send-doc'),
-  stat([['Status',chip(a.st,stChip(a.st))],['Rent',a.rent+'K / mo'],['Payment',a.freq],
-   ['Deposit held',a.dep+'K'],['Start',a.start],['End',a.end],['Renewal',chip(a.ren,stChip(a.ren))]])+
+  stat([['Status',chip(a.st,stChip(a.st))],['Rent',n0(a.rent)+' / mo'],['Payment',a.freq],
+   ['Deposit held',n0(a.dep)],['Start',a.start],['End',a.end],['Renewal',chip(a.ren,stChip(a.ren))]])+
   `<div class="card"><h3>Approval chain — workflow 2E</h3>
    ${steps(['Drafted — Aisha R.','Legal review','GM approval','MD approval','Active'],4)}</div>
   <div class="grid2">
    <div class="card"><h3>Terms</h3><div class="kv">
     ${[['Tenant',a.tn],['Tenant ID',a.t],['Unit',a.u],['Building',a.bn],
-      ['Rent',a.rent+'K per month'],['Payment frequency',a.freq],['Security deposit',a.dep+'K'],
+      ['Rent',n0(a.rent)+' per month'],['Payment frequency',a.freq],['Security deposit',n0(a.dep)],
       ['Deposit release','mirrors receipt method'],['Notice period','60 days']]
      .map(r=>`<div><span>${r[0]}</span><b>${r[1]}</b></div>`).join('')}</div></div>
    <div class="card"><h3>Linked documents</h3><div class="list">
@@ -3034,16 +3068,16 @@ ROUTES.moveout=id=>{
  if(id){const m=MO(id); if(!m) return notFound('Move-out case','#/moveout');const S=['Notice received','Move-out inspection','Deductions agreed','Deposit release approved','Closed'];
   return crumb([['Move-out','#/moveout'],[m.id,'']])+page(m.id,`${m.tn} · ${m.u} · notice ${m.notice}`,
    fbtn('Record inspection','record-inspection',{id:m.id})+fbtn('Request deposit release','deposit-release',{id:m.id,dep:m.dep}),
-   stat([['Deposit held',m.dep+'K'],['Deductions',m.ded.reduce((a,d)=>a+d[1],0).toFixed(1)+'K','','a'],
-    ['Refund due',(m.dep-m.ded.reduce((a,d)=>a+d[1],0)).toFixed(1)+'K','','g'],
+   stat([['Deposit held',n0(m.dep)],['Deductions',n0(m.ded.reduce((a,d)=>a+d[1],0)),'','a'],
+    ['Refund due',n0((m.dep-m.ded.reduce((a,d)=>a+d[1],0))),'','g'],
     ['Move-out date',m.out],['Stage',S[m.step]]])+
    `<div class="card"><h3>Move-out workflow — 2G</h3>${steps(S,m.step)}</div>
     <div class="grid2"><div class="card"><h3>Inspection deductions</h3>
-     ${m.ded.length?tbl([{h:'Item',v:r=>r[0]},{h:'Amount',r:1,mono:1,v:r=>r[1]+'K'}],
+     ${m.ded.length?tbl([{h:'Item',v:r=>r[0]},{h:'Amount',r:1,mono:1,v:r=>n0(r[1])}],
        m.ded.map(d=>({...d,__id:d[0]})),{id:'md'}):empty('Inspection not yet completed')}</div>
      <div class="card"><h3>Deposit release</h3><div class="kv">
-      ${[['Deposit held',m.dep+'K'],['Less deductions',m.ded.reduce((a,d)=>a+d[1],0).toFixed(1)+'K'],
-        ['Refund due',(m.dep-m.ded.reduce((a,d)=>a+d[1],0)).toFixed(1)+'K'],
+      ${[['Deposit held',n0(m.dep)],['Less deductions',n0(m.ded.reduce((a,d)=>a+d[1],0))],
+        ['Refund due',n0((m.dep-m.ded.reduce((a,d)=>a+d[1],0)))],
         ['Release method','mirrors original receipt'],['Approval','MD — reserved category']]
        .map(r=>`<div><span>${r[0]}</span><b>${r[1]}</b></div>`).join('')}</div></div></div>`)}
  return page('Move-out',MOVEOUT.length+' open cases · notice, inspection, meters, settlement, release',
@@ -3072,10 +3106,10 @@ ROUTES.maint=()=>page('Maintenance',JOBS.length+' jobs · emergency ceiling QAR 
   ['Emergency',JOBS.filter(j=>j.pr==='Emergency').length,'','r'],
   ['Over ceiling',JOBS.filter(j=>j.ceil).length,'needs MD','r'],
   ['Recharged',JOBS.filter(j=>j.rch).length,'to tenants','g'],
-  ['Cost this period',JOBS.reduce((a,j)=>a+j.cost,0).toFixed(1)+'K']])+
+  ['Cost this period',n0(JOBS.reduce((a,j)=>a+j.cost,0))]])+
  `<div class="card">${tbl([
   {h:'Job',v:j=>j.id},{h:'Building',v:j=>j.bn},{h:'Unit',v:j=>j.u},{h:'Category',v:j=>j.cat},
-  {h:'Priority',v:j=>chip(j.pr,j.pr==='Emergency'?'r':'n')},{h:'Cost',r:1,mono:1,v:j=>j.cost+'K',
+  {h:'Priority',v:j=>chip(j.pr,j.pr==='Emergency'?'r':'n')},{h:'Cost',r:1,mono:1,v:j=>n0(j.cost),
    style:j=>j.ceil?'color:var(--red)':''},{h:'Recharge',v:j=>j.rch?chip('Tenant','g'):'—'},
   {h:'Status',v:j=>chip(j.st,stChip(j.st))},{h:'Age',r:1,mono:1,v:j=>j.age+'d'}],
   JOBS.map(j=>({...j,__id:j.id})),{id:'jl',click:'openJ',
@@ -3085,24 +3119,24 @@ window.openJ=id=>go('#/job/'+id);
 ROUTES.job=id=>{const j=id?J(id):JOBS[0]; if(!j) return notFound('Maintenance job','#/maint');
  return crumb([['Maintenance','#/maint'],[j.id,'']])+page(j.id,`${j.cat} · ${j.u} · ${j.bn}`,
   fbtn('Update job','raise-job',{bn:j.bn,u:j.u}),
-  stat([['Priority',chip(j.pr,j.pr==='Emergency'?'r':'n')],['Cost',j.cost+'K','',j.ceil?'r':''],
+  stat([['Priority',chip(j.pr,j.pr==='Emergency'?'r':'n')],['Cost',n0(j.cost),'',j.ceil?'r':''],
    ['Status',chip(j.st,stChip(j.st))],['Age',j.age+' days'],['Owner',j.owner],
    ['Recharge',j.rch?'Tenant':'Absorbed']])+
   (j.ceil?`<div class="warn">Cost exceeds the QAR 2,000 emergency ceiling — MD approval required before settlement. This job appears in the MD exceptions feed.</div>`:'')+
   `<div class="card"><h3>Job workflow — 2D</h3>${steps(['Raised','Assigned','In progress','Completed','Costed &amp; recharged'],
    ['Open','Assigned','In progress','Awaiting parts','Completed'].indexOf(j.st)>=4?4:Math.max(1,['Open','Assigned','In progress','Awaiting parts','Completed'].indexOf(j.st)))}</div>
-  <div class="card"><h3>Cost lines</h3>${tbl([{h:'Line',v:r=>r[0]},{h:'Supplier',v:r=>r[1]},{h:'Amount',r:1,mono:1,v:r=>r[2]+'K'}],
+  <div class="card"><h3>Cost lines</h3>${tbl([{h:'Line',v:r=>r[0]},{h:'Supplier',v:r=>r[1]},{h:'Amount',r:1,mono:1,v:r=>n0(r[2])}],
    [['Labour','Al Nahar Tech',+(j.cost*0.4).toFixed(1)],['Parts','Gulf Spares',+(j.cost*0.6).toFixed(1)]].map(r=>({...r,__id:r[0]})),
-   {id:'jc',foot:['Total '+j.cost+'K',j.rch?'recharged to tenant — own income account':'absorbed by Darkbrown']})}</div>`)};
+   {id:'jc',foot:['Total '+n0(j.cost),j.rch?'recharged to tenant — own income account':'absorbed by Darkbrown']})}</div>`)};
 
 /* ---------------- Utilities ---------------- */
 ROUTES.utilities=()=>page('Utilities','Kahramaa billing vs tenant recovery · consolidated monthly invoice per tenant','',
- stat([['Paid to provider','94K'],['Recovered','79K'],['Recovery rate','84%','','a'],
-  ['Unrecovered','15K','','r'],['Flagged variances',1,'','r']])+
+ stat([['Paid to provider',n0(94000)],['Recovered',n0(79000)],['Recovery rate','84%','','a'],
+  ['Unrecovered',n0(15000),'','r'],['Flagged variances',1,'','r']])+
  `<div class="card">${tbl([
   {h:'Building',v:b=>b.n},{h:'Provider',v:()=>'Kahramaa'},
-  {h:'Billed to us',r:1,mono:1,v:b=>(b.units*0.42).toFixed(1)+'K'},
-  {h:'Recovered',r:1,mono:1,v:b=>(b.units*0.35).toFixed(1)+'K'},
+  {h:'Billed to us',r:1,mono:1,v:b=>n0(b.units*420)},
+  {h:'Recovered',r:1,mono:1,v:b=>n0(b.units*350)},
   {h:'Recovery',r:1,mono:1,v:b=>((0.35/0.42)*100).toFixed(0)+'%'},
   {h:'Status',v:b=>chip(b.id==='B09'?'Variance flagged':'Normal',b.id==='B09'?'r':'g')}],
   BUILDINGS.map(b=>({...b,__id:b.id})),{id:'utl',click:'openB',
@@ -3129,11 +3163,11 @@ ROUTES.invoices=()=>page('Invoices','Raised by an invoice run, one building at a
  stat([['Issued',INV.length],['Paid',INV.filter(i=>i.st==='Paid').length,'','g'],
   ['Part paid',INV.filter(i=>i.st==='Part paid').length,'','a'],
   ['Unpaid',INV.filter(i=>i.st==='Unpaid').length,'','r'],
-  ['Outstanding',INV.reduce((a,i)=>a+(i.amt-i.paid),0).toFixed(1)+'K','','r']])+
+  ['Outstanding',n0(INV.reduce((a,i)=>a+(i.amt-i.paid),0)),'','r']])+
  `<div class="card">${tbl([
   {h:'Invoice',v:i=>i.id},{h:'Tenant',v:i=>i.tn},{h:'Building',v:i=>i.bn},
-  {h:'Amount',r:1,mono:1,v:i=>i.amt+'K'},{h:'Paid',r:1,mono:1,v:i=>i.paid+'K'},
-  {h:'Balance',r:1,mono:1,v:i=>(i.amt-i.paid).toFixed(1)+'K',style:i=>i.amt-i.paid>0?'color:var(--red)':''},
+  {h:'Amount',r:1,mono:1,v:i=>n0(i.amt)},{h:'Paid',r:1,mono:1,v:i=>n0(i.paid)},
+  {h:'Balance',r:1,mono:1,v:i=>n0((i.amt-i.paid)),style:i=>i.amt-i.paid>0?'color:var(--red)':''},
   {h:'Due',r:1,v:i=>i.due},{h:'Status',v:i=>chip(i.st,stChip(i.st))}],
   INV.map(i=>({...i,__id:i.id})),{id:'il',click:'openI',
    foot:['every invoice carries the run that raised it','an amended invoice carries the reason it was amended']})}</div>`+
@@ -3167,13 +3201,13 @@ ROUTES.invoice=id=>{const i=id?I(id):INV[0]; if(!i) return notFound('Invoice','#
     hist.map(a=>({...a,__id:a.id})),{id:'amh',click:'openAMD'})}</div>`:'')+
   `<div class="card"><h3>Invoice lines</h3>${tbl([
    {h:'Description',v:r=>r[0]},{h:'Income account',v:r=>/recharge/i.test(r[0])?'Maintenance recharge':'Rental income'},
-   {h:'Amount',r:1,mono:1,v:r=>r[1]+'K'}],i.lines.map(l=>({...l,__id:l[0]})),
-   {id:'ivl',foot:['Allocation order: oldest invoice first · rent before recharge','Total '+i.amt+'K']})}</div>
+   {h:'Amount',r:1,mono:1,v:r=>n0(r[1])}],i.lines.map(l=>({...l,__id:l[0]})),
+   {id:'ivl',foot:['Allocation order: oldest invoice first · rent before recharge','Total '+n0(i.amt)]})}</div>
   <div class="card"><h3>Payment allocation</h3><div class="list">
    ${i.paid>0?`<div class="it"><span class="dot g"></span><span class="t">Cheque cleared — allocated to rent line</span>
-    <span class="amt">${i.paid}K</span></div>`:''}
+    <span class="amt">${n0(i.paid)}</span></div>`:''}
    ${i.amt-i.paid>0?`<div class="it"><span class="dot r"></span><span class="t">Outstanding balance</span>
-    <span class="amt">${(i.amt-i.paid).toFixed(1)}K</span></div>`:''}</div></div>`)};
+    <span class="amt">${n0((i.amt-i.paid))}</span></div>`:''}</div></div>`)};
 
 /* ---------------- Cheques ---------------- */
 ROUTES.cheques=()=>page('Cheques','Post-dated cheque register · deposit, clear, bounce',
@@ -3183,7 +3217,7 @@ ROUTES.cheques=()=>page('Cheques','Post-dated cheque register · deposit, clear,
   ['Face value',money(CHQ.reduce((a,c)=>a+c.amt,0))]])+
  `<div class="card">${tbl([
   {h:'Ref',v:c=>c.id},{h:'Tenant',v:c=>c.tn},{h:'Bank',v:c=>c.bank},{h:'Cheque no',v:c=>c.no},
-  {h:'Amount',r:1,mono:1,v:c=>c.amt+'K'},{h:'Matures',r:1,v:c=>c.mat},
+  {h:'Amount',r:1,mono:1,v:c=>n0(c.amt)},{h:'Matures',r:1,v:c=>c.mat},
   {h:'Status',v:c=>chip(c.st,stChip(c.st))},{h:'Action',v:c=>c.act?chip(c.act,'a'):'—'}],
   CHQ.map(c=>({...c,__id:c.id})),{id:'chl',click:'openC'})}</div>`);
 window.openC=id=>go('#/cheque/'+id);
@@ -3191,7 +3225,7 @@ window.openC=id=>go('#/cheque/'+id);
 ROUTES.cheque=id=>{const c=id?C(id):CHQ[0]; if(!c) return notFound('Cheque','#/cheques');
  return crumb([['Cheques','#/cheques'],[c.id,'']])+page(c.id,`${c.tn} · ${c.bank} · cheque ${c.no}`,
   fbtn('Update status','cheque-action'),
-  stat([['Amount',c.amt+'K'],['Bank',c.bank],['Matures',c.mat],['Status',chip(c.st,stChip(c.st))],
+  stat([['Amount',n0(c.amt)],['Bank',c.bank],['Matures',c.mat],['Status',chip(c.st,stChip(c.st))],
    ...(c.st==='Bounced'?[['Reason',c.reason],['Action',c.act]]:[])])+
   (c.st==='Bounced'?`<div class="warn">Bounced cheque — ${c.reason}. This appears in the MD exceptions feed and the bounce list until resolved.</div>
    <div class="card"><h3>Exception workflow — 2G</h3>${steps(['Bounce recorded','Tenant notified','Replacement requested','Resolved or escalated'],2)}</div>`:
@@ -3206,14 +3240,14 @@ ROUTES.cheque=id=>{const c=id?C(id):CHQ[0]; if(!c) return notFound('Cheque','#/c
 /* ---------------- Batches ---------------- */
 ROUTES.batches=()=>page('Cheque batches','Deposit batches to bank · two-person control',
  fbtn('New batch','create-batch'),
- stat([['Open batches',2],['Deposited today','486K'],['Awaiting recon',1,'','a'],['Overrides this month',5,'','r']])+
+ stat([['Open batches',2],['Deposited today',n0(486000)],['Awaiting recon',1,'','a'],['Overrides this month',5,'','r']])+
  `<div class="card">${tbl([
   {h:'Batch',v:r=>r[0]},{h:'Bank',v:r=>r[1]},{h:'Cheques',r:1,mono:1,v:r=>r[2]},
   {h:'Value',r:1,mono:1,v:r=>r[3]},{h:'Created by',v:r=>r[4]},{h:'Reconciled by',v:r=>r[5]},
   {h:'Status',v:r=>chip(r[6],stChip(r[6]))}],
-  [['BATCH-0871','QNB',12,'486K','Fatima N.','Fatima N. <span class="chip r">OVERRIDE</span>','Reconciled'],
-   ['BATCH-0872','Doha Bank',8,'214K','Fatima N.','—','Deposited'],
-   ['BATCH-0870','CBQ',15,'602K','Yusuf K.','Fatima N.','Reconciled']].map(r=>({...r,__id:r[0]})),{id:'btl'})}
+  [['BATCH-0871','QNB',12,n0(486000),'Fatima N.','Fatima N. <span class="chip r">OVERRIDE</span>','Reconciled'],
+   ['BATCH-0872','Doha Bank',8,n0(214000),'Fatima N.','—','Deposited'],
+   ['BATCH-0870','CBQ',15,n0(602000),'Yusuf K.','Fatima N.','Reconciled']].map(r=>({...r,__id:r[0]})),{id:'btl'})}
   <div class="warn" style="margin-top:10px">BATCH-0871 was created and reconciled by the same user. The soft block was overridden with the reason "Yusuf on leave" — logged to the audit trail and surfaced in the MD exceptions feed.</div></div>`);
 
 /* ---------------- Reconciliation (2C) ---------------- */
@@ -3229,9 +3263,9 @@ ROUTES.closing=()=>page('Weekly closing','Thursday evening close · discrepancie
    .map(r=>`<div class="ck2"><span class="dot ${r[1]?'g':'a'}"></span><span>${r[0]}</span>${r[1]?chip('Done','g'):chip('Open','a')}</div>`).join('')}</div>
  <div class="card"><h3>Open discrepancies</h3>${tbl([
   {h:'Item',v:r=>r[0]},{h:'Value',r:1,mono:1,v:r=>r[1]},{h:'Owner',v:r=>r[2]},{h:'Age',r:1,v:r=>r[3]}],
-  [['Bank ref 8842 unmatched','12.4K','Fatima N.','6d'],
-   ['Kahramaa B09 variance +38%','12.5K','Yusuf K.','2d'],
-   ['MNT-0231 cost over ceiling','3.2K','Maint. team','1d']].map(r=>({...r,__id:r[0]})),{id:'cll'})}</div>`);
+  [['Bank ref 8842 unmatched',n0(12400),'Fatima N.','6d'],
+   ['Kahramaa B09 variance +38%',n0(12500),'Yusuf K.','2d'],
+   ['MNT-0231 cost over ceiling',n0(3200),'Maint. team','1d']].map(r=>({...r,__id:r[0]})),{id:'cll'})}</div>`);
 
 /* ---------------- Approvals (2E) ---------------- */
 ROUTES.approvals=()=>page('Approvals','Reserved MD categories cannot be delegated','',
@@ -3414,12 +3448,12 @@ window.gateAlerts=gateAlerts; window.setBadge=setBadge;
 
 /* ---------- notifications ---------- */
 const NOTIF=[
- ['r','Cheque bounced','Horizon Facilities · 42.5K · insufficient funds','07:02','#/cheques'],
- ['r','Promise broken','TN-0142 · 18.0K due 24 Jul, unpaid','06:40','#/cases'],
+ ['r','Cheque bounced','Horizon Facilities · QAR 42,500 · insufficient funds','07:02','#/cheques'],
+ ['r','Promise broken','TN-0142 · QAR 18,000 due 24 Jul, unpaid','06:40','#/cases'],
  ['a','Approval waiting 62h','Deposit release · TA-0231','06:00','#/approval/APR-0102'],
- ['a','Emergency over ceiling','B14 chiller · 3.2K vs 2.0K limit','Yesterday','#/job/MNT-0231'],
+ ['a','Emergency over ceiling','B14 chiller · QAR 3,200 vs QAR 2,000 limit','Yesterday','#/job/MNT-0231'],
  ['a','Same-user override','Fatima N. batched + reconciled BATCH-0871','Yesterday','#/batches'],
- ['n','Recon item unmatched 6d','Bank ref 8842 · 12.4K','24 Jul','#/recon']];
+ ['n','Recon item unmatched 6d','Bank ref 8842 · QAR 12,400','24 Jul','#/recon']];
 window.toggleNotif=()=>{
   const p=document.getElementById('npanel');
   const open=p.classList.toggle('on');
@@ -3495,9 +3529,9 @@ ROUTES.approval=id=>{const a=id?AP(id):APPR[0]; if(!a) return notFound('Approval
 ROUTES.case=id=>{const c=id?CS(id):CASES[0]; if(!c) return notFound('Collection case','#/cases');
  const stgs=['Arrears detected','Reminder sent','Promise to pay','Legal notice','Escalated'];
  const cur=stgs.findIndex(s=>s===c.stage||(c.stage==='Promise broken'&&s==='Promise to pay'));
- return crumb([['Cases','#/cases'],[c.id,'']])+page(c.id,`${c.tn} · ${c.amt}K outstanding · owner ${c.owner}`,
+ return crumb([['Cases','#/cases'],[c.id,'']])+page(c.id,`${c.tn} · ${n0(c.amt)} outstanding · owner ${c.owner}`,
   fbtn('Log contact','record-contact',{id:c.id})+fbtn('Record promise','record-promise',{id:c.id,amt:c.amt})+fbtn('Escalate to legal','escalate-legal',{id:c.id,amt:c.amt}),
-  stat([['Amount',c.amt+'K','','r'],['Stage',chip(c.stage,stChip(c.stage))],['Case age',c.age+' days'],
+  stat([['Amount',n0(c.amt),'','r'],['Stage',chip(c.stage,stChip(c.stage))],['Case age',c.age+' days'],
    ['Promise to pay',c.promise],['Owner',c.owner],['Notes',(NOTES[c.id]||[]).length]])+
   `<div class="card"><h3>Case progression</h3>${steps(stgs,Math.max(cur,1))}
    ${c.stage==='Promise broken'?'<div class="warn">Promise broken — case reopened automatically and surfaced in the MD exceptions feed.</div>':''}</div>
@@ -3612,7 +3646,7 @@ FORMS['onboard-building']={t:'Onboard a building',s:'Workflow 2A · property, la
      ['Lease end','31 Jul 2029',89],['Payment terms','4 cheques per year',78]],
     'Upload the signed head-lease and the landlord, value, term and payment terms are read straight off it.',
     {ll:'Al Emadi Enterprises',name:'Al Sadd Tower 2',area:'Al Sadd',units:'14',floors:'8',
-     annual:'1152',start:'2026-08-01',end:'2029-07-31',nchq:'4',pay:'Cheque',chqfrom:'100295',
+     annual:'1152000',start:'2026-08-01',end:'2029-07-31',nchq:'4',pay:'Cheque',chqfrom:'100295',
      type:'Apartment block'}),
   {n:'Property',body:d=>`<div class="fg">
     ${fld({k:'name',l:'Building name',t:'txt',p:'Al Sadd Tower 2',req:1,full:1},d.name)}
@@ -3644,14 +3678,14 @@ FORMS['onboard-building']={t:'Onboard a building',s:'Workflow 2A · property, la
     const annual=+d.annual||0, mo=annual/12, units=+d.units||1;
     return `<p class="pp">Enter the lease in money, not years — the annual value is what the cheques and the ledger work from.</p>
      <div class="fg">
-      ${fld({k:'annual',l:'Annual head-lease value (QAR K)',t:'num',step:'1',p:'1152',req:1,live:1},d.annual)}
+      ${fld({k:'annual',l:'Annual head-lease value (QAR)',t:'num',step:'1000',p:'1152000',req:1,live:1},d.annual)}
       ${fld({k:'start',l:'Lease start',t:'date',d:'2026-08-01',req:1},d.start)}
       ${fld({k:'end',l:'Lease end',t:'date',d:'2029-07-31',req:1},d.end)}
       ${fld({k:'esc',l:'Agreed escalation (% per renewal)',t:'num',step:'0.5',d:'4'},d.esc)}
       ${fld({k:'free',l:'Rent-free period (months)',t:'num',d:'0'},d.free)}
-      ${fld({k:'depll',l:'Deposit paid to landlord (QAR K)',t:'num',step:'1',p:'96'},d.depll)}</div>
-     ${stat([['Annual value','QAR '+annual.toFixed(0)+'K'],['Monthly equivalent','QAR '+mo.toFixed(1)+'K'],
-       ['Per unit / month','QAR '+(units?(mo/units).toFixed(2):'0')+'K'],
+      ${fld({k:'depll',l:'Deposit paid to landlord (QAR)',t:'num',step:'1000',p:'96000'},d.depll)}</div>
+     ${stat([['Annual value','QAR '+n0(annual)],['Monthly equivalent','QAR '+n0(mo)],
+       ['Per unit / month','QAR '+n0(units?mo/units:0)],
        ['Escalation',(d.esc||0)+'% per renewal']])}`},
    fields:[{k:'annual',req:1},{k:'start',req:1},{k:'end',req:1}]},
   {n:'Payment',body:d=>{
@@ -3669,10 +3703,10 @@ FORMS['onboard-building']={t:'Onboard a building',s:'Workflow 2A · property, la
       ${fld({k:'chqfrom',l:'First cheque number',t:'txt',p:'100295'},d.chqfrom)}
       ${fld({k:'adv',l:'Days notice before presentation',t:'sel',o:['14','0','3','7'],d:'14'},d.adv)}</div>
      <div class="tw"><table><tr><th>#</th><th>Due</th><th class="r">Amount</th><th>Instrument</th><th>Status</th></tr>
-     ${dates.map((dt,i)=>`<tr><td>${i+1}</td><td>${dt}</td><td class="r num">QAR ${per.toFixed(1)}K</td>
+     ${dates.map((dt,i)=>`<tr><td>${i+1}</td><td>${dt}</td><td class="r num">QAR ${n0(per)}</td>
        <td>${d.pay==='Cheque'?(d.chqfrom?'Cheque '+(+d.chqfrom+i):'Cheque'):d.pay}</td>
        <td>${chip(i===0?'To issue':'Scheduled',i===0?'a':'n')}</td></tr>`).join('')}</table></div>
-     <div class="foot"><span>${n} instalment${n>1?'s':''} per year</span><span>total QAR ${annual.toFixed(0)}K</span></div>`},
+     <div class="foot"><span>${n} instalment${n>1?'s':''} per year</span><span>total QAR ${n0(annual)}</span></div>`},
    fields:[{k:'nchq',req:1},{k:'first',req:1}]},
   {n:'Units',body:d=>unitEditor(d),
    check:()=>{wzCollect();const nos=WZU.map(u=>(u.no||'').trim()).filter(Boolean);
@@ -3686,7 +3720,7 @@ FORMS['onboard-building']={t:'Onboard a building',s:'Workflow 2A · property, la
    bank:d.llbank||'—',rep:d.llrep||'—',buildings:[id],since:fdate(TODAY),
    docs:[['Identity',d.doc_llid],['Title deed',d.doc_deed],['Power of attorney',d.doc_poa],['Head-lease',d.doc]]
     .filter(x=>x[1]).map(x=>({t:x[0],f:x[1]}))});
-  const moCost=(+d.annual||0)/12, cost=Math.round(moCost);
+  const cost=Math.round((+d.annual||0)/12);
   const rev=Math.round(WZU.reduce((a,u)=>a+(+u.rent||0),0));
   BUILDINGS.push({id,n:d.name,units:WZU.length,rev,cost,m:rev-cost,mp:rev?(rev-cost)/rev*100:0,
     arr:0,vd:0,om:0,ex:0,occ:0,d:0,ll:d.ll,llId:llid,hlEnd:d.end||d.start,hlRent:cost,
@@ -3698,7 +3732,7 @@ FORMS['onboard-building']={t:'Onboard a building',s:'Workflow 2A · property, la
   const n=WZU.length;
   return{title:'Building onboarded',msg:d.name+' created as '+id,
    detail:d.ll+' filed as '+llid+' · '+n+' unit'+(n===1?'':'s')+' created · '+(d.nchq||1)+
-    ' payments a year of QAR '+(((+d.annual||0)/(+d.nchq||1))/1000).toFixed(1)+'K',
+    ' payments a year of QAR '+n0((((+d.annual||0)/(+d.nchq||1))/1000)),
    goto:'#/building/'+id}}};
 
 FORMS['add-tenant']={t:'Add tenant',s:'Workflow 2B · tenancy onboarding',cta:'Create tenant and agreement',
@@ -3722,13 +3756,13 @@ FORMS['add-tenant']={t:'Add tenant',s:'Workflow 2B · tenancy onboarding',cta:'C
    <div class="note">QID expiry is checked against the agreement end date — an expired QID blocks activation.</div>`,
    fields:[{k:'name',req:1},{k:'qid',req:1},{k:'phone',req:1}]},
   {n:'Unit & terms',body:d=>`<div class="fg">
-     ${fld({k:'building',l:'Building',t:'sel',o:BUILDINGS.map(b=>b.n),req:1},d.building)}
-     ${fld({k:'unit',l:'Unit',t:'sel',o:UNITS.filter(u=>u.st!=='Occupied').slice(0,14).map(u=>u.id),req:1},d.unit)}
-     ${fld({k:'rent',l:'Monthly rent (QAR K)',t:'num',step:'0.1',p:'6.8',req:1,live:1},d.rent)}
+     ${fld({k:'building',l:'Building',t:'sel',o:BUILDINGS.map(b=>b.n),req:1,live:1},d.building)}
+     ${unitField(d)}
+     ${fld({k:'rent',l:'Monthly rent (QAR)',t:'num',step:'100',p:'6800',req:1,live:1},d.rent)}
      ${fld({k:'freq',l:'Payment frequency',t:'sel',o:['Monthly','Quarterly','Semi-annual','Annual'],req:1},d.freq)}
      ${fld({k:'start',l:'Start date',t:'date',d:'2026-08-01',req:1},d.start)}
      ${fld({k:'months',l:'Term (months)',t:'sel',o:['12','24','36'],req:1},d.months)}
-     ${fld({k:'dep',l:'Security deposit (QAR K)',t:'num',step:'0.1',req:1},d.dep||(d.rent?(d.rent*2).toFixed(1):''))}</div>`,
+     ${fld({k:'dep',l:'Security deposit (QAR)',t:'num',step:'100',req:1},d.dep||(d.rent?String(Math.round(d.rent*2)):''))}</div>`,
    fields:[{k:'building',req:1},{k:'unit',req:1},{k:'rent',req:1},{k:'dep',req:1}]},
   {n:'Payment',body:d=>{
     const rent=+d.rent||0, per={'Monthly':1,'Quarterly':3,'Semi-annual':6,'Annual':12}[d.freq||'Quarterly'];
@@ -3738,19 +3772,19 @@ FORMS['add-tenant']={t:'Add tenant',s:'Workflow 2B · tenancy onboarding',cta:'C
      <div class="fg">
       ${fld({k:'method',l:'Payment method',t:'sel',o:['Post-dated cheques','Bank transfer','Cash','Mixed'],req:1,live:1},d.method)}
       ${fld({k:'bank',l:'Tenant bank',t:'sel',o:['QNB','Doha Bank','CBQ','Masraf Al Rayan','QIB','Ahli Bank']},d.bank)}
-      ${fld({k:'chqfrom',l:'First cheque number',t:'txt',p:'482991',live:1},d.chqfrom)}
+      ${payTakesCheques(d.method)?fld({k:'chqfrom',l:'First cheque number',t:'txt',p:'482991',live:1},d.chqfrom):''}
       ${fld({k:'depmethod',l:'Deposit received by',t:'sel',o:['Bank transfer','Cheque','Cash'],req:1},d.depmethod)}</div>
      <div class="tw"><table><tr><th>#</th><th>Covers</th><th>Due</th><th class="r">Amount</th><th>Instrument</th></tr>
      ${[...Array(n)].map((_,i)=>{const dt=new Date(d.start||'2026-08-01');dt.setMonth(dt.getMonth()+per*i);
        return `<tr><td>${i+1}</td><td>${per} month${per>1?'s':''}</td><td>${fdate(dt)}</td>
-        <td class="r num">${amt.toFixed(1)}K</td>
-        <td>${d.method==='Bank transfer'?'Transfer':d.chqfrom?'Cheque '+(+d.chqfrom+i):'Cheque'}</td></tr>`}).join('')}</table></div>
-     <div class="foot"><span>${n} instalment${n>1?'s':''} per year</span><span>annual ${(rent*12).toFixed(1)}K + deposit ${d.dep||0}K</span></div>
+        <td class="r num">${n0(amt)}</td>
+        <td>${instrument(d.method,d.chqfrom,i)}</td></tr>`}).join('')}</table></div>
+     <div class="foot"><span>${n} instalment${n>1?'s':''} per year</span><span>annual ${n0((rent*12))} + deposit ${n0(d.dep||0)}</span></div>
      <div class="note">Deposit release at move-out mirrors the method selected here.</div>`},
    fields:[{k:'method',req:1},{k:'depmethod',req:1}]},
   {n:'Review',body:d=>`<div class="kv">${[['Tenant',d.name],['Type',d.type],['QID / CR',d.qid],
-     ['Unit',d.unit],['Building',d.building],['Rent',(d.rent||0)+'K per month'],['Payment',d.freq+' · '+(d.method||'')],
-     ['Term',(d.months||12)+' months from '+(d.start||'—')],['Deposit',(d.dep||0)+'K by '+(d.depmethod||'—')]]
+     ['Unit',d.unit],['Building',d.building],['Rent',n0(d.rent||0)+' per month'],['Payment',d.freq+' · '+(d.method||'')],
+     ['Term',(d.months||12)+' months from '+(d.start||'—')],['Deposit',n0(d.dep||0)+' by '+(d.depmethod||'—')]]
     .map(r=>`<div><span>${r[0]}</span><b>${r[1]||'—'}</b></div>`).join('')}</div>
    ${d.qid&&d.doc?`<div class="note" style="border-left-color:var(--em)"><b>This tenancy activates on submission.</b>
      The QID number is recorded and the signed pack is attached, so there is nothing left for an approver to check.
@@ -3785,7 +3819,8 @@ FORMS['add-tenant']={t:'Add tenant',s:'Workflow 2B · tenancy onboarding',cta:'C
    msg:d.name+' added as '+id,
    detail:(auto?'Agreement '+aid+' is active and the GM and MD have been notified'
      :'Agreement '+aid+' raised and sent for Legal review')+' · '+
-    (d.method==='Bank transfer'?'transfer schedule recorded':Math.round(12/per)+' cheques logged'),
+    (payTakesCheques(d.method)?Math.round(12/per)+' cheques logged'
+      :d.method==='Cash'?'cash collection schedule recorded':'transfer schedule recorded'),
    goto:'#/tenant/'+id}}};
 
 /* ---------- reworked deposit batch ---------- */
@@ -3802,21 +3837,21 @@ FORMS['create-batch']={t:'Create deposit batch',s:'Cheques and cash · two-perso
       a batch can contain both.</p>
      <div class="bsearch"><div class="vsearch"><span>⌕</span><input id="bq" value="${d.bq||''}"
        placeholder="Search tenant, cheque number or amount" oninput="bSearch(this.value)"></div>
-       <span class="chip ${cnt?'g':'n'}">${cnt} selected · ${tot.toFixed(1)}K</span></div>
+       <span class="chip ${cnt?'g':'n'}">${cnt} selected · ${n0(tot)}</span></div>
      <div class="bsec">Cheques on hand <span class="m">${chq.length} available</span></div>
      <div class="tw"><table><tr><th></th><th>Ref</th><th>Tenant</th><th>Bank</th><th>Cheque no</th>
        <th class="r">Amount</th><th class="r">Matures</th></tr>
      ${chq.filter(c=>!d.bq||(c.tn+c.no+c.amt).toLowerCase().includes((d.bq||'').toLowerCase()))
        .map(c=>`<tr onclick="bToggle('c_${c.id}')" class="drill"><td><input type="checkbox" ${sel['c_'+c.id]?'checked':''} onclick="event.stopPropagation();bToggle('c_${c.id}')"></td>
        <td>${c.id}</td><td>${c.tn}</td><td>${c.bank}</td><td>${c.no}</td>
-       <td class="r num">${c.amt}K</td><td class="r">${c.mat}</td></tr>`).join('')}</table></div>
+       <td class="r num">${n0(c.amt)}</td><td class="r">${c.mat}</td></tr>`).join('')}</table></div>
      <div class="bsec">Cash receipts <span class="m">${CASH.length} undeposited</span></div>
      <div class="tw"><table><tr><th></th><th>Ref</th><th>Tenant</th><th>Unit</th><th>Received by</th>
        <th class="r">Amount</th><th class="r">Received</th></tr>
      ${CASH.filter(c=>!d.bq||(c.tn+c.amt).toLowerCase().includes((d.bq||'').toLowerCase()))
        .map(c=>`<tr onclick="bToggle('h_${c.id}')" class="drill"><td><input type="checkbox" ${sel['h_'+c.id]?'checked':''} onclick="event.stopPropagation();bToggle('h_${c.id}')"></td>
        <td>${c.id}</td><td>${c.tn}</td><td>${(AGR.find(a=>a.t===c.t)||{u:"—"}).u}</td><td>${c.by}</td>
-       <td class="r num">${c.amt}K</td><td class="r">${c.when}</td></tr>`).join('')}</table></div>`},
+       <td class="r num">${n0(c.amt)}</td><td class="r">${c.when}</td></tr>`).join('')}</table></div>`},
    check:d=>Object.values(d.sel||{}).some(Boolean),msg:'Select at least one cheque or cash receipt'},
   {n:'Match to units',body:d=>{
     const sel=d.sel||{};
@@ -3830,14 +3865,14 @@ FORMS['create-batch']={t:'Create deposit batch',s:'Cheques and cash · two-perso
        const inv=INV.find(x=>x.t===it.t&&x.amt-x.paid>0);
        const units=UNITS.filter(u=>u.b===(ag.b||'B01')).slice(0,6).map(u=>u.id);
        return `<tr><td>${it.id}</td><td>${chip(it.kind,it.kind==='Cash'?'a':'n')}</td><td>${it.tn}</td>
-        <td class="r num">${it.amt}K</td>
+        <td class="r num">${n0(it.amt)}</td>
         <td><select data-k="u_${it.id}">${[ag.u,...units.filter(u=>u!==ag.u)].map(u=>`<option>${u}</option>`).join('')}</select></td>
         <td><select data-k="i_${it.id}">${[inv?inv.id+' · '+inv.due:'On account',...INV.filter(x=>x.t===it.t&&x!==inv).slice(0,3).map(x=>x.id+' · '+x.due),'On account']
           .filter((v,ix,arr)=>arr.indexOf(v)===ix).map(o=>`<option>${o}</option>`).join('')}</select></td></tr>`}).join('')}
      </table></div>
      ${stat([['Items',items.length],['Cheques',items.filter(i=>i.kind==='Cheque').length],
        ['Cash',items.filter(i=>i.kind==='Cash').length],
-       ['Batch value',items.reduce((a,i)=>a+i.amt,0).toFixed(1)+'K','','g']])}
+       ['Batch value',n0(items.reduce((a,i)=>a+i.amt,0)),'','g']])}
      <div class="note">Allocation still follows the standing rule — oldest invoice first, rent before recharge —
        unless you override it here.</div>`}},
   {n:'Deposit',body:d=>{
@@ -3849,7 +3884,7 @@ FORMS['create-batch']={t:'Create deposit batch',s:'Cheques and cash · two-perso
       ${fld({k:'date',l:'Deposit date',t:'date',d:'2026-07-27',req:1},d.date)}
       ${fld({k:'slip',l:'Deposit slip number',t:'txt',p:'DS-88214'},d.slip)}
       ${fld({k:'recon',l:'Reconciled by',t:'sel',o:['Yusuf K.','Fatima N.','Aisha R.'],req:1,live:1},d.recon)}</div>
-     ${stat([['Items',items.length],['Total',tot.toFixed(1)+'K'],['Created by','Managing Director'],['Account',(d.bank||'').split(' — ')[0]]])}
+     ${stat([['Items',items.length],['Total',n0(tot)],['Created by','Managing Director'],['Account',(d.bank||'').split(' — ')[0]]])}
      ${d.recon==='Managing Director'?'<div class="merr" style="display:block">Same user cannot create and reconcile — an override reason will be required.</div>'
        :'<div class="note">Two-person control satisfied: created by the MD, reconciled by '+(d.recon||'another user')+'.</div>'}`},
    fields:[{k:'bank',req:1},{k:'date',req:1},{k:'recon',req:1}]}],
@@ -3861,7 +3896,7 @@ FORMS['create-batch']={t:'Create deposit batch',s:'Cheques and cash · two-perso
   addJrn('Receipt','Deposit batch — '+chq.length+' cheques, '+cash.length+' cash receipts','BATCH-0873',
     [['1010',+tot.toFixed(1),0],['1100',0,+tot.toFixed(1)]]);
   return{title:'Batch created',msg:'BATCH-0873 · '+chq.length+' cheques and '+cash.length+' cash receipts',
-   detail:tot.toFixed(1)+'K to '+(d.bank||'')+' · posted to the ledger · awaiting reconciliation by '+(d.recon||''),
+   detail:k(tot)+' to '+(d.bank||'')+' · posted to the ledger · awaiting reconciliation by '+(d.recon||''),
    goto:'#/ledger'}}};
 window.bToggle=k=>{collect();FDATA.sel=FDATA.sel||{};FDATA.sel[k]=!FDATA.sel[k];drawForm();
   const i=document.getElementById('bq'); if(i)i.focus()};
@@ -3897,13 +3932,13 @@ FORMS['journal-entry']={t:'New journal entry',s:'Manual posting · must balance'
    <div class="bsec">Lines</div>
    <div class="fg">
     ${fld({k:'d1',l:'Debit account',t:'sel',o:COA.map(a=>a[0]+' — '+a[1]),req:1},d.d1)}
-    ${fld({k:'a1',l:'Debit amount (QAR K)',t:'num',step:'0.1',req:1,live:1},d.a1)}
+    ${fld({k:'a1',l:'Debit amount (QAR)',t:'num',step:'100',req:1,live:1},d.a1)}
     ${fld({k:'c1',l:'Credit account',t:'sel',o:COA.map(a=>a[0]+' — '+a[1]),req:1},d.c1)}
-    ${fld({k:'b1',l:'Credit amount (QAR K)',t:'num',step:'0.1',req:1,live:1},d.b1)}
+    ${fld({k:'b1',l:'Credit amount (QAR)',t:'num',step:'100',req:1,live:1},d.b1)}
     ${fld({k:'d2',l:'Second debit (optional)',t:'sel',o:['—',...COA.map(a=>a[0]+' — '+a[1])]},d.d2acc)}
-    ${fld({k:'a2',l:'Amount',t:'num',step:'0.1',live:1},d.a2)}</div>
-   ${stat([['Total debits',dr.toFixed(1)+'K'],['Total credits',cr.toFixed(1)+'K'],
-     ['Difference',Math.abs(dr-cr).toFixed(1)+'K','',dr===cr?'g':'r'],['Balanced',dr===cr&&dr>0?'Yes':'No','',dr===cr&&dr>0?'g':'r']])}
+    ${fld({k:'a2',l:'Amount',t:'num',step:'100',live:1},d.a2)}</div>
+   ${stat([['Total debits',n0(dr)],['Total credits',n0(cr)],
+     ['Difference',n0(Math.abs(dr-cr)),'',dr===cr?'g':'r'],['Balanced',dr===cr&&dr>0?'Yes':'No','',dr===cr&&dr>0?'g':'r']])}
    ${dr!==cr?'<div class="merr" style="display:block">Debits must equal credits before this can post.</div>':''}`},
   fields:[{k:'date',req:1},{k:'ref',req:1},{k:'narr',req:1},{k:'d1',req:1},{k:'a1',req:1},{k:'c1',req:1},{k:'b1',req:1}],
   check:d=>((+d.a1||0)+(+d.a2||0))===((+d.b1||0)+(+d.b2||0))&&(+d.a1||0)>0,
@@ -3912,7 +3947,7 @@ FORMS['journal-entry']={t:'New journal entry',s:'Manual posting · must balance'
   const lines=[[String(d.d1).split(' — ')[0],+d.a1||0,0],[String(d.c1).split(' — ')[0],0,+d.b1||0]];
   if(d.d2&&d.d2!=='—'&&+d.a2)lines.push([String(d.d2).split(' — ')[0],+d.a2,0]);
   const j=addJrn(d.src,d.narr,d.ref,lines,'Managing Director');
-  return{title:'Journal posted',msg:j.id+' — '+d.narr,detail:(+d.a1||0).toFixed(1)+'K balanced both sides',goto:'#/journal/'+j.id}}};
+  return{title:'Journal posted',msg:j.id+' — '+d.narr,detail:k(+d.a1||0)+' balanced both sides',goto:'#/journal/'+j.id}}};
 addEventListener('keydown',e=>{if(e.key==='Escape')closeNotif()});
 
 /* ---------- Chart of accounts ---------- */
@@ -4145,41 +4180,41 @@ function applyRole(){
     g.style.display=any?'':'none'})}
 
 /* ---------- owner and reserve data ---------- */
-const BANKACC=[['QNB current — 0021 4478',1206.4],['Doha Bank current — 7741 2200',498.2],['QNB collection — 0088 1120',137.4]];
+const BANKACC=[['QNB current — 0021 4478',1206400],['Doha Bank current — 7741 2200',498200],['QNB collection — 0088 1120',137400]];
 const AVAIL=BANKACC.reduce((a,b)=>a+b[1],0);
-const GROSS=588.5;
+const GROSS=588500;
 const SHOLD=[
  {id:'SH-01',n:'Khayaz Kunhabdu',hold:50,from:'01 Mar 19',method:'Bank transfer',acct:'QNB ••4402'},
  {id:'SH-02',n:'Raziya Kunhabdu',hold:50,from:'01 Mar 19',method:'Bank transfer',acct:'Doha ••8871'}];
 const SH=id=>SHOLD.find(s=>s.id===id);
 let OWNE=[
- {sh:'SH-02',d:'06 Feb 26',ty:'Injection',amt:85,src:'Bank line DB-0219',why:'Funded February payroll shortfall'},
- {sh:'SH-01',d:'11 Feb 26',ty:'Injection',amt:60,src:'Bank line DB-0231',why:'Funded February payroll shortfall'},
- {sh:'SH-01',d:'14 Mar 26',ty:'Drawing',amt:100,src:'Run DR-2026-03',why:''},
- {sh:'SH-02',d:'14 Mar 26',ty:'Drawing',amt:100,src:'Run DR-2026-03',why:''},
- {sh:'SH-01',d:'09 May 26',ty:'Drawing',amt:75,src:'Run DR-2026-05',why:''},
- {sh:'SH-02',d:'09 May 26',ty:'Drawing',amt:75,src:'Run DR-2026-05',why:''},
- {sh:'SH-02',d:'02 Jun 26',ty:'Expense paid personally',amt:12.4,src:'JV-1476',why:'Paid Kahramaa deposit from personal account'}];
-let DPOL={target:250,freq:'Monthly',months:3,denom:'Trailing three closed months',
+ {sh:'SH-02',d:'06 Feb 26',ty:'Injection',amt:85000,src:'Bank line DB-0219',why:'Funded February payroll shortfall'},
+ {sh:'SH-01',d:'11 Feb 26',ty:'Injection',amt:60000,src:'Bank line DB-0231',why:'Funded February payroll shortfall'},
+ {sh:'SH-01',d:'14 Mar 26',ty:'Drawing',amt:100000,src:'Run DR-2026-03',why:''},
+ {sh:'SH-02',d:'14 Mar 26',ty:'Drawing',amt:100000,src:'Run DR-2026-03',why:''},
+ {sh:'SH-01',d:'09 May 26',ty:'Drawing',amt:75000,src:'Run DR-2026-05',why:''},
+ {sh:'SH-02',d:'09 May 26',ty:'Drawing',amt:75000,src:'Run DR-2026-05',why:''},
+ {sh:'SH-02',d:'02 Jun 26',ty:'Expense paid personally',amt:12400,src:'JV-1476',why:'Paid Kahramaa deposit from personal account'}];
+let DPOL={target:250000,freq:'Monthly',months:3,denom:'Trailing three closed months',
  split:'Pro-rata by holding',account:'',v:2,by:'Managing Director',on:'14 Jul 26'};
 let DPHIST=[
- {v:2,target:250,months:3,split:'Pro-rata by holding',on:'14 Jul 26',st:'Active'},
- {v:1,target:300,months:0,split:'Pro-rata by holding',on:'08 Jan 26',st:'Superseded — fixed target retired by D65'}];
+ {v:2,target:250000,months:3,split:'Pro-rata by holding',on:'14 Jul 26',st:'Active'},
+ {v:1,target:300000,months:0,split:'Pro-rata by holding',on:'08 Jan 26',st:'Superseded — fixed target retired by D65'}];
 let DRUNS=[
- {id:'DR-2026-05',from:'01 May 26',to:'31 May 26',st:'Posted',gate:'Pass',avail:1912,den:552,floor:1656,head:256,tot:150,over:'',by:'General Manager',ap:'MD · 09 May 26'},
- {id:'DR-2026-03',from:'01 Mar 26',to:'31 Mar 26',st:'Posted',gate:'Fail',avail:1740,den:561,floor:1683,head:57,tot:200,over:'Q2 landlord rent already funded by PDCs presented in February, so the reserve was understated by roughly one month of head-lease cost.',by:'General Manager',ap:'MD · 14 Mar 26'}];
+ {id:'DR-2026-05',from:'01 May 26',to:'31 May 26',st:'Posted',gate:'Pass',avail:1912000,den:552000,floor:1656000,head:256000,tot:150000,over:'',by:'General Manager',ap:'MD · 09 May 26'},
+ {id:'DR-2026-03',from:'01 Mar 26',to:'31 Mar 26',st:'Posted',gate:'Fail',avail:1740000,den:561000,floor:1683000,head:57000,tot:200000,over:'Q2 landlord rent already funded by PDCs presented in February, so the reserve was understated by roughly one month of head-lease cost.',by:'General Manager',ap:'MD · 14 Mar 26'}];
 let CURRUN=null;
 const DR=id=>(CURRUN&&CURRUN.id===id)?CURRUN:DRUNS.find(r=>r.id===id);
 
 /* bank lines that Stage 2C now has to classify — from the April statement */
 let SHLINES=[
- {id:'8831',d:'05 Apr 26',amt:65,nar:'TRF TO KHAYAZ KUNHABDU',flag:'Payee matches an active shareholder',cls:null},
- {id:'8844',d:'14 Apr 26',amt:40,nar:'TRF TO RAZIYA KUNHABDU',flag:'Payee matches an active shareholder',cls:null},
- {id:'8858',d:'21 Apr 26',amt:15,nar:'TRF TO K KUNHABDU',flag:'Payee matches an active shareholder',cls:null},
- {id:'8861',d:'16 Apr 26',amt:8,nar:'ATM WITHDRAWAL C-RING 02:14',flag:'Cash withdrawal — held pending Q24',cls:null},
- {id:'8867',d:'23 Apr 26',amt:6.5,nar:'ATM WITHDRAWAL DUKHAN 01:52',flag:'Cash withdrawal — held pending Q24',cls:null},
- {id:'8802',d:'09 Apr 26',amt:26.75,nar:'ATM CASH DEPOSIT DUKHAN',flag:'No payer identity — needs a collection slip',cls:null,inn:1},
- {id:'8878',d:'28 Apr 26',amt:52.3,nar:'ATM CASH DEPOSIT AL SADD',flag:'No payer identity — needs a collection slip',cls:null,inn:1}];
+ {id:'8831',d:'05 Apr 26',amt:65000,nar:'TRF TO KHAYAZ KUNHABDU',flag:'Payee matches an active shareholder',cls:null},
+ {id:'8844',d:'14 Apr 26',amt:40000,nar:'TRF TO RAZIYA KUNHABDU',flag:'Payee matches an active shareholder',cls:null},
+ {id:'8858',d:'21 Apr 26',amt:15000,nar:'TRF TO K KUNHABDU',flag:'Payee matches an active shareholder',cls:null},
+ {id:'8861',d:'16 Apr 26',amt:8000,nar:'ATM WITHDRAWAL C-RING 02:14',flag:'Cash withdrawal — held pending Q24',cls:null},
+ {id:'8867',d:'23 Apr 26',amt:6500,nar:'ATM WITHDRAWAL DUKHAN 01:52',flag:'Cash withdrawal — held pending Q24',cls:null},
+ {id:'8802',d:'09 Apr 26',amt:26750,nar:'ATM CASH DEPOSIT DUKHAN',flag:'No payer identity — needs a collection slip',cls:null,inn:1},
+ {id:'8878',d:'28 Apr 26',amt:52300,nar:'ATM CASH DEPOSIT AL SADD',flag:'No payer identity — needs a collection slip',cls:null,inn:1}];
 
 /* ---------- the numbers the whole module turns on ---------- */
 const shClassified=()=>SHLINES.filter(l=>l.cls==='Shareholder drawing').reduce((a,l)=>a+l.amt,0);
@@ -4192,7 +4227,7 @@ const balOf=id=>OWNE.filter(e=>e.sh===id).reduce((a,e)=>a+(e.ty==='Drawing'?-e.a
 const drawnOf=id=>OWNE.filter(e=>e.sh===id&&e.ty==='Drawing').reduce((a,e)=>a+e.amt,0);
 const injOf=id=>OWNE.filter(e=>e.sh===id&&e.ty!=='Drawing').reduce((a,e)=>a+e.amt,0);
 const PMONTH=['Aug','Sep','Oct','Nov','Dec','Jan','Feb','Mar','Apr','May','Jun','Jul'];
-const SURPLUS=96;
+const SURPLUS=96000;
 const capSeries=()=>PMONTH.map((m,i)=>Math.max(0,headK()+SURPLUS*i));
 
 /* ---------- charts, in the dashboard's idiom ---------- */
@@ -4203,7 +4238,7 @@ function pline(series,labels,o){o=o||{};
   const X=i=>L+i/(labels.length-1)*pw, Y=v=>T+(mx-v)/(mx-mn)*ph;
   let g='';for(let i=0;i<=4;i++){const gv=mn+(mx-mn)*i/4;
     g+=`<line x1="${L}" x2="${W-Rr}" y1="${Y(gv).toFixed(1)}" y2="${Y(gv).toFixed(1)}" stroke="#E7DDD1" stroke-dasharray="3 4"/>
-      <text x="${L-8}" y="${(Y(gv)+3).toFixed(1)}" text-anchor="end" class="n" font-size="9" fill="#75634F">${gv>=1000?(gv/1000).toFixed(1)+'M':Math.round(gv)+'K'}</text>`}
+      <text x="${L-8}" y="${(Y(gv)+3).toFixed(1)}" text-anchor="end" class="n" font-size="9" fill="#75634F">${n0(gv)}</text>`}
   let lab='';labels.forEach((l,i)=>{lab+=`<text x="${X(i).toFixed(1)}" y="${H-BM+14}" text-anchor="middle" class="n" font-size="8.5" fill="#75634F">${l}</text>`});
   let ln='';series.forEach(s=>{const p=s.v.map((x,i)=>`${X(i).toFixed(1)},${Y(x).toFixed(1)}`).join(' ');
     if(s.fill)ln+=`<polygon points="${X(0).toFixed(1)},${Y(mn).toFixed(1)} ${p} ${X(labels.length-1).toFixed(1)},${Y(mn).toFixed(1)}" fill="${s.fill}"/>`;
@@ -4217,7 +4252,7 @@ function pbar(vals,labels,o){o=o||{};
   const X=i=>L+(i+.5)/vals.length*pw, Y=v=>T+(mx-v)/(mx-mn)*ph, bw=pw/vals.length*.6;
   let g='';for(let i=0;i<=4;i++){const gv=mn+(mx-mn)*i/4;
     g+=`<line x1="${L}" x2="${W-Rr}" y1="${Y(gv).toFixed(1)}" y2="${Y(gv).toFixed(1)}" stroke="#E7DDD1" stroke-dasharray="3 4"/>
-      <text x="${L-8}" y="${(Y(gv)+3).toFixed(1)}" text-anchor="end" class="n" font-size="9" fill="#75634F">${gv>=1000?(gv/1000).toFixed(1)+'M':Math.round(gv)+'K'}</text>`}
+      <text x="${L-8}" y="${(Y(gv)+3).toFixed(1)}" text-anchor="end" class="n" font-size="9" fill="#75634F">${n0(gv)}</text>`}
   let b='';vals.forEach((v,i)=>{const col=o.colors?o.colors[i]:(o.line&&v<o.line?'#C79C90':'#2E6B57');
     b+=`<rect x="${(X(i)-bw/2).toFixed(1)}" y="${Y(Math.max(v,0)).toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.abs(Y(v)-Y(0)).toFixed(1)}" rx="2" fill="${col}"/>
       <text x="${X(i).toFixed(1)}" y="${H-BM+14}" text-anchor="middle" class="n" font-size="8.5" fill="#75634F">${labels[i]}</text>`});
@@ -4345,7 +4380,7 @@ ROUTES.run=id=>{const r=DR(id);if(!r)return empty('No run with that reference');
     foot:['total proposed '+k(r.tot),DPOL.account?'posts to '+DPOL.account:'cannot post — posting account not mapped']})}</div>`)};
 
 ROUTES.memo=id=>{const r=DR(id);if(!r)return empty('No run with that reference');
- const stale=Math.abs(r.head-headK())>0.01&&CURRUN&&CURRUN.id===id;
+ const stale=Math.abs(r.head-headK())>=1&&CURRUN&&CURRUN.id===id;
  return crumb([['Distribution runs','#/runs'],[r.id,'#/run/'+r.id],['Approval memo','']])+page('Approval memo — '+r.id,
   `Prepared by ${r.by} · for the Managing Director`,
   (ROLEV==='MD'&&r.st==='Pending MD approval'
@@ -4371,7 +4406,7 @@ ROUTES.memo=id=>{const r=DR(id);if(!r)return empty('No run with that reference')
      foot:[DPOL.account?'posts to '+DPOL.account:'posting account not mapped — approval is permitted, posting waits on Q21','']})}</div></div>`)};
 
 window.approveRun=id=>{const r=DR(id);
- if(Math.abs(r.head-headK())>0.01){r.st='Computed';toast('Refused — the gate was re-tested and the figures have changed');router();return}
+ if(Math.abs(r.head-headK())>=1){r.st='Computed';toast('Refused — the gate was re-tested and the figures have changed');router();return}
  if(!DPOL.account){r.st='Approved';r.ap='MD · '+fdate(TODAY);
   toast('Approved. It will post once the accountant names the account');router();return}
  r.st='Posted';r.ap='MD · '+fdate(TODAY);
@@ -4452,24 +4487,24 @@ function voidTable(id){const v=UNITS.filter(u=>u.st==='Void');
 const SCEN=[
  {id:'SC-01',n:'Base case',by:'General Manager',on:'20 Jul 26',st:'Approved',d:0,
   note:'Current portfolio, renewals at existing terms, no change to the cost base',lev:[]},
- {id:'SC-02',n:'Add Barwa Annex, 14 units',by:'General Manager',on:'22 Jul 26',st:'Draft',d:41.2,
-  note:'Head-lease at 58K, sublet at 82K, three months to fill',lev:[['Head-lease cost',-58],['Sublease income',82],['Fill period','3 months'],['Deposit outlay',-116]]},
- {id:'SC-03',n:'Exit Mansoura Block B',by:'Managing Director',on:'24 Jul 26',st:'Under review',d:-18.6,
-  note:'Spread below threshold for four quarters running',lev:[['Head-lease released',44],['Income lost',-62.6],['Exit penalty',-88]]},
- {id:'SC-04',n:'Renegotiate manpower contract',by:'General Manager',on:'25 Jul 26',st:'Draft',d:8.56,
-  note:'New Meridien at 20% less, service level held',lev:[['Current monthly',-42.8],['Proposed monthly',-34.24]]}];
+ {id:'SC-02',n:'Add Barwa Annex, 14 units',by:'General Manager',on:'22 Jul 26',st:'Draft',d:41200,
+  note:'Head-lease at QAR 58,000, sublet at QAR 82,000, three months to fill',lev:[['Head-lease cost',-58000],['Sublease income',82000],['Fill period','3 months'],['Deposit outlay',-116000]]},
+ {id:'SC-03',n:'Exit Mansoura Block B',by:'Managing Director',on:'24 Jul 26',st:'Under review',d:-18600,
+  note:'Spread below threshold for four quarters running',lev:[['Head-lease released',44000],['Income lost',-62600],['Exit penalty',-88000]]},
+ {id:'SC-04',n:'Renegotiate manpower contract',by:'General Manager',on:'25 Jul 26',st:'Draft',d:8560,
+  note:'New Meridien at 20% less, service level held',lev:[['Current monthly',-42800],['Proposed monthly',-34240]]}];
 const SC=id=>SCEN.find(s=>s.id===id);
 const TGT=[
- {id:'TG-1',n:'Owner distribution',v:250,u:'K per month',by:'Owners',st:'Active',prog:0.31},
+ {id:'TG-1',n:'Owner distribution',v:250000,u:'QAR per month',by:'Owners',st:'Active',prog:0.31},
  {id:'TG-2',n:'Portfolio occupancy floor',v:92,u:'%',by:'General Manager',st:'Active',prog:0.94},
- {id:'TG-3',n:'Arrears ceiling',v:180,u:'K at month end',by:'General Manager',st:'Active',prog:0.72},
+ {id:'TG-3',n:'Arrears ceiling',v:180000,u:'QAR at month end',by:'General Manager',st:'Active',prog:0.72},
  {id:'TG-4',n:'Cheque bounce rate',v:3,u:'% of value',by:'Managing Director',st:'At risk',prog:0.48}];
 const PRISK=[
- {r:'Head-lease renewal at Mauither 21',p:'High',i:'63K per month',m:'Renewal negotiation opened 12 July',s:'r'},
- {r:'Cheque bounce rate above 6%',p:'Medium',i:'44K per month',m:'Move the top ten PDC tenants to standing transfer',s:'a'},
+ {r:'Head-lease renewal at Mauither 21',p:'High',i:'QAR 63,000 per month',m:'Renewal negotiation opened 12 July',s:'r'},
+ {r:'Cheque bounce rate above 6%',p:'Medium',i:'QAR 44,000 per month',m:'Move the top ten PDC tenants to standing transfer',s:'a'},
  {r:'Reserve floor unverified',p:'High',i:'unknown',m:'Statements for a month in which head-lease rent clears',s:'r'},
  {r:'Single collector handles cash',p:'Medium',i:'control',m:'Two-person deposit rule at Stage 2C',s:'a'},
- {r:'Owner drawings inside operating cost',p:'High',i:'120K per month',m:'Classification at intake — D68',s:'r'}];
+ {r:'Owner drawings inside operating cost',p:'High',i:'QAR 120,000 per month',m:'Classification at intake — D68',s:'r'}];
 const PACT=[
  {a:'Fill 9 void units in Muaither West',o:'General Manager',by:'30 Sep 26',e:38.4,st:'In progress'},
  {a:'Renegotiate the New Meridien contract',o:'General Manager',by:'31 Aug 26',e:8.56,st:'Not started'},
@@ -4565,7 +4600,7 @@ ROUTES.forecast=()=>page('Forecast','Eighteen months rolling · renewals assumed
    [['April',1262,1244,'Two corporate tenants paid late, cleared in May'],
     ['May',1288,1301,'Muaither West filled two units ahead of plan'],
     ['June',1302,1279,'Bounce rate rose to 6.1%']].map(r=>({...r,__id:r[0]})),
-   {id:'fv',foot:['mean absolute variance 18K','1.4% of billing — variance drives the next revision']})}
+   {id:'fv',foot:['mean absolute variance QAR 18,000','1.4% of billing — variance drives the next revision']})}
    ${pbar([-18,13,-23],['April','May','June'],{h:150})}</div>
   <div class="card" id="sec-as"><h3>Assumptions</h3><div class="kv">
    ${[['Renewals','At current terms, flagged as an assumption'],['Rent increases','Not permitted as a lever'],
@@ -4916,7 +4951,7 @@ Object.assign(FORMS,{
  steps:[{n:'Target',fields:[
   {k:'name',l:'Target name',t:'txt',req:1,full:1},
   {k:'value',l:'Value',t:'num',req:1},
-  {k:'basis',l:'Basis',t:'sel',o:['K per month','%','K at month end'],req:1},
+  {k:'basis',l:'Basis',t:'sel',o:['QAR per month','%','QAR at month end'],req:1},
   {k:'owner',l:'Owner',t:'sel',o:['Owners','Managing Director','General Manager'],req:1}]}],
  submit:d=>{TGT.push({id:'TG-'+(TGT.length+1),n:d.name,v:+d.value||0,u:d.basis,by:d.owner,st:'Active',prog:0});
   return{title:'Target created',msg:d.name,detail:'It appears on the planning home and in the weekly pack',goto:'#/targets'}}},
@@ -4967,12 +5002,12 @@ ROUTES.recon=()=>page('Bank reconciliation',
   {h:'Bank ref',v:r=>r[0]},{h:'Date',r:1,v:r=>r[1]},{h:'Amount',r:1,mono:1,v:r=>r[2]},
   {h:'Narrative',v:r=>r[3]},{h:'Age',r:1,mono:1,v:r=>r[4]+'d',style:r=>r[4]>5?'color:var(--red)':''},
   {h:'Suggested match',v:r=>r[5]}],
-  [['8842',dplus(-6),'12.4K','TRF FROM A ALMARRI',6,'CHQ-3118 · 92% confidence'],
-   ['8851',dplus(-4),'6.8K','CASH DEP BRANCH 12',4,'collection slip CS-4431'],
-   ['8859',dplus(-6),'8.2K','TRF GULFSERVE CATER',6,'INV-2417 · 88% confidence'],
-   ['8863',dplus(-2),'4.1K','RETURNED ITEM FEE',2,'bank charge'],
-   ['8870',dplus(-1),'9.7K','TRF FROM S RAHMAN',1,'CHQ-3140 · 95% confidence']].map(r=>({...r,__id:r[0]})),
-  {id:'rcl',foot:['9 unmatched · 41.2K','rising 4 weeks — flagged to the MD']})}</div>`);
+  [['8842',dplus(-6),n0(12400),'TRF FROM A ALMARRI',6,'CHQ-3118 · 92% confidence'],
+   ['8851',dplus(-4),n0(6800),'CASH DEP BRANCH 12',4,'collection slip CS-4431'],
+   ['8859',dplus(-6),n0(8200),'TRF GULFSERVE CATER',6,'INV-2417 · 88% confidence'],
+   ['8863',dplus(-2),n0(4100),'RETURNED ITEM FEE',2,'bank charge'],
+   ['8870',dplus(-1),n0(9700),'TRF FROM S RAHMAN',1,'CHQ-3140 · 95% confidence']].map(r=>({...r,__id:r[0]})),
+  {id:'rcl',foot:['9 unmatched · QAR 41,200','rising 4 weeks — flagged to the MD']})}</div>`);
 
 /* ---------- alerts and approvals pick up the new module ---------- */
 ALERTS.unshift({ty:'Reserve gate',t:'Headroom '+k(headK())+' against a target of '+k(DPOL.target),w:'06:10',s:'r',go:'#/owners'});
@@ -5078,7 +5113,7 @@ function unitEditor(d){
    <span class="mini">${WZU.length} unit${WZU.length===1?'':'s'} entered${
      d.floors?' · '+d.floors+' floors declared':''}</span></div>
   ${WZU.length?`<div class="tw"><table><thead><tr><th>Unit number</th><th>Type</th><th>Floor</th><th>Sqm</th>
-    <th>Asking rent, K</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`:
+    <th>Asking rent, QAR</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`:
    `<div class="mt">No units yet. Add them one at a time, or paste the list from the landlord's schedule.</div>`}
   ${dupes.length?`<div class="merr" style="display:block">Duplicate unit number: ${[...new Set(dupes)].join(', ')}</div>`:''}
   <div class="note">Asking rent is optional at this point. A unit with no rent is created as void and priced when it is first let.</div>`}
@@ -5108,7 +5143,7 @@ Object.assign(FORMS,{
     Opening one by hand is for the situation the rules cannot see — a tenant who has told you they are leaving, say.</div>
    <div class="fg">
     ${fld({k:'tenant',l:'Tenant',t:'sel',o:TENANTS.slice(0,20).map(x=>x.n),req:1,live:1},d.tenant)}
-    ${fld({k:'amt',l:'Amount at stake (QAR K)',t:'num',step:'0.1',req:1},d.amt||(t?t.arr.toFixed(1):''))}
+    ${fld({k:'amt',l:'Amount at stake (QAR)',t:'num',step:'100',req:1},d.amt||(t?String(Math.round(t.arr)):''))}
     ${fld({k:'stage',l:'Opening stage',t:'sel',o:['Reminder sent','Promise to pay','Promise broken','Legal notice'],req:1},d.stage)}
     ${fld({k:'owner',l:'Assign to',t:'sel',o:['Aisha R.','Fatima N.','Yusuf K.'],req:1},d.owner)}
     ${fld({k:'why',l:'Why this needs a case',t:'ta',req:1,full:1,p:'Required — it is the first line of the case history'},d.why)}</div>
@@ -5159,7 +5194,7 @@ function billDraft(bId,periodIx,incl){
     const rent=+(a.rent*per).toFixed(1);
     const util=incl.util&&(a.id.charCodeAt(4)%3===0)?+(a.rent*0.06).toFixed(1):0;
     const mnt=incl.mnt&&(a.id.charCodeAt(5)%5===0)?+((a.id.charCodeAt(6)%7)/10+0.4).toFixed(1):0;
-    const arr=incl.arr&&t.arr>0?+t.arr.toFixed(1):0;
+    const arr=incl.arr&&t.arr>0?Math.round(t.arr):0;
     out.push({a:a.id,t:a.t,tn:a.tn,u:a.u,freq:a.freq||'Monthly',per,
       rent,util,mnt,arr,orig:{rent,util,mnt,arr},
       method:chq?'Cheque on hand':'Transfer',flags,skip,excl:!!skip,edited:0,reason:''});
@@ -5492,7 +5527,7 @@ FORMS['log-cheque']={t:'Log a cheque',s:'Money in or money out · the register i
       ?fld({k:'replaces',l:'Replaces',t:'sel',o:CHQ.filter(c=>c.st==='Returned').map(c=>c.id+' · '+c.party+' · '+k(c.amt)),req:1},d.replaces):''}
     ${fld({k:'bank',l:'Drawn on',t:'sel',o:['QNB','Doha Bank','CBQ','Masraf Al Rayan','QIB','Ahli Bank'],req:1},d.bank)}
     ${fld({k:'no',l:'Cheque number',t:'txt',p:'482991',req:1},d.no)}
-    ${fld({k:'amt',l:'Amount (QAR K)',t:'num',step:'0.1',req:1},d.amt)}
+    ${fld({k:'amt',l:'Amount (QAR)',t:'num',step:'100',req:1},d.amt)}
     ${fld({k:'mat',l:'Date on the cheque',t:'date',d:'2026-08-01',req:1},d.mat)}
     ${inc?fld({k:'agr',l:'Against',t:'sel',o:['Allocate on clearing — oldest invoice first','A specific invoice','Deposit, not rent']},d.agr)
         :fld({k:'purpose',l:'For',t:'sel',o:['Head-lease rent','Deposit to landlord','Maintenance','Utilities','Other'],req:1},d.purpose)}
@@ -5649,9 +5684,9 @@ FORMS['amend-invoice']={t:'Amend an issued invoice',s:'The change is proposed, n
     ?`<p class="pp">The whole invoice is written back. Nothing is deleted — a credit note for the full amount is raised against it.</p>
       ${stat([['Issued for',k(i.amt)],['Credit note',k(i.amt)],['Left payable','QAR 0']])}`
     :`<div class="fg">
-       ${fld({k:'rent',l:'Rent, K',t:'num',step:'0.1',live:1},d.rent)}
-       ${fld({k:'util',l:'Utility recovery, K',t:'num',step:'0.1',live:1},d.util)}
-       ${fld({k:'mnt',l:'Maintenance recharge, K',t:'num',step:'0.1',live:1},d.mnt)}</div>
+       ${fld({k:'rent',l:'Rent, K',t:'num',step:'100',live:1},d.rent)}
+       ${fld({k:'util',l:'Utility recovery, K',t:'num',step:'100',live:1},d.util)}
+       ${fld({k:'mnt',l:'Maintenance recharge, K',t:'num',step:'100',live:1},d.mnt)}</div>
       ${stat([['Issued for',k(i.amt)],['Corrected to',k(nw)],
         ['Difference',(nw-i.amt>0?'+':'')+k(nw-i.amt),'',nw>i.amt?'a':'g'],
         ['Instrument',nw>i.amt?'Debit note':'Credit note']])}`}},
@@ -5760,7 +5795,7 @@ FORMS['issue-receipt']={t:'Issue a receipt',s:'Cash on the day · a cheque only 
         A receipt can only be raised against a cheque that has cleared. Mark one cleared on the cheque register first.</div>`}`
     :`<div class="fg">
        ${fld({k:'party',l:'Received from',t:'sel',o:TENANTS.slice(0,24).map(t=>t.n),req:1},d.party)}
-       ${fld({k:'amt',l:'Amount (QAR K)',t:'num',step:'0.1',req:1},d.amt)}
+       ${fld({k:'amt',l:'Amount (QAR)',t:'num',step:'100',req:1},d.amt)}
        ${fld({k:'date',l:'Date received',t:'date',req:1},d.date)}
        ${d.kind==='Cash received'?fld({k:'collector',l:'Collected by',t:'sel',
          o:['Yusuf K.','Fatima N.','Aisha R.'],req:1},d.collector):
