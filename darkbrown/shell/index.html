@@ -874,6 +874,8 @@ window.DB_LIVE = !!window.DB_SEED;
    declared. Declared here so anything can ask before then without throwing. */
 window.DB_MISSING={};
 window.dbMissing=key=>window.DB_LIVE?DB_MISSING[key]:null;
+/* what the server said when it broke, so the screen can name it */
+window.dbWhy=key=>((window.DB_SEED&&DB_SEED._errors)||{})[key]||'';
 
 
 async function dbCall(method, args){
@@ -3068,7 +3070,9 @@ ROUTES.landlords=()=>{
     that rather than filling the table in. */
  if(!LL.length) return page('Landlords','No landlord party on file','',
    `<div class="card">${dbMissing('landlords')==='error'
-    ? uw('The server could not build the landlord list. Nothing is shown rather than something wrong \u2014 the traceback is in the Error Log.')
+    ? uw('The server could not build the landlord list, so nothing is shown rather than something wrong.'+
+        (dbWhy('landlords')?'<br><span class="mini">'+dbWhy('landlords')+'</span>':
+         ' The traceback is in the Error Log.'))
     : empty(window.DB_LIVE
       ? 'No Supplier is flagged as a landlord yet. Onboarding a building creates its landlord as a Supplier and flags it; a landlord created straight in the desk needs \u201cIs landlord\u201d ticked before it shows here.'
       : 'No landlords in the demo data.')}</div>`);
@@ -6299,7 +6303,8 @@ const WIRE={
  a:d=>{wzCollect();
   return {payload:{building_name:d.name,status:'Onboarding',area_name:d.area,
    floors:parseInt(d.floors)||0,
-   landlord:{name:d.ll,qid:d.llid,iban:d.llbank},
+   landlord:{name:d.ll,type:d.lltype,qid:d.llid,iban:d.llbank,
+     mobile:d.llphone,email:d.llemail,representative:d.llrep},
    /* The units are the ones typed against the doors, not a sequence built from
       the count read off the lease. `d.type` is the property type and has no
       business here. */

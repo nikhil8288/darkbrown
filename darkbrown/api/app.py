@@ -19,6 +19,23 @@ def _k(v):
     return round(flt(v))
 
 
+def _has(doctype, fields):
+    """Only ask for columns the site actually has.
+
+    A field renamed in a fixture and not renamed in the query does not fail
+    politely — the whole SELECT raises, seed() catches it, and an entire screen
+    goes dark with no clue which column was wrong. This drops the unknown ones
+    so the rest of the record still comes back, and the missing value renders
+    as a dash like any other blank.
+    """
+    try:
+        meta = frappe.get_meta(doctype)
+    except Exception:
+        return list(fields)
+    std = {"name", "creation", "modified", "owner", "docstatus", "idx"}
+    return [f for f in fields if f in std or meta.get_field(f)]
+
+
 def _fdate(d):
     """The prototype renders dates as '24 Jul 26'."""
     if not d:
@@ -354,6 +371,7 @@ def seed():
     """
     data = {}
     failed = []
+    errors = {}
     for key, fn in (("buildings", buildings), ("units", units),
                     ("cases", cases), ("jobs", jobs),
                     ("moveouts", moveouts), ("tenants", tenants),
@@ -366,14 +384,19 @@ def seed():
                     ("bankAccounts", bank_accounts)):
         try:
             rows = fn()
-        except Exception:
+        except Exception as e:
             frappe.log_error(frappe.get_traceback(), f"darkbrown seed: {key}")
             failed.append(key)
+            # The screen said "the traceback is in the Error Log" and left it
+            # there. Carrying the reason forward turns a dark panel into
+            # something a person can act on without opening the desk.
+            errors[key] = f"{type(e).__name__}: {e}".split("\n")[0][:300]
             rows = []
         if rows:
             data[key] = rows
     if failed:
         data["_failed"] = failed
+        data["_errors"] = errors
     return data
 
 
@@ -472,12 +495,18 @@ def landlords():
             except Exception:
                 pass
 
+    # These are the Supplier fixture's own names. The mobile is
+    # db_landlord_mobile, not db_mobile — db_mobile is the Customer's, and
+    # asking Supplier for it raised on every boot, which is why this list read
+    # as "the server could not build it" rather than as empty.
     rows = frappe.get_all(
         "Supplier",
         filters={"name": ["in", list(names)]},
-        fields=["name", "supplier_name", "supplier_type", "creation",
-                "db_landlord_qid", "db_nationality", "db_iban", "db_bank_name",
-                "db_mobile", "email_id"])
+        fields=_has("Supplier", [
+            "name", "supplier_name", "supplier_type", "creation", "email_id",
+            "db_landlord_qid", "db_landlord_cr_no", "db_landlord_category",
+            "db_nationality", "db_iban", "db_bank_name", "db_payment_mode",
+            "db_landlord_mobile", "db_representative_name"]))
     if not rows:
         return []
 
@@ -494,17 +523,24 @@ def landlords():
 
     out = []
     for s in rows:
+        company = s.get("supplier_type") == "Company"
+        # A company is identified by its CR, a person by their QID. Either
+        # column may hold the number depending on when the record was made,
+        # so the right one is preferred and the other is the fallback.
+        idno = (s.get("db_landlord_cr_no") or s.get("db_landlord_qid")) if company \
+            else (s.get("db_landlord_qid") or s.get("db_landlord_cr_no"))
         out.append({
             "id": s.name,
-            "n": s.supplier_name or s.name,
-            "type": "Company" if s.supplier_type == "Company" else "Individual",
-            "idno": s.db_landlord_qid or "—",
-            "phone": s.db_mobile or "—",
-            "email": s.email_id or "—",
-            "bank": " · ".join(x for x in (s.db_bank_name, s.db_iban) if x) or "—",
-            "rep": "—",
+            "n": s.get("supplier_name") or s.name,
+            "type": "Company" if company else "Individual",
+            "idno": idno or "—",
+            "phone": s.get("db_landlord_mobile") or "—",
+            "email": s.get("email_id") or "—",
+            "bank": " · ".join(
+                x for x in (s.get("db_bank_name"), s.get("db_iban")) if x) or "—",
+            "rep": s.get("db_representative_name") or "—",
             "buildings": by_landlord.get(s.name, []),
-            "since": _fdate(s.creation),
+            "since": _fdate(s.get("creation")),
             "docs": docs.get(s.name, []),
         })
     return out

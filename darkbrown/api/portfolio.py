@@ -117,12 +117,25 @@ def _landlord(data):
     if nationality and not frappe.db.exists("Country", nationality):
         nationality = None
 
+    # The wizard asks for the landlord's type, mobile, email and
+    # representative and they were all discarded here, so every landlord read
+    # back with a dash against the very fields somebody had just typed. A
+    # company is identified by its CR number, a person by their QID; the same
+    # box on the form feeds whichever the type calls for.
+    company = (data.get("type") or "").strip().lower() == "company"
+    ident = (data.get("qid") or "").strip() or None
+
     doc = frappe.get_doc({
         "doctype": "Supplier",
         "supplier_name": name,
         "supplier_group": group,
+        "supplier_type": "Company" if company else "Individual",
         "db_is_landlord": 1,
-        "db_landlord_qid": data.get("qid"),
+        "db_landlord_cr_no": ident if company else None,
+        "db_landlord_qid": None if company else ident,
+        "db_landlord_mobile": data.get("mobile"),
+        "db_representative_name": data.get("representative"),
+        "email_id": data.get("email"),
         "db_nationality": nationality,
         "db_iban": data.get("iban"),
         "db_bank_name": data.get("bank"),
