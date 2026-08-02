@@ -360,6 +360,11 @@ def _panels():
     return panels()
 
 
+def _closing():
+    from darkbrown.api.cashdesk import closing
+    return closing()
+
+
 def seed():
     """Everything the front end needs at boot, in one round trip.
 
@@ -381,6 +386,7 @@ def seed():
                     ("landlords", landlords),
                     ("billruns", billruns),
                     ("batches", batches),
+                    ("closing", _closing),
                     ("health", _health), ("kpi", _kpi),
                     ("panels", _panels),
                     ("bankAccounts", bank_accounts)):

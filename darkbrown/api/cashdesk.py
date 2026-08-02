@@ -94,6 +94,8 @@ def record_close(payload):
     doc = frappe.get_doc("Weekly Closing", name) if name else frappe.get_doc(
         {"doctype": "Weekly Closing", "period_end": period_end})
     doc.status = p.get("status") or "In Progress"
+    if doc.status == "Closed" and not doc.closed_on:
+        doc.closed_on = frappe.utils.now()
     if p.get("assigned_to"):
         doc.assigned_to = p["assigned_to"]
     if p.get("discrepancies") not in (None, ""):
@@ -104,6 +106,131 @@ def record_close(payload):
     return {"name": doc.name, "status": doc.status,
             "period_end": f"{getdate(doc.period_end):%d %b}",
             "discrepancies": doc.discrepancies or 0}
+
+
+def _week_end(on=None):
+    """The Thursday of the week we are closing.
+
+    The close is a Thursday evening job, so the period runs Friday to
+    Thursday. On a Thursday it is today; otherwise it is the Thursday just
+    gone, because a close is done on what has happened, not on what has not.
+    """
+    d = getdate(on or today())
+    # Monday is 0, so Thursday is 3
+    back = (d.weekday() - 3) % 7
+    return frappe.utils.add_days(d, -back)
+
+
+def _checks(start, end):
+    """The checklist, computed rather than pre-ticked.
+
+    Every item the records can answer is answered by them and cannot be
+    ticked by hand. The rest are honest manual confirmations: somebody says
+    they did it, and their saying so is the record. The two kinds are marked
+    differently on screen, because a green tick nobody earned is worse than
+    an open item.
+    """
+    out = []
+
+    def derived(key, label, count, detail_ok, detail_bad, route=None):
+        out.append({"k": key, "label": label, "kind": "derived",
+                    "ok": 1 if not count else 0, "count": count,
+                    "detail": detail_ok if not count else detail_bad,
+                    "go": route})
+
+    imports = frappe.db.count("Bank Statement Import",
+                              {"to_date": [">=", start]})
+    out.append({"k": "stmt", "label": "Bank statement imported",
+                "kind": "derived", "ok": 1 if imports else 0,
+                "count": imports,
+                "detail": (f"{imports} import covering this week" if imports
+                           else "No statement has been imported for this week"),
+                "go": "#/recon"})
+
+    unmatched = frappe.db.count("Bank Statement Line", {"status": "Unmatched"})
+    derived("unmatched", "Reconciliation exceptions cleared", unmatched,
+            "Nothing unmatched", f"{unmatched} line(s) still unmatched", "#/recon")
+
+    undeposited = frappe.db.count("Deposit Batch",
+                                  {"status": "Draft",
+                                   "deposit_date": ["<=", end]})
+    derived("batches", "Every batch made this week is at the bank", undeposited,
+            "Nothing waiting to go in",
+            f"{undeposited} batch(es) prepared but not banked", "#/batches")
+
+    held = frappe.db.count("Cheque",
+                           {"direction": "Incoming", "status": "Received",
+                            "cheque_date": ["<=", end]})
+    derived("cheques", "Matured cheques presented", held,
+            "No matured cheque is sitting in the office",
+            f"{held} cheque(s) past their date and still on hand", "#/cheques")
+
+    stale = frappe.db.sql("""
+        select count(*) from `tabCollection Case`
+        where status in ('Open', 'Contacted', 'Promised', 'Broken Promise')
+          and (modified < %s or modified is null)
+    """, (start,))[0][0]
+    derived("cases", "Arrears cases reviewed", stale,
+            "Every open case was touched this week",
+            f"{stale} open case(s) not touched since the last close", "#/cases")
+
+    # Nothing in the ledger answers these, so they stay somebody's word.
+    for key, label in (("landlord", "Landlord cheque schedule confirmed"),
+                       ("maint", "Maintenance costs posted"),
+                       ("util", "Utility invoices captured")):
+        out.append({"k": key, "label": label, "kind": "manual",
+                    "ok": 0, "count": 0, "detail": "Confirmed by hand",
+                    "go": None})
+    return out
+
+
+@frappe.whitelist()
+def closing(period_end=None):
+    """The current close, what it is waiting on, and the ones before it."""
+    end = _week_end(period_end)
+    start = frappe.utils.add_days(end, -6)
+
+    name = frappe.db.get_value("Weekly Closing", {"period_end": end})
+    current = None
+    if name:
+        d = frappe.get_doc("Weekly Closing", name)
+        current = {
+            "id": d.name, "st": d.status,
+            "discrepancies": d.discrepancies or 0,
+            "notes": d.notes or "",
+            "assigned": (frappe.db.get_value("User", d.assigned_to, "full_name")
+                         or d.assigned_to) if d.assigned_to else "—",
+            "closed_on": (frappe.utils.format_datetime(d.closed_on, "d MMM HH:mm")
+                          if d.closed_on else None),
+        }
+
+    history = []
+    for r in frappe.get_all("Weekly Closing",
+                            fields=["name", "period_end", "status",
+                                    "discrepancies", "closed_on", "assigned_to"],
+                            order_by="period_end desc", limit=10):
+        if r.name == name:
+            continue
+        history.append({
+            "id": r.name,
+            "period": f"{getdate(r.period_end):%d %b %y}",
+            "st": r.status,
+            "discrepancies": r.discrepancies or 0,
+            "closed_on": (frappe.utils.format_datetime(r.closed_on, "d MMM HH:mm")
+                          if r.closed_on else "—"),
+            "by": (frappe.db.get_value("User", r.assigned_to, "full_name")
+                   or r.assigned_to) if r.assigned_to else "—",
+        })
+
+    checks = _checks(start, end)
+    return {
+        "period_end": str(end),
+        "period": f"{getdate(start):%d %b} to {getdate(end):%d %b %y}",
+        "current": current,
+        "history": history,
+        "checks": checks,
+        "open": sum(1 for c in checks if not c["ok"]),
+    }
 
 
 # --------------------------------------------------------- statement import

@@ -939,7 +939,6 @@ const UNWIRED={
  targets:'Targets need the solver. Blocked on Q10.',
  pactions:'Planning actions need the solver. Blocked on Q10.',
  cfo:'The Digital CFO needs the governed calculation services behind it before it can answer anything.',
- closing:'Weekly closing is not a server-side process yet.',
  reports:'Reporting has not been built against live records yet.',
  coa:'Reads ERPNext accounts. Not pointed at them yet.',
  ledger:'Reads ERPNext GL entries. Not pointed at them yet.',
@@ -2688,16 +2687,31 @@ const FORMS={
   fields:[{k:'date',req:1}]}],
  submit:()=>({title:'Nothing was saved',msg:'This form needs the server'})},
 
-'start-close':{t:'Weekly close',s:'Thursday evening close',cta:'Complete close',
- steps:[{n:'Checklist',body:d=>`<p class="pp">Work through the checklist. Anything left unticked is counted as an open
-   discrepancy on the close record and carries to the MD dashboard.</p>
-  ${[['All cheques for the week logged',1],['Deposits matched to batches',1],['Bank statement imported',1],
-     ['Reconciliation exceptions cleared',0],['Maintenance costs posted',1],['Utility invoices captured',0],
-     ['Landlord cheque schedule confirmed',1],['Arrears cases reviewed',0]]
-   .map((r,i)=>`<label class="fc"><input type="checkbox" ${d['ck'+i]===undefined?(r[1]?'checked':''):(d['ck'+i]?'checked':'')} data-k="ck${i}"><span>${r[0]}</span></label>`).join('')}
-  <div class="fg" style="margin-top:10px">${fld({k:'note',l:'Notes for the MD',t:'ta',p:'Anything the MD should know before Monday'})}</div>`}],
- submit:()=>({title:'Close completed',msg:'Week to 30 Jul closed',
-   detail:'3 discrepancies carried forward and assigned to Fatima N.',goto:'#/closing'})},
+'start-close':{t:'Weekly close',s:'Thursday evening close',cta:'Complete the close',
+ init:()=>{const c=(window.DB_SEED&&DB_SEED.closing)||{checks:[]};
+   const d={};(c.checks||[]).filter(x=>x.kind==='manual').forEach(x=>{d['m_'+x.k]=false});
+   return d},
+ steps:[{n:'Checklist',body:d=>{
+   const c=(window.DB_SEED&&DB_SEED.closing)||{checks:[],period:''};
+   const derived=(c.checks||[]).filter(x=>x.kind==='derived');
+   const manual=(c.checks||[]).filter(x=>x.kind==='manual');
+   const open=derived.filter(x=>!x.ok);
+   return `<p class="pp">Week ${c.period||''}. The items below that the records answer are already answered \u2014 you
+     cannot tick those. Anything still open is carried on the close record as a discrepancy and goes to the MD.</p>
+   ${derived.map(x=>`<div class="ck2"><span class="dot ${x.ok?'g':'a'}"></span>
+     <span>${x.label}<div class="mini">${x.detail}</div></span>
+     ${x.ok?chip('Clear','g'):chip('Open','a')}</div>`).join('')}
+   <div class="fg" style="margin-top:12px;grid-column:1/-1"></div>
+   <p class="pp" style="margin-top:6px">These three the records cannot answer. Tick only what you actually did.</p>
+   ${manual.map(x=>`<label class="fc"><input type="checkbox" ${d['m_'+x.k]?'checked':''}
+     data-k="m_${x.k}"><span>${x.label}</span></label>`).join('')}
+   <div class="fg" style="margin-top:10px">${fld({k:'note',l:'Notes for the MD',t:'ta',
+     p:'Anything the MD should know before Monday'},d.note)}</div>
+   ${open.length?`<div class="note" style="border-left-color:var(--amber)"><b>${open.length} item${
+     open.length===1?'':'s'} the records still show as open.</b> Closing now records ${open.length}
+     discrepanc${open.length===1?'y':'ies'} against this week rather than pretending they were cleared.</div>`
+    :`<div class="note" style="border-left-color:var(--em)">Nothing is outstanding in the records.</div>`}`}}],
+ submit:()=>({title:'Nothing was saved',msg:'The close needs the server'})},
 
 'record-inspection':{t:'Record move-out inspection',s:'Workflow 2G',cta:'Save inspection',
  steps:[
@@ -3491,20 +3505,59 @@ ROUTES.batch=id=>{
 
 /* ---------------- Reconciliation (2C) ---------------- */
 /* ---------------- Weekly closing ---------------- */
-ROUTES.closing=()=>page('Weekly closing','Thursday evening close · discrepancies carried to the MD dashboard',
- fbtn('Start close','start-close'),
- stat([['Last close','Thu 23 Jul','completed 19:42','g'],['Open discrepancies',3,'','a'],
-  ['Assigned','Fatima N.'],['Next close','Thu 30 Jul','in 4 days']])+
- `<div class="card"><h3>Closing checklist</h3>
-  ${[['All cheques for the week logged',1],['Deposits matched to batches',1],['Bank statement imported',1],
-     ['Reconciliation exceptions cleared',0],['Maintenance costs posted',1],['Utility invoices captured',0],
-     ['Landlord cheque schedule confirmed',1],['Arrears cases reviewed',0]]
-   .map(r=>`<div class="ck2"><span class="dot ${r[1]?'g':'a'}"></span><span>${r[0]}</span>${r[1]?chip('Done','g'):chip('Open','a')}</div>`).join('')}</div>
- <div class="card"><h3>Open discrepancies</h3>${tbl([
-  {h:'Item',v:r=>r[0]},{h:'Value',r:1,mono:1,v:r=>r[1]},{h:'Owner',v:r=>r[2]},{h:'Age',r:1,v:r=>r[3]}],
-  [['Bank ref 8842 unmatched',n0(12400),'Fatima N.','6d'],
-   ['Kahramaa B09 variance +38%',n0(12500),'Yusuf K.','2d'],
-   ['MNT-0231 cost over ceiling',n0(3200),'Maint. team','1d']].map(r=>({...r,__id:r[0]})),{id:'cll'})}</div>`);
+/* ---------------- Weekly closing ---------------- */
+/* Reads the Weekly Closing record and a checklist the server computes.
+
+   The eight items here used to be a fixed list with five of them ticked, so
+   the screen reported a tidy week before anybody had done one. An item the
+   records can answer is now answered by them and cannot be ticked by hand;
+   the rest are marked as somebody's word, which is what they are. */
+const CLOSE=()=>((window.DB_SEED&&DB_SEED.closing)||null);
+
+ROUTES.closing=()=>{
+ const c=CLOSE();
+ if(!c) return page('Weekly closing','Thursday evening close','',
+   `<div class="card">${window.DB_LIVE
+     ? uw('The server could not build the close.'+
+        (dbWhy('closing')?'<br><span class="mini">'+dbWhy('closing')+'</span>':''))
+     : empty('The close runs on the server. Nothing to show without one.')}</div>`);
+
+ const derived=c.checks.filter(x=>x.kind==='derived');
+ const manual=c.checks.filter(x=>x.kind==='manual');
+ const blocking=derived.filter(x=>!x.ok);
+ const cur=c.current;
+ const done=cur&&cur.st==='Closed';
+ return page('Weekly closing',
+  'Week '+c.period+' \u00b7 discrepancies carried to the MD dashboard',
+  done?actbtn('This week is closed','Already closed'):fbtn('Start close','start-close'),
+  stat([
+   ['This week',done?'Closed':(cur?cur.st:'Not started'),
+    done&&cur.closed_on?cur.closed_on:'','',done?'g':'a'],
+   ['Waiting on the records',blocking.length,'',blocking.length?'a':'g'],
+   ['Discrepancies carried',cur?cur.discrepancies:'\u2014','',
+    cur&&cur.discrepancies?'r':''],
+   ['Assigned',cur?cur.assigned:'\u2014']])+
+  `<div class="card"><h3>What the records say</h3>
+   ${derived.map(x=>`<div class="ck2"><span class="dot ${x.ok?'g':'a'}"></span>
+     <span>${x.label}<div class="mini">${x.detail}</div></span>
+     ${x.ok?chip('Clear','g'):(x.go?`<button class="btn" onclick="go('${x.go}')">Open</button>`
+       :chip('Open','a'))}</div>`).join('')}
+   <div class="foot"><span>these cannot be ticked by hand</span>
+    <span>${blocking.length?blocking.length+' still open':'all clear'}</span></div></div>
+  <div class="card"><h3>Confirmed by hand</h3>
+   ${manual.map(x=>`<div class="ck2"><span class="dot ${
+     cur&&cur.st==='Closed'?'g':'a'}"></span><span>${x.label}</span>${
+     cur&&cur.st==='Closed'?chip('Confirmed at close','g'):chip('At the close','n')}</div>`).join('')}
+   <div class="foot"><span>nothing in the ledger answers these</span>
+    <span>ticked on the close, recorded against whoever closed it</span></div></div>`+
+  (cur&&cur.notes?`<div class="note"><b>Notes on this week's close.</b> ${cur.notes}</div>`:'')+
+  (c.history.length?`<div class="card"><h3>Earlier closes</h3>${tbl([
+    {h:'Week ending',r:1,v:r=>r.period},{h:'Status',v:r=>chip(r.st,stChip(r.st))},
+    {h:'Discrepancies',r:1,mono:1,v:r=>r.discrepancies||'\u2014',
+     style:r=>r.discrepancies?'color:var(--amber)':''},
+    {h:'Closed at',r:1,v:r=>r.closed_on},{h:'By',v:r=>r.by}],
+    c.history.map(r=>({...r,__id:r.id})),{id:'clh'})}</div>`:''));
+};
 
 /* ---------------- Approvals (2E) ---------------- */
 ROUTES.approvals=()=>page('Approvals','Reserved MD categories cannot be delegated','',
@@ -6363,11 +6416,20 @@ const WIRE={
 
 'start-close':{
  m:'cashdesk.record_close',
- a:d=>{let open=0;for(let i=0;i<8;i++)if(!d['ck'+i])open++;
-   return {payload:{period_end:new Date().toISOString().slice(0,10),
-     status:'Closed',discrepancies:open,notes:d.note}}},
+ /* The count carried is what is actually open: every derived check the
+    records show as failing, plus every manual item nobody ticked. It is not
+    a tally of unticked boxes on a list that arrived half-ticked. */
+ a:d=>{const c=(window.DB_SEED&&DB_SEED.closing)||{checks:[]};
+   const checks=c.checks||[];
+   const open=checks.filter(x=>x.kind==='derived'&&!x.ok).length
+     +checks.filter(x=>x.kind==='manual'&&!d['m_'+x.k]).length;
+   const notes=[(d.note||'').trim(),
+     checks.filter(x=>x.kind==='manual'&&!d['m_'+x.k])
+       .map(x=>'Not confirmed: '+x.label).join('; ')].filter(Boolean).join(' \u00b7 ');
+   return {payload:{period_end:c.period_end||new Date().toISOString().slice(0,10),
+     status:'Closed',discrepancies:open,notes}}},
  ok:r=>({title:'Close recorded',msg:'Week to '+r.period_end+' closed',
-   detail:r.discrepancies?r.discrepancies+' discrepanc'+(r.discrepancies===1?'y':'ies')+' carried on the record':'No discrepancies',
+   detail:r.discrepancies?r.discrepancies+' discrepanc'+(r.discrepancies===1?'y':'ies')+' carried on the record':'Nothing outstanding',
    goto:'#/closing'})},
 
 /* ---------------- money ---------------- */
