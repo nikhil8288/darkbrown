@@ -251,6 +251,9 @@ footer{max-width:1440px;margin:0 auto;padding:0 24px 30px;font-size:10px;color:v
 .drop{border:1.5px dashed var(--line2);border-radius:10px;padding:16px;text-align:center;cursor:pointer;background:var(--bg2)}
 .drop:hover{border-color:var(--em);background:var(--bg1)}
 .drop.has{border-style:solid;border-color:var(--em)}
+.drop.over{border-color:var(--em);background:var(--bg1)}
+.drop .fx{margin-left:8px;color:var(--mut);text-decoration:underline;cursor:pointer}
+input.fin{position:absolute;width:0;height:0;opacity:0;pointer-events:none}
 .drop .di{font-size:20px;color:var(--gold);margin-bottom:4px}
 .drop b{font-weight:500;color:var(--ink);font-size:12.5px}
 .drop .dh{font-size:10.5px;color:var(--mut);margin-top:3px}
@@ -917,7 +920,6 @@ const ROUTES={};
    because there is no way to tell an invented number from a real one by
    looking at it. When live, they say what they are and why. */
 const UNWIRED={
- landlords:'Landlords are ERPNext Suppliers and the records exist — this list has not been pointed at them yet.',
  batches:'Deposit Batch records exist. The list has not been pointed at them yet.',
  vault:'Document Register records exist. The vault view has not been pointed at them yet.',
  receipt:'Payment Entries exist. This detail view has not been pointed at them yet.',
@@ -2243,23 +2245,61 @@ function fld(f,v){
     f.o.map(o=>`<option ${String(o)===val?'selected':''}>${o}</option>`).join('')}</select></label>`;
   if(f.t==='ta') return `<label class="fl full"><span>${f.l}${req}</span><textarea id="${id}" data-k="${f.k}" rows="3" placeholder="${f.p||''}">${val}</textarea></label>`;
   if(f.t==='chk') return `<label class="fc"><input type="checkbox" id="${id}" data-k="${f.k}" ${val==='true'?'checked':''}><span>${f.l}</span></label>`;
-  if(f.t==='file'){const has=!!val;
+  if(f.t==='file'){
+    /* A real picker. Clicking used to attach a file nobody had chosen — a
+       fixed sample name written straight into the form — and on the tenancy
+       wizard that fabricated attachment was enough to self-activate the
+       agreement. Nothing is attached now until a file is actually selected,
+       and what is shown is that file's own name and size. */
+    const picked=(window.FFILES&&FFILES[f.k])||[];
+    const has=picked.length>0;
+    const names=picked.map(x=>x.name).join(', ');
     return `<div class="fl full"><span>${f.l}${req}</span>
-    <div class="drop ${has?'has':''}" onclick="pickFile('${f.k}','${f.sample||'document.pdf'}')" id="${id}_z">
-      <div class="di">${has?'✓':'⇪'}</div><div><b>${has?val:'Choose a file'}</b>${has?'':' or drag it here'}</div>
-      <div class="dh">${has?'Attached · click to replace':(f.hint||'PDF, JPG or PNG · max 10 MB')}</div>
-      <div class="dp" id="${id}_p">${has?'<span class="chip g">✓ attached</span>':''}</div></div>
-    <input type="hidden" id="${id}" data-k="${f.k}" value="${val}"></div>`;}
+    <input type="file" class="fin" id="${id}_i" ${f.multi?'multiple':''}
+      accept="${f.accept||'.pdf,.jpg,.jpeg,.png,.PDF,.JPG,.JPEG,.PNG'}"
+      onchange="fileChosen('${f.k}',this)">
+    <div class="drop ${has?'has':''}" id="${id}_z"
+      onclick="if(!event.target.classList.contains('fx'))document.getElementById('${id}_i').click()"
+      ondragover="event.preventDefault();this.classList.add('over')"
+      ondragleave="this.classList.remove('over')"
+      ondrop="fileDropped(event,'${f.k}',this)">
+      <div class="di">${has?'✓':'⇪'}</div>
+      <div><b>${has?names:'Choose a file'}</b>${has?`<span class="fx" onclick="clearFile('${f.k}')">remove</span>`:' or drag it here'}</div>
+      <div class="dh">${has?fSize(picked)+' · click to replace':(f.hint||'PDF, JPG or PNG · max 10 MB')}</div>
+      <div class="dp" id="${id}_p">${has?chip(picked.length+' file'+(picked.length===1?'':'s')+' chosen · '+(window.DB_LIVE?'uploads when you save':'not uploaded — no server'),'n'):''}</div></div>
+    <input type="hidden" id="${id}" data-k="${f.k}" value="${names}"></div>`;}
   const type=f.t==='num'?'number':f.t==='date'?'date':'text';
   return `<label class="fl ${f.full?'full':''}"><span>${f.l}${req}</span>
     <input type="${type}" id="${id}" data-k="${f.k}" value="${val}" placeholder="${f.p||''}" ${f.step?`step="${f.step}"`:''}
       ${f.live?`onchange="liveUpdate('${id}')"`:''}></label>`;
 }
-window.pickFile=(k,name)=>{collect();FDATA[k]=name;
-  const st=FRM&&FRM.steps[FSTEP];
-  if(st&&st.ocr){FDATA.__ocr=1;
-    Object.entries(st.ocr.set||{}).forEach(([kk,vv])=>{if(!FDATA[kk])FDATA[kk]=vv});}
-  drawForm()};
+/* Files chosen on the open form, held here rather than in the DOM: every step
+   change re-renders the modal and an <input type=file> cannot be given its
+   files back. They are uploaded on save, once, against the record the save
+   created — not before it exists. */
+window.FFILES={};
+const MAXFILE=10*1024*1024;
+function fSize(list){
+  const b=list.reduce((a,f)=>a+(f.size||0),0);
+  return b>=1048576?(b/1048576).toFixed(1)+' MB':Math.max(1,Math.round(b/1024))+' KB';
+}
+window.fSize=fSize;
+function takeFiles(k,list){
+  collect();
+  const files=Array.from(list||[]);
+  if(!files.length) return;
+  const big=files.filter(f=>f.size>MAXFILE);
+  if(big.length){toast(big[0].name+' is over 10 MB — not attached');return}
+  FFILES[k]=files;
+  FDATA[k]=files.map(f=>f.name).join(', ');
+  drawForm();
+}
+window.fileChosen=(k,inp)=>takeFiles(k,inp.files);
+window.fileDropped=(e,k,zone)=>{e.preventDefault();zone.classList.remove('over');
+  takeFiles(k,e.dataTransfer&&e.dataTransfer.files)};
+window.clearFile=k=>{collect();delete FFILES[k];FDATA[k]='';drawForm()};
+/* kept so anything still calling it opens the picker instead of inventing a file */
+window.pickFile=k=>{const e=document.getElementById('f_'+k+'_i');if(e)e.click()};
 /* The unit list is the vacant units of the building that was chosen, and
    nothing else. Offering a unit from another building is how a tenancy ends up
    filed against the wrong head lease. Changing the building drops a unit that
@@ -2311,6 +2351,7 @@ window.openForm=(key,ctx)=>{
   FKEY=key;
   if(window.DB_LIVE&&BLOCKED[key]){blockedForm(key);return;}
   FSTEP=0; FDATA=Object.assign({},FRM.init?FRM.init(ctx):{}); FDATA.__ctx=ctx;
+  window.FFILES={};
   document.body.style.overflow='hidden'; drawForm();
 };
 
@@ -2372,6 +2413,40 @@ window.formNext=()=>{
 /* The write goes to the server, and the success box is built from what came
    back rather than from what was typed. A failure keeps the form open with
    what was entered still in it. */
+/* Held files go up after the record exists, attached to it, so a failed save
+   does not leave orphan uploads and an attachment always has something to
+   hang on. A form that needs the file *before* the call — the document
+   register stores its URL — sets pre:1 and gets the URLs in __urls. */
+async function uploadFiles(target){
+  const keys=Object.keys(window.FFILES||{}).filter(k=>(FFILES[k]||[]).length);
+  if(!keys.length) return null;
+  const urls=[]; let count=0;
+  for(const key of keys){
+    /* The landlord's QID and title deed belong on the landlord, not on the
+       building that happened to be created in the same wizard. A form may
+       therefore name a target per field; anything unnamed takes the default. */
+    const t=(target&&target.keys&&target.keys[key])||target;
+    for(const file of FFILES[key]){
+      const fd=new FormData();
+      fd.append('file',file,file.name);
+      fd.append('is_private','1');
+      fd.append('folder','Home');
+      if(t&&t.doctype&&t.docname){
+        fd.append('doctype',t.doctype);
+        fd.append('docname',t.docname);
+      }
+      const r=await fetch('/api/method/upload_file',
+        {method:'POST',headers:{'X-Frappe-CSRF-Token':window.DB_CSRF||''},body:fd});
+      const j=await r.json().catch(()=>({}));
+      if(!r.ok) throw new Error(((j.exception||'')+'').split('\n')[0]||('upload rejected — HTTP '+r.status));
+      urls.push(j.message&&j.message.file_url);
+      count++;
+    }
+  }
+  return {count,urls};
+}
+window.uploadFiles=uploadFiles;
+
 async function submitLive(w){
   const err=document.getElementById('ferr');
   const g=w.guard?w.guard(FDATA):null;
@@ -2381,9 +2456,27 @@ async function submitLive(w){
   if(btn){btn.disabled=true;btn.textContent='Saving\u2026'}
   if(err)err.style.display='none';
   try{
+    /* the register keeps the URL on the record, so that upload runs first */
+    if(w.pre){
+      const up=await uploadFiles(null);
+      if(up){FDATA.__urls=up.urls;FDATA.__url=up.urls[0];}
+    }
     const out=w.calls?await w.calls(FDATA):await dbCall(w.m,w.a(FDATA));
+    const res=w.ok?w.ok(out,FDATA):{msg:'Saved'};
+    /* The save succeeded. If the attachment then fails, say so on the same
+       box rather than letting a green tick imply the paperwork is on file. */
+    if(!w.pre){
+      try{
+        const up=await uploadFiles(w.attach?w.attach(out,FDATA):null);
+        if(up) res.detail=(res.detail?res.detail+' \u00b7 ':'')+up.count+
+          ' file'+(up.count===1?'':'s')+(w.attach?' attached':' uploaded');
+      }catch(fe){
+        res.detail=(res.detail?res.detail+' \u00b7 ':'')+
+          '\u26a0 the record saved but the file did not upload: '+fe.message;
+      }
+    }
     await dbRefresh();
-    formDone(w.ok?w.ok(out,FDATA):{msg:'Saved'});
+    formDone(res);
   }catch(e){
     if(err){err.style.display='block';err.textContent=e.message||'Could not save that.'}
     if(btn){btn.disabled=false;btn.textContent=label}
@@ -2551,17 +2644,25 @@ const FORMS={
   {n:'Files',fields:[
     {k:'type',l:'Document type',t:'sel',o:['Auto-detect','Cheque batch','Tenant contract','Landlord contract','QID','Passport','Utility invoice'],req:1},
     {k:'link',l:'Link to',t:'sel',o:['Detect from content','Tenant','Building','Agreement']},
-    {k:'file',l:'Files',t:'file',sample:'scan_batch_07.pdf',hint:'PDF, JPG or PNG · multiple files allowed',req:1}]},
-  {n:'Extraction',body:d=>`<p class="pp">Claude vision extracts the fields below. Anything under 75% confidence
-    is held for human review rather than written straight to the record.</p>
-   <div class="tw"><table><tr><th>Field</th><th>Extracted value</th><th class="r">Confidence</th></tr>
-   ${[['Document type',d.type==='Auto-detect'?'Tenant contract':d.type,94],['Tenant name','Noora Al-Kaabi',91],
-      ['QID','28944123871',96],['Unit','B04-U210',88],['Rent','QAR 6,800 / month',85],
-      ['Start date','01 Aug 2026',79]].map(r=>`<tr><td>${r[0]}</td><td>${r[1]}</td>
-      <td class="r num" style="color:${r[2]<75?'var(--red)':r[2]<90?'var(--amber)':'var(--em)'}">${r[2]}%</td></tr>`).join('')}</table></div>
-   <div class="note">Duplicate detection found no existing copy of this document.</div>`}],
- submit:()=>({title:'Sent for review',msg:'DOC-0913 added to the intake queue',
-   detail:'Average confidence 88% · awaiting validation by Documentation',goto:'#/intake'})},
+    {k:'file',l:'Files',t:'file',multi:1,hint:'PDF, JPG or PNG · several at once',req:1}]},
+  /* This step printed six extracted fields with confidence scores against a
+     document that had never been uploaded. Extraction is real, but it lives
+     at /doc-intake and runs against the model. Here the file is uploaded and
+     filed, and it is filed as needing review. */
+  {n:'Filing',body:d=>{
+   const f=(window.FFILES&&FFILES.file)||[];
+   return `<p class="pp">The file is uploaded when you save and filed to the register as <b>Needs review</b>.
+     Nothing reads it as true until somebody in Documentation confirms it.</p>
+   <div class="kv">
+    <div><span>Files</span><b>${f.length?f.map(x=>x.name).join(', '):'\u2014'}</b></div>
+    <div><span>Filed as</span><b>${d.type==='Auto-detect'?'Unknown \u2014 set on review':d.type}</b></div>
+    <div><span>Linked to</span><b>${d.link==='Detect from content'?'nothing yet \u2014 linked on review':d.link}</b></div>
+   </div>
+   <div class="note">For automatic extraction \u2014 document type, party, dates, amounts read off the page \u2014
+     use <a href="/doc-intake" target="_blank">Document intake</a> instead. That path runs the model and shows
+     you the confidence on every field before anything is written.</div>`}}],
+ submit:()=>({title:'Nothing was saved',msg:'This form needs the server',
+   detail:'Opened without a live connection \u2014 the file was not uploaded'})},
 
 'start-close':{t:'Weekly close',s:'Thursday evening close',cta:'Complete close',
  steps:[{n:'Checklist',body:d=>`<p class="pp">Work through the checklist. Anything left unticked is counted as an open
@@ -2961,29 +3062,51 @@ ROUTES.tenant=id=>{const t=id?T(id):TENANTS[0]; if(!t) return notFound('Tenant',
     <button class="btn" onclick="go('#/case/${cs.id}')">Open case</button></div>`:''}`)};
 
 /* ---------------- Landlords ---------------- */
-ROUTES.landlords=()=>page('Landlords',LL.length+' head-lease counterparties · a landlord with no identity on file cannot be paid','',
+ROUTES.landlords=()=>{
+ /* Reads the Supplier records flagged as landlords. An empty list is a real
+    state — a portfolio whose buildings carry no landlord party — and it says
+    that rather than filling the table in. */
+ if(!LL.length) return page('Landlords','No landlord party on file','',
+   `<div class="card">${dbMissing('landlords')==='error'
+    ? uw('The server could not build the landlord list. Nothing is shown rather than something wrong \u2014 the traceback is in the Error Log.')
+    : empty(window.DB_LIVE
+      ? 'No Supplier is flagged as a landlord yet. Onboarding a building creates its landlord as a Supplier and flags it; a landlord created straight in the desk needs \u201cIs landlord\u201d ticked before it shows here.'
+      : 'No landlords in the demo data.')}</div>`);
+ const noid=LL.filter(l=>!l.idno||l.idno==='\u2014').length;
+ const nobank=LL.filter(l=>!l.bank||l.bank==='\u2014').length;
+ return page('Landlords',LL.length+' head-lease counterparties · a landlord with no identity on file cannot be paid','',
+ stat([['Landlords',LL.length],['Buildings covered',LL.reduce((a,l)=>a+(l.buildings||[]).length,0)],
+  ['No identity on file',noid,'',noid?'r':'g'],['No bank account',nobank,'',nobank?'a':'g']])+
  searchbox('lll','Search by name, identity number or building')+
  `<div class="card">${tbl([
   {h:'Landlord',v:l=>l.n},{h:'Type',v:l=>l.type},{h:'Identity',v:l=>l.idno},
-  {h:'Mobile',v:l=>l.phone},{h:'Buildings',r:1,mono:1,v:l=>l.buildings.length},
-  {h:'Documents',v:l=>l.docs.length?chip(l.docs.length+' on file','g'):chip('None','r')},
+  {h:'Mobile',v:l=>l.phone},{h:'Buildings',r:1,mono:1,v:l=>(l.buildings||[]).length},
+  {h:'Documents',v:l=>(l.docs||[]).length?chip(l.docs.length+' on file','g'):chip('None','r')},
   {h:'On file since',r:1,v:l=>l.since}],
-  LL.map(l=>({...l,__id:l.id})),{id:'lll',click:'openLL'})}</div>`);
+  LL.map(l=>({...l,__id:l.id})),{id:'lll',click:'openLL',
+   foot:['a landlord with no bank account on file cannot be paid by transfer']})}</div>`)};
 window.openLL=id=>go('#/landlord/'+id);
 window.openL=id=>go('#/landlord/'+id);
 
-ROUTES.landlord=id=>{const l=L_(id)||LL[0];const bs=BUILDINGS.filter(b=>l.buildings.includes(b.id));
+ROUTES.landlord=id=>{const l=L_(id);
+ /* falling back to LL[0] put a different landlord's bank details under the
+    requested name, which is the worst possible page to get wrong */
+ if(!l) return crumb([['Landlords','#/landlords'],['Not found','']])+
+   page('Landlord not found','No landlord record matches '+(id||'that reference'),'',
+    `<div class="card">${empty('It may have been renamed or removed. Open the list and pick it from there.')}</div>`);
+ const bs=BUILDINGS.filter(b=>(l.buildings||[]).includes(b.id));
  return crumb([['Landlords','#/landlords'],[l.n,'']])+page(l.n,
   `${l.type} · ${l.idno} · on file since ${l.since}`,
   fbtn('Record cheque to landlord','landlord-cheque')+actbtn('Send a document','Document sent'),
   stat([['Buildings',bs.length],['Head-lease cost',k(bs.reduce((a,b)=>a+b.cost,0))],
-   ['Documents',l.docs.length,'',l.docs.length?'g':'r'],['Payable',l.bank==='—'?'no bank on file':'bank on file','',l.bank==='—'?'r':'g']])+
+   ['Documents',(l.docs||[]).length,'',(l.docs||[]).length?'g':'r'],
+   ['Payable',(!l.bank||l.bank==='—')?'no bank on file':'bank on file','',(!l.bank||l.bank==='—')?'r':'g']])+
   `<div class="grid2">
    <div class="card"><h3>Party record</h3><div class="kv">
     ${[['Type',l.type],['Identity',l.idno],['Mobile',l.phone],['Email',l.email],
        ['Bank account',l.bank],['Representative',l.rep]]
      .map(r=>`<div><span>${r[0]}</span><b>${r[1]}</b></div>`).join('')}</div></div>
-   <div class="card"><h3>Documents</h3>${l.docs.length?tbl([
+   <div class="card"><h3>Documents</h3>${(l.docs||[]).length?tbl([
     {h:'Document',v:x=>x.t},{h:'File',v:x=>x.f},{h:'Status',v:()=>chip('In the vault','g')}],
     l.docs.map(x=>({...x,__id:x.t})),{id:'lld'}):empty('Nothing on file — this landlord cannot be paid')}</div></div>
   <div class="card"><h3>Buildings</h3>${tbl([
@@ -3674,31 +3797,29 @@ ROUTES.account=code=>{
       <td class="r num">${money(Math.abs(r.bal))}</td></tr>`).join('')}
     </tbody></table></div><div class="foot"><span>${rows.length} postings</span><span>closing ${money(Math.abs(b.bal))} ${b.nat}</span></div></div>`)};
 
-function ocrStep(label,hint,rows,note,set){
-  return {n:'Documents',ocr:{rows,set:set||{}},body:d=>`
-   <p class="pp">Start with the paperwork. Fields extracted here pre-fill the rest of this form, so you only
-     correct what the document got wrong instead of typing everything.</p>
-   <div class="fg">${fld({k:'doc',l:label,t:'file',sample:hint,hint:'PDF, JPG or PNG · drag several at once'},d.doc)}</div>
-   ${d.__ocr?`<div class="okbox" style="margin-top:12px"><div class="okc">✓</div><div>
-      <b>Extracted ${rows.length} fields</b><div class="ms" style="margin-top:2px">Values are carried into the next steps — review and correct anything flagged amber.</div></div></div>
-     <div class="tw"><table><tr><th>Field</th><th>Extracted</th><th class="r">Confidence</th></tr>
-     ${rows.map(r=>`<tr><td>${r[0]}</td><td>${r[1]}</td>
-       <td class="r num" style="color:${r[2]<75?'var(--red)':r[2]<90?'var(--amber)':'var(--em)'}">${r[2]}%</td></tr>`).join('')}</table></div>`
-    :`<div class="note">${note||'No document yet? You can skip this and enter everything by hand — but attaching it now saves the re-keying and files it in the vault automatically.'}</div>`}`};
+/* The paperwork step attaches the document and does nothing else.
+
+   It used to print a table of extracted fields with confidence percentages
+   against them and pre-fill the whole wizard from a fixed map — a landlord
+   called Al Emadi, a tenant called Noora Al-Kaabi, a rent of 6,800 — none of
+   which had been read off anything, because no file had been uploaded either.
+   Real extraction runs at /doc-intake against a real model; this step does
+   not pretend to be it. */
+function docStep(label,hint,note){
+  return {n:'Documents',body:d=>`
+   <p class="pp">Attach the paperwork now and it is filed against the record when you save it. Nothing is read
+     off the document here — the values go in by hand on the steps that follow.</p>
+   <div class="fg">${fld({k:'doc',l:label,t:'file',multi:1,
+     hint:hint||'PDF, JPG or PNG \u00b7 several at once'},d.doc)}</div>
+   <div class="note">${note||'No document to hand? Continue without it \u2014 you can attach it to the record afterwards.'}</div>`};
 }
 
 FORMS['onboard-building']={t:'Onboard a building',s:'Workflow 2A · property, landlord, documents, lease, units',
  cta:'Create building, landlord and units',
  init:()=>{WZU=[];return{pay:'Quarterly cheque',nchq:'4',lltype:'Company'}},
  steps:[
-  ocrStep('Head-lease agreement','HL_signed_B23.pdf',
-    [['Landlord','Al Emadi Enterprises',95],['Building','Al Sadd Tower 2',92],['Area','Al Sadd',90],
-     ['Units','14',88],['Annual head-lease value','QAR 1,152,000',86],['Lease start','01 Aug 2026',91],
-     ['Lease end','31 Jul 2029',89],['Payment terms','4 cheques per year',78]],
-    'Upload the signed head-lease and the landlord, value, term and payment terms are read straight off it.',
-    {ll:'Al Emadi Enterprises',name:'Al Sadd Tower 2',area:'Al Sadd',units:'14',floors:'8',
-     annual:'1152000',start:'2026-08-01',end:'2029-07-31',nchq:'4',pay:'Cheque',chqfrom:'100295',
-     type:'Apartment block'}),
+  docStep('Head-lease agreement','the signed head-lease, and the landlord\u2019s papers if you have them',
+    'Attach the signed head-lease. It is filed against the building on save, so the lease and the record stay together.'),
   {n:'Property',body:d=>`<div class="fg">
     ${fld({k:'name',l:'Building name',t:'txt',p:'Al Sadd Tower 2',req:1,full:1},d.name)}
     ${fld({k:'area',l:'Area',t:'sel',o:['Al Sadd','Musheireb','West Bay','The Pearl','Najma','Old Airport','Bin Mahmoud','Duhail','Al Wakrah','Lusail'],req:1},d.area)}
@@ -3719,9 +3840,9 @@ FORMS['onboard-building']={t:'Onboard a building',s:'Workflow 2A · property, la
     ${fld({k:'llbank',l:'Bank account for payments',t:'txt',p:'QNB · QA58 QNBA ...'},d.llbank)}
     ${fld({k:'llrep',l:'Authorised representative',t:'txt',p:'if the owner is not the signatory',full:1},d.llrep)}
     ${fld({k:'doc_llid',l:(d.lltype==='Individual'?'Landlord QID copy':'Commercial registration'),t:'file',
-      sample:'landlord_id.pdf',hint:'filed against the landlord, not the building'},d.doc_llid)}
-    ${fld({k:'doc_deed',l:'Title deed',t:'file',sample:'title_deed.pdf',hint:'proves the right to lease'},d.doc_deed)}
-    ${fld({k:'doc_poa',l:'Power of attorney',t:'file',sample:'poa.pdf',hint:'only if a representative signs'},d.doc_poa)}</div>
+      hint:'filed against the landlord, not the building'},d.doc_llid)}
+    ${fld({k:'doc_deed',l:'Title deed',t:'file',hint:'proves the right to lease'},d.doc_deed)}
+    ${fld({k:'doc_poa',l:'Power of attorney',t:'file',hint:'only if a representative signs'},d.doc_poa)}</div>
    ${d.doc_llid?'':`<div class="note" style="border-left-color:var(--amber)"><b>No identity document yet.</b>
      The building can still be created, but the payment run will not release a cheque to a landlord with nothing on file.</div>`}`,
    fields:[{k:'ll',req:1},{k:'llid',req:1},{k:'llphone',req:1}]},
@@ -3789,14 +3910,8 @@ FORMS['onboard-building']={t:'Onboard a building',s:'Workflow 2A · property, la
 FORMS['add-tenant']={t:'Add tenant',s:'Workflow 2B · tenancy onboarding',cta:'Create tenant and agreement',
  init:()=>({type:'Individual',freq:'Quarterly'}),
  steps:[
-  ocrStep('Tenant documents — QID, contract, cheques','tenant_pack_scan.pdf',
-   [['Full name','Noora Al-Kaabi',96],['QID','28944123871',96],['QID expiry','11 Apr 2027',94],
-    ['Nationality','Qatar',92],['Mobile','+974 5544 1122',88],['Unit','B04-U210',85],
-    ['Monthly rent','QAR 6,800',87],['Cheques attached','4',72]],
-   'Upload the QID and signed contract together — name, ID, unit and rent are read off them and the cheques are logged automatically.',
-   {name:'Noora Al-Kaabi',qid:'28944123871',qidexp:'2027-04-11',phone:'+974 5544 1122',nat:'Qatar',
-    rent:'6.8',dep:'13.6',freq:'Quarterly',method:'Post-dated cheques',depmethod:'Bank transfer',
-    chqfrom:'482991',bank:'QNB',start:'2026-08-01',months:'12'}),
+  docStep('Tenant documents \u2014 QID and signed contract','both together, several files at once',
+   'The QID copy and the signed contract are what let this tenancy activate without going to approval. Attaching them here files them against the agreement.'),
   {n:'Tenant',body:d=>`<div class="fg">
     ${fld({k:'type',l:'Tenant type',t:'sel',o:['Individual','Corporate'],req:1},d.type)}
     ${fld({k:'name',l:'Full name / company',t:'txt',p:'Noora Al-Kaabi',req:1,full:1},d.name)}
@@ -5561,13 +5676,8 @@ const RETURNREASON=['Insufficient funds','Signature mismatch','Account closed','
 FORMS['log-cheque']={t:'Log a cheque',s:'Money in or money out · the register is the same either way',cta:'Log the cheque',
  init:ctx=>({dir:(ctx&&ctx.dir)||'Received from a tenant',bank:'QNB',loc:'Office safe',adv:'14'}),
  steps:[
-  ocrStep('Cheque image or batch scan','cheque_batch_07.jpg',
-   [['Drawer',TENANTS[0].n,94],['Bank','QNB',97],['Cheque number','482991',96],
-    ['Amount','QAR 6,800',93],['Date on the cheque','01 Aug 2026',91],['Account number','0021 4478',88],
-    ['Signature present','Yes',86]],
-   'Photograph the cheque, or scan the whole batch at once. Drawer, bank, number, amount and date are read off the face of it and carried into the next steps.',
-   {party:TENANTS[0].n,bank:'QNB',no:'482991',amt:'6.8',mat:'2026-08-01',
-    dir:'Received from a tenant',loc:'Office safe',adv:'14',acct:'QNB — 0021 4478'}),
+  docStep('Cheque image or batch scan','photograph the face of the cheque',
+   'The image is evidence of what was banked. Number, amount and date go in by hand on the steps that follow \u2014 those are the fields the ledger pays against, and they are not worth guessing at.'),
   {n:'What kind',body:d=>`<p class="pp">A cheque is a cheque. What differs is which way the money moves, who the other party is,
     and what happens on the due date.</p>
    <div class="fg">${fld({k:'dir',l:'What is this cheque',t:'sel',req:1,live:1,
@@ -5757,7 +5867,7 @@ FORMS['amend-invoice']={t:'Amend an issued invoice',s:'The change is proposed, n
   {n:'Reason',body:d=>{const i=I(d.__id)||INV[0];
    return `<div class="fg">${fld({k:'why',l:'Why this invoice is wrong',t:'ta',full:1,req:1,
      p:'What happened, what was agreed, and with whom'},d.why)}
-    ${fld({k:'evid',l:'Anything supporting it',t:'file',sample:'agreed_reduction.pdf',hint:'email, note, signed variation'},d.evid)}</div>
+    ${fld({k:'evid',l:'Anything supporting it',t:'file',hint:'email, note, signed variation'},d.evid)}</div>
    <div class="note">The General Manager reads this and nothing else. Write it for somebody who was not in the conversation.</div>
    <div class="note"><b>Nothing posts until the GM approves.</b> Until then the invoice stands as issued and the tenant still owes
     the original amount.</div>`},
@@ -6200,6 +6310,10 @@ const WIRE={
    head_lease:{annual_rent:wNum(d.annual),security_deposit:wNum(d.depll),
      payment_frequency:wMap(W_FREQ,String(d.nchq),'Quarterly'),
      start_date:d.start,end_date:d.end}}}},
+ attach:r=>({doctype:'Building',docname:r.building,
+   keys:r.landlord?{doc_llid:{doctype:'Supplier',docname:r.landlord},
+     doc_deed:{doctype:'Supplier',docname:r.landlord},
+     doc_poa:{doctype:'Supplier',docname:r.landlord}}:null}),
  ok:r=>({title:'Building onboarded',msg:r.building+' created with '+r.units+' units',
    detail:'It stays in Onboarding until handover is recorded',goto:'#/building/'+r.building})},
 
@@ -6211,6 +6325,7 @@ const WIRE={
    end_date:null,rent:wNum(d.rent),deposit:wNum(d.dep),
    payment_mode:wMap(W_PAYMODE,d.method,'Cheque'),payment_frequency:d.freq,
    qid:d.qid,mobile:d.phone,deposit_method:d.depmethod}}),
+ attach:r=>({doctype:'Tenancy Agreement',docname:r.agreement}),
  ok:r=>({title:'Tenancy created',msg:r.agreement+' \u00b7 '+r.status,
    detail:r.status==='Active'?'QID and signed pack were both present, so it activated without an approval'
      :'Waiting on approval \u2014 something the activation rule needs is missing',
@@ -6221,6 +6336,7 @@ const WIRE={
  a:d=>({payload:{unit:(d.__ctx&&d.__ctx.unit)||d.unit,
    tenant:{name:d.tenant},start_date:d.start,rent:wNum(d.rent),
    deposit:wNum(d.dep),payment_frequency:d.freq}}),
+ attach:r=>({doctype:'Tenancy Agreement',docname:r.agreement}),
  ok:r=>({title:'Agreement raised',msg:r.agreement+' \u00b7 '+r.status,
    goto:'#/agreement/'+r.agreement})},
 
@@ -6235,8 +6351,12 @@ const WIRE={
    goto:'#/agreement/'+r.agreement})},
 
 'upload-docs':{
+ pre:1,
+ guard:d=>((window.FFILES&&FFILES.file)||[]).length?null
+  :'Choose a file first \u2014 registering a document without one files a row that points at nothing.',
  m:'documents.register',
- a:d=>({payload:{file:d.file,type:wMap(W_DOCTYPE,d.type,'Unknown'),
+ /* __url is the real file, uploaded a moment ago. d.file is only its name. */
+ a:d=>({payload:{file:d.__url||d.file,type:wMap(W_DOCTYPE,d.type,'Unknown'),
    status:'Needs Review',pages:1}}),
  ok:r=>({title:'Filed',msg:'Document '+r.document+' registered',
    detail:'It is waiting for review \u2014 nothing reads it as true until confirmed',

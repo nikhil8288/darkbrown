@@ -442,20 +442,44 @@ def landlords():
     """Landlords are parties in their own right, not a text field on a
     building. What comes back here is what the head lease, the payment run and
     the document vault all hang off, so it is read from the Supplier record
-    rather than derived from the building list."""
+    rather than derived from the building list.
+
+    Two things make a Supplier a landlord: the flag, or a Building pointing at
+    it. Reading the flag alone lost every landlord created any way other than
+    through the onboarding wizard — imported, or typed into the desk — and
+    those buildings then showed a landlord name on the building page and
+    nothing at all on the landlord list. A Supplier that holds a head lease is
+    a landlord whether or not anybody remembered to tick the box, so the box
+    is corrected on the way past.
+    """
+    by_landlord = {}
+    for b in frappe.get_all("Building", fields=["name", "landlord"]):
+        if b.landlord:
+            by_landlord.setdefault(b.landlord, []).append(b.name)
+
+    flagged = set(frappe.get_all(
+        "Supplier", filters={"db_is_landlord": 1}, pluck="name"))
+    names = flagged | set(by_landlord)
+    if not names:
+        return []
+
+    unflagged = [x for x in by_landlord if x not in flagged]
+    if unflagged:
+        for x in unflagged:
+            try:
+                frappe.db.set_value("Supplier", x, "db_is_landlord", 1,
+                                    update_modified=False)
+            except Exception:
+                pass
+
     rows = frappe.get_all(
         "Supplier",
-        filters={"db_is_landlord": 1},
+        filters={"name": ["in", list(names)]},
         fields=["name", "supplier_name", "supplier_type", "creation",
                 "db_landlord_qid", "db_nationality", "db_iban", "db_bank_name",
                 "db_mobile", "email_id"])
     if not rows:
         return []
-
-    by_landlord = {}
-    for b in frappe.get_all("Building", fields=["name", "landlord"]):
-        if b.landlord:
-            by_landlord.setdefault(b.landlord, []).append(b.name)
 
     docs = {}
     for d in frappe.get_all(
