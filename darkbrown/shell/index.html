@@ -2019,7 +2019,12 @@ if(window.DB_SEED&&DB_SEED.health&&DB_SEED.health.length){BD.length=0;BD.push.ap
 /* heat colour: 0 good → 1 bad */
 const heat=t=>`rgba(${Math.round(46+t*120)},${Math.round(107-t*46)},${Math.round(87-t*40)},${(0.10+t*0.20).toFixed(2)})`;
 function renderHeatmap(){
+  syncViews();
   document.querySelectorAll('.cnt-b').forEach(e=>e.textContent=BD.length+' buildings');
+  if(window.DB_LIVE&&!BD.length){
+    $('#heatmap').innerHTML=liveEmpty('No buildings to score.');
+    return;
+  }
   const cols=[['occ','Occ %',v=>v+'%',(v)=>1-(v-70)/30],['mp','Margin %',v=>v.toFixed(0)+'%',v=>1-(v-8)/18],
    ['arr','Arrears',v=>n0(v),v=>v/58],['vd','Void days',v=>v,v=>v/38],['om','Open maint',v=>v,v=>v/7],['ex','Expiry risk',v=>v,v=>v/6]];
   let h='<table class="hm"><tr><th onclick="hmSort(\'n\')">Building</th>'+cols.map(c=>`<th class="r" onclick="hmSort('${c[0]}')">${c[1]}</th>`).join('')+'</tr>';
@@ -2034,11 +2039,26 @@ function renderHeatmap(){
   }
   $('#heatmap').innerHTML=h+'</table>';
 }
+/* BD_view and PF_view were snapshots taken once at boot. applySeed() empties
+   BD in place, so after a purge both views went on holding the demo
+   portfolio: the heading counted 0 buildings while twenty-two rows of
+   invented figures sat underneath it. Derived from BD on every render now,
+   with the sort re-applied rather than carried in the copy. */
 let BD_view=[...BD], hmDir=1, hmKey='';
-window.hmSort=k=>{hmDir=hmKey===k?-hmDir:1;hmKey=k;
-  BD_view.sort((a,b)=>(a[k]>b[k]?1:-1)*(k==='n'?hmDir:-hmDir));renderHeatmap();};
+function syncViews(){
+  const by=(k,dir)=>(a,b)=>(a[k]>b[k]?1:-1)*(k==='n'?dir:-dir);
+  BD_view=[...BD]; if(hmKey) BD_view.sort(by(hmKey,hmDir));
+  PF_view=[...BD]; if(pfKey) PF_view.sort(by(pfKey,pfDir));
+}
+window.syncViews=syncViews;
+window.hmSort=k=>{hmDir=hmKey===k?-hmDir:1;hmKey=k;renderHeatmap();};
 
 function renderPortfolio(){
+  syncViews();
+  if(window.DB_LIVE&&!BD.length){
+    $('#portfolio').innerHTML=liveEmpty('No buildings on the site.');
+    return;
+  }
   let h=`<table><tr><th onclick="pfSort('n')">Building</th><th class="r" onclick="pfSort('u')">Units</th>
    <th class="r" onclick="pfSort('rev')">Revenue</th><th class="r" onclick="pfSort('cost')">Cost</th>
    <th class="r" onclick="pfSort('m')">Margin</th><th class="r" onclick="pfSort('mp')">M%</th>
@@ -2061,8 +2081,7 @@ function renderPortfolio(){
      U?` <span style="color:var(--amber)">· ${kk(U)} raised but not issued</span>`:''}</span></div>`;
 }
 let PF_view=[...BD], pfDir=1, pfKey='';
-window.pfSort=k=>{pfDir=pfKey===k?-pfDir:1;pfKey=k;
-  PF_view.sort((a,b)=>(a[k]>b[k]?1:-1)*(k==='n'?pfDir:-pfDir));renderPortfolio();};
+window.pfSort=k=>{pfDir=pfKey===k?-pfDir:1;pfKey=k;renderPortfolio();};
 
 /* ---------- concentration ---------- */
 function renderConc(){
@@ -3048,7 +3067,7 @@ ROUTES.building=id=>{const b=id?B(id):BUILDINGS[0]; if(!b) return notFound('Buil
 
 /* ---------------- Units ---------------- */
 ROUTES.units=()=>page('Units',`${UNITS.length} units across ${BUILDINGS.length} buildings`,'',
- stat([['Total',276],['Occupied',UNITS.filter(u=>u.st==='Occupied').length],
+ stat([['Total',UNITS.length],['Occupied',UNITS.filter(u=>u.st==='Occupied').length],
   ['Void',UNITS.filter(u=>u.st==='Void').length,'',
   'r'],['On notice',UNITS.filter(u=>u.st==='Notice').length,'','a']])+
  `<div class="card">${tbl([
@@ -3057,7 +3076,7 @@ ROUTES.units=()=>page('Units',`${UNITS.length} units across ${BUILDINGS.length} 
   {h:'Tenant rent',r:1,mono:1,v:u=>n0(u.rent)},{h:'Landlord cost',r:1,mono:1,v:u=>n0(u.llRent)},
   {h:'Spread',r:1,mono:1,v:u=>'+'+n0((u.rent-u.llRent)),style:()=>'color:var(--em)'},
   {h:'Status',v:u=>chip(u.st,stChip(u.st))},{h:'Void days',r:1,mono:1,v:u=>u.vd||'—'}],
-  UNITS.map(u=>({...u,__id:u.id})),{id:'ul',click:'openU',foot:['276 units','sorted by building — click any header']})}</div>`);
+  UNITS.map(u=>({...u,__id:u.id})),{id:'ul',click:'openU',foot:[UNITS.length+' units','sorted by building — click any header']})}</div>`);
 window.openU=id=>go('#/unit/'+id);
 
 ROUTES.unit=id=>{const u=id?U(id):UNITS[0]; if(!u) return notFound('Unit','#/units'); const ag=AGR.find(a=>a.u===u.id);
