@@ -120,7 +120,7 @@ def clear_cheque(cheque, on=None):
     if doc.direction == "Incoming" and doc.party and not doc.payment_entry:
         doc.payment_entry = _receipt(doc.party, flt(doc.amount),
                                      doc.cleared_on, doc.bank_account,
-                                     reference=doc.name)
+                                     reference=doc.name)[0]
     doc.save(ignore_permissions=True)
     return {"cheque": doc.name, "status": doc.status,
             "payment_entry": doc.payment_entry}
@@ -281,6 +281,43 @@ def build_invoice_run(building, period_start=None):
 
 
 @frappe.whitelist()
+def invoice_run(run):
+    """A drafted run and its lines, for the screen that reviews it.
+
+    build_invoice_run returns a count. The reviewer needs the lines
+    themselves — what each agreement says, what the invoice would be, and
+    where the two differ — because reading them is the whole point of a run
+    existing before anything is issued.
+    """
+    doc = frappe.get_doc("Invoice Run", run)
+    tenants = {}
+    for t in {l.tenant for l in doc.lines if l.tenant}:
+        tenants[t] = frappe.db.get_value("Customer", t, "customer_name") or t
+
+    return {
+        "run": doc.name,
+        "building": doc.building,
+        "period_start": str(doc.period_start),
+        "period_end": str(doc.period_end),
+        "status": doc.status,
+        "total": _kk(doc.total_amount),
+        "has_variance": 1 if doc.has_variance else 0,
+        "variance_reason": doc.variance_reason or "",
+        "lines": [{
+            "a": l.tenancy_agreement,
+            "t": l.tenant,
+            "tn": tenants.get(l.tenant, l.tenant),
+            "u": l.unit,
+            "agreed": _kk(l.agreement_amount),
+            "amount": _kk(l.invoice_amount),
+            "variance": _kk(l.variance),
+            "reason": l.reason or "",
+            "invoice": l.sales_invoice,
+        } for l in doc.lines],
+    }
+
+
+@frappe.whitelist()
 def submit_invoice_run(run):
     """Send a drafted run for approval."""
     doc = frappe.get_doc("Invoice Run", run)
@@ -385,10 +422,15 @@ def record_receipt(payload):
     if not tenant or not amount:
         frappe.throw(_("A receipt needs a tenant and an amount."))
 
-    pe = _receipt(tenant, amount, data.get("on") or today(),
-                  data.get("bank_account"), mode=data.get("mode"),
-                  reference=data.get("reference"))
-    return {"payment_entry": pe, "allocated": _kk(amount)}
+    pe, applied, on_account = _receipt(
+        tenant, amount, data.get("on") or today(),
+        data.get("bank_account"), mode=data.get("mode"),
+        reference=data.get("reference"), invoice=data.get("invoice"))
+    return {"payment_entry": pe, "allocated": _kk(amount),
+            "applied": [a[0] for a in applied],
+            "applied_detail": [{"invoice": a[0], "amount": _kk(a[1])}
+                               for a in applied],
+            "on_account": _kk(on_account)}
 
 
 def _paid_to(value, company):
@@ -418,7 +460,16 @@ def _paid_to(value, company):
 
 
 def _receipt(customer, amount, on, bank_account=None, mode=None,
-             reference=None):
+             reference=None, invoice=None):
+    """Post a receipt and say where the money went.
+
+    Oldest-first remains the rule, because that is what the ageing report
+    assumes and what a tenant disputing a balance is shown. A named invoice is
+    the one exception, and it is a deliberate one: a tenant who pays a
+    specific invoice and is credited against an older one will dispute it. The
+    named invoice is settled first and anything left over then falls to the
+    oldest, so the exception never becomes a way to leave old debt hidden.
+    """
     company = _company()
     account = _paid_to(bank_account or _settings().default_bank_account,
                        company)
@@ -436,13 +487,26 @@ def _receipt(customer, amount, on, bank_account=None, mode=None,
     pe.reference_no = reference
     pe.reference_date = on
 
+    open_invoices = frappe.get_all(
+        "Sales Invoice",
+        filters={"customer": customer, "docstatus": 1,
+                 "outstanding_amount": [">", 0]},
+        fields=["name", "outstanding_amount", "posting_date"],
+        order_by="posting_date asc")
+
+    if invoice:
+        # It has to be this customer's, and it has to be open. A receipt
+        # pointed at somebody else's invoice is not a typo worth honouring.
+        named = [si for si in open_invoices if si.name == invoice]
+        if not named:
+            frappe.throw(_("{0} is not an open invoice for {1}.").format(
+                invoice, customer))
+        open_invoices = named + [si for si in open_invoices
+                                 if si.name != invoice]
+
     left = amount
-    for si in frappe.get_all(
-            "Sales Invoice",
-            filters={"customer": customer, "docstatus": 1,
-                     "outstanding_amount": [">", 0]},
-            fields=["name", "outstanding_amount", "posting_date"],
-            order_by="posting_date asc"):
+    applied = []
+    for si in open_invoices:
         if left <= 0:
             break
         take = min(left, flt(si.outstanding_amount))
@@ -451,6 +515,7 @@ def _receipt(customer, amount, on, bank_account=None, mode=None,
             "reference_name": si.name,
             "allocated_amount": take,
         })
+        applied.append((si.name, take))
         left -= take
 
     if left > 0:
@@ -463,7 +528,7 @@ def _receipt(customer, amount, on, bank_account=None, mode=None,
     pe.flags.ignore_permissions = True
     pe.insert(ignore_permissions=True)
     pe.submit()
-    return pe.name
+    return pe.name, applied, left
 
 
 # ------------------------------------------------------------- deposit batches

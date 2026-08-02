@@ -379,6 +379,7 @@ def seed():
                     ("cheques", cheques), ("docs", docs),
                     ("approvals", approvals), ("wall", wall),
                     ("landlords", landlords),
+                    ("billruns", billruns),
                     ("health", _health), ("kpi", _kpi),
                     ("panels", _panels),
                     ("bankAccounts", bank_accounts)):
@@ -546,6 +547,76 @@ def landlords():
     return out
 
 
+def billruns():
+    """Invoice Runs, in the shape the billing screens already render.
+
+    The prototype kept its runs in a browser array, so a run survived until
+    the tab was closed and no two people ever saw the same one. These are the
+    records, so a run read on Monday is the run that was issued on Friday.
+    """
+    rows = frappe.get_all(
+        "Invoice Run",
+        fields=_has("Invoice Run", [
+            "name", "building", "period_start", "period_end", "status",
+            "total_amount", "has_variance", "variance_reason",
+            "generated_by", "generated_on", "approved_by", "issued_on"]),
+        order_by="creation desc", limit=60)
+    if not rows:
+        return []
+
+    bnames = _building_names([r.get("building") for r in rows])
+    users = {}
+    for u in set(list(filter(None, [r.get("generated_by") for r in rows])) +
+                 list(filter(None, [r.get("approved_by") for r in rows]))):
+        users[u] = frappe.db.get_value("User", u, "full_name") or u
+
+    counts = {}
+    for l in frappe.get_all("Invoice Run Line",
+                            filters={"parenttype": "Invoice Run"},
+                            fields=["parent", "sales_invoice"]):
+        c = counts.setdefault(l.parent, [0, 0])
+        c[0] += 1
+        if l.sales_invoice:
+            c[1] += 1
+
+    out = []
+    for r in rows:
+        drawn, issued = counts.get(r["name"], [0, 0])
+        out.append({
+            "id": r["name"],
+            "b": r.get("building"),
+            "bn": bnames.get(r.get("building"), r.get("building") or "—"),
+            "period": _fmonth(r.get("period_start")),
+            "period_start": str(r.get("period_start") or ""),
+            "date": _fdate(r.get("generated_on")),
+            "due": _fdate(r.get("period_end")),
+            "by": users.get(r.get("generated_by"), r.get("generated_by") or "—"),
+            "st": r.get("status"),
+            "total": _k(r.get("total_amount")),
+            "count": issued or drawn,
+            "issued": issued,
+            "lines_drawn": drawn,
+            "variance": 1 if r.get("has_variance") else 0,
+            "variance_reason": r.get("variance_reason") or "",
+            "approved": ({"by": users.get(r.get("approved_by"), r.get("approved_by")),
+                          "when": _fdate(r.get("issued_on"))}
+                         if r.get("approved_by") else None),
+            # No endpoint amends a drafted line, so no run carries changes.
+            # An empty list is the truth here, not a placeholder.
+            "changes": [],
+            "incl": {"util": False, "mnt": False, "arr": False},
+            "lines": [],
+        })
+    return out
+
+
+def _fmonth(d):
+    if not d:
+        return "—"
+    d = getdate(d)
+    return d.strftime("%B %Y")
+
+
 def _arrears_by_tenant():
     out = {}
     for si in frappe.get_all(
@@ -673,7 +744,7 @@ def invoices():
     for l in frappe.get_all(
             "Invoice Run Line",
             filters={"sales_invoice": ["in", [r.name for r in rows]]},
-            fields=["sales_invoice", "tenancy_agreement", "unit"]):
+            fields=["sales_invoice", "tenancy_agreement", "unit", "parent"]):
         link[l.sales_invoice] = l
     ta_b = {t.name: t for t in frappe.get_all(
         "Tenancy Agreement",
@@ -697,6 +768,7 @@ def invoices():
             "t": si.customer,
             "tn": tnames.get(si.customer, si.customer),
             "a": l.tenancy_agreement if l else "—",
+            "run": l.parent if l else None,
             "b": ta.building if ta else "—",
             "bn": bnames.get(ta.building, "—") if ta else "—",
             "amt": _k(si.grand_total),

@@ -899,7 +899,8 @@ async function dbRefresh(){
   try{
     const r = await dbCall('app.refresh', {});
     window.DB_SEED = r.seed || {};
-    const map={buildings:BUILDINGS,units:UNITS,cases:CASES,jobs:JOBS,moveouts:MOVEOUT,tenants:TENANTS,agreements:AGR,invoices:INV,cheques:CHQ,docs:DOCS,approvals:APPR,landlords:LL};
+    const map={buildings:BUILDINGS,units:UNITS,cases:CASES,jobs:JOBS,moveouts:MOVEOUT,tenants:TENANTS,agreements:AGR,invoices:INV,cheques:CHQ,docs:DOCS,approvals:APPR,landlords:LL,
+      billruns:BILLRUNS};
     Object.keys(map).forEach(k=>{
       const rows=DB_SEED[k];
       if(rows&&rows.length){map[k].length=0;map[k].push.apply(map[k],rows);}
@@ -962,7 +963,14 @@ function unwiredPage(r){
     it shows you nothing.</p></div></div>`;
 }
 
-function go(h){location.hash=h}
+/* Assigning the hash it already holds fires no hashchange, so a button that
+   navigates to the screen you are already on did nothing at all. Generate was
+   one of those: it set up the run and asked for #/generate from #/generate.
+   Same route means re-render, not ignore. */
+function go(h){
+  if((location.hash||'#/dash')===h) router();
+  else location.hash=h;
+}
 window.go=go;
 function router(){
   const h=(location.hash||'#/dash').slice(2);
@@ -5346,9 +5354,19 @@ Object.assign(FORMS,{
    Billing · run per building, review every line, change with a reason
    ================================================================ */
 const PER={'Monthly':1,'Quarterly':3,'Half Yearly':6,'Annual':12};
-const PERIODS=['August 2026','September 2026','October 2026'];
+/* Three months from this one. A hardcoded list stops being true the month
+   after it is written, and the whole billing screen keys off PERIODS[0]. */
+const BILLNOW=()=>window.DB_LIVE?new Date():new Date(TODAY);
+const PERIODS=(()=>{const out=[],d=BILLNOW();d.setDate(1);
+  for(let i=0;i<3;i++){out.push(d.toLocaleString('en-GB',{month:'long',year:'numeric'}));
+    d.setMonth(d.getMonth()+1)}return out})();
+const periodStart=()=>{const d=BILLNOW();
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-01'};
 let BILLRUN=null;
 const BILLRUNS=[];
+/* live data · the runs are records, not a browser array */
+if(window.DB_SEED&&DB_SEED.billruns&&DB_SEED.billruns.length)
+  BILLRUNS.push.apply(BILLRUNS,DB_SEED.billruns);
 
 /* which agreements fall due in a given period, and why the others do not */
 function billDue(a,periodIx){
@@ -5361,6 +5379,14 @@ function billNextDue(a,periodIx){
   return 'the next cycle'}
 function pdcFor(t,ix){return CHQ.find(c=>c.t===t&&c.st==='On hand')}
 
+/* What the run will actually bill. Live, that is every live tenancy on the
+   building, because that is precisely what build_invoice_run selects. The
+   demo keeps its own cycle arithmetic. */
+function dueCount(bId){
+  return window.DB_LIVE
+    ? AGR.filter(a=>a.b===bId&&(a.st==='Active'||a.st==='Expiring')).length
+    : AGR.filter(a=>a.b===bId&&a.st!=='Expired'&&billDue(a,0)).length;
+}
 function billDraft(bId,periodIx,incl){
   const b=B(bId); const out=[];
   AGR.filter(a=>a.b===bId).forEach(a=>{
@@ -5431,10 +5457,52 @@ let GEN=null;
 const GENSTEPS=['Building','What to include','Checks','Drafts','Review'];
 const canApproveChanges=()=>ROLEV==='GM'||ROLEV==='MD';
 
-window.genStart=bn=>{const b=BUILDINGS.find(x=>x.n===bn)||BUILDINGS[0];
- GEN={step:0,b:b.id,bn:b.n,period:PERIODS[0],date:'2026-08-01',due:'2026-08-07',
-  incl:{util:true,mnt:true,arr:false},lines:[],changes:[],st:'Draft',editing:-1,approved:null};
- go('#/generate')};
+window.genStart=async bn=>{
+ const b=BUILDINGS.find(x=>x.n===bn)||BUILDINGS.find(x=>x.id===bn);
+ if(!b){toast('No building called '+bn);return}
+ if(!window.DB_LIVE){
+   GEN={step:0,b:b.id,bn:b.n,period:PERIODS[0],date:periodStart(),due:'2026-08-07',
+    incl:{util:true,mnt:true,arr:false},lines:[],changes:[],st:'Draft',editing:-1,approved:null};
+   go('#/generate');return}
+ /* Live, the run is a record the server drafts. The prototype drew its own
+    lines and invented a utility recovery from the characters of an agreement
+    id; those numbers must not go near a real ledger. */
+ GEN={live:1,b:b.id,bn:b.n,period:PERIODS[0],busy:1,lines:[],changes:[]};
+ go('#/generate');
+ try{
+   const r=await dbCall('finance.build_invoice_run',
+     {building:b.id,period_start:periodStart()});
+   await genLoad(r.run);
+ }catch(e){GEN.busy=0;GEN.err=e.message;router()}
+};
+async function genLoad(run){
+ const d=await dbCall('finance.invoice_run',{run});
+ Object.assign(GEN,{busy:0,err:'',run:d.run,st:d.status,lines:d.lines||[],
+   total:d.total,varr:d.has_variance,vwhy:d.variance_reason,
+   period:d.period_start,due:d.period_end});
+ router();
+}
+window.genOpenRun=async run=>{GEN={live:1,busy:1,lines:[],changes:[],
+  bn:(BILLRUNS.find(x=>x.id===run)||{}).bn||run};
+ go('#/generate');
+ try{await genLoad(run)}catch(e){GEN.busy=0;GEN.err=e.message;router()}};
+window.genIssueLive=async()=>{
+ const btn=document.getElementById('genbtn');
+ if(btn){btn.disabled=true;btn.textContent='Working\u2026'}
+ const gm=canApproveChanges();
+ try{
+   let msg;
+   if(GEN.varr&&!gm&&GEN.st==='Draft'){
+     await dbCall('finance.submit_invoice_run',{run:GEN.run});
+     msg='Sent to the General Manager';
+   }else{
+     const r=await dbCall('finance.issue_invoice_run',{run:GEN.run});
+     msg=r.invoices+' invoice'+(r.invoices===1?'':'s')+' raised';
+   }
+   await dbRefresh();
+   const id=GEN.run;GEN=null;toast(msg);go('#/billrun/'+id);
+ }catch(e){GEN.err=e.message;router()}
+};
 window.genCancel=()=>{GEN=null;router()};
 window.genSet=(f,v)=>{if(f==='period'||f==='b'){GEN[f==='b'?'bn':'period']=v;
   if(f==='b'){const b=BUILDINGS.find(x=>x.n===v);GEN.b=b.id;GEN.bn=b.n}}
@@ -5493,6 +5561,7 @@ window.genIssue=()=>{
 
 ROUTES.generate=()=>{
  if(!GEN)return genLanding();
+ if(GEN.live)return genLiveView();
  const s=GEN.step;
  document.body.classList.toggle('focus',s===3);
  const head=crumb([['Generate invoices','#/generate'],[GEN.bn,'']])+
@@ -5634,6 +5703,59 @@ ROUTES.generate=()=>{
     <span class="mini">${needsGM?'blocked until the changes are approved':'ready to issue'}</span>
     <button class="btn pri" onclick="genIssue()" ${needsGM?'disabled':''}>Generate ${inc.length} invoice${inc.length===1?'':'s'}</button></div>`};
 
+/* The live run: what the server drafted, read before anything is issued.
+   There is no endpoint that amends or excludes a drafted line, so this screen
+   does not offer to — an edit that goes nowhere is worse than no edit. */
+function genLiveView(){
+ const head=crumb([['Generate invoices','#/generate'],[GEN.bn||GEN.run||'Run','']]);
+ if(GEN.busy) return head+page('Generate invoices \u2014 '+(GEN.bn||''),
+   'Drafting the run on the server','',
+   `<div class="card">${empty('Reading the live tenancies for this building\u2026')}</div>`);
+ if(GEN.err) return head+page('Generate invoices \u2014 '+(GEN.bn||''),
+   'The run was not drafted','',
+   `<div class="card"><div class="unwired big"><span class="uw-tag">NOT DRAFTED</span>
+     <p>${GEN.err}</p>
+     <p class="uw-note">Nothing was issued. If a run already exists for this period, open it
+      from the list rather than drafting a second one.</p></div>
+    <div class="genbar"><button class="btn" onclick="genCancel()">Back to the list</button></div></div>`);
+
+ const lines=GEN.lines||[], varied=lines.filter(l=>l.variance);
+ const gm=canApproveChanges();
+ const pending=GEN.st==='Pending GM';
+ const waiting=GEN.varr&&!gm&&!pending;
+ return head+page('Generate invoices \u2014 '+(GEN.bn||''),
+  GEN.run+' \u00b7 '+(GEN.period||'')+' to '+(GEN.due||'')+' \u00b7 '+GEN.st,
+  `<button class="btn" onclick="genCancel()">Back</button>`,
+  stat([['Lines',lines.length],['Value',k(GEN.total||0)],
+   ['Differ from the agreement',varied.length,'',varied.length?'a':'g'],
+   ['Status',GEN.st]])+
+  (GEN.varr?`<div class="note" style="border-left-color:var(--amber)"><b>${varied.length} line${
+     varied.length===1?'':'s'} do not match the agreement rent.</b> ${GEN.vwhy||
+     'Each carries its reason below.'} ${gm?'As '+ROLES[ROLEV][0]+' you can issue it yourself.'
+     :'It goes to the General Manager before anything is raised.'}</div>`:'')+
+  `<div class="card"><h3>What will be invoiced</h3>${lines.length?tbl([
+    {h:'Agreement',v:l=>l.a},{h:'Tenant',v:l=>l.tn},{h:'Unit',v:l=>l.u||'\u2014'},
+    {h:'Agreement rent',r:1,mono:1,v:l=>k(l.agreed)},
+    {h:'Invoice',r:1,mono:1,v:l=>k(l.amount)},
+    {h:'Variance',r:1,mono:1,v:l=>l.variance?k(l.variance):'\u2014',
+     style:l=>l.variance?'color:var(--amber)':''},
+    {h:'Why',v:l=>l.reason||'\u2014'},
+    {h:'Raised',v:l=>l.invoice?chip(l.invoice,'g'):chip('Not yet','n')}],
+    lines.map(l=>({...l,__id:l.a})),{id:'grl',
+     foot:['a line that differs from the agreement carries its reason',
+      'the agreement itself is not changed by a run']})
+   :empty('The server drafted no lines for this building.')}</div>
+  <div class="note">Issuing raises one Sales Invoice per line, in one transaction \u2014 every line or none.
+   Amending a drafted line is not built: correct the agreement or its charges, cancel this run, and draft again.</div>
+  <div class="genbar">
+   <span class="mini">${pending?'waiting on the General Manager'
+     :waiting?'goes for approval before anything is raised':'ready to issue'}</span>
+   <button class="btn pri" id="genbtn" onclick="genIssueLive()" ${lines.length?'':'disabled'}>${
+     pending?(gm?'Approve and issue':'Awaiting approval')
+      :waiting?'Send to the General Manager'
+      :'Issue '+lines.length+' invoice'+(lines.length===1?'':'s')}</button></div>`);
+}
+
 function genLanding(){
  return page('Generate invoices','One building at a time · every line is read before anything is issued','',
   stat([['Runs completed',BILLRUNS.length],['Invoices issued',BILLRUNS.reduce((a,r)=>a+r.count,0)],
@@ -5644,11 +5766,14 @@ function genLanding(){
   <div class="card"><h3>Where each building stands · ${PERIODS[0]}</h3>${tbl([
    {h:'Building',v:b=>b.n},{h:'Area',v:b=>b.area},
    {h:'Agreements',r:1,mono:1,v:b=>AGR.filter(a=>a.b===b.id).length},
-   {h:'Falling due',r:1,mono:1,v:b=>AGR.filter(a=>a.b===b.id&&a.st!=='Expired'&&billDue(a,0)).length},
+   {h:'Falling due',r:1,mono:1,v:b=>dueCount(b.id)},
    {h:'Status',v:b=>{const r=BILLRUNS.find(x=>x.b===b.id&&x.period===PERIODS[0]);
-     return r?chip('Generated · '+k(r.total),'g'):chip('Not yet','a')}},
+     return r?chip((r.st==='Issued'?'Issued · ':r.st+' · ')+k(r.total),
+       r.st==='Issued'?'g':'a'):chip('Not yet','a')}},
    {h:'',v:b=>{const r=BILLRUNS.find(x=>x.b===b.id&&x.period===PERIODS[0]);
-     return r?`<button class="btn" onclick="event.stopPropagation();go('#/billrun/${r.id}')">Open the run</button>`
+     return r?`<button class="btn" onclick="event.stopPropagation();${
+       window.DB_LIVE&&r.st!=='Issued'?`genOpenRun('${r.id}')`:`go('#/billrun/${r.id}')`}">${
+       window.DB_LIVE&&r.st!=='Issued'?'Continue the run':'Open the run'}</button>`
       :`<button class="btn" onclick="event.stopPropagation();genStart('${b.n}')">Generate</button>`}}],
    BUILDINGS.map(b=>({...b,__id:b.id})),{id:'bst',
     foot:['a building can only be generated once for a period','type to filter, click a header to sort']})}</div>`+
@@ -5944,6 +6069,32 @@ ROUTES.amendment=id=>{const a=AM(id);if(!a)return empty('No amendment with that 
 /* ---------- receipts ---------- */
 const RCPT=[];
 const RC=id=>RCPT.find(r=>r.id===id);
+
+/* The tenant's own open invoices, oldest first.
+
+   "A specific invoice" was one of two fixed strings and asked nothing
+   further, so choosing it allocated exactly as choosing the other did. What
+   the person needs to see is which invoices are actually open on the tenant
+   in front of them, with what is left on each. */
+const ALLOC_OLDEST='Oldest open invoice first';
+function openInvFor(party){
+  const t=(TENANTS.find(x=>x.n===party)||TENANTS.find(x=>x.id===party)||{}).id||party;
+  return INV.filter(i=>(i.t===t||i.tn===party)&&i.st!=='Draft'&&(i.amt-i.paid)>0.005)
+    .sort((a,b)=>(a.dueD||0)-(b.dueD||0));
+}
+const allocLabel=i=>i.id+' \u00b7 due '+i.due+' \u00b7 '+k(+(i.amt-i.paid).toFixed(2))+' open';
+const allocId=v=>(v&&v!==ALLOC_OLDEST)?String(v).split(' \u00b7 ')[0]:null;
+window.allocId=allocId;
+function allocField(party,val){
+  const open=openInvFor(party);
+  if(!open.length) return `<div class="fl full"><span>Allocate against</span>
+    <div class="rov">Nothing outstanding \u2014 the receipt sits on account</div></div>`;
+  const total=open.reduce((a,i)=>a+(i.amt-i.paid),0);
+  return fld({k:'inv',l:'Allocate against',t:'sel',
+    o:[ALLOC_OLDEST].concat(open.map(allocLabel))},val)+
+   `<div class="mini" style="grid-column:1/-1;margin-top:-6px">${open.length} open invoice${
+     open.length===1?'':'s'} \u00b7 ${k(+total.toFixed(2))} outstanding</div>`;
+}
 FORMS['issue-receipt']={t:'Issue a receipt',s:'Cash on the day · a cheque only once the bank confirms it',cta:'Issue the receipt',
  init:ctx=>({kind:(ctx&&ctx.kind)||'Cash received',date:'2026-07-27',collector:'Yusuf K.'}),
  steps:[
@@ -5966,13 +6117,14 @@ FORMS['issue-receipt']={t:'Issue a receipt',s:'Cash on the day · a cheque only 
         ${fld({k:'stmt',l:'Bank statement reference',t:'txt',req:1,p:'QNB 04/26 line 8842',
           hint:'the line on the statement where the clearing appears'},d.stmt)}
         ${fld({k:'date',l:'Date cleared',t:'date',req:1},d.date)}
-        ${fld({k:'inv',l:'Allocate against',t:'sel',o:['Oldest open invoice first','A specific invoice']},d.inv)}</div>
+        ${allocField(d.chq?((C(String(d.chq).split(' \u00b7 ')[0])||{}).party||
+          (C(String(d.chq).split(' \u00b7 ')[0])||{}).tn):'',d.inv)}</div>
        <div class="note">Without a statement reference this is somebody's memory of a conversation with the bank. The reference is what
         makes the receipt defensible if the tenant later disputes it.</div>`
       :`<div class="note" style="border-left-color:var(--amber)"><b>No cleared cheques are waiting for a receipt.</b>
         A receipt can only be raised against a cheque that has cleared. Mark one cleared on the cheque register first.</div>`}`
     :`<div class="fg">
-       ${fld({k:'party',l:'Received from',t:'sel',o:TENANTS.slice(0,24).map(t=>t.n),req:1},d.party)}
+       ${fld({k:'party',l:'Received from',t:'sel',live:1,o:TENANTS.map(t=>t.n),req:1},d.party)}
        ${fld({k:'amt',l:'Amount (QAR)',t:'num',step:'100',req:1},d.amt)}
        ${fld({k:'date',l:'Date received',t:'date',req:1},d.date)}
        ${d.kind==='Cash received'?fld({k:'collector',l:'Collected by',t:'sel',
@@ -5980,7 +6132,7 @@ FORMS['issue-receipt']={t:'Issue a receipt',s:'Cash on the day · a cheque only 
         fld({k:'stmt',l:'Bank statement reference',t:'txt',req:1,p:'QNB 04/26 line 8851'},d.stmt)}
        ${d.kind==='Cash received'?fld({k:'slip',l:'Collection slip reference',t:'txt',req:1,p:'CS-4431',
          hint:'written on the slip the tenant signs'},d.slip):''}
-       ${fld({k:'inv',l:'Allocate against',t:'sel',o:['Oldest open invoice first','A specific invoice']},d.inv)}</div>
+       ${allocField(d.party,d.inv)}</div>
       ${d.kind==='Cash received'?`<div class="note">The slip reference is what the deposit is matched against at reconciliation.
         Three quarters of our inflow arrives with no payer identity, so the slip is the only link back to the tenant.</div>`:''}`},
    fields:[{k:'date',req:1}],
@@ -6148,16 +6300,20 @@ const WIRE={
  m:'finance.record_receipt',
  a:d=>({payload:{tenant:wTen(d.party),amount:wNum(d.amt),on:d.date,
    mode:d.kind==='Cash received'?'Cash':'Bank Transfer',
+   invoice:allocId(d.inv),
    reference:d.kind==='Cash received'?d.slip:d.stmt}}),
  ok:(r,d)=>({title:'Receipt issued',msg:k(r.allocated)+' recorded against '+d.party,
-   detail:'Allocated oldest invoice first \u00b7 '+r.payment_entry})},
+   detail:(r.applied&&r.applied.length
+     ? 'Applied to '+r.applied.join(', ')+(r.on_account?' \u00b7 '+k(r.on_account)+' left on account':'')
+     : 'Nothing was open \u2014 the whole receipt sits on account')+' \u00b7 '+r.payment_entry})},
 
 'record-payment':{
  m:'finance.record_receipt',
  a:d=>({payload:{tenant:wTen(d.tenant),amount:wNum(d.amt),on:d.date,
-   mode:d.method,reference:d.ref}}),
+   mode:d.method,invoice:allocId(d.inv),reference:d.ref}}),
  ok:(r,d)=>({title:'Payment posted',msg:k(r.allocated)+' allocated to '+d.tenant,
-   detail:'Oldest invoice first \u00b7 '+r.payment_entry})},
+   detail:(r.applied&&r.applied.length?'Applied to '+r.applied.join(', ')
+     :'Nothing open \u2014 held on account')+' \u00b7 '+r.payment_entry})},
 
 'create-batch':{
  guard:d=>{const sel=d.sel||{};
@@ -6399,7 +6555,7 @@ function gatePayload(){
   if(!window.DB_LIVE) return;
   const SEEDED={buildings:BUILDINGS,units:UNITS,tenants:TENANTS,agreements:AGR,
    invoices:INV,cheques:CHQ,cases:CASES,approvals:APPR,jobs:JOBS,
-   moveouts:MOVEOUT,docs:DOCS,health:BD,wall:WALL,landlords:LL};
+   moveouts:MOVEOUT,docs:DOCS,health:BD,wall:WALL,landlords:LL,billruns:BILLRUNS};
   const broke=(DB_SEED._failed||[]);
   Object.keys(SEEDED).forEach(key=>{
     if(((DB_SEED[key]||[]).length)) return;
