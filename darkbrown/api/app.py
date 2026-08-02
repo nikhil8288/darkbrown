@@ -380,6 +380,7 @@ def seed():
                     ("approvals", approvals), ("wall", wall),
                     ("landlords", landlords),
                     ("billruns", billruns),
+                    ("batches", batches),
                     ("health", _health), ("kpi", _kpi),
                     ("panels", _panels),
                     ("bankAccounts", bank_accounts)):
@@ -606,6 +607,83 @@ def billruns():
             "changes": [],
             "incl": {"util": False, "mnt": False, "arr": False},
             "lines": [],
+        })
+    return out
+
+
+def batches():
+    """Deposit Batches — what physically went to the bank, and who took it.
+
+    The slip is the only link back to the tenant for three quarters of what
+    lands in the account, so this list is the spine of reconciliation rather
+    than a cash-office formality. Who prepared it and who banked it are
+    carried because a batch handled end to end by one person is the control
+    failure the screen is there to surface.
+    """
+    rows = frappe.get_all(
+        "Deposit Batch",
+        fields=_has("Deposit Batch", [
+            "name", "deposit_date", "bank_account", "status", "total_amount",
+            "slip_no", "prepared_by", "deposited_by", "override_reason",
+            "creation"]),
+        order_by="deposit_date desc, creation desc", limit=100)
+    if not rows:
+        return []
+
+    banks = {}
+    for b in frappe.get_all("Bank Account", fields=["name", "account_name", "bank"]):
+        banks[b.name] = b.bank or b.account_name or b.name
+
+    people = set()
+    for r in rows:
+        people.update(x for x in (r.get("prepared_by"), r.get("deposited_by")) if x)
+    names = {u: (frappe.db.get_value("User", u, "full_name") or u) for u in people}
+
+    lines = {}
+    for l in frappe.get_all(
+            "Deposit Batch Line",
+            filters={"parent": ["in", [r["name"] for r in rows]]},
+            fields=["parent", "payment_type", "collection_slip_no", "cheque",
+                    "tenant", "unit", "amount", "remarks"]):
+        lines.setdefault(l.parent, []).append(l)
+
+    tnames = _customer_names([l.tenant for ls in lines.values() for l in ls
+                             if l.tenant])
+
+    out = []
+    for r in rows:
+        ls = lines.get(r["name"], [])
+        cheques = [l for l in ls if l.cheque]
+        cash = [l for l in ls if not l.cheque]
+        prepared = r.get("prepared_by")
+        deposited = r.get("deposited_by")
+        out.append({
+            "id": r["name"],
+            "date": _fdate(r.get("deposit_date")),
+            "bank": banks.get(r.get("bank_account"), r.get("bank_account") or "—"),
+            "slip": r.get("slip_no") or "—",
+            "st": r.get("status"),
+            "total": _k(r.get("total_amount")),
+            "count": len(ls),
+            "cheques": len(cheques),
+            "cash": len(cash),
+            "cashValue": _k(sum(flt(l.amount) for l in cash)),
+            "prepared": names.get(prepared, prepared or "—"),
+            "deposited": names.get(deposited, "—") if deposited else "—",
+            # One person on both ends is the thing worth seeing, so it is a
+            # field rather than something the screen has to work out.
+            "same": 1 if (prepared and deposited and prepared == deposited) else 0,
+            "override": r.get("override_reason") or "",
+            "lines": [{
+                "ty": l.payment_type or ("Cheque" if l.cheque else "Cash"),
+                "slip": l.collection_slip_no or "—",
+                "chq": l.cheque or "—",
+                "t": l.tenant or "",
+                "tn": tnames.get(l.tenant, l.tenant) if l.tenant else "—",
+                "u": l.unit or "—",
+                "amt": _k(l.amount),
+                "note": l.remarks or "",
+            } for l in ls],
         })
     return out
 

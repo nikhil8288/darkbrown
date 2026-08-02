@@ -840,7 +840,7 @@ function steps(list,cur){
    <span class="n">${i<cur?'✓':i+1}</span><span>${s}</span></div>`).join('<span class="ln"></span>')}</div>`;
 }
 function chip(t,c){return `<span class="chip ${c||'n'}">${t}</span>`}
-const stChip=s=>({'Occupied':'g','Current':'g','Paid':'g','Cleared':'g','Active':'g','Completed':'g','Validated':'g','Renewed':'g','Approved':'g','Pushed to vault':'g',
+const stChip=s=>({'Occupied':'g','Current':'g','Paid':'g','Cleared':'g','Active':'g','Completed':'g','Validated':'g','Renewed':'g','Approved':'g','Pushed to vault':'g','Reconciled':'g','Issued':'g',
  'Notice':'a','Late':'a','Part paid':'a','Deposited':'a','Expiring':'a','Negotiating':'a','Needs review':'a','Awaiting parts':'a','Pending':'a','Promise to pay':'a','Reminder sent':'a',
  'Void':'r','In arrears':'r','Unpaid':'r','Bounced':'r','Expired':'r','Not started':'r','Flagged':'r','Emergency':'r','Legal notice':'r','Escalated':'r','Promise broken':'r'}[s]||'n');
 function empty(msg){return `<div class="mt">${msg}</div>`}
@@ -900,7 +900,7 @@ async function dbRefresh(){
     const r = await dbCall('app.refresh', {});
     window.DB_SEED = r.seed || {};
     const map={buildings:BUILDINGS,units:UNITS,cases:CASES,jobs:JOBS,moveouts:MOVEOUT,tenants:TENANTS,agreements:AGR,invoices:INV,cheques:CHQ,docs:DOCS,approvals:APPR,landlords:LL,
-      billruns:BILLRUNS};
+      billruns:BILLRUNS,batches:BATCHES};
     Object.keys(map).forEach(k=>{
       const rows=DB_SEED[k];
       if(rows&&rows.length){map[k].length=0;map[k].push.apply(map[k],rows);}
@@ -923,7 +923,6 @@ const ROUTES={};
    because there is no way to tell an invented number from a real one by
    looking at it. When live, they say what they are and why. */
 const UNWIRED={
- batches:'Deposit Batch records exist. The list has not been pointed at them yet.',
  vault:'Document Register records exist. The vault view has not been pointed at them yet.',
  receipt:'Payment Entries exist. This detail view has not been pointed at them yet.',
  runs:'Distribution runs belong to Stage 2I. Blocked on Q20 and Q21.',
@@ -2674,6 +2673,21 @@ const FORMS={
  submit:()=>({title:'Nothing was saved',msg:'This form needs the server',
    detail:'Opened without a live connection \u2014 the file was not uploaded'})},
 
+'deposit-batch':{t:'Mark the batch banked',s:'The slip went in · cheques presented, cash receipted',
+ cta:'Confirm it was banked',
+ init:ctx=>({id:(ctx&&ctx.id)||'',prepared:(ctx&&ctx.prepared)||'',date:''}),
+ steps:[{n:'Confirm',body:d=>`<p class="pp">This presents every cheque in the slip and posts each cash line as a receipt
+   against the tenant. It is not reversible from here.</p>
+  <div class="fg">${fld({k:'id',l:'Batch',t:'ro'},d.id)}
+   ${fld({k:'prepared',l:'Prepared by',t:'ro'},d.prepared)}
+   ${fld({k:'date',l:'Date it went in',t:'date',req:1},d.date)}
+   ${fld({k:'reason',l:'Reason, if you prepared it yourself',t:'ta',full:1,
+     p:'e.g. Yusuf on leave'},d.reason)}</div>
+  <div class="note">A batch prepared and banked by the same person needs a reason. If a second person is banking it,
+   leave this empty \u2014 the reason is only recorded when one is given.</div>`,
+  fields:[{k:'date',req:1}]}],
+ submit:()=>({title:'Nothing was saved',msg:'This form needs the server'})},
+
 'start-close':{t:'Weekly close',s:'Thursday evening close',cta:'Complete close',
  steps:[{n:'Checklist',body:d=>`<p class="pp">Work through the checklist. Anything left unticked is counted as an open
    discrepancy on the close record and carries to the MD dashboard.</p>
@@ -3407,17 +3421,73 @@ ROUTES.cheque=id=>{const c=id?C(id):CHQ[0]; if(!c) return notFound('Cheque','#/c
     .map(r=>`<div><span>${r[0]}</span><b>${r[1]}</b></div>`).join('')}</div></div>`)};
 
 /* ---------------- Batches ---------------- */
-ROUTES.batches=()=>page('Cheque batches','Deposit batches to bank · two-person control',
- fbtn('New batch','create-batch'),
- stat([['Open batches',2],['Deposited today',n0(486000)],['Awaiting recon',1,'','a'],['Overrides this month',5,'','r']])+
- `<div class="card">${tbl([
-  {h:'Batch',v:r=>r[0]},{h:'Bank',v:r=>r[1]},{h:'Cheques',r:1,mono:1,v:r=>r[2]},
-  {h:'Value',r:1,mono:1,v:r=>r[3]},{h:'Created by',v:r=>r[4]},{h:'Reconciled by',v:r=>r[5]},
-  {h:'Status',v:r=>chip(r[6],stChip(r[6]))}],
-  [['BATCH-0871','QNB',12,n0(486000),'Fatima N.','Fatima N. <span class="chip r">OVERRIDE</span>','Reconciled'],
-   ['BATCH-0872','Doha Bank',8,n0(214000),'Fatima N.','—','Deposited'],
-   ['BATCH-0870','CBQ',15,n0(602000),'Yusuf K.','Fatima N.','Reconciled']].map(r=>({...r,__id:r[0]})),{id:'btl'})}
-  <div class="warn" style="margin-top:10px">BATCH-0871 was created and reconciled by the same user. The soft block was overridden with the reason "Yusuf on leave" — logged to the audit trail and surfaced in the MD exceptions feed.</div></div>`);
+/* ---------------- Deposit batches ---------------- */
+/* Reads Deposit Batch records. The three batches that used to sit here were
+   written into the page, override reason and all, which meant a control
+   failure was permanently on display whether or not one had ever happened. */
+const BATCHES=[];
+if(window.DB_SEED&&DB_SEED.batches&&DB_SEED.batches.length)
+  BATCHES.push.apply(BATCHES,DB_SEED.batches);
+const BT=id=>BATCHES.find(x=>x.id===id);
+
+ROUTES.batches=()=>{
+ const draft=BATCHES.filter(b=>b.st==='Draft');
+ const banked=BATCHES.filter(b=>b.st==='Deposited');
+ const over=BATCHES.filter(b=>b.override||b.same);
+ const head=page('Cheque batches','Deposit batches to bank · two-person control',
+  fbtn('New batch','create-batch'),'');
+ if(!BATCHES.length) return head+`<div class="card">${
+   dbMissing('batches')==='error'
+    ? uw('The server could not build the batch list.'+
+        (dbWhy('batches')?'<br><span class="mini">'+dbWhy('batches')+'</span>':''))
+    : empty(window.DB_LIVE
+      ? 'No deposit batch has been raised yet. A batch is made before the money leaves the office, so the slip can be matched to the statement line later.'
+      : 'No batches in the demo data.')}</div>`;
+ return head+
+  stat([['Awaiting the bank',draft.length,'',draft.length?'a':'g'],
+   ['Banked, not reconciled',banked.length,'',banked.length?'a':'g'],
+   ['Value on the way',k(draft.reduce((a,b)=>a+b.total,0))],
+   ['Single-handed',over.length,'',over.length?'r':'g']])+
+  `<div class="card">${tbl([
+   {h:'Batch',v:b=>b.id},{h:'Date',r:1,v:b=>b.date},{h:'Bank',v:b=>b.bank},
+   {h:'Slip',v:b=>b.slip},
+   {h:'Cheques',r:1,mono:1,v:b=>b.cheques||'—'},{h:'Cash',r:1,mono:1,v:b=>b.cash||'—'},
+   {h:'Value',r:1,mono:1,v:b=>k(b.total)},
+   {h:'Prepared by',v:b=>b.prepared},
+   {h:'Banked by',v:b=>b.deposited+(b.same?' '+chip('SAME PERSON','r'):'')},
+   {h:'Status',v:b=>chip(b.st,stChip(b.st))}],
+   BATCHES.map(b=>({...b,__id:b.id})),{id:'btl',click:'openBT',
+    foot:['a batch prepared and banked by one person is flagged, not blocked',
+     'the slip number is what the statement line is matched against']})}</div>`+
+  (over.length?`<div class="warn" style="margin-top:10px">${over.map(b=>
+    b.id+' was prepared and banked by '+b.prepared+
+    (b.override?' — reason given: "'+b.override+'"':' with no reason recorded')).join('<br>')}</div>`:'');
+};
+window.openBT=id=>go('#/batch/'+id);
+
+ROUTES.batch=id=>{
+ const b=BT(id);
+ if(!b) return crumb([['Cheque batches','#/batches'],['Not found','']])+
+   page('Batch not found','No deposit batch matches '+(id||'that reference'),'',
+    `<div class="card">${empty('Open the list and pick it from there.')}</div>`);
+ return crumb([['Cheque batches','#/batches'],[b.id,'']])+page(b.id,
+  b.bank+' · '+b.date+' · slip '+b.slip+' · '+b.st,
+  b.st==='Draft'?fbtn('Mark it banked','deposit-batch',{id:b.id,prepared:b.prepared}):'',
+  stat([['Lines',b.count],['Value',k(b.total)],['Cheques',b.cheques],
+   ['Cash',k(b.cashValue)],['Prepared by',b.prepared],
+   ['Banked by',b.deposited,'',b.same?'r':'']])+
+  (b.same?`<div class="warn">${b.prepared} both prepared and banked this batch. ${
+    b.override?'Reason recorded: "'+b.override+'"':'No reason was recorded.'}</div>`:'')+
+  `<div class="card"><h3>What is in the slip</h3>${b.lines&&b.lines.length?tbl([
+   {h:'Kind',v:l=>chip(l.ty,l.ty==='Cash'?'a':'n')},
+   {h:'Cheque',v:l=>l.chq},{h:'Collection slip',v:l=>l.slip},
+   {h:'Tenant',v:l=>l.tn},{h:'Unit',v:l=>l.u},
+   {h:'Amount',r:1,mono:1,v:l=>k(l.amt)},{h:'Note',v:l=>l.note||'—'}],
+   (b.lines||[]).map((l,i)=>({...l,__id:String(i)})),{id:'btd'})
+  :empty('This batch has no lines.')}</div>
+  <div class="note">Banking it presents every cheque in the slip and turns each cash line into a receipt against
+   the tenant. That is one action, so the batch is the unit of work, not the individual cheque.</div>`);
+};
 
 /* ---------------- Reconciliation (2C) ---------------- */
 /* ---------------- Weekly closing ---------------- */
@@ -6283,6 +6353,14 @@ const WIRE={
    detail:(r.unmatched?r.unmatched+' unmatched — visible on the Command Centre and in '+r.name
      :'Fully matched · '+r.name),goto:'#/recon'})},
 
+'deposit-batch':{
+ guard:d=>d.id?null:'Open the batch first \u2014 this banks a specific slip.',
+ m:'finance.deposit_batch',
+ a:d=>({batch:d.id,on:d.date,reason:(d.reason||'').trim()||null}),
+ ok:r=>({title:'Banked',msg:r.batch+' is '+r.status,
+   detail:'Cheques in the slip are presented and cash lines are receipted',
+   goto:'#/batch/'+r.batch})},
+
 'start-close':{
  m:'cashdesk.record_close',
  a:d=>{let open=0;for(let i=0;i<8;i++)if(!d['ck'+i])open++;
@@ -6555,7 +6633,8 @@ function gatePayload(){
   if(!window.DB_LIVE) return;
   const SEEDED={buildings:BUILDINGS,units:UNITS,tenants:TENANTS,agreements:AGR,
    invoices:INV,cheques:CHQ,cases:CASES,approvals:APPR,jobs:JOBS,
-   moveouts:MOVEOUT,docs:DOCS,health:BD,wall:WALL,landlords:LL,billruns:BILLRUNS};
+   moveouts:MOVEOUT,docs:DOCS,health:BD,wall:WALL,landlords:LL,billruns:BILLRUNS,
+   batches:BATCHES};
   const broke=(DB_SEED._failed||[]);
   Object.keys(SEEDED).forEach(key=>{
     if(((DB_SEED[key]||[]).length)) return;
