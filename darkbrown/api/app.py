@@ -365,6 +365,22 @@ def _closing():
     return closing()
 
 
+def _attention():
+    """The MD attention feed.
+
+    attention.py has carried these rules since it was written and nothing has
+    ever called them — My Work's flagged panel showed five invented lines
+    instead. The rules are role-guarded to MD and GM; anyone else gets an
+    empty list rather than a failed seed key, because "you may not see this"
+    and "the server broke" should not look the same on screen.
+    """
+    from darkbrown.api.attention import get_attention
+    try:
+        return get_attention().get("alerts") or []
+    except frappe.PermissionError:
+        return []
+
+
 def seed():
     """Everything the front end needs at boot, in one round trip.
 
@@ -387,6 +403,7 @@ def seed():
                     ("billruns", billruns),
                     ("batches", batches),
                     ("closing", _closing),
+                    ("attention", _attention),
                     ("health", _health), ("kpi", _kpi),
                     ("panels", _panels),
                     ("bankAccounts", bank_accounts)):

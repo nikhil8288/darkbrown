@@ -157,3 +157,52 @@ def set_unit_status(unit, status):
                            "through a move-out."))
     frappe.db.set_value("Unit", unit, "status", status)
     return {"unit": unit, "status": status}
+
+
+@frappe.whitelist()
+def add_unit(data):
+    """Add one unit to a building that already exists.
+
+    Onboarding was the only path that ever created a Unit, so a building that
+    gained a floor after it was set up could not be corrected without going
+    into the desk. The field list and the defaults are deliberately identical
+    to the onboarding loop above, so a unit added here is indistinguishable
+    from one created with its building.
+    """
+    data = frappe.parse_json(data) or {}
+
+    building = (data.get("building") or "").strip()
+    if not building:
+        frappe.throw(_("Which building is the unit in?"))
+    if not frappe.db.exists("Building", building):
+        frappe.throw(_("No building called {0}.").format(building))
+
+    unit_no = str(data.get("unit_no") or "").strip()
+    if not unit_no:
+        frappe.throw(_("Every unit needs a number matching its door."))
+    if frappe.db.exists("Unit", {"building": building, "unit_no": unit_no}):
+        frappe.throw(_("{0} already has a unit {1}.").format(
+            building, unit_no))
+
+    doc = frappe.get_doc({
+        "doctype": "Unit",
+        "building": building,
+        "unit_no": unit_no,
+        "floor": data.get("floor"),
+        "unit_type": data.get("unit_type"),
+        "status": data.get("status") or "Not Ready",
+        "bedrooms": cint(data.get("bedrooms")),
+        "bathrooms": cint(data.get("bathrooms")),
+        "area_sqm": flt(data.get("area_sqm")),
+        "asking_rent": flt(data.get("asking_rent")),
+        "furnishing": data.get("furnishing") or "Unfurnished",
+        "landlord": frappe.db.get_value("Building", building, "landlord"),
+        "kahramaa_meter_no": data.get("kahramaa_meter_no"),
+    }).insert()
+
+    # total_units is written by onboarding from the length of its list, so it
+    # has to be kept true here rather than left at its founding value.
+    frappe.db.set_value("Building", building, "total_units",
+                        frappe.db.count("Unit", {"building": building}))
+
+    return {"unit": doc.name, "unit_no": unit_no, "building": building}

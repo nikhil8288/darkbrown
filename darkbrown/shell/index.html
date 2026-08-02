@@ -958,6 +958,7 @@ const UNWIRED={
  model:'Building model needs the solver. Blocked on Q10.',
  targets:'Targets need the solver. Blocked on Q10.',
  pactions:'Planning actions need the solver. Blocked on Q10.',
+ risks:'Stress tests, the risk register and the spread of outcomes all read from the solver. Blocked on Q10.',
  cfo:'The Digital CFO needs the governed calculation services behind it before it can answer anything.',
  reports:'Reporting has not been built against live records yet.',
  coa:'Reads ERPNext accounts. Not pointed at them yet.',
@@ -972,7 +973,14 @@ function uw(msg){
 window.uw=uw;
 
 function unwiredPage(r){
-  const t=({owners:'Owners & shareholders',planning:'Planning',cfo:'Digital CFO'}[r])||r;
+  const t=({owners:'Owners & shareholders',planning:'Planning',cfo:'Digital CFO',
+    coa:'Chart of Accounts',ledger:'General Ledger',journal:'Journal Entries',
+    trial:'Trial Balance',vault:'Document vault',runs:'Distribution runs',
+    run:'Distribution run',policy:'Distribution policy',shareholder:'Shareholder',
+    capacity:'Capacity curve',forecast:'Forecast',scenarios:'Scenarios',
+    scenario:'Scenario',model:'Building model',targets:'Targets',
+    pactions:'Planning actions',risks:'Risk and uncertainty',reports:'Reports',
+    receipt:'Receipt'}[r])||r;
   return `<div class="hd"><h1>${t}</h1><p class="sub">Not wired to live data</p></div>
   <div class="card"><div class="unwired big"><span class="uw-tag">NOT WIRED</span>
     <p>${UNWIRED[r]}</p>
@@ -1235,6 +1243,8 @@ const KPI={
 };
 
 /* live data · replaces the seed when the server sent figures */
+/* Boot fill only, so anything rendering before applySeed() has real packs.
+   applySeed() owns this from then on and re-applies it on every refresh. */
 if(window.DB_SEED&&DB_SEED.kpi){Object.keys(DB_SEED.kpi).forEach(k=>{KPI[k]=DB_SEED.kpi[k];});}
 
 /* ---------- sparkline ---------- */
@@ -1328,7 +1338,20 @@ window.wallWhy=(i,ev)=>{
 };
 
 function renderKPIs(p){
-  const P=KPI[p], live=!!window.DB_LIVE;
+  const live=!!window.DB_LIVE;
+  /* Every cell below reads fields off the pack directly — pc() throws on a
+     missing one — so when the server sent no packs the strip is withheld
+     whole rather than half-drawn from the prototype's numbers. */
+  if(live&&!window.KPI_LIVE){
+    renderWall();
+    const k$=$('#kpis');
+    if(k$) k$.innerHTML=`<div class="card" style="grid-column:1/-1">${
+      uw('The server returned no headline figures. kpis() raised — the traceback is in the Error Log. '+
+         'Every panel below is unaffected.')}</div>`;
+    ['#pl1','#pl2','#pl3'].forEach(s=>{const e=$(s); if(e)e.textContent='';});
+    return;
+  }
+  const P=KPI[p];
   /* Sparklines and month-on-month deltas come from twelve-month series the
      server does not send yet. When live they are left off rather than drawn
      from the prototype's invented history — a real headline figure with a
@@ -2913,15 +2936,24 @@ const FORMS={
   return{title:'Move-out case opened',msg:id+' · '+d.tenant,
    detail:'Inspection booked for '+(d.insp||'—')+' with '+(d.inspby||'—'),goto:'#/moveout/'+id}}},
 
-'add-unit':{t:'Add unit',s:'',cta:'Create unit',
+/* The option lists here are the Unit doctype's own, not a friendlier
+   paraphrase of them. The old form offered "1 BR" against a field that only
+   accepts "1BR", so every save it collected would have been rejected. */
+'add-unit':{t:'Add unit',s:'One unit, added to a building already onboarded',cta:'Create unit',
+ init:c=>({b:(c&&c.b)||'',bn:(c&&c.bn)||''}),
  steps:[{n:'Unit',fields:[
-   {k:'no',l:'Unit number',t:'txt',p:'U404',req:1},
-   {k:'type',l:'Type',t:'sel',o:['Studio','1 BR','2 BR','3 BR','Villa'],req:1},
-   {k:'floor',l:'Floor',t:'num',req:1},
-   {k:'sqm',l:'Area (sqm)',t:'num',req:1},
-   {k:'rent',l:'Target rent (QAR)',t:'num',step:'100',req:1},
-   {k:'cost',l:'Head-lease cost share (QAR)',t:'num',step:'100',req:1}]}],
- submit:d=>({title:'Unit created',msg:d.no+' added',detail:'Spread +'+k((+d.rent||0)-(+d.cost||0))+' per month'})},
+   {k:'unit_no',l:'Unit number',t:'txt',p:'404',req:1},
+   {k:'unit_type',l:'Type',t:'sel',o:['Studio','1BR','2BR','3BR','4BR','Penthouse','Villa','Shop','Office','Warehouse','Labour Accommodation'],req:1},
+   {k:'floor',l:'Floor',t:'txt',p:'4',req:1},
+   {k:'status',l:'Status',t:'sel',o:['Not Ready','Vacant','Reserved','Under Maintenance']},
+   {k:'furnishing',l:'Furnishing',t:'sel',o:['Unfurnished','Semi Furnished','Fully Furnished']},
+   {k:'bedrooms',l:'Bedrooms',t:'num'},
+   {k:'bathrooms',l:'Bathrooms',t:'num'},
+   {k:'area_sqm',l:'Area (sqm)',t:'num'},
+   {k:'asking_rent',l:'Asking rent (QAR)',t:'num',step:'100'},
+   {k:'kahramaa_meter_no',l:'Kahramaa meter number',t:'txt'}]}],
+ submit:d=>({title:'Unit created',msg:d.unit_no+' added',
+   detail:'Asking rent '+k(+d.asking_rent||0)+' per month'})},
 
 'cheque-action':{t:'Update cheque status',s:'Workflow 2G applies to bounces',cta:'Save',
  init:c=>({act:c&&c.act?c.act:'Deposit'}),
@@ -3001,9 +3033,25 @@ ROUTES.mywork=()=>{
   :uw('The approvals queue has not been read. Rather than show you the prototype\'s '+
       'list next to your own records, it has been withheld.');
 
+ const att=(window.DB_SEED&&DB_SEED.attention)||[];
+ /* [id, severity, icon, message, drill_route, drill_label]. The drill routes
+    are desk paths, not shell hashes, so only the ones that map cleanly get a
+    link; the rest render as text rather than as a button that goes nowhere. */
+ const ATTGO={'tenants/arrears':'#/cases','tenants/expiring':'#/agreements',
+  'portfolio/headleases':'#/buildings','maintenance/aging':'#/maint',
+  'finance/pdc':'#/cheques'};
+ const attGo=r=>ATTGO[r]||(String(r||'').indexOf('portfolio/units')===0?'#/units':'');
+
  const flagged=live
-  ?uw('No attention feed is generated server-side yet. The rules exist in '+
-      'api/attention.py but nothing routes them to this screen.')
+  ?(att.length
+    ?`<div class="list">${att.map(a=>{
+        const to=attGo(a[4]);
+        const dot=a[1]==='high'?'r':a[1]==='warn'?'a':'g';
+        return `<div class="it${to?' drill':''}"${to?` onclick="go('${to}')"`:''}>
+          <span class="dot ${dot}"></span><span class="t">${esc(a[3]||'')}</span>
+          ${to?`<span class="mini">${esc(a[5]||'Open')}</span>`:''}</div>`;
+      }).join('')}</div>`
+    :empty('Nothing is flagged for your attention'))
   :`<div class="list">
    ${['Cheque bounced — Horizon Facilities · QAR 42,500','Promise broken — TN-0142 · QAR 18,000',
       'Emergency maint over ceiling — B14 chiller · QAR 3,200','Override — Fatima N. batched + reconciled BATCH-0871',
@@ -3014,7 +3062,7 @@ ROUTES.mywork=()=>{
   stat(tiles)+
   `<div class="grid2">
    <div class="card${wired?'':' is-unwired'}"><h3>Approvals waiting on me</h3>${queue}</div>
-   <div class="card${live?' is-unwired':''}"><h3>Flagged for my attention</h3>${flagged}</div></div>`);
+   <div class="card"><h3>Flagged for my attention</h3>${flagged}</div></div>`);
 };
 window.openAppr=id=>go('#/approval/'+id);
 
@@ -3046,7 +3094,7 @@ ROUTES.building=id=>{const b=id?B(id):BUILDINGS[0]; if(!b) return notFound('Buil
  const js=JOBS.filter(j=>j.b===b.id); const ags=AGR.filter(a=>a.b===b.id);
  return crumb([['Buildings','#/buildings'],[b.n,'']])+page(b.n,
   `${b.id} · ${b.area} · ${b.floors} floors · head-lease from ${b.ll}`,
-  fbtn('New unit','add-unit')+fbtn('Log maintenance','raise-job',{bn:b.n}),
+  fbtn('New unit','add-unit',{b:b.id,bn:b.n})+fbtn('Log maintenance','raise-job',{bn:b.n}),
   stat([['Units',b.units],['Occupied',us.filter(u=>u.st==='Occupied').length+' / '+b.units],
    ['Monthly revenue',n0(b.rev)],['Head-lease rent',n0(b.cost)],
    ['Margin',n0(b.m)+' · '+mpTxt(b),'',mpBad(b,14)?'r':'g'],['Arrears',n0(b.arr),'',b.arr>30000?'r':''],
@@ -3627,7 +3675,10 @@ ROUTES.reports=()=>page('Reports','Standard packs · every report exports to Exc
 
 /* ---------------- Admin ---------------- */
 ROUTES.admin=()=>page('Admin','Users, roles and system rules','',
- `<div class="card"><h3>Users and roles</h3>${tbl([
+ `<div class="card"><h3>Users and roles</h3>${window.DB_LIVE
+  ?uw('These six rows are the prototype\'s cast, not your site. Real users, roles and '+
+      'scopes live in Frappe and no endpoint reads them back to this screen.')
+  :tbl([
   {h:'User',v:r=>r[0]},{h:'Role',v:r=>r[1]},{h:'Scope',v:r=>r[2]},{h:'Status',v:r=>chip(r[3],'g')}],
   [['Managing Director','MD','Full access · reserved approvals','Active'],
    ['General Manager','GM','Operations, approvals up to limit','Active'],
@@ -3646,7 +3697,10 @@ ROUTES.admin=()=>page('Admin','Users, roles and system rules','',
       'Inspections at move-in and move-out only',
       'Utility recovery: one consolidated invoice per tenant per month']
     .map(t=>`<div class="it"><span class="dot g"></span><span class="t">${t}</span></div>`).join('')}</div></div>
-  <div class="card"><h3>Override audit — this month</h3>${tbl([
+  <div class="card"><h3>Override audit — this month</h3>${window.DB_LIVE
+   ?uw('Overrides are recorded server-side — the Command Centre derives an override '+
+       'panel from them. This table has never been pointed at it.')
+   :tbl([
    {h:'User',v:r=>r[0]},{h:'Count',r:1,mono:1,v:r=>r[1]},{h:'Latest reason',v:r=>r[2]}],
    [['Fatima N.',4,'"Yusuf on leave" — BATCH-0871'],['Yusuf K.',1,'"month-end rush"'],['Aisha R.',0,'—']]
     .map(r=>({...r,__id:r[0]})),{id:'ado'})}</div></div>`);
@@ -3660,17 +3714,26 @@ function addJrn(ty,desc,ref,lines,by){
   JRN.unshift(j); return j;
 }
 function noteThread(ref){
-  const list=NOTES[ref]||[];
+  const list=window.DB_LIVE?[]:(NOTES[ref]||[]);
+  /* NOTES is a hardcoded map keyed by prototype record ids, and saveNote()
+     only ever wrote into it. On a live site the composer accepted a note,
+     said "Note added", and lost it on the next render. There is no server
+     endpoint for notes, so when live the thread says so rather than
+     collecting something it cannot keep. */
+  const add=window.DB_LIVE
+   ?uw('Notes are not stored. No doctype or endpoint exists for the decision trail yet, '+
+       'so nothing typed here would survive a refresh.')
+   :`<div class="ntadd"><textarea id="ntbox" rows="2" placeholder="Add a note for the MD and GM — reasoning, conditions, or context"></textarea>
+     <div class="ntrow">
+       <select id="ntrole"><option>MD</option><option>GM</option><option>Accounts</option><option>Documentation</option><option>Collections</option></select>
+       <button class="btn pri" onclick="saveNote('${ref}')">Add note</button></div></div>`;
   return `<div class="card"><h3>Notes &amp; decision trail
      <span class="plabel">${list.length} note${list.length===1?'':'s'} · visible to MD and GM</span></h3>
    ${list.length?`<div class="nts">${list.map(n=>`<div class="nt">
      <div class="nh"><span class="av2">${n.by.split(' ').map(x=>x[0]).join('').slice(0,2)}</span>
        <b>${n.by}</b><span class="chip n">${n.role}</span><span class="m">${n.when}</span></div>
-     <p>${n.t}</p></div>`).join('')}</div>`:empty('No notes yet — add the first one below.')}
-   <div class="ntadd"><textarea id="ntbox" rows="2" placeholder="Add a note for the MD and GM — reasoning, conditions, or context"></textarea>
-     <div class="ntrow">
-       <select id="ntrole"><option>MD</option><option>GM</option><option>Accounts</option><option>Documentation</option><option>Collections</option></select>
-       <button class="btn pri" onclick="saveNote('${ref}')">Add note</button></div></div></div>`;
+     <p>${n.t}</p></div>`).join('')}</div>`:(window.DB_LIVE?'':empty('No notes yet — add the first one below.'))}
+   ${add}</div>`;
 }
 window.saveNote=ref=>{
   const box=document.getElementById('ntbox'), role=document.getElementById('ntrole').value;
@@ -3745,7 +3808,11 @@ function vaultFiltered(){
    survive the rebuild, because they happen after it. */
 let ALERTS_GATED=false, NOTIF_READ=false;
 function gateAlerts(){
-  if(!window.DB_LIVE||ALERTS_GATED) return; ALERTS_GATED=true;
+  if(!window.DB_LIVE) return;
+  /* This used to latch after the first call, so approving something and
+     refreshing left the bell showing the queue as it was at page load.
+     The rebuild is idempotent — it clears and re-derives from APPR, which
+     applySeed() keeps authoritative — so there is nothing to latch for. */
   ALERTS.length=0;
   /* APPR falls back to the prototype seed when the server sent no rows —
      those are not alerts, they are decoration. */
@@ -5313,51 +5380,74 @@ Object.assign(FORMS,{
 });
 
 /* ---------- Stage 2C reconciliation, extended with the classification path ---------- */
-ROUTES.recon=()=>page('Bank reconciliation',
- 'Statement lines matched to cheques, collection slips and payments · deposit matches slip, never deposit matches tenant',
- fbtn('Import statement','import-statement'),
- stat([['Statement lines',148],['Matched',139,'','g'],
-  ['Flagged for classification',openFlags(),openFlags()?'shareholder match and unattributed cash':'all cleared',openFlags()?'r':'g'],
-  ['Drawings separated',k(shClassified()),'excluded from the cost base',shClassified()?'g':''],
-  ['Operating outflow',k(denomK()),'was '+k(GROSS)+' gross'],
-  ['Reserve floor',k(floorK()),DPOL.months+' months']])+
- `<div class="card"><h3>Reconciliation workflow — 2C</h3>${steps(['Import statement','Auto-match','Review exceptions','Post entries','Close period'],2)}</div>
- <div class="note"><b>Three quarters of inflow value carries no payer identity.</b> Matching therefore runs deposit to collection slip, and the
-  slip carries the tenant attribution. Value date is used for matching, posting date for the ledger — Doha Bank runs up to two days apart.</div>
- <div class="card"><h3>Flagged on import — needs classification</h3>${
-  SHLINES.filter(l=>!l.cls).length?tbl([
-   {h:'Bank ref',v:l=>l.id},{h:'Date',r:1,v:l=>l.d},{h:'Amount',r:1,mono:1,v:l=>k(l.amt)},
-   {h:'Narrative',v:l=>l.nar},{h:'Why it was flagged',v:l=>l.flag,style:()=>'color:var(--red)'},
-   {h:'',v:l=>`<button class="btn" onclick="event.stopPropagation();classifyLine('${l.id}')">Classify</button>`}],
-   SHLINES.filter(l=>!l.cls).map(l=>({...l,__id:l.id})),{id:'shl',
-    foot:['a shareholder drawing writes the owner account entry in the same save — D68',
-     'until they are classified the reserve floor is overstated by three times their value']})
-  :`<div class="note" style="border-left-color:var(--em)"><b>All flagged lines are classified.</b> ${k(shClassified())} of shareholder
-    movement is out of the cost base, the operating outflow is ${k(denomK())} and the floor ${k(floorK())}.</div>`}</div>
- <div class="card"><h3>Classified this period</h3>${
-  SHLINES.filter(l=>l.cls).length?tbl([
-   {h:'Bank ref',v:l=>l.id},{h:'Date',r:1,v:l=>l.d},{h:'Amount',r:1,mono:1,v:l=>k(l.amt)},
-   {h:'Narrative',v:l=>l.nar},{h:'Classification',v:l=>chip(l.cls,/Shareholder/.test(l.cls)?'a':'g')}],
-   SHLINES.filter(l=>l.cls).map(l=>({...l,__id:l.id})),{id:'shc'}):empty('Nothing classified yet')}</div>
- <div class="card"><h3>Other unmatched items</h3>${tbl([
-  {h:'Bank ref',v:r=>r[0]},{h:'Date',r:1,v:r=>r[1]},{h:'Amount',r:1,mono:1,v:r=>r[2]},
-  {h:'Narrative',v:r=>r[3]},{h:'Age',r:1,mono:1,v:r=>r[4]+'d',style:r=>r[4]>5?'color:var(--red)':''},
-  {h:'Suggested match',v:r=>r[5]}],
-  [['8842',dplus(-6),n0(12400),'TRF FROM A ALMARRI',6,'CHQ-3118 · 92% confidence'],
-   ['8851',dplus(-4),n0(6800),'CASH DEP BRANCH 12',4,'collection slip CS-4431'],
-   ['8859',dplus(-6),n0(8200),'TRF GULFSERVE CATER',6,'INV-2417 · 88% confidence'],
-   ['8863',dplus(-2),n0(4100),'RETURNED ITEM FEE',2,'bank charge'],
-   ['8870',dplus(-1),n0(9700),'TRF FROM S RAHMAN',1,'CHQ-3140 · 95% confidence']].map(r=>({...r,__id:r[0]})),
-  {id:'rcl',foot:['9 unmatched · QAR 41,200','rising 4 weeks — flagged to the MD']})}</div>`);
+/* Reconciliation carried an entire screen of invented figures — statement
+   line counts, flagged-line tables, unmatched bank refs, a gross outflow
+   constant — sitting next to a live Import statement action. None of it came
+   from a server. When live, each fabricated panel says so and the wired
+   action stays. The demo rendering is untouched. */
+ROUTES.recon=()=>{
+ const live=!!window.DB_LIVE;
+ const head=page('Bank reconciliation',
+  'Statement lines matched to cheques, collection slips and payments · deposit matches slip, never deposit matches tenant',
+  fbtn('Import statement','import-statement'),
+  (live?'':stat([['Statement lines',148],['Matched',139,'','g'],
+    ['Flagged for classification',openFlags(),openFlags()?'shareholder match and unattributed cash':'all cleared',openFlags()?'r':'g'],
+    ['Drawings separated',k(shClassified()),'excluded from the cost base',shClassified()?'g':''],
+    ['Operating outflow',k(denomK()),'was '+k(GROSS)+' gross'],
+    ['Reserve floor',k(floorK()),DPOL.months+' months']]))+
+  `<div class="card"><h3>Reconciliation workflow — 2C</h3>${steps(['Import statement','Auto-match','Review exceptions','Post entries','Close period'],2)}</div>
+   <div class="note"><b>Three quarters of inflow value carries no payer identity.</b> Matching therefore runs deposit to collection slip, and the
+    slip carries the tenant attribution. Value date is used for matching, posting date for the ledger — Doha Bank runs up to two days apart.</div>`);
 
-/* ---------- alerts and approvals pick up the new module ---------- */
-ALERTS.unshift({ty:'Reserve gate',t:'Headroom '+k(headK())+' against a target of '+k(DPOL.target),w:'06:10',s:'r',go:'#/owners'});
-ALERTS.splice(3,0,{ty:'Classification',t:openFlags()+' bank lines flagged — shareholder match and unattributed cash',w:'06:05',s:'r',go:'#/recon'});
-/* Owners is not wired to live data; its demo approval only belongs in a
-   demo queue, never alongside real ones. */
-if(!(window.DB_SEED&&DB_SEED.approvals&&DB_SEED.approvals.length))
-APPR.push({id:'APR-0107',ty:'Distribution run',ref:'DR-2026-07 · General Manager',amt:DPOL.target,age:3,res:1,st:'Pending',
- why:'Monthly distribution under policy v'+DPOL.v+'. The reserve gate result and the full arithmetic are on the approval memo.'});
+ if(live) return head+
+  `<div class="card"><h3>Matching and classification</h3>
+   ${uw('A bank statement can be imported — that write path is live — but nothing reads the imported lines back to this screen. '+
+        'Matching, the classification queue and the reserve-floor arithmetic all need doc_intake.match_statement and '+
+        'doc_intake.apply_statement_line wired up. Those endpoints exist and are not called.')}</div>
+   <div class="card"><h3>Unmatched items</h3>
+   ${uw('The Command Centre derives an unmatched count from real records. This screen has never been pointed at it.')}</div>`;
+
+ return head+
+  `<div class="card"><h3>Flagged on import — needs classification</h3>${
+   SHLINES.filter(l=>!l.cls).length?tbl([
+    {h:'Bank ref',v:l=>l.id},{h:'Date',r:1,v:l=>l.d},{h:'Amount',r:1,mono:1,v:l=>k(l.amt)},
+    {h:'Narrative',v:l=>l.nar},{h:'Why it was flagged',v:l=>l.flag,style:()=>'color:var(--red)'},
+    {h:'',v:l=>`<button class="btn" onclick="event.stopPropagation();classifyLine('${l.id}')">Classify</button>`}],
+    SHLINES.filter(l=>!l.cls).map(l=>({...l,__id:l.id})),{id:'shl',
+     foot:['a shareholder drawing writes the owner account entry in the same save — D68',
+      'until they are classified the reserve floor is overstated by three times their value']})
+   :`<div class="note" style="border-left-color:var(--em)"><b>All flagged lines are classified.</b> ${k(shClassified())} of shareholder
+     movement is out of the cost base, the operating outflow is ${k(denomK())} and the floor ${k(floorK())}.</div>`}</div>
+  <div class="card"><h3>Classified this period</h3>${
+   SHLINES.filter(l=>l.cls).length?tbl([
+    {h:'Bank ref',v:l=>l.id},{h:'Date',r:1,v:l=>l.d},{h:'Amount',r:1,mono:1,v:l=>k(l.amt)},
+    {h:'Narrative',v:l=>l.nar},{h:'Classification',v:l=>chip(l.cls,/Shareholder/.test(l.cls)?'a':'g')}],
+    SHLINES.filter(l=>l.cls).map(l=>({...l,__id:l.id})),{id:'shc'}):empty('Nothing classified yet')}</div>
+  <div class="card"><h3>Other unmatched items</h3>${tbl([
+   {h:'Bank ref',v:r=>r[0]},{h:'Date',r:1,v:r=>r[1]},{h:'Amount',r:1,mono:1,v:r=>r[2]},
+   {h:'Narrative',v:r=>r[3]},{h:'Age',r:1,mono:1,v:r=>r[4]+'d',style:r=>r[4]>5?'color:var(--red)':''},
+   {h:'Suggested match',v:r=>r[5]}],
+   [['8842',dplus(-6),n0(12400),'TRF FROM A ALMARRI',6,'CHQ-3118 · 92% confidence'],
+    ['8851',dplus(-4),n0(6800),'CASH DEP BRANCH 12',4,'collection slip CS-4431'],
+    ['8859',dplus(-6),n0(8200),'TRF GULFSERVE CATER',6,'INV-2417 · 88% confidence'],
+    ['8863',dplus(-2),n0(4100),'RETURNED ITEM FEE',2,'bank charge'],
+    ['8870',dplus(-1),n0(9700),'TRF FROM S RAHMAN',1,'CHQ-3140 · 95% confidence']].map(r=>({...r,__id:r[0]})),
+   {id:'rcl',foot:['9 unmatched · QAR 41,200','rising 4 weeks — flagged to the MD']})}</div>`;
+};
+
+/* ---------- alerts and approvals pick up the new module ----------
+   Both of these used to run unconditionally at module scope. The two alerts
+   quote headroom and flagged-line counts that are computed from SHLINES and
+   DPOL — invented — and they went into the notification bell alongside real
+   ones. The approval guard was worse than useless: it fired precisely when
+   the server sent no approvals, so an empty live site got a fabricated
+   distribution run in the MD's queue. Demo only, both of them. */
+if(!window.DB_LIVE){
+  ALERTS.unshift({ty:'Reserve gate',t:'Headroom '+k(headK())+' against a target of '+k(DPOL.target),w:'06:10',s:'r',go:'#/owners'});
+  ALERTS.splice(3,0,{ty:'Classification',t:openFlags()+' bank lines flagged — shareholder match and unattributed cash',w:'06:05',s:'r',go:'#/recon'});
+  APPR.push({id:'APR-0107',ty:'Distribution run',ref:'DR-2026-07 · General Manager',amt:DPOL.target,age:3,res:1,st:'Pending',
+   why:'Monthly distribution under policy v'+DPOL.v+'. The reserve gate result and the full arithmetic are on the approval memo.'});
+}
 
 /* ---------- init ---------- */
 addEventListener('DOMContentLoaded',applyRole);
@@ -5382,7 +5472,11 @@ function roleBlock(r){return page('Not available to this role',
 /* ---------- planning configuration folded into Admin rather than a screen of its own ---------- */
 const _admin=ROUTES.admin;
 ROUTES.admin=()=>_admin()+
- `<div class="card" id="sec-plan"><h3>Planning and distribution parameters</h3><div class="kv">
+ `<div class="card" id="sec-plan"><h3>Planning and distribution parameters</h3>${window.DB_LIVE
+  ?uw('Every figure here — reserve months, denominator, distribution target, split rule, '+
+      'posting account — is a prototype default. None of it is stored anywhere or read from '+
+      'anywhere. It becomes real configuration when Stage 2I is built, which needs Q20 and Q21.')
+  :`<div class="kv">
   ${[['Forecast horizon','18 months'],['Unit-level detail cap','12 months — Q16'],
      ['Reserve months',DPOL.months+' — D66'],['Denominator',DPOL.denom],
      ['Distribution target',k(DPOL.target)+' — policy v'+DPOL.v],
@@ -5390,7 +5484,7 @@ ROUTES.admin=()=>_admin()+
      ['Spread threshold','18%'],['Shareholder name-match flag above',k(10)]]
    .map(r=>`<div><span>${r[0]}</span><b>${r[1]}</b></div>`).join('')}</div>
   <div class="note">Everything here is configuration. None of it needs a release to change, which is the point of Q14 sitting in this table
-   rather than in the code.</div></div>
+   rather than in the code.</div>`}</div>
  <div class="card"><h3>Open questions sitting in configuration</h3>${tbl([
   {h:'Ref',v:r=>r[0]},{h:'Question',v:r=>r[1]},{h:'Waiting on',v:r=>r[2]},{h:'Effect if unanswered',v:r=>r[3]}],
   [['Q14','Approval thresholds','Managing Director','Everything routes to the MD'],
@@ -6594,6 +6688,18 @@ const WIRE={
  ok:r=>({title:'Case opened',msg:'Collection case '+r+' opened',
    detail:'Opened by hand \u2014 the reason is on the record',goto:'#/case/'+r})},
 
+'add-unit':{
+ m:'portfolio.add_unit',
+ guard:d=>((d.__ctx&&d.__ctx.b)||d.b)?'':'Open this from a building — a unit needs one to belong to.',
+ a:d=>({data:{building:wBld((d.__ctx&&d.__ctx.b)||d.b),
+   unit_no:String(d.unit_no||'').trim(),unit_type:d.unit_type,floor:String(d.floor||''),
+   status:d.status||'Not Ready',furnishing:d.furnishing||'Unfurnished',
+   bedrooms:wNum(d.bedrooms),bathrooms:wNum(d.bathrooms),area_sqm:wNum(d.area_sqm),
+   asking_rent:wNum(d.asking_rent),kahramaa_meter_no:d.kahramaa_meter_no||null}}),
+ ok:(r,d)=>({title:'Unit created',msg:r.unit_no+' added to '+r.building,
+   detail:d.asking_rent?'Asking rent '+k(+d.asking_rent||0)+' per month':'No asking rent set yet',
+   goto:'#/unit/'+r.unit})},
+
 'raise-job':{
  m:'operations.raise_job',
  a:d=>({payload:{building:wBld(d.building),unit:d.unit||null,
@@ -6711,7 +6817,6 @@ const BLOCKED={
  'journal-entry':'Manual journals post straight to the ledger, so this stays shut until the posting rules are agreed. Everything the app posts today goes through a named workflow.',
  'send-doc':'There is no send path \u2014 no template, no delivery, no record that it went. The document is in the vault and can be downloaded from there.',
  'generate-report':'Reporting has not been built against live records. Anything produced here would be the prototype\u2019s own figures.',
- 'add-unit':'Units are created with their building. Adding one to a building already onboarded needs an API that does not exist yet.',
  'dist-run':'Owner distributions belong to Stage 2I. Blocked on Q20 and Q21.',
  'submit-run':'Owner distributions belong to Stage 2I. Blocked on Q20 and Q21.',
  'reject-run':'Owner distributions belong to Stage 2I. Blocked on Q20 and Q21.',
@@ -6752,6 +6857,15 @@ function applySeed(){
       DB_MISSING[key]=broke.indexOf(key)>=0?'error':'empty';
     }
   });
+  /* KPI is an object of period packs, not a list, so it needs its own pass.
+     It used to be merged once at page load and never again, which meant the
+     headline strip kept whatever it booted with through every refresh. The
+     server always sends all four packs when it is healthy — on an empty site
+     they come back as zeroes — so an absent kpi key means kpis() raised, and
+     the strip says so instead of falling back to the prototype's figures. */
+  const packs=DB_SEED.kpi;
+  window.KPI_LIVE=!!(packs&&Object.keys(packs).length);
+  if(window.KPI_LIVE) Object.keys(packs).forEach(k=>{KPI[k]=packs[k];});
   // The gate can empty the landlord list after buildings were linked to it.
   // Re-link, or a building points at a landlord that no longer exists.
   linkLandlords();
