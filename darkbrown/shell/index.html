@@ -638,6 +638,24 @@ const esc=s=>String(s).replace(/[<>&]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[
 const DAY=864e5, TODAY=new Date('2026-07-26');
 const fdate=d=>d.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'2-digit'});
 const dplus=n=>fdate(new Date(TODAY.getTime()+n*DAY));
+/* Lease-end dates cross from the server already formatted ('31 Oct 26'), so
+   the shell only ever has the display string. "Expiring in 90 days" was
+   counting the ones with '26' somewhere in them, which caught every lease
+   ending in 2026 and every lease ending on the 26th of any month. */
+const MONIX={jan:0,feb:1,mar:2,apr:3,may:4,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11};
+function pdate(s){
+  const m=/^(\d{1,2})\s+([A-Za-z]{3})\s+(\d{2})$/.exec(String(s||'').trim());
+  if(!m) return null;
+  const mo=MONIX[m[2].toLowerCase()];
+  if(mo===undefined) return null;
+  return new Date(2000+(+m[3]),mo,+m[1]);
+}
+function within(s,days){
+  const d=pdate(s); if(!d) return false;
+  const n=(d-new Date())/DAY;
+  return n>=0&&n<=days;
+}
+window.pdate=pdate;window.within=within;
 
 /* ---------- entities ---------- */
 const BNAMES=['Al Sadd Tower','Musheireb Court','West Bay 12','Pearl Qanat','Najma House','Old Airport 7',
@@ -899,12 +917,14 @@ async function dbRefresh(){
   try{
     const r = await dbCall('app.refresh', {});
     window.DB_SEED = r.seed || {};
-    const map={buildings:BUILDINGS,units:UNITS,cases:CASES,jobs:JOBS,moveouts:MOVEOUT,tenants:TENANTS,agreements:AGR,invoices:INV,cheques:CHQ,docs:DOCS,approvals:APPR,landlords:LL,
-      billruns:BILLRUNS,batches:BATCHES};
-    Object.keys(map).forEach(k=>{
-      const rows=DB_SEED[k];
-      if(rows&&rows.length){map[k].length=0;map[k].push.apply(map[k],rows);}
-    });
+    /* The payload is authoritative in both directions. This used to replace a
+       list only when the new one had rows in it, so a list the server no
+       longer sends kept whatever the browser was already holding — which is
+       how a purged site went on showing its old portfolio, footer still
+       reading "live data", while the purge and the counter both correctly
+       reported an empty site. Deleting everything is a legitimate outcome and
+       has to be able to reach the screen. */
+    applySeed();
     router();
   }catch(e){ toast('Could not refresh: '+e.message); }
 }
@@ -981,6 +1001,7 @@ function router(){
   document.body.classList.remove('focus');
   el('#view').innerHTML=(typeof roleCan==='function'&&!roleCan(r))?roleBlock(r)
     :(window.DB_LIVE&&UNWIRED[r])?unwiredPage(r):(fn(id)||empty('Not found'));
+  if(typeof emptyBanner==='function') emptyBanner(r);
   window.scrollTo(0,0);
   document.querySelectorAll('.nv').forEach(n=>n.classList.toggle('on',n.dataset.r===r));
   el('#ptoggle').style.display=r==='dash'?'flex':'none';
@@ -2987,9 +3008,9 @@ ROUTES.buildings=()=>page('Buildings',`${BUILDINGS.length} buildings · ${UNITS.
     <div class="wzsteps">${['Property','Landlord','Documents','Head-lease','Units','Review']
       .map((s,i)=>`<span><b>${i+1}</b>${s}</span>`).join('')}</div></div>
    <div class="wzgo">${fbtn('Start the wizard','onboard-building')}</div></div></div>`+
- stat([['Buildings',BUILDINGS.length],['Units',276],['Landlords',LL.length],
+ stat([['Buildings',BUILDINGS.length],['Units',UNITS.length],['Landlords',LL.length],
   ['Head-lease cost',k(BUILDINGS.reduce((a,b)=>a+b.cost,0))],
-  ['Expiring in 90 days',BUILDINGS.filter(b=>b.hlEnd&&b.hlEnd.includes('26')).length,'','a']])+
+  ['Expiring in 90 days',BUILDINGS.filter(b=>within(b.hlEnd,90)).length,'','a']])+
  searchbox('bl','Search by building, area or landlord')+
  `<div class="card">${tbl([
   {h:'Building',v:b=>b.n},{h:'Area',v:b=>b.area},{h:'Landlord',v:b=>b.ll},
@@ -6691,39 +6712,54 @@ const BLOCKED={
    that reads it says so instead of inventing.
 
    Runs after every array is declared, not before. */
-function gatePayload(){
+/* Every list the server owns, and the array the shell renders it from.
+   `seed()` drops empty lists from the payload entirely, so "absent" and
+   "empty" mean the same thing here: nothing on the site. */
+const SEEDED={buildings:BUILDINGS,units:UNITS,tenants:TENANTS,agreements:AGR,
+ invoices:INV,cheques:CHQ,cases:CASES,approvals:APPR,jobs:JOBS,
+ moveouts:MOVEOUT,docs:DOCS,health:BD,wall:WALL,landlords:LL,billruns:BILLRUNS,
+ batches:BATCHES};
+
+function applySeed(){
   if(!window.DB_LIVE) return;
-  const SEEDED={buildings:BUILDINGS,units:UNITS,tenants:TENANTS,agreements:AGR,
-   invoices:INV,cheques:CHQ,cases:CASES,approvals:APPR,jobs:JOBS,
-   moveouts:MOVEOUT,docs:DOCS,health:BD,wall:WALL,landlords:LL,billruns:BILLRUNS,
-   batches:BATCHES};
   const broke=(DB_SEED._failed||[]);
   Object.keys(SEEDED).forEach(key=>{
-    if(((DB_SEED[key]||[]).length)) return;
-    DB_MISSING[key]=broke.indexOf(key)>=0?'error':'empty';
+    const rows=DB_SEED[key]||[];
     SEEDED[key].length=0;
+    if(rows.length){
+      SEEDED[key].push.apply(SEEDED[key],rows);
+      delete DB_MISSING[key];
+    }else{
+      DB_MISSING[key]=broke.indexOf(key)>=0?'error':'empty';
+    }
   });
   // The gate can empty the landlord list after buildings were linked to it.
   // Re-link, or a building points at a landlord that no longer exists.
   linkLandlords();
 }
+function gatePayload(){ applySeed(); }
+window.applySeed=applySeed;
 window.gatePayload=gatePayload;
-gatePayload();
+applySeed();
 
 router();
 
-/* An empty portfolio is a real state, not an error. Say so once, at the top,
-   rather than letting every screen look broken. */
-window.addEventListener('DOMContentLoaded',()=>{
-  if(window.DB_LIVE && !(window.DB_SEED.buildings||[]).length){
-    const t=document.querySelector('#view');
-    if(t) t.insertAdjacentHTML('afterbegin',
-      '<div class="banner b-at" style="margin-bottom:14px"><div class="bt">◐</div><div>'+
-      '<div class="bt">No buildings onboarded yet</div><div class="small">'+
-      'Portfolio and Operations read live records. Everything else is still '+
-      'showing demonstration data until its module is wired.</div></div></div>');
-  }
-});
+/* An empty portfolio is a real state, not an error. Say so at the top rather
+   than letting every screen look broken. This used to fire once on
+   DOMContentLoaded, so purging the site mid-session left every screen bare
+   with nothing to explain why. It is part of rendering now. */
+function emptyBanner(route){
+  if(!window.DB_LIVE || route==='data') return;
+  if((BUILDINGS||[]).length) return;
+  const t=document.querySelector('#view');
+  if(!t) return;
+  t.insertAdjacentHTML('afterbegin',
+    '<div class="banner b-at" style="margin-bottom:14px"><div class="bt">◐</div><div>'+
+    '<div class="bt">No buildings on the site</div><div class="small">'+
+    'Nothing has been onboarded, or the site was purged. Portfolio and '+
+    'Operations read live records and have none to read.</div></div></div>');
+}
+window.emptyBanner=emptyBanner;
 
 </script>
 </body>
