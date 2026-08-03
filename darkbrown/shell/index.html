@@ -245,6 +245,7 @@ footer{max-width:1440px;margin:0 auto;padding:0 24px 30px;font-size:10px;color:v
   border:1px solid var(--line2);border-radius:7px;padding:8px 10px;width:100%;outline:none}
 .fl input:focus,.fl select:focus,.fl textarea:focus{border-color:var(--em);box-shadow:0 0 0 3px rgba(46,107,87,.12)}
 .fl.err input,.fl.err select,.fl.err textarea,.fl.err .drop{border-color:var(--red)}
+.fl .fh{font-size:10.5px;color:var(--mut);letter-spacing:0;text-transform:none;line-height:1.4}
 .rov{font:500 13px var(--mono);color:var(--ink);padding:8px 0}
 .fc{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--body);padding:6px 0;cursor:pointer}
 .fc input{accent-color:var(--em);width:15px;height:15px}
@@ -635,6 +636,10 @@ const pick=a=>((a&&a.length)?a[Math.floor(R()*a.length)]:{});
 const ri=(a,b)=>a+Math.floor(R()*(b-a+1));
 const money=n=>n0(n);
 const esc=s=>String(s).replace(/[<>&]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]));
+/* esc() is for text between tags. A hand-typed value goes back into value="…"
+   on the next render, where a quote would close the attribute early. */
+const escA=s=>String(s===undefined||s===null?'':s)
+  .replace(/[<>&"']/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&#39;'}[c]));
 const DAY=864e5, TODAY=new Date('2026-07-26');
 const fdate=d=>d.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'2-digit'});
 const dplus=n=>fdate(new Date(TODAY.getTime()+n*DAY));
@@ -2336,6 +2341,18 @@ function fld(f,v){
   if(f.t==='ro') return `<div class="fl"><span>${f.l}</span><div class="rov">${val||'—'}</div></div>`;
   if(f.t==='sel') return `<label class="fl"><span>${f.l}${req}</span><select id="${id}" data-k="${f.k}" ${f.live?`onchange="liveUpdate('${id}')"`:''}>${
     f.o.map(o=>`<option ${String(o)===val?'selected':''}>${o}</option>`).join('')}</select></label>`;
+  /* Type it, do not choose it. A select can only ever hold the list somebody
+     wrote months ago; the first value that falls outside it has nowhere to go.
+     A combo takes free text and offers what has been used before as
+     suggestions, so the second time a value is needed it is one keystroke.
+     `f.o` may be a function so the list is read at render, not at parse. */
+  if(f.t==='combo'){
+    const opts=(typeof f.o==='function'?f.o():f.o)||[];
+    return `<label class="fl ${f.full?'full':''}"><span>${f.l}${req}</span>
+    <input type="text" id="${id}" data-k="${f.k}" list="${id}_l" autocomplete="off"
+      value="${escA(val)}" placeholder="${escA(f.p||'')}" ${f.live?`onchange="liveUpdate('${id}')"`:''}>
+    <datalist id="${id}_l">${opts.map(o=>`<option value="${escA(o)}"></option>`).join('')}</datalist>
+    ${f.hint?`<span class="fh">${f.hint}</span>`:''}</label>`;}
   if(f.t==='ta') return `<label class="fl full"><span>${f.l}${req}</span><textarea id="${id}" data-k="${f.k}" rows="3" placeholder="${f.p||''}">${val}</textarea></label>`;
   if(f.t==='chk') return `<label class="fc"><input type="checkbox" id="${id}" data-k="${f.k}" ${val==='true'?'checked':''}><span>${f.l}</span></label>`;
   if(f.t==='file'){
@@ -4103,6 +4120,44 @@ function docStep(label,hint,note){
    <div class="note">${note||'No document to hand? Continue without it \u2014 you can attach it to the record afterwards.'}</div>`};
 }
 
+/* ---------------- Areas ----------------
+   Doha districts are not a closed list, and the ten that were hard-coded here
+   were a guess. Area is typed now. What is offered underneath is the areas
+   already on the buildings that exist, plus anything typed on this browser
+   before, so the second building in a new district is a pick rather than a
+   retype. Nothing is rejected for being off the list — the server has always
+   taken area_name as free text. */
+const AREA_STORE='db_areas';
+const AREA_SUGGEST=['Al Sadd','Musheireb','West Bay','The Pearl','Najma','Old Airport',
+  'Bin Mahmoud','Duhail','Al Wakrah','Lusail'];
+function areaSaved(){
+  try{const a=JSON.parse(localStorage.getItem(AREA_STORE)||'[]');return Array.isArray(a)?a:[]}
+  catch(e){return[]}
+}
+function areaList(){
+  const seen=new Map();
+  const add=x=>{const s=String(x==null?'':x).trim();
+    if(!s||s==='—') return;
+    const key=s.toLowerCase(); if(!seen.has(key)) seen.set(key,s)};
+  (window.BUILDINGS||[]).forEach(b=>add(b&&b.area));   /* live records first */
+  areaSaved().forEach(add);                            /* then what was typed here */
+  AREA_SUGGEST.forEach(add);                           /* then the starter set */
+  return [...seen.values()].sort((a,b)=>a.localeCompare(b));
+}
+/* Called when a building is actually saved, not while the field is being typed
+   in — a half-finished word is not an area. */
+window.rememberArea=v=>{
+  const s=String(v==null?'':v).trim();
+  if(!s) return s;
+  const list=areaSaved();
+  if(!list.some(x=>String(x).toLowerCase()===s.toLowerCase())){
+    list.push(s);
+    try{localStorage.setItem(AREA_STORE,JSON.stringify(list))}catch(e){}
+  }
+  return s;
+};
+window.areaList=areaList;
+
 FORMS['onboard-building']={t:'Onboard a building',s:'Workflow 2A · property, landlord, documents, lease, units',
  cta:'Create building, landlord and units',
  init:()=>{WZU=[];return{pay:'Quarterly cheque',nchq:'4',lltype:'Company'}},
@@ -4111,13 +4166,14 @@ FORMS['onboard-building']={t:'Onboard a building',s:'Workflow 2A · property, la
     'Attach the signed head-lease. It is filed against the building on save, so the lease and the record stay together.'),
   {n:'Property',body:d=>`<div class="fg">
     ${fld({k:'name',l:'Building name',t:'txt',p:'Al Sadd Tower 2',req:1,full:1},d.name)}
-    ${fld({k:'area',l:'Area',t:'sel',o:['Al Sadd','Musheireb','West Bay','The Pearl','Najma','Old Airport','Bin Mahmoud','Duhail','Al Wakrah','Lusail'],req:1},d.area)}
+    ${fld({k:'area',l:'Area',t:'combo',o:areaList,req:1,p:'Al Sadd',
+      hint:'Type it. Areas already used are suggested, and a new one is remembered for next time.'},d.area)}
     ${fld({k:'floors',l:'Floors',t:'num',p:'8',req:1},d.floors)}
     ${fld({k:'units',l:'Number of units',t:'num',p:'14',req:1,live:1},d.units)}
     ${fld({k:'type',l:'Property type',t:'sel',o:['Apartment block','Villa compound','Mixed use']},d.type)}</div>
    <div class="note">The unit count read off the lease is a cross-check. The real unit numbers are typed in at the Units step,
     because they have to match what is on the doors.</div>`,
-   fields:[{k:'name',req:1},{k:'floors',req:1},{k:'units',req:1}]},
+   fields:[{k:'name',req:1},{k:'area',req:1},{k:'floors',req:1},{k:'units',req:1}]},
   {n:'Landlord',body:d=>`<p class="pp">The landlord is a party in their own right, not a field on the building.
     What is captured here is reused on renewal, on every payment run, and on the next building from the same owner.</p>
    <div class="fg">
@@ -6799,7 +6855,7 @@ const WIRE={
 'onboard-building':{
  m:'portfolio.onboard_building',
  a:d=>{wzCollect();
-  return {payload:{building_name:d.name,status:'Onboarding',area_name:d.area,
+  return {payload:{building_name:d.name,status:'Onboarding',area_name:rememberArea(d.area),
    floors:parseInt(d.floors)||0,
    landlord:{name:d.ll,type:d.lltype,qid:d.llid,iban:d.llbank,
      mobile:d.llphone,email:d.llemail,representative:d.llrep},
