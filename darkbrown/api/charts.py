@@ -74,6 +74,18 @@ def get_projection():
         floor = flt(frappe.db.get_single_value("DBR Settings",
                                                "minimum_cash_floor") or 0)
 
+    # Overhead was missing from this projection entirely, which mattered more
+    # here than anywhere else: the whole point of C1 is finding the month the
+    # cumulative line goes under, and a fixed monthly outflow left out of it
+    # pushes that month later than it really is. Payroll is taken as it stands
+    # today; petty cash as a trailing average, because a one-off last March
+    # says nothing about next March (D80).
+    from darkbrown.api.people import monthly_staff_cost
+    from darkbrown.api.pettycash import monthly_spend_average
+    payroll = monthly_staff_cost()
+    petty_avg = monthly_spend_average(3)
+    overhead = payroll + petty_avg
+
     rows, running = [], 0.0
     danger, hl_expiring = None, []
     for (ms, me, label) in months:
@@ -105,6 +117,8 @@ def get_projection():
                      if q.cheque_date and ms <= getdate(q.cheque_date) <= me
                      and (q.direction or "") != "Outgoing")
 
+        outflow += overhead
+
         inflow = committed + assumed
         net = inflow - outflow
         running += net
@@ -114,10 +128,12 @@ def get_projection():
                      "committed": round(committed), "assumed": round(assumed),
                      "inflow": round(inflow), "outflow": round(outflow),
                      "net": round(net), "running": round(running),
-                     "pdc_in": round(pdc_in)})
+                     "pdc_in": round(pdc_in),
+                     "overhead": round(overhead)})
 
     return {"live": True, "months": rows, "danger": danger,
             "floor": floor, "hl_expiring": hl_expiring,
+            "payroll": round(payroll), "pettyAvg": round(petty_avg),
             "pdc": bool(pdc_field), "c8": _collected_vs_billed(),
             "scenarios": _scenarios()}
 

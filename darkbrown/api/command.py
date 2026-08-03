@@ -570,10 +570,15 @@ def _runway_flows():
         res["accounts"] = [{"a": x["a"], "b": _k(x["b"]), "on": x["on"]}
                            for x in dec["accounts"]]
         balC, balE, c, e = [], [], _k(dec["total"]), _k(dec["total"])
+        # Petty cash draw is an average, not a commitment, so it moves the
+        # expected line and is kept off the confirmed one. The confirmed line
+        # is meant to answer "what is certain", and an average is not.
+        from darkbrown.api.pettycash import monthly_spend_average
+        weekly_petty = monthly_spend_average(3) * 12.0 / 52.0
         for wrow in out:
             c = round(c + wrow["pdc"] - wrow["ll"] - wrow["pay"], 1)
             e = round(e + wrow["pdc"] + wrow["exp"]
-                      - wrow["ll"] - wrow["pay"], 1)
+                      - wrow["ll"] - wrow["pay"] - _k(weekly_petty), 1)
             balC.append(c)
             balE.append(e)
         res["balC"], res["balE"] = balC, balE
@@ -607,19 +612,25 @@ def _waterfall():
     """, (m0, get_last_day(m0), m0, get_last_day(m0)), as_dict=True)[0]
     maint_net = flt(mnt.c) - flt(mnt.r)
     util_net = flt(utl.paid) - flt(utl.rec)
-    # Staff is portfolio overhead (D74), so it lands here as one bar rather
-    # than being pushed down into building margin. Its own bar and not folded
-    # into another: overhead behaves nothing like a head-lease or a repair,
-    # and hiding it inside either would make the bridge unreadable.
+    # Staff and petty cash are portfolio overhead (D74, D79), so they land
+    # here rather than being pushed down into building margin. They share one
+    # bar: petty cash is small beside payroll and a separate bar for it would
+    # be a sliver against a seventh set of labels the box cannot fit. The
+    # split is returned alongside so the panel can name both.
     from darkbrown.api.people import monthly_staff_cost
+    from darkbrown.api.pettycash import spend_between
     staff = monthly_staff_cost(m0)
+    petty = spend_between(m0, get_last_day(m0))
+    overhead = staff + petty
     return {
         "gross": _k(gross),
         "landlord": _k(landlord),
         "maintNet": _k(maint_net),
         "utilNet": _k(util_net),
+        "overhead": _k(overhead),
         "staff": _k(staff),
-        "spread": _k(gross - landlord - maint_net - util_net - staff),
+        "petty": _k(petty),
+        "spread": _k(gross - landlord - maint_net - util_net - overhead),
         "held": len(held),
     }
 

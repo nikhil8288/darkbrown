@@ -1,149 +1,187 @@
-# Single-page forms + HR module
+# Single-page forms · Staff · Petty cash
 
-Repo-root overlay. **This supersedes `darkbrown_single_page_forms.zip`** — the same
-shell change is in here, plus the HR module on top. Apply this one, not both.
+Repo-root overlay. **Supersedes both earlier zips** (`darkbrown_single_page_forms.zip`
+and `darkbrown_forms_and_hr.zip`). Apply this one only.
+
+Needs a migrate — two new doctypes and a new settings field:
+
+    bench --site <site> migrate
+    bench --site <site> clear-cache
+
+Then hard-refresh, and set **DBR Settings → People → Staff Pay Day**. It defaults to
+the 5th, which is an assumption that was never confirmed and decides which week of
+the runway carries payroll.
 
 ## Files
 
 New:
 
     darkbrown/api/people.py
-    darkbrown/darkbrown/doctype/staff_member/{__init__.py,staff_member.json,staff_member.py}
+    darkbrown/api/pettycash.py
+    darkbrown/darkbrown/doctype/staff_member/…
+    darkbrown/darkbrown/doctype/petty_cash_entry/…
 
 Changed:
 
-    darkbrown/shell/index.html                                (forms engine + staff screens)
-    darkbrown/api/command.py                                  (bridge + runway)
-    darkbrown/api/app.py                                      (boot payload)
-    darkbrown/darkbrown/doctype/dbr_settings/dbr_settings.json (staff pay day)
-
-## Deploying
-
-This one **does** need a migrate — there is a new doctype and a new settings field:
-
-    bench --site <site> migrate
-    bench --site <site> clear-cache
-
-Then hard-refresh the browser.
-
-After migrating, set **DBR Settings → People → Staff Pay Day**. It defaults to the
-5th. This was never confirmed, so the default is an assumption and it decides which
-week of the runway carries payroll.
+    darkbrown/shell/index.html
+    darkbrown/api/command.py
+    darkbrown/api/charts.py
+    darkbrown/api/app.py
+    darkbrown/darkbrown/doctype/dbr_settings/dbr_settings.json
 
 ---
 
-# Part one — every form is one page
+# 1 — Every form is one page
 
 The engine reads the same step definitions and renders them together instead of one
 at a time. Steps became numbered sections down the page, the step rail became a jump
 rail, Back and Continue went, and there is one save button carrying the form's own
-wording. All 17 multi-step forms convert; the single-step forms are untouched.
+wording. All 17 multi-step forms convert; the 24 single-step forms are untouched.
 
-**Clicking outside no longer closes anything.** A form closes on the X, on Cancel, or
-on Escape. If there is anything in it, a sheet asks first, and leaving keeps what was
-entered — including chosen files — restored next time that form opens, with a strip
-saying so and a "Start fresh" button. Drafts are per form, held for the browser
-session, dropped once the record saves.
+**Clicking outside no longer closes anything.** X, Cancel or Escape only. If there is
+anything in the form, a sheet asks first, and leaving keeps what was entered —
+including chosen files — restored next time that form opens, with a "Start fresh"
+button. Drafts are per form, held for the browser session, dropped once the record
+saves.
 
 **Validation runs once, on save.** Every section is checked. What comes back is a list
 of what is outstanding, each entry a link that scrolls to and focuses the field, with
 the sections and rail chips concerned marked red.
 
-Two things behind that:
+Three things behind that, each of which was a bug found by building this:
 
 *Derived sections refresh on change.* A section may read a field defined in another —
-the payment schedule from the lease value, the unit list from the building. Redrawing
-on every change was the first attempt and it was too blunt: the whole form is
-replaced, so the field the cursor was moving to gets torn out from under it. The
-engine now works out per form which keys are read outside the section that defines
-them, and redraws only on those. For onboard-building that is three fields, not
-twenty-eight. It is read off the step definitions, so new forms need no annotation.
+the payment schedule from the lease value. Redrawing on every change was the first
+attempt and it was too blunt: the whole form is replaced, so the field the cursor was
+moving to gets torn out from under it. The engine now works out per form which keys
+are read outside the section that defines them, and redraws only on those. Read off
+the step definitions, so new forms need no annotation.
 
-*The confirm sheet renders into a new `#modal2`,* not into `#modal`. Leaving a field
-fires a change, a change can redraw the form, and a redraw replaces `#modal` wholesale
-— which took the sheet with it before the click on it had landed.
+*Redraws are deferred to the end of the turn.* Typing in a live field and then
+clicking Save ran blur, change, redraw — and the redraw replaced the button between
+mousedown and mouseup, so no click was ever dispatched. The button looked dead; it had
+been rebuilt underneath the finger. **This affected the existing forms too, before any
+of this work.**
+
+*On save: check, then redraw, then check again.* A step's own check is what commits
+editor state that is not a plain field — the unit editor reads its rows out of the DOM
+when asked — so redrawing first threw that work away and onboard-building stopped
+saving. Redrawing after is safe and is needed, or a conditional field like the petty
+cash reason box is demanded by an error message but never shown.
+
+*The confirm sheet renders into a new `#modal2`,* not `#modal`, or a redraw takes it
+with it before the click on it lands.
 
 ---
 
-# Part two — HR
+# 2 — Staff
 
-Scope is deliberately small. The point is the money: salaries are a fixed monthly
-operating cost that this system recorded nowhere, so the bridge, the runway and every
-cost base read better than the business was.
+Scope is small on purpose. The point is the money: salaries are a fixed monthly
+operating cost that this system recorded nowhere.
 
-## Decisions this implements
-
-- **D74** Staff cost is portfolio overhead. It does not touch building margin, which
-  stays the spread after head-lease. It does hit total operating cost, so it reaches
-  the reserve floor and the distribution gate.
-- **D75** No gratuity accrual in v1. Basic and allowances are stored separately anyway,
-  so it can be added without revisiting records.
+- **D74** Portfolio overhead. Does not touch building margin, which stays the spread
+  after head-lease.
+- **D75** No gratuity accrual. Basic and allowances stored separately so it can be
+  added without revisiting records.
 - **D76** Pay visible to Accounts and the MD. GM sees headcount, names, departments.
-- **D77 (proposed, overturn if you disagree)** The headline `spread` KPI is left alone.
-  It is billed minus head-lease, compared period-on-period, and feeds several panels;
-  netting overhead into it would change what the number means without renaming it.
-  Staff appears in the bridge and the runway instead.
 
-## What is in it
+`Staff Member` — not named `Employee`, ERPNext already has one. Pay fields sit at
+`permlevel: 1`, so Frappe withholds them rather than the screen doing it.
+`monthly_staff_cost` is **not** whitelisted: a whitelisted total salary bill is one
+available to anyone who can call it. `save_staff` refuses to write pay when the caller
+cannot see it, or a GM editing a job title would silently blank a salary.
 
-`Staff Member` doctype — not named `Employee`, because ERPNext already has one.
-Name, job title, department, status, QID, joining date, and pay as basic +
-allowances with monthly cost derived. Pay fields sit at `permlevel: 1`, so Frappe
-itself withholds them rather than the screen doing it.
+Not in it: payroll runs, WPS, attendance, leave, employee documents and expiry,
+gratuity, approvals. Document expiry is the cheapest to add back — the lease-expiry
+alerting already exists and employee documents would ride on it.
 
-`api/people.py` — list, record, save, cost total, summary. Two points worth knowing:
+---
 
-- `monthly_staff_cost` is **not** whitelisted. A whitelisted total salary bill is a
-  total salary bill available to anyone who can call it. Screens reach it through
-  `staff_summary`, which applies the pay rule.
-- `save_staff` refuses to write pay when the caller cannot see it. Otherwise a GM
-  editing a job title would silently blank a real salary.
+# 3 — Petty cash
 
-The cost total respects dates — joined after the month, or left before it, is out.
+- **D78** A float with a running balance, not an expense log.
+- **D79** Portfolio overhead, no building tag. Same reasoning as D74.
 
-## Where it lands
+An expense log says what was spent. Only a float says whether the money that should be
+in the box still is, which in a business this cash-heavy is the question worth being
+able to answer. Three movements: top-up, expense, and the adjustment when a physical
+count disagrees.
 
-`_waterfall()` gains a Staff bar, its own rather than folded into maintenance.
-Bar geometry now follows the bar count; the old fixed widths ran a sixth bar off
-the canvas.
+The balance is derived from the movements every time and never stored, because a
+stored balance and a movement history can disagree and there is then no way to tell
+which one lied. Running balances compute forward from the beginning, so a back-dated
+entry reshapes everything after it.
 
-`_runway_flows()` gains payroll, which was absent entirely — the most reliable
-outflow this business has, missing from thirteen weeks of cash. It falls in the week
-containing pay day rather than being spread across weeks, because smoothing would
-erase the one thing the runway exists to show.
+Adjustments carry a mandatory reason and their own direction. Both matter: a count
+that does not agree is a fact about the cash and possibly about a person, and writing
+the book silently down to the box destroys the only evidence. The direction is
+explicit because assuming one meant a shortfall *increasing* the book — that was a
+real bug in the first draft of this module.
 
-Shell: People → Staff nav group, list and detail screens, and a two-section
-`add-staff` form.
+**Partly answers Q24.** Top-ups name the account they came from, so an ATM withdrawal
+that funds the float stops being an unclassified cash movement. Not all of Q24 — cash
+leaves the accounts for other reasons — but a real piece of it.
 
-## Not in it
+---
 
-Payroll runs, the WPS file, attendance, leave, employee documents and their expiry,
-gratuity accrual, approvals. Document expiry is the cheapest thing to add back — the
-lease-expiry alerting already exists and employee documents would ride on it.
+# 4 — Where the money actually lands
+
+This was the question that prompted the batch, and the honest answer had been "two of
+four". Now:
+
+| | payroll | petty cash |
+|---|---|---|
+| Spread bridge `_waterfall` | yes, one **Overhead** bar | yes, same bar |
+| 13-week runway `_runway_flows` | yes, in the pay-day week | expected line only |
+| 12-month projection `get_projection` | **yes, new (D80)** | yes, trailing average |
+| Headline `spread` KPI | no — **D77**, unconfirmed | no |
+
+The projection was the one that mattered. Its whole purpose is finding the month the
+cumulative line goes under, and it modelled rent in against head-lease out and nothing
+else — so it was reporting a danger month later than the truth. Payroll enters at
+today's figure; petty cash as a trailing three-month average, because a one-off last
+March says nothing about next March. The runway keeps actual dated movements and gets
+the average only on its *expected* line, never the confirmed one — the confirmed line
+answers "what is certain", and an average is not.
+
+The bridge shows staff and petty cash as one **Overhead** bar rather than two. Petty
+cash is small beside payroll and a seventh bar would be a sliver against labels the
+box cannot fit; the split is returned alongside for the panel to name.
+
+**D77 still needs your call.** The headline `spread` KPI is billed minus head-lease,
+compared period-on-period, and feeds several panels. Netting overhead into it would
+change what the number means without renaming it, so it was left alone.
+
+## A correction
+
+Earlier notes said staff cost reaches the reserve floor and the distribution gate.
+**It does not, because they do not exist in the code.** Stage 2I is in the Product
+Bible and the Design Working Document, not in `api/`. Nothing enforces a reserve gate
+today. The `people.py` docstring has been corrected.
 
 ---
 
 ## Tested, and not
 
-Verified against the prototype's seeded data: 39 forms open with all sections
-rendered, 68 routes clean across MD/GM/ACC/DOC/MNT, draft persistence and the confirm
-sheet behave, `add-staff` saves end to end, the bridge renders six bars with no
-overflow, and masking is right per role — MD and Accounts see pay, the other three
-get a tile saying it is not shown for their role.
+Against the prototype's seeded data: 41 forms open with all sections rendered, 69
+routes clean across MD/GM/ACC/DOC/MNT, drafts and the confirm sheet behave,
+onboard-building and add-staff save end to end, the bridge renders six bars with no
+overflow, staff masking is right per role, and the float arithmetic is verified —
+including that a shortfall decreases the book and a count that agrees writes nothing.
 
-**Not verified:** anything against a real database. The doctype has never been through
-`bench migrate`, and `_staff_seed` in the boot payload is untested against real
-records. Run it on a test site before it goes near live data.
+**Not verified:** anything against a real database. Neither doctype has been through
+`bench migrate`; `_staff_seed` and `_petty_seed` are untested against real records.
+Run it on a test site first.
 
-Two known items, neither introduced here:
+Known, neither introduced here:
 
-- Bar labels truncate at 18 characters, so "Spread after recorded costs" was already
-  being clipped before the Staff bar joined it.
+- Bridge bar labels truncate at 18 characters, so "Spread after recorded costs" was
+  already clipped.
 - `classify-line` throws when opened without a context. It always has; it is only ever
   called as `openForm('classify-line',{id})`.
 
 ## Testing note
 
-Redraws replace the form DOM, so a test calling `fill()` on several fields back to
-back can write into a detached node. Drive it as a person would: click the field,
-fill it, then move on.
+`fill()` does not blur, and `change` fires on blur — so a test that fills and clicks
+Save without tabbing out will not trigger the live redraw and will not reproduce what
+a person sees. Click the field, fill it, tab out, then move on.

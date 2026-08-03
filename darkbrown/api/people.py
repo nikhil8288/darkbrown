@@ -4,9 +4,13 @@ This module exists for the money before it exists for the people. Salaries are
 a large, fixed, monthly operating cost and until now they were recorded
 nowhere, which meant three things were quietly wrong: the spread bridge ended
 at a figure that had never met payroll, the thirteen-week runway showed no
-outflow for the single most reliable payment this business makes, and any
-reserve floor computed from that cost base was short by the same amount every
-month.
+outflow for the single most reliable payment this business makes, and the
+twelve-month projection looked for the month cash runs out while ignoring a
+fixed monthly cost.
+
+Those three are where staff cost now reaches, and they are the only three.
+The reserve floor and the distribution gate are Stage 2I design and are not
+implemented anywhere in this app yet, so nothing here feeds them.
 
 Two rules hold it together.
 

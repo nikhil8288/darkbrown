@@ -1,0 +1,167 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "creation": "2026-08-03 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-08-03 00:00:00.000000",
+ "module": "Darkbrown",
+ "name": "Petty Cash Entry",
+ "owner": "Administrator",
+ "sort_field": "entry_date",
+ "sort_order": "DESC",
+ "track_changes": 1,
+ "autoname": "format:PC-{#####}",
+ "field_order": [
+  "entry_date",
+  "direction",
+  "amount",
+  "column_break_1",
+  "category",
+  "description",
+  "section_source",
+  "funded_from",
+  "reference",
+  "column_break_2",
+  "adjustment_effect",
+  "reason",
+  "section_notes",
+  "notes"
+ ],
+ "fields": [
+  {
+   "fieldname": "entry_date",
+   "fieldtype": "Date",
+   "label": "Date",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "direction",
+   "fieldtype": "Select",
+   "label": "Movement",
+   "options": "Top-up\nExpense\nAdjustment",
+   "default": "Expense",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "description": "Top-up puts cash into the float, expense takes it out, adjustment corrects the book to a physical count."
+  },
+  {
+   "fieldname": "amount",
+   "fieldtype": "Currency",
+   "label": "Amount",
+   "reqd": 1,
+   "in_list_view": 1,
+   "description": "Always positive. The movement decides the direction."
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "category",
+   "fieldtype": "Select",
+   "label": "Category",
+   "options": "\nOffice supplies\nFuel and transport\nGovernment fees\nStaff welfare\nBuilding consumables\nHospitality\nCourier and postage\nOther",
+   "depends_on": "eval:doc.direction=='Expense'",
+   "mandatory_depends_on": "eval:doc.direction=='Expense'",
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Data",
+   "label": "What it was for",
+   "mandatory_depends_on": "eval:doc.direction=='Expense'"
+  },
+  {
+   "fieldname": "section_source",
+   "fieldtype": "Section Break",
+   "label": "Source and reference"
+  },
+  {
+   "fieldname": "funded_from",
+   "fieldtype": "Link",
+   "options": "Bank Account",
+   "label": "Funded From",
+   "depends_on": "eval:doc.direction=='Top-up'",
+   "mandatory_depends_on": "eval:doc.direction=='Top-up'",
+   "description": "Which account the cash came out of. An ATM withdrawal recorded here stops being an unclassified cash movement."
+  },
+  {
+   "fieldname": "reference",
+   "fieldtype": "Data",
+   "label": "Reference",
+   "description": "Slip number, receipt number or bank narration."
+  },
+  {
+   "fieldname": "column_break_2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "adjustment_effect",
+   "fieldtype": "Select",
+   "label": "Adjustment Effect",
+   "options": "Decrease\nIncrease",
+   "default": "Decrease",
+   "depends_on": "eval:doc.direction=='Adjustment'",
+   "mandatory_depends_on": "eval:doc.direction=='Adjustment'",
+   "description": "Which way the count moved the book. A shortfall decreases it."
+  },
+  {
+   "fieldname": "reason",
+   "fieldtype": "Small Text",
+   "label": "Reason for the adjustment",
+   "depends_on": "eval:doc.direction=='Adjustment'",
+   "mandatory_depends_on": "eval:doc.direction=='Adjustment'",
+   "description": "A count that does not agree with the book is a fact about the cash, so it is recorded with its explanation rather than quietly written off."
+  },
+  {
+   "fieldname": "section_notes",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "notes",
+   "fieldtype": "Small Text",
+   "label": "Notes"
+  }
+ ],
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "read": 1,
+   "report": 1,
+   "write": 1,
+   "role": "System Manager"
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "read": 1,
+   "report": 1,
+   "write": 1,
+   "role": "Managing Director"
+  },
+  {
+   "create": 1,
+   "delete": 0,
+   "read": 1,
+   "report": 1,
+   "write": 1,
+   "role": "Accounts"
+  },
+  {
+   "create": 1,
+   "delete": 0,
+   "read": 1,
+   "report": 1,
+   "write": 0,
+   "role": "General Manager"
+  }
+ ]
+}

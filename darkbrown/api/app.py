@@ -381,6 +381,11 @@ def _attention():
         return []
 
 
+def _petty_seed():
+    from darkbrown.api.pettycash import entries
+    return entries(limit=200)
+
+
 def _staff_seed():
     """Staff for the boot payload. The pay rule lives in the people module and
     is applied there, so a General Manager's boot payload never carries a
@@ -415,7 +420,8 @@ def seed():
                     ("health", _health), ("kpi", _kpi),
                     ("panels", _panels),
                     ("bankAccounts", bank_accounts),
-                    ("staff", _staff_seed)):
+                    ("staff", _staff_seed),
+                    ("petty", _petty_seed)):
         try:
             rows = fn()
         except Exception as e:

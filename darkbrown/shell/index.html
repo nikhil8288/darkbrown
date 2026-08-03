@@ -613,6 +613,7 @@ body.focus main{max-width:none}
     <div class="nv" data-r="runs">Distribution runs <span class="b r" id="nbRuns">1</span></div>
     <div class="grp">People</div>
     <div class="nv" data-r="staff">Staff</div>
+    <div class="nv" data-r="petty">Petty cash</div>
     <div class="grp">Governance</div>
     <div class="nv" data-r="approvals">Approvals <span class="b" id="nbAppr">4</span></div>
     <div class="nv" data-r="reports">Reports</div>
@@ -897,6 +898,37 @@ if(window.DB_SEED&&DB_SEED.staff){PEOPLE.length=0;PEOPLE.push.apply(PEOPLE,DB_SE
 const canPay=()=>PEOPLE.some(x=>x.cost!==undefined)&&(ROLEV==='MD'||ROLEV==='ACC');
 const staffActive=()=>PEOPLE.filter(x=>x.status!=='Left');
 const staffCost=()=>staffActive().reduce((a,x)=>a+(+x.cost||0),0);
+
+/* ---------- petty cash ----------
+   A float with a balance rather than a list of receipts. An expense log says
+   what was spent; only a float says whether the money that should be in the
+   box still is, which in a business this cash-heavy is the question worth
+   being able to answer.
+
+   Amounts are always positive and the movement carries the sign. An
+   adjustment carries its own direction on top, because assuming one would
+   mean a shortfall found in the box quietly increasing the book. */
+let PETTY=[
+ {id:'PC-00001',date:'2026-06-02',dir:'Top-up',amount:8000,from:'QNB — 0021 4478',ref:'ATM 2 Jun',what:'',cat:''},
+ {id:'PC-00002',date:'2026-06-04',dir:'Expense',amount:340,cat:'Office supplies',what:'Printer toner and paper',ref:'RCP-1182'},
+ {id:'PC-00003',date:'2026-06-08',dir:'Expense',amount:1250,cat:'Government fees',what:'Municipality trade licence renewal',ref:'MOI-88431'},
+ {id:'PC-00004',date:'2026-06-11',dir:'Expense',amount:620,cat:'Fuel and transport',what:'Fuel, maintenance van',ref:'WOQOD-4471'},
+ {id:'PC-00005',date:'2026-06-17',dir:'Expense',amount:880,cat:'Building consumables',what:'Bulbs, filters, cleaning stock',ref:'RCP-1194'},
+ {id:'PC-00006',date:'2026-06-22',dir:'Expense',amount:410,cat:'Courier and postage',what:'Document courier to landlords',ref:'ARX-2290'},
+ {id:'PC-00007',date:'2026-06-28',dir:'Adjustment',amount:150,effect:'Decrease',
+  reason:'Count on 28 Jun came up short. Receipt for a fuel purchase not produced.',ref:'Count on 2026-06-28'},
+ {id:'PC-00008',date:'2026-07-01',dir:'Top-up',amount:6000,from:'Doha Bank — 0044 9910',ref:'ATM 1 Jul',what:'',cat:''},
+ {id:'PC-00009',date:'2026-07-09',dir:'Expense',amount:520,cat:'Staff welfare',what:'Eid allowance, maintenance team',ref:'RCP-1203'},
+ {id:'PC-00010',date:'2026-07-19',dir:'Expense',amount:295,cat:'Hospitality',what:'Refreshments, landlord meeting',ref:'RCP-1211'}];
+if(window.DB_SEED&&DB_SEED.petty){PETTY.length=0;PETTY.push.apply(PETTY,DB_SEED.petty);}
+const pcSign=e=>e.dir==='Top-up'?1:e.dir==='Expense'?-1:(e.effect==='Increase'?1:-1);
+/* forward from the beginning, so a back-dated entry reshapes what follows */
+const pcBalance=()=>PETTY.slice().sort((a,b)=>a.date<b.date?-1:1)
+  .reduce((t,e)=>t+pcSign(e)*(+e.amount||0),0);
+const pcSpendIn=ym=>PETTY.filter(e=>e.dir==='Expense'&&e.date.slice(0,7)===ym)
+  .reduce((t,e)=>t+(+e.amount||0),0);
+const pcAverage=()=>{const ms=[...new Set(PETTY.filter(e=>e.dir==='Expense').map(e=>e.date.slice(0,7)))];
+  return ms.length?ms.reduce((t,m)=>t+pcSpendIn(m),0)/ms.length:0};
 /* ---------- shared components ---------- */
 const el=s=>document.querySelector(s);
 function page(t,sub,actions,body){
@@ -1891,7 +1923,7 @@ function renderWaterfall(){
        not carry a zero bar for a thing this business does not yet record. */
     const st=[['Gross rent',LP.gross||0,'#C9A86A'],['Landlord rent',-(LP.landlord||0),'#75634F'],
       ['Maint net',-(LP.maintNet||0),'#B4552F'],['Utilities net',-(LP.utilNet||0),'#B4552F'],
-      ...(LP.staff?[['Staff',-(LP.staff||0),'#8A6F4E']]:[]),
+      ...(LP.overhead?[['Overhead',-(LP.overhead||0),'#8A6F4E']]:[]),
       ['Spread after recorded costs',LP.spread||0,'#2E6B57']];
     /* the bar geometry follows the bar count, or a sixth bar runs off the box */
     const W=560,H=200,L=44,GP=Math.max(12,Math.round(154/st.length));
@@ -2596,7 +2628,7 @@ function blockedForm(key){
   </div></div>`;
 }
 
-window.closeForm=()=>{FOPEN=false;
+window.closeForm=()=>{FOPEN=false;clearTimeout(FREDRAW);
   document.getElementById('modal').innerHTML='';
   document.getElementById('modal2').innerHTML='';
   document.body.style.overflow=''};
@@ -2708,7 +2740,31 @@ function fieldChanged(e){
   collect();                                   /* always — it costs nothing */
   if(document.getElementById('fcnf'))return;   /* not underneath the sheet */
   if(!liveKeys(FKEY).has(t.dataset.k))return;  /* nothing else reads it */
-  drawForm();
+  scheduleRedraw();
+}
+
+/* Redraws wait for the end of the turn rather than happening inside the
+   handler that asked for them.
+
+   The reason is a click that used to go missing. Typing in a live field and
+   then clicking Save runs blur, then change, then the redraw — and the redraw
+   replaces the button between mousedown and mouseup, so no click is ever
+   dispatched and the press does nothing. It looked like the button was dead;
+   it was that the button had been rebuilt underneath the finger. Deferring
+   lets the click land on the element the user actually aimed at.
+
+   The guards matter: by the time this fires the form may have been submitted
+   or closed, and redrawing then would put a stale form back over the
+   confirmation. */
+let FREDRAW=0;
+function scheduleRedraw(){
+  clearTimeout(FREDRAW);
+  FREDRAW=setTimeout(()=>{
+    if(!FOPEN) return;
+    if(document.getElementById('fcnf')) return;
+    if(!document.getElementById('fbody')) return;
+    drawForm();
+  },0);
 }
 
 function spySec(){
@@ -2735,7 +2791,7 @@ window.jumpField=k=>{
   spySec();
 };
 
-window.liveUpdate=id=>{collect();drawForm()};
+window.liveUpdate=id=>{collect();scheduleRedraw()};
 window.formBack=()=>{};   /* kept so an older call site does nothing rather than throw */
 
 /* ---- the check, run once, on save ----
@@ -2789,8 +2845,18 @@ function checkAll(){
 }
 
 window.formNext=()=>{
+  clearTimeout(FREDRAW);   /* a pending redraw must not fire mid-submit */
   collect();
-  if(!checkAll())return;
+  /* Check first, redraw second, check again.
+     The order is deliberate. A step's own check is what commits editor state
+     that is not a plain field — the unit editor reads its rows out of the DOM
+     when asked — so redrawing before the check would throw that work away.
+     Redrawing after it is safe, and it is needed: a field that only appears
+     under a condition, like the reason box on a count that disagrees, is owed
+     by the values just collected but is not yet on screen, and cancelling the
+     pending redraw above would leave the form demanding something it never
+     showed. The second check re-marks the errors on the fresh DOM. */
+  if(!checkAll()){drawForm();collect();checkAll();return;}
   const w=window.DB_LIVE?WIRE[FKEY]:null;
   if(w){submitLive(w);return}
   /* No WIRE entry and a live site meant falling through to the prototype
@@ -2883,7 +2949,7 @@ async function submitLive(w){
 
 function formDone(res){
   /* the record exists now, so the held draft is stale — it goes */
-  FOPEN=false; delete window.FDRAFT[FKEY];
+  FOPEN=false; clearTimeout(FREDRAW); delete window.FDRAFT[FKEY];
   document.getElementById('modal').innerHTML=`
    <div class="ovl" onclick="if(event.target===this)closeForm()"><div class="mdl">
     <div class="mh"><div><div class="mt2">${res.title||'Done'}</div><div class="ms">${FRM.t}</div></div>
@@ -3594,6 +3660,44 @@ ROUTES.staffm=id=>{
   (pay?`<div class="note">Gratuity is not accrued in this version, so this cost is the salary
     and nothing else. Basic is stored apart from allowances so the accrual can be added later
     without revisiting this record.</div>`:''));
+};
+
+/* ---------- petty cash ---------- */
+window.openPc=id=>go('#/petty');
+
+ROUTES.petty=()=>{
+ const bal=pcBalance(), avg=pcAverage();
+ const ym=new Date().toISOString().slice(0,7);
+ const rows=PETTY.slice().sort((a,b)=>a.date<b.date?-1:1);
+ let run=0; rows.forEach(e=>{run+=pcSign(e)*(+e.amount||0); e.__bal=run});
+ const shown=rows.slice().reverse();
+ const lastTop=rows.filter(e=>e.dir==='Top-up').slice(-1)[0];
+ const adj=PETTY.filter(e=>e.dir==='Adjustment');
+ return page('Petty cash',
+  'A float with a balance \u00b7 spend is portfolio overhead and does not touch building margin',
+  fbtn('Record a movement','petty-entry')+fbtn('Count the box','petty-count'),
+  stat([['Balance in the box','QAR '+n0(bal)],
+   ['Spent this month','QAR '+n0(pcSpendIn(ym))],
+   ['Monthly average','QAR '+n0(Math.round(avg))],
+   ['Last top-up',lastTop?fdate(new Date(lastTop.date)):'\u2014']])+
+  `<div class="note">The balance is worked out from the movements every time and never stored,
+    because a stored balance and a movement history can disagree and there is then no way to tell
+    which one lied. Top-ups name the account the cash came from, so an ATM withdrawal recorded
+    here stops being an unclassified cash movement.
+    ${adj.length?'<br><b>'+adj.length+' adjustment'+(adj.length>1?'s':'')+' on record.</b> '+
+      'A count that did not agree is kept with its reason rather than written off.':''}</div>`+
+  searchbox('pc','Search by description, category or reference')+
+  `<div class="card">${tbl([
+   {h:'Date',r:1,v:e=>fdate(new Date(e.date))},
+   {h:'Movement',v:e=>chip(e.dir,e.dir==='Top-up'?'g':e.dir==='Adjustment'?'r':'n')},
+   {h:'Category',v:e=>e.cat||(e.dir==='Top-up'?e.from||'\u2014':'\u2014')},
+   {h:'What for',v:e=>e.what||e.reason||e.ref||'\u2014'},
+   {h:'In',r:1,mono:1,v:e=>pcSign(e)>0?n0(e.amount):''},
+   {h:'Out',r:1,mono:1,v:e=>pcSign(e)<0?n0(e.amount):''},
+   {h:'Balance',r:1,mono:1,v:e=>n0(e.__bal)}],
+   shown.map(e=>({...e,__id:e.id})),
+   {id:'pc',click:'openPc',
+    foot:[shown.length+' movements','Balance QAR '+n0(bal)]})}</div>`);
 };
 
 ROUTES.landlords=()=>{
@@ -4688,6 +4792,87 @@ FORMS['add-tenant']={t:'Add tenant',s:'Workflow 2B · tenancy onboarding',cta:'C
    goto:'#/tenant/'+id}}};
 
 /* ---------- reworked deposit batch ---------- */
+FORMS['petty-entry']={t:'Record a petty cash movement',
+ s:'Portfolio overhead \u00b7 the float, not a building',cta:'Record it',
+ init:()=>({dir:'Expense',date:new Date().toISOString().slice(0,10)}),
+ steps:[{n:'Movement',body:d=>{
+  const bal=pcBalance(), amt=+d.amount||0;
+  const after=bal+(d.dir==='Top-up'?amt:d.dir==='Expense'?-amt:(d.effect==='Increase'?amt:-amt));
+  return `<div class="fg">
+   ${fld({k:'dir',l:'Movement',t:'sel',o:['Expense','Top-up','Adjustment'],req:1,live:1},d.dir)}
+   ${fld({k:'date',l:'Date',t:'date',req:1},d.date)}
+   ${fld({k:'amount',l:'Amount (QAR)',t:'num',step:'10',req:1,live:1,
+     hint:'always positive \u2014 the movement decides which way the cash went'},d.amount)}
+   ${d.dir==='Expense'?fld({k:'cat',l:'Category',t:'sel',req:1,
+     o:['Office supplies','Fuel and transport','Government fees','Staff welfare',
+        'Building consumables','Hospitality','Courier and postage','Other']},d.cat):''}
+   ${d.dir==='Expense'?fld({k:'what',l:'What it was for',t:'txt',req:1,p:'printer toner and paper'},d.what):''}
+   ${d.dir==='Top-up'?fld({k:'from',l:'Funded from',t:'sel',req:1,o:BANKS()},d.from):''}
+   ${d.dir==='Adjustment'?fld({k:'effect',l:'Which way',t:'sel',o:['Decrease','Increase'],req:1,live:1,
+     hint:'a shortfall in the box decreases the book'},d.effect):''}
+   ${d.dir==='Adjustment'?fld({k:'reason',l:'Reason',t:'ta',req:1,full:1,
+     p:'what the count found, and any explanation given'},d.reason):''}
+   ${fld({k:'ref',l:'Reference',t:'txt',p:'receipt or slip number'},d.ref)}</div>
+  ${stat([['Balance now','QAR '+n0(bal)],['After this','QAR '+n0(after)]])}
+  ${after<0?`<div class="note bad">This would take the float below zero. Either a top-up is
+    missing or the amount is wrong \u2014 a box cannot hold less than nothing.</div>`:''}
+  ${d.dir==='Top-up'?`<div class="note">Naming the account matters. Cash leaving by ATM with no
+    stated destination is what fills the suspense pile; recorded here it has one.</div>`:''}`},
+  fields:[{k:'dir',req:1},{k:'date',req:1},{k:'amount',req:1}],
+  check:d=>{const amt=+d.amount||0;
+   if(!(amt>0)) return false;
+   if(d.dir==='Expense'&&(!d.cat||!d.what)) return false;
+   if(d.dir==='Top-up'&&!d.from) return false;
+   if(d.dir==='Adjustment'&&(!d.effect||!d.reason)) return false;
+   return true},
+  msg:'An expense needs a category and a description, a top-up needs the account it came from, and an adjustment needs its direction and a reason.'}],
+ submit:d=>{
+  const id='PC-'+String(PETTY.length+1).padStart(5,'0');
+  PETTY.push({id,date:d.date,dir:d.dir,amount:+d.amount||0,cat:d.cat||'',what:d.what||'',
+   from:d.from||'',effect:d.effect||'',reason:d.reason||'',ref:d.ref||''});
+  return{title:'Recorded',msg:d.dir+' of QAR '+n0(+d.amount||0),
+   detail:'Float now stands at QAR '+n0(pcBalance()),goto:'#/petty'}}};
+
+FORMS['petty-count']={t:'Count the box',s:'Physical cash against the book',cta:'Record the count',
+ init:()=>({date:new Date().toISOString().slice(0,10)}),
+ steps:[{n:'Count',body:d=>{
+  const book=pcBalance(), counted=d.counted===''||d.counted===undefined?null:+d.counted;
+  const diff=counted===null?null:Math.round((counted-book)*100)/100;
+  return `<p class="pp">Count what is physically in the box and enter it. If it agrees with the
+    book, nothing is written \u2014 a count that changes nothing is not a movement.</p>
+   <div class="fg">
+    ${fld({k:'date',l:'Date of the count',t:'date',req:1},d.date)}
+    ${fld({k:'counted',l:'Cash counted (QAR)',t:'num',step:'1',req:1,live:1},d.counted)}</div>
+   ${stat([['Book says','QAR '+n0(book)],
+     ['Counted',counted===null?'\u2014':'QAR '+n0(counted)],
+     ['Difference',diff===null?'\u2014':(diff===0?'agrees':(diff>0?'+':'')+n0(diff))]])}
+   ${diff!==null&&diff!==0?`
+    ${fld({k:'reason',l:'What explains the difference',t:'ta',req:1,full:1,
+      p:'what was found, and any explanation given'},d.reason)}
+    <div class="note">A count that does not agree is recorded as an adjustment with this reason
+     attached. Writing the book down to the box without one would remove the only evidence that
+     anything went missing.</div>`:''}
+   ${diff===0?`<div class="note">The box agrees with the book. Nothing will be written.</div>`:''}`},
+  fields:[{k:'date',req:1},{k:'counted',req:1}],
+  check:d=>{const c=d.counted===''||d.counted===undefined?null:+d.counted;
+   if(c===null) return false;
+   const diff=Math.round((c-pcBalance())*100)/100;
+   return diff===0||!!d.reason},
+  msg:'The count does not agree with the book, so it needs an explanation before it can be recorded.'}],
+ submit:d=>{
+  const book=pcBalance(), counted=+d.counted||0;
+  const diff=Math.round((counted-book)*100)/100;
+  if(diff===0) return{title:'The box agrees',msg:'Counted QAR '+n0(counted)+', which is what the book said',
+   detail:'No adjustment written',goto:'#/petty'};
+  const id='PC-'+String(PETTY.length+1).padStart(5,'0');
+  PETTY.push({id,date:d.date,dir:'Adjustment',amount:Math.abs(diff),
+   effect:diff>0?'Increase':'Decrease',reason:d.reason||'',
+   ref:'Count on '+d.date,cat:'',what:''});
+  return{title:diff<0?'Short by QAR '+n0(Math.abs(diff)):'Over by QAR '+n0(diff),
+   msg:'Book stood at QAR '+n0(book)+', counted QAR '+n0(counted),
+   detail:'Adjustment recorded with its reason \u00b7 float now QAR '+n0(pcBalance()),
+   goto:'#/petty'}}};
+
 FORMS['add-staff']={t:'Add a staff member',s:'Payroll overhead \u00b7 reaches the cost base, not building margin',
  cta:'Add to the payroll',
  init:()=>({dept:'Office',status:'Active'}),
@@ -7026,6 +7211,29 @@ const W_DOCTYPE={'Auto-detect':'Unknown','Cheque batch':'Cheque Batch','Tenant c
 const WIRE={
 
 /* ---------------- people ---------------- */
+
+'petty-entry':{
+ guard:d=>{
+   const amt=+d.amount||0;
+   if(!(amt>0)) return 'An amount is needed, and it is always positive.';
+   if(d.dir==='Adjustment'&&!d.reason) return 'An adjustment needs a reason.';
+   return null},
+ m:'pettycash.record_entry',
+ a:d=>({payload:{date:d.date,dir:d.dir,amount:+d.amount||0,cat:d.cat,what:d.what,
+   from:d.from,effect:d.effect,reason:d.reason,ref:d.ref}}),
+ ok:(r,d)=>({title:'Recorded',msg:d.dir+' of QAR '+n0(+d.amount||0),
+   detail:'Float now stands at QAR '+n0(r.balance),goto:'#/petty'})},
+
+'petty-count':{
+ m:'pettycash.record_count',
+ a:d=>({counted:+d.counted||0,on:d.date,reason:d.reason||null}),
+ ok:r=>r.agreed
+   ?({title:'The box agrees',msg:'Counted QAR '+n0(r.counted)+', which is what the book said',
+      detail:'No adjustment written',goto:'#/petty'})
+   :({title:r.diff<0?'Short by QAR '+n0(Math.abs(r.diff)):'Over by QAR '+n0(r.diff),
+      msg:'Book stood at QAR '+n0(r.book)+', counted QAR '+n0(r.counted),
+      detail:'Adjustment recorded with its reason \u00b7 float now QAR '+n0(r.balance),
+      goto:'#/petty'})},
 
 'add-staff':{
  guard:d=>{
