@@ -611,6 +611,8 @@ body.focus main{max-width:none}
     <div class="nv" data-r="owners">Owners home</div>
     <div class="nv" data-r="policy">Distribution policy</div>
     <div class="nv" data-r="runs">Distribution runs <span class="b r" id="nbRuns">1</span></div>
+    <div class="grp">People</div>
+    <div class="nv" data-r="staff">Staff</div>
     <div class="grp">Governance</div>
     <div class="nv" data-r="approvals">Approvals <span class="b" id="nbAppr">4</span></div>
     <div class="nv" data-r="reports">Reports</div>
@@ -861,6 +863,40 @@ const DOCS=[
 
 /* live data · replaces the seed when the server sent rows */
 if(window.DB_SEED&&DB_SEED.docs&&DB_SEED.docs.length){DOCS.length=0;DOCS.push.apply(DOCS,DB_SEED.docs);}
+
+/* ---------- staff ----------
+   Held for the money before the people. Salary is a fixed monthly operating
+   cost that was recorded nowhere, so the bridge, the runway and every cost
+   base read better than the business was (D74).
+
+   Pay is stored as basic plus allowances even though nothing here needs the
+   split, because gratuity is computed on basic and the WPS file wants the
+   components apart; one figure now is every record revisited later (D75).
+
+   The server decides who sees money and simply does not send it to anyone
+   else, so `pay` below reports what arrived rather than granting anything. */
+let PEOPLE=[
+ {id:'STF-00001',name:'Fatima N.',title:'Accountant',dept:'Office',status:'Active',
+  joined:'2021-03-14',qid:'28644102993',basic:9000,allow:4500,cost:13500},
+ {id:'STF-00002',name:'Aisha R.',title:'Documentation Officer',dept:'Office',status:'Active',
+  joined:'2022-09-01',qid:'29144870211',basic:6500,allow:3200,cost:9700},
+ {id:'STF-00003',name:'Yusuf K.',title:'Documentation Assistant',dept:'Office',status:'Active',
+  joined:'2024-01-08',qid:'29744331902',basic:4200,allow:2300,cost:6500},
+ {id:'STF-00004',name:'Ramesh P.',title:'Maintenance Supervisor',dept:'Maintenance',status:'Active',
+  joined:'2020-06-21',qid:'28444907712',basic:5500,allow:2800,cost:8300},
+ {id:'STF-00005',name:'Sunil D.',title:'Technician',dept:'Maintenance',status:'Active',
+  joined:'2023-02-11',qid:'29344118820',basic:3200,allow:1800,cost:5000},
+ {id:'STF-00006',name:'Abdul M.',title:'Technician',dept:'Maintenance',status:'Active',
+  joined:'2023-11-05',qid:'29544772103',basic:3200,allow:1800,cost:5000},
+ {id:'STF-00007',name:'Bibek T.',title:'Watchman',dept:'Security',status:'Active',
+  joined:'2022-04-30',qid:'29044556677',basic:2400,allow:1400,cost:3800},
+ {id:'STF-00008',name:'Nasser A.',title:'Driver',dept:'Other',status:'Left',
+  joined:'2021-08-02',left:'2026-05-31',qid:'28844221100',basic:3000,allow:1600,cost:4600}];
+if(window.DB_SEED&&DB_SEED.staff){PEOPLE.length=0;PEOPLE.push.apply(PEOPLE,DB_SEED.staff);}
+/* Money is on the record only if the server chose to send it. */
+const canPay=()=>PEOPLE.some(x=>x.cost!==undefined)&&(ROLEV==='MD'||ROLEV==='ACC');
+const staffActive=()=>PEOPLE.filter(x=>x.status!=='Left');
+const staffCost=()=>staffActive().reduce((a,x)=>a+(+x.cost||0),0);
 /* ---------- shared components ---------- */
 const el=s=>document.querySelector(s);
 function page(t,sub,actions,body){
@@ -1848,10 +1884,18 @@ function renderWaterfall(){
   const LP=livePanel('waterfall');
   if(LP!==undefined){
     if(!(LP.gross||LP.landlord)){$('#waterfall').innerHTML=liveEmpty('Nothing billed and no head-lease cost this month.');return;}
+    /* Staff is portfolio overhead, so it belongs on the bridge as its own bar
+       rather than folded into maintenance — overhead behaves nothing like a
+       repair and hiding it inside one makes the bridge unreadable. It is
+       omitted entirely when there is no payroll on file, so the bridge does
+       not carry a zero bar for a thing this business does not yet record. */
     const st=[['Gross rent',LP.gross||0,'#C9A86A'],['Landlord rent',-(LP.landlord||0),'#75634F'],
       ['Maint net',-(LP.maintNet||0),'#B4552F'],['Utilities net',-(LP.utilNet||0),'#B4552F'],
+      ...(LP.staff?[['Staff',-(LP.staff||0),'#8A6F4E']]:[]),
       ['Spread after recorded costs',LP.spread||0,'#2E6B57']];
-    const W=560,H=200,L=44,BW=76,GP=22;
+    /* the bar geometry follows the bar count, or a sixth bar runs off the box */
+    const W=560,H=200,L=44,GP=Math.max(12,Math.round(154/st.length));
+    const BW=Math.floor((W-L-10-GP*(st.length-1))/st.length);
     const mx=Math.max(LP.gross||0,Math.abs(LP.spread||0),1)*1.15;
     let run=0,s='';
     for(let gi=0;gi<=3;gi++){const gv=mx/3*gi;
@@ -3477,6 +3521,81 @@ ROUTES.tenant=id=>{const t=id?T(id):TENANTS[0]; if(!t) return notFound('Tenant',
     <button class="btn" onclick="go('#/case/${cs.id}')">Open case</button></div>`:''}`)};
 
 /* ---------------- Landlords ---------------- */
+/* ---------- staff ----------
+   Held for the money before the people. A salary is a fixed monthly operating
+   cost that this system recorded nowhere, so the bridge, the runway and every
+   cost base read better than the business was.
+
+   Nobody is charged to a building. Staff cost is portfolio overhead (D74):
+   it moves the spread bridge, the cash runway and the reserve floor, and it
+   leaves building margin as the spread after head-lease. Spreading it over
+   buildings on an invented key would make each building's margin a property
+   of the allocation rule rather than of its lease. */
+window.openStf=id=>go('#/staffm/'+id);
+
+ROUTES.staff=()=>{
+ const pay=canPay(), act=staffActive(), left=PEOPLE.filter(x=>x.status==='Left');
+ if(!PEOPLE.length) return page('Staff','Nobody on the payroll yet',
+   fbtn('Add a staff member','add-staff'),
+   `<div class="card">${empty(window.DB_LIVE
+     ? 'No staff records yet. Adding one puts its monthly cost into the cost base from the month it starts.'
+     : 'No staff in the demo data.')}</div>`);
+ const depts={}; act.forEach(x=>{depts[x.dept]=(depts[x.dept]||0)+1});
+ const cost=staffCost();
+ return page('Staff',
+  act.length+' on the payroll \u00b7 staff cost is portfolio overhead and does not touch building margin',
+  fbtn('Add a staff member','add-staff'),
+  stat([['On the payroll',act.length],
+   ['Departments',Object.keys(depts).length],
+   ...(pay?[['Monthly cost','QAR '+n0(cost)],['Annual cost','QAR '+n0(cost*12)]]
+          :[['Left',left.length],['Pay figures','not shown for your role','','n']])])+
+  `<div class="note">Salaries reach the cost base as portfolio overhead, so they move the spread
+    bridge, the cash runway and the reserve floor. They do not move any individual building's
+    margin, which stays the spread after head-lease.
+    ${pay?'':'<br>Pay figures are visible to Accounts and the Managing Director.'}</div>`+
+  searchbox('stf','Search by name, job title or department')+
+  `<div class="card">${tbl([
+   {h:'Name',v:x=>x.name},{h:'Job title',v:x=>x.title||'\u2014'},
+   {h:'Department',v:x=>x.dept},
+   {h:'Joined',r:1,v:x=>x.joined?fdate(new Date(x.joined)):'\u2014'},
+   ...(pay?[{h:'Basic',r:1,mono:1,v:x=>n0(x.basic)},
+            {h:'Allowances',r:1,mono:1,v:x=>n0(x.allow)},
+            {h:'Monthly cost',r:1,mono:1,v:x=>n0(x.cost)}]:[]),
+   {h:'Status',v:x=>chip(x.status,x.status==='Active'?'g':'n')}],
+   PEOPLE.map(x=>({...x,__id:x.id})),
+   {id:'stf',click:'openStf',
+    foot:pay?[act.length+' active \u00b7 '+left.length+' left',
+              'QAR '+n0(cost)+' a month \u00b7 QAR '+n0(cost*12)+' a year']
+            :[act.length+' active \u00b7 '+left.length+' left','']})}</div>`);
+};
+
+ROUTES.staffm=id=>{
+ const x=PEOPLE.find(v=>v.id===id);
+ if(!x) return page('Staff member','Not found','',
+   `<div class="card">${empty('No staff record with that reference.')}</div>`);
+ const pay=canPay();
+ return crumb([['Staff','#/staff'],[x.name,'']])+page(x.name,
+  (x.title||'Staff')+' \u00b7 '+x.dept+' \u00b7 '+x.id,'',
+  stat([['Status',x.status],['Department',x.dept],
+   ['Joined',x.joined?fdate(new Date(x.joined)):'\u2014'],
+   ...(x.left?[['Left',fdate(new Date(x.left))]]:[]),
+   ...(pay?[['Monthly cost','QAR '+n0(x.cost)]]:[])])+
+  `<div class="card"><h3>Record</h3>${tbl(
+   [{h:'Field',v:r=>r[0]},{h:'Value',v:r=>r[1]}],
+   [['Full name',x.name],['Job title',x.title||'\u2014'],['Department',x.dept],
+    ['QID number',x.qid||'\u2014'],
+    ['Joined',x.joined?fdate(new Date(x.joined)):'\u2014'],
+    ['Left',x.left?fdate(new Date(x.left)):'\u2014'],
+    ...(pay?[['Basic salary','QAR '+n0(x.basic)],
+             ['Allowances','QAR '+n0(x.allow)],
+             ['Monthly cost','QAR '+n0(x.cost)]]
+           :[['Pay','Visible to Accounts and the Managing Director']])],
+   {id:'stfd'})}</div>`+
+  (pay?`<div class="note">Gratuity is not accrued in this version, so this cost is the salary
+    and nothing else. Basic is stored apart from allowances so the accrual can be added later
+    without revisiting this record.</div>`:''));
+};
+
 ROUTES.landlords=()=>{
  /* Reads the Supplier records flagged as landlords. An empty list is a real
     state — a portfolio whose buildings carry no landlord party — and it says
@@ -4569,6 +4688,48 @@ FORMS['add-tenant']={t:'Add tenant',s:'Workflow 2B · tenancy onboarding',cta:'C
    goto:'#/tenant/'+id}}};
 
 /* ---------- reworked deposit batch ---------- */
+FORMS['add-staff']={t:'Add a staff member',s:'Payroll overhead \u00b7 reaches the cost base, not building margin',
+ cta:'Add to the payroll',
+ init:()=>({dept:'Office',status:'Active'}),
+ steps:[
+  {n:'Person',body:d=>`<p class="pp">One person on DarkBrown's own payroll. Nobody is charged to a
+    building \u2014 staff cost is portfolio overhead, so it moves the spread bridge, the cash runway and
+    the reserve floor without touching any building's margin.</p>
+   <div class="fg">
+    ${fld({k:'name',l:'Full name',t:'txt',p:'as it appears on the QID',req:1,full:1},d.name)}
+    ${fld({k:'title',l:'Job title',t:'txt',p:'Technician'},d.title)}
+    ${fld({k:'dept',l:'Department',t:'sel',o:['Office','Maintenance','Security','Cleaning','Other'],req:1},d.dept)}
+    ${fld({k:'qid',l:'QID number',t:'txt',p:'28944123871',hint:'recorded for identification \u00b7 expiry is not tracked in this version'},d.qid)}
+    ${fld({k:'joined',l:'Joined on',t:'date',req:1},d.joined)}
+    ${fld({k:'status',l:'Status',t:'sel',o:['Active','Left'],req:1,live:1},d.status)}
+    ${d.status==='Left'?fld({k:'left',l:'Left on',t:'date',req:1},d.left):''}</div>`,
+   fields:[{k:'name',req:1},{k:'dept',req:1},{k:'joined',req:1},{k:'status',req:1}],
+   check:d=>!(d.status==='Left'&&!d.left),
+   msg:'A staff member marked as left needs a leaving date, or the cost never stops.'},
+  {n:'Pay',body:d=>{
+    const basic=+d.basic||0, allow=+d.allow||0, tot=basic+allow;
+    return `<p class="pp">Basic and allowances are kept apart deliberately. Nothing in this version needs
+      the split \u2014 end-of-service gratuity is computed on basic alone and the WPS file wants the
+      components separately, so one combined figure now would mean revisiting every record later.</p>
+     <div class="fg">
+      ${fld({k:'basic',l:'Basic salary (QAR / month)',t:'num',step:'100',p:'3200',req:1,live:1},d.basic)}
+      ${fld({k:'allow',l:'Allowances (QAR / month)',t:'num',step:'100',p:'1800',live:1,
+        hint:'housing, transport and anything else, as one figure'},d.allow)}</div>
+     ${stat([['Monthly cost','QAR '+n0(tot)],['Annual cost','QAR '+n0(tot*12)],
+       ['Gratuity','not accrued in this version']])}
+     <div class="note">This monthly cost enters the cost base from the joining month. Gratuity is
+      not accrued yet (D75), so the cost base is closer to honest than it was but still short of a
+      liability that grows every month.</div>`},
+   fields:[{k:'basic',req:1}]}],
+ submit:d=>{
+  const basic=+d.basic||0, allow=+d.allow||0;
+  const id='STF-'+String(PEOPLE.length+1).padStart(5,'0');
+  PEOPLE.push({id,name:d.name,title:d.title||'',dept:d.dept,status:d.status||'Active',
+   joined:d.joined,left:d.left||'',qid:d.qid||'',basic,allow,cost:basic+allow});
+  return{title:'Added to the payroll',msg:d.name+' recorded as '+id,
+   detail:'QAR '+n0(basic+allow)+' a month \u00b7 portfolio overhead, no building affected',
+   goto:'#/staffm/'+id}}};
+
 FORMS['create-batch']={t:'Create deposit batch',s:'Cheques and cash · two-person control applies',cta:'Create batch',
  init:()=>({sel:{},bank:'QNB — 0021 4478'}),
  steps:[
@@ -6863,6 +7024,21 @@ const W_DOCTYPE={'Auto-detect':'Unknown','Cheque batch':'Cheque Batch','Tenant c
  'Landlord contract':'Head Lease','QID':'QID','Passport':'Passport','Utility invoice':'Utility Bill'};
 
 const WIRE={
+
+/* ---------------- people ---------------- */
+
+'add-staff':{
+ guard:d=>{
+   if(d.status==='Left'&&!d.left) return 'A staff member marked as left needs a leaving date.';
+   if(!(+d.basic>0)) return 'A basic salary is needed \u2014 gratuity is computed on it later.';
+   return null},
+ m:'people.save_staff',
+ a:d=>({payload:{name:d.name,title:d.title,dept:d.dept,status:d.status,qid:d.qid,
+   joined:d.joined,left:d.left||null,basic:+d.basic||0,allow:+d.allow||0}}),
+ ok:(r,d)=>({title:'Added to the payroll',msg:r.name+' recorded as '+r.id,
+   detail:r.cost!=null?'QAR '+n0(r.cost)+' a month \u00b7 portfolio overhead':'',
+   goto:'#/staffm/'+r.id})},
+
 
 /* ---------------- cash desk ---------------- */
 

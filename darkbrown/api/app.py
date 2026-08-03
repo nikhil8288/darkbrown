@@ -381,6 +381,14 @@ def _attention():
         return []
 
 
+def _staff_seed():
+    """Staff for the boot payload. The pay rule lives in the people module and
+    is applied there, so a General Manager's boot payload never carries a
+    salary at all — it is not sent and then hidden."""
+    from darkbrown.api.people import staff_list
+    return staff_list().get("rows") or []
+
+
 def seed():
     """Everything the front end needs at boot, in one round trip.
 
@@ -406,7 +414,8 @@ def seed():
                     ("attention", _attention),
                     ("health", _health), ("kpi", _kpi),
                     ("panels", _panels),
-                    ("bankAccounts", bank_accounts)):
+                    ("bankAccounts", bank_accounts),
+                    ("staff", _staff_seed)):
         try:
             rows = fn()
         except Exception as e:

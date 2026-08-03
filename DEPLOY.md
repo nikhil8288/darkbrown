@@ -1,121 +1,149 @@
-# DarkBrown V2 — deployment
+# Single-page forms + HR module
 
-V2 is a standalone application. It carries no V1 code, no V1 data and no V1
-schema. The prototype at `darkbrown/shell/index.html` **is** the application;
-Frappe's desk stays at `/app` for Administrator only.
+Repo-root overlay. **This supersedes `darkbrown_single_page_forms.zip`** — the same
+shell change is in here, plus the HR module on top. Apply this one, not both.
 
-Built and validated against Frappe/ERPNext **version-15**.
+## Files
 
----
+New:
 
-## What serves what
+    darkbrown/api/people.py
+    darkbrown/darkbrown/doctype/staff_member/{__init__.py,staff_member.json,staff_member.py}
 
-| Path | Serves |
-|---|---|
-| `/` | login page (`templates/pages/login.html`, branded) |
-| `/darkbrown` or `/db` | the application — all five business roles land here |
-| `/app` | Frappe desk — Administrator only |
+Changed:
 
-`renderer.py` hands the shell HTML over untouched and injects a boot payload
-at the `<!--DB_BOOT-->` marker. It is deliberately **not** a Jinja template:
-the CSS contains `{#kpis`, which Jinja reads as a comment opener.
+    darkbrown/shell/index.html                                (forms engine + staff screens)
+    darkbrown/api/command.py                                  (bridge + runway)
+    darkbrown/api/app.py                                      (boot payload)
+    darkbrown/darkbrown/doctype/dbr_settings/dbr_settings.json (staff pay day)
 
----
+## Deploying
 
-## Fresh install on erp.darkbrown.qa
+This one **does** need a migrate — there is a new doctype and a new settings field:
 
-This destroys the existing site and everything in it. Take a backup off the
-server first even though V1 data is being abandoned — it costs nothing and it
-is the only way back.
+    bench --site <site> migrate
+    bench --site <site> clear-cache
 
-```bash
-cd ~/frappe-bench
+Then hard-refresh the browser.
 
-# 1. backup, then COPY the files off the server
-bench --site erp.darkbrown.qa backup --with-files
-ls sites/erp.darkbrown.qa/private/backups/
-
-# 2. drop the site and the old app folder
-bench drop-site erp.darkbrown.qa --force
-rm -rf apps/darkbrown
-sed -i '/^darkbrown$/d' sites/apps.txt
-
-# 3. pull V2 from GitHub
-bench get-app https://github.com/nikhil8288/darkbrown --branch main
-
-# 4. recreate the site
-bench new-site erp.darkbrown.qa
-bench --site erp.darkbrown.qa install-app erpnext
-bench --site erp.darkbrown.qa install-app darkbrown
-
-# 5. build and restart
-bench --site erp.darkbrown.qa migrate
-bench build --app darkbrown
-bench restart
-```
-
-`after_install` creates the five roles, the Supplier/Customer custom fields
-and the settings singleton. It is idempotent — re-running creates nothing
-twice.
-
-## Subsequent updates
-
-```bash
-cd ~/frappe-bench/apps/darkbrown && git pull
-cd ~/frappe-bench
-bench --site erp.darkbrown.qa migrate
-bench build --app darkbrown && bench restart
-```
-
-Never extract an archive over `apps/darkbrown/`. `tar` and unzip overwrite
-matching files and leave everything else behind, which produces a folder that
-is two versions mixed together. Use `git pull`.
+After migrating, set **DBR Settings → People → Staff Pay Day**. It defaults to the
+5th. This was never confirmed, so the default is an assumption and it decides which
+week of the runway carries payroll.
 
 ---
 
-## Demo data and reset
+# Part one — every form is one page
 
-`darkbrown/demo` purges the site's DarkBrown data and lays down a dummy
-portfolio in its place — three buildings, twenty-four units, twenty tenancies,
-with a bounce, an arrears case, a move-out and an approvals queue already in
-flight. Every record is created through the app's own whitelisted APIs, so the
-seed doubles as an end-to-end test of the write path.
+The engine reads the same step definitions and renders them together instead of one
+at a time. Steps became numbered sections down the page, the step rail became a jump
+rail, Back and Continue went, and there is one save button carrying the form's own
+wording. All 17 multi-step forms convert; the single-step forms are untouched.
 
-```bash
-bench --site erp.darkbrown.qa backup --with-files
-bench --site erp.darkbrown.qa execute darkbrown.demo.run.preview
-bench --site erp.darkbrown.qa execute darkbrown.demo.run.rebuild \
-      --kwargs "{'confirm': 'REMOVE ALL DARKBROWN DATA'}"
-```
+**Clicking outside no longer closes anything.** A form closes on the X, on Cancel, or
+on Escape. If there is anything in it, a sheet asks first, and leaving keeps what was
+entered — including chosen files — restored next time that form opens, with a strip
+saying so and a "Start fresh" button. Drafts are per form, held for the browser
+session, dropped once the record saves.
 
-The purge is scoped by party, not by doctype: the Company, chart of accounts,
-bank accounts, users, roles and settings survive it. It is still irreversible.
+**Validation runs once, on save.** Every section is checked. What comes back is a list
+of what is outstanding, each entry a link that scrolls to and focuses the field, with
+the sections and rail chips concerned marked red.
 
-## Roles
+Two things behind that:
 
-`Managing Director`, `General Manager`, `Accounts`, `Documentation`,
-`Maintenance`. Assign at least one to every user — a user with none is refused
-at `/darkbrown` by the renderer.
+*Derived sections refresh on change.* A section may read a field defined in another —
+the payment schedule from the lease value, the unit list from the building. Redrawing
+on every change was the first attempt and it was too blunt: the whole form is
+replaced, so the field the cursor was moving to gets torn out from under it. The
+engine now works out per form which keys are read outside the section that defines
+them, and redraws only on those. For onboard-building that is three fields, not
+twenty-eight. It is read off the step definitions, so new forms need no annotation.
 
-## Wired to live data
+*The confirm sheet renders into a new `#modal2`,* not into `#modal`. Leaving a field
+fires a change, a change can redraw the form, and a redraw replaces `#modal` wholesale
+— which took the sheet with it before the click on it had landed.
 
-- **Portfolio** — buildings, units, onboarding wizard, unit status
-- **Operations** — collection cases, maintenance jobs, move-out lifecycle
-- **Parties** — tenants as ERPNext Customers, arrears rolled up from invoices
-- **Agreements** — tenancies, self-approving activation, amendments, renewals
-- **Finance** — invoice runs, Sales Invoices, cheque lifecycle, receipts with
-  oldest-first allocation, deposit batches, head-lease payments
-- **Documents** — register, review, supersession, expiry queue
-- **Approvals** — one queue over amendments, over-ceiling maintenance, deposit
-  releases and invoice runs
+---
 
-Still on demonstration data, by decision: **Command Centre**, **Planning**,
-**Owners and Shareholders**. A module with no data is left out of the boot
-payload entirely, so those screens show sample figures rather than zeros.
+# Part two — HR
 
-## Ledger
+Scope is deliberately small. The point is the money: salaries are a fixed monthly
+operating cost that this system recorded nowhere, so the bridge, the runway and every
+cost base read better than the business was.
 
-ERPNext owns the books. Nothing in this app writes a GL entry directly — it
-creates Sales Invoices and Payment Entries and lets ERPNext post them. A
-returned cheque cancels its Payment Entry and opens a collection case rather
-than only changing a status.
+## Decisions this implements
+
+- **D74** Staff cost is portfolio overhead. It does not touch building margin, which
+  stays the spread after head-lease. It does hit total operating cost, so it reaches
+  the reserve floor and the distribution gate.
+- **D75** No gratuity accrual in v1. Basic and allowances are stored separately anyway,
+  so it can be added without revisiting records.
+- **D76** Pay visible to Accounts and the MD. GM sees headcount, names, departments.
+- **D77 (proposed, overturn if you disagree)** The headline `spread` KPI is left alone.
+  It is billed minus head-lease, compared period-on-period, and feeds several panels;
+  netting overhead into it would change what the number means without renaming it.
+  Staff appears in the bridge and the runway instead.
+
+## What is in it
+
+`Staff Member` doctype — not named `Employee`, because ERPNext already has one.
+Name, job title, department, status, QID, joining date, and pay as basic +
+allowances with monthly cost derived. Pay fields sit at `permlevel: 1`, so Frappe
+itself withholds them rather than the screen doing it.
+
+`api/people.py` — list, record, save, cost total, summary. Two points worth knowing:
+
+- `monthly_staff_cost` is **not** whitelisted. A whitelisted total salary bill is a
+  total salary bill available to anyone who can call it. Screens reach it through
+  `staff_summary`, which applies the pay rule.
+- `save_staff` refuses to write pay when the caller cannot see it. Otherwise a GM
+  editing a job title would silently blank a real salary.
+
+The cost total respects dates — joined after the month, or left before it, is out.
+
+## Where it lands
+
+`_waterfall()` gains a Staff bar, its own rather than folded into maintenance.
+Bar geometry now follows the bar count; the old fixed widths ran a sixth bar off
+the canvas.
+
+`_runway_flows()` gains payroll, which was absent entirely — the most reliable
+outflow this business has, missing from thirteen weeks of cash. It falls in the week
+containing pay day rather than being spread across weeks, because smoothing would
+erase the one thing the runway exists to show.
+
+Shell: People → Staff nav group, list and detail screens, and a two-section
+`add-staff` form.
+
+## Not in it
+
+Payroll runs, the WPS file, attendance, leave, employee documents and their expiry,
+gratuity accrual, approvals. Document expiry is the cheapest thing to add back — the
+lease-expiry alerting already exists and employee documents would ride on it.
+
+---
+
+## Tested, and not
+
+Verified against the prototype's seeded data: 39 forms open with all sections
+rendered, 68 routes clean across MD/GM/ACC/DOC/MNT, draft persistence and the confirm
+sheet behave, `add-staff` saves end to end, the bridge renders six bars with no
+overflow, and masking is right per role — MD and Accounts see pay, the other three
+get a tile saying it is not shown for their role.
+
+**Not verified:** anything against a real database. The doctype has never been through
+`bench migrate`, and `_staff_seed` in the boot payload is untested against real
+records. Run it on a test site before it goes near live data.
+
+Two known items, neither introduced here:
+
+- Bar labels truncate at 18 characters, so "Spread after recorded costs" was already
+  being clipped before the Staff bar joined it.
+- `classify-line` throws when opened without a context. It always has; it is only ever
+  called as `openForm('classify-line',{id})`.
+
+## Testing note
+
+Redraws replace the form DOM, so a test calling `fill()` on several fields back to
+back can write into a detached node. Drive it as a person would: click the field,
+fill it, then move on.

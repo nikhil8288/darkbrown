@@ -26,7 +26,7 @@ renders.
 """
 
 import frappe
-from frappe.utils import (add_days, add_months, flt, get_datetime,
+from frappe.utils import (add_days, add_months, cint, flt, get_datetime,
                           get_first_day, get_last_day, getdate, today)
 
 def _k(v):
@@ -477,6 +477,24 @@ def _unmatched_panel():
     return unmatched_summary()
 
 
+def _pay_day_between(a, b):
+    """The pay day falling inside a week, or None. Salaries land on one day of
+    the month, so most weeks carry no payroll at all and one carries the lot —
+    averaging it across thirteen weeks would smooth away the only thing the
+    runway is for, which is seeing the week the money is not there."""
+    day = cint(frappe.db.get_single_value("DBR Settings", "staff_pay_day")) or 5
+    a, b = getdate(a), getdate(b)
+    for month_start in {a.replace(day=1), b.replace(day=1)}:
+        last = get_last_day(month_start).day
+        try:
+            d = month_start.replace(day=min(day, last))
+        except ValueError:
+            continue
+        if a <= d <= b:
+            return d
+    return None
+
+
 def _runway_flows():
     """Thirteen weeks of confirmed cash flows. Deliberately not a balance:
     the accounts sweep to near zero daily and the reserve denominator is
@@ -491,6 +509,7 @@ def _runway_flows():
     # rounding into what read as two different collection rates on one
     # screen. If the definition ever changes it must change once.
     from darkbrown.api.app import _collection_rate
+    from darkbrown.api.people import monthly_staff_cost as staff_cost
     rate = (_collection_rate() or 0.0) / 100.0
 
     out = []
@@ -519,6 +538,13 @@ def _runway_flows():
             where hlp.status = 'Scheduled' and hlp.due_date between %s and %s
             order by hlp.amount desc
         """, (a, b), as_dict=True)
+        # Payroll is the most reliable outflow this business has and it was
+        # not on the runway at all, so thirteen weeks read better than the
+        # month ever does. It falls in the week that contains pay day; the
+        # cost is taken as at that date, so somebody joining or leaving
+        # mid-quarter moves the later weeks and not the earlier ones.
+        pay_day = _pay_day_between(a, b)
+        pay = staff_cost(pay_day) if pay_day else 0.0
         out.append({
             "wk": w + 1,
             "from": f"{getdate(a):%d %b}",
@@ -527,6 +553,7 @@ def _runway_flows():
             "ll": _k(sum(flt(r.amount) for r in ll_rows)),
             "llName": (f"{ll_rows[0].landlord} — {ll_rows[0].building}"
                        if ll_rows else ""),
+            "pay": _k(pay),
         })
 
     res = {"weeks": out, "rate": round(rate * 100, 1)}
@@ -544,8 +571,9 @@ def _runway_flows():
                            for x in dec["accounts"]]
         balC, balE, c, e = [], [], _k(dec["total"]), _k(dec["total"])
         for wrow in out:
-            c = round(c + wrow["pdc"] - wrow["ll"], 1)
-            e = round(e + wrow["pdc"] + wrow["exp"] - wrow["ll"], 1)
+            c = round(c + wrow["pdc"] - wrow["ll"] - wrow["pay"], 1)
+            e = round(e + wrow["pdc"] + wrow["exp"]
+                      - wrow["ll"] - wrow["pay"], 1)
             balC.append(c)
             balE.append(e)
         res["balC"], res["balE"] = balC, balE
@@ -579,12 +607,19 @@ def _waterfall():
     """, (m0, get_last_day(m0), m0, get_last_day(m0)), as_dict=True)[0]
     maint_net = flt(mnt.c) - flt(mnt.r)
     util_net = flt(utl.paid) - flt(utl.rec)
+    # Staff is portfolio overhead (D74), so it lands here as one bar rather
+    # than being pushed down into building margin. Its own bar and not folded
+    # into another: overhead behaves nothing like a head-lease or a repair,
+    # and hiding it inside either would make the bridge unreadable.
+    from darkbrown.api.people import monthly_staff_cost
+    staff = monthly_staff_cost(m0)
     return {
         "gross": _k(gross),
         "landlord": _k(landlord),
         "maintNet": _k(maint_net),
         "utilNet": _k(util_net),
-        "spread": _k(gross - landlord - maint_net - util_net),
+        "staff": _k(staff),
+        "spread": _k(gross - landlord - maint_net - util_net - staff),
         "held": len(held),
     }
 

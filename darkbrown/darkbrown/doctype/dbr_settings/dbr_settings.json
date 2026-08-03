@@ -15,6 +15,8 @@
   "cb_billing",
   "default_tenancy_notice_days",
   "default_headlease_notice_days",
+  "sec_people",
+  "staff_pay_day",
   "sec_collections",
   "grace_days",
   "legal_escalation_months",
@@ -89,6 +91,18 @@
    "fieldtype": "Int",
    "label": "Default Head-Lease Notice (Days)",
    "default": "90"
+  },
+  {
+   "fieldname": "sec_people",
+   "fieldtype": "Section Break",
+   "label": "People"
+  },
+  {
+   "fieldname": "staff_pay_day",
+   "fieldtype": "Int",
+   "label": "Staff Pay Day",
+   "default": "5",
+   "description": "Day of the month salaries are paid. The cash runway places the payroll outflow in the week that contains this day."
   },
   {
    "fieldname": "sec_collections",

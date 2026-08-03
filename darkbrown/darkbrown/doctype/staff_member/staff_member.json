@@ -1,0 +1,143 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "creation": "2026-08-03 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-08-03 00:00:00.000000",
+ "module": "Darkbrown",
+ "name": "Staff Member",
+ "owner": "Administrator",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "track_changes": 1,
+ "autoname": "format:STF-{#####}",
+ "field_order": [
+  "full_name",
+  "job_title",
+  "department",
+  "status",
+  "column_break_1",
+  "qid_number",
+  "joined_on",
+  "left_on",
+  "section_pay",
+  "basic_salary",
+  "allowances",
+  "column_break_2",
+  "monthly_cost",
+  "section_notes",
+  "notes"
+ ],
+ "fields": [
+  {
+   "fieldname": "full_name",
+   "fieldtype": "Data",
+   "label": "Full Name",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "job_title",
+   "fieldtype": "Data",
+   "label": "Job Title",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "department",
+   "fieldtype": "Select",
+   "label": "Department",
+   "options": "Office\nMaintenance\nSecurity\nCleaning\nOther",
+   "default": "Office",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Active\nLeft",
+   "default": "Active",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "qid_number",
+   "fieldtype": "Data",
+   "label": "QID Number",
+   "description": "Recorded for identification. Expiry tracking is not in this version."
+  },
+  {
+   "fieldname": "joined_on",
+   "fieldtype": "Date",
+   "label": "Joined On",
+   "reqd": 1
+  },
+  {
+   "fieldname": "left_on",
+   "fieldtype": "Date",
+   "label": "Left On",
+   "depends_on": "eval:doc.status=='Left'",
+   "mandatory_depends_on": "eval:doc.status=='Left'"
+  },
+  {
+   "fieldname": "section_pay",
+   "fieldtype": "Section Break",
+   "label": "Monthly Pay"
+  },
+  {
+   "fieldname": "basic_salary",
+   "fieldtype": "Currency",
+   "label": "Basic Salary",
+   "reqd": 1,
+   "permlevel": 1,
+   "description": "Kept separate from allowances because end-of-service gratuity is computed on basic alone."
+  },
+  {
+   "fieldname": "allowances",
+   "fieldtype": "Currency",
+   "label": "Allowances",
+   "permlevel": 1,
+   "description": "Housing, transport and any other monthly allowance, as one figure."
+  },
+  {
+   "fieldname": "column_break_2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "monthly_cost",
+   "fieldtype": "Currency",
+   "label": "Monthly Cost",
+   "read_only": 1,
+   "permlevel": 1,
+   "description": "Basic plus allowances. This is what reaches the cost base."
+  },
+  {
+   "fieldname": "section_notes",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "notes",
+   "fieldtype": "Small Text",
+   "label": "Notes"
+  }
+ ],
+ "permissions": [
+  {"create": 1, "delete": 1, "read": 1, "report": 1, "write": 1, "role": "System Manager"},
+  {"create": 1, "delete": 1, "read": 1, "report": 1, "write": 1, "role": "System Manager", "permlevel": 1},
+  {"create": 1, "delete": 1, "read": 1, "report": 1, "write": 1, "role": "Managing Director"},
+  {"create": 1, "delete": 0, "read": 1, "report": 1, "write": 1, "role": "Managing Director", "permlevel": 1},
+  {"create": 1, "delete": 0, "read": 1, "report": 1, "write": 1, "role": "Accounts"},
+  {"create": 0, "delete": 0, "read": 1, "report": 1, "write": 1, "role": "Accounts", "permlevel": 1},
+  {"create": 0, "delete": 0, "read": 1, "report": 1, "write": 0, "role": "General Manager"}
+ ]
+}
