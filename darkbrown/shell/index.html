@@ -228,6 +228,30 @@ footer{max-width:1440px;margin:0 auto;padding:0 24px 30px;font-size:10px;color:v
 .mstp .s.done{color:var(--em)} .mstp .s.done .n{background:var(--em);color:#fff}
 .mstp .s.now{color:var(--ink);font-weight:500} .mstp .s.now .n{background:var(--gold);color:var(--db1)}
 .mstp .ln{flex:1;min-width:10px;height:1px;background:var(--line2);margin:0 8px}
+
+/* ---- single-page form: jump rail, section headings, save summary ---- */
+.mstp.jump .s{cursor:pointer;border-radius:6px;padding:2px 8px;margin:1px 0}
+.mstp.jump .s:hover{background:var(--bg3);color:var(--ink)}
+.mstp.jump .s.now{color:var(--ink);font-weight:500}
+.mstp.jump .s.now .n{background:var(--gold);color:var(--db1)}
+.mstp.jump .s.bad .n{background:var(--red);color:#fff}
+.mb.long{max-height:min(72vh,760px)}
+.fsec{padding-bottom:17px;border-bottom:1px solid var(--line);margin-bottom:17px}
+.fsec:last-child{border-bottom:0;margin-bottom:0;padding-bottom:2px}
+.fsec>h4{display:flex;align-items:center;gap:8px;margin:0 0 11px;
+  font:600 15px var(--serif);color:var(--ink)}
+.fsec>h4 .n{width:20px;height:20px;border-radius:50%;background:var(--bg3);color:var(--mut);
+  display:flex;align-items:center;justify-content:center;font:600 10px var(--mono);flex:none}
+.fsec.err>h4 .n{background:var(--red);color:#fff}
+.merr b{display:block;margin-bottom:3px}
+.merr ul{margin:0;padding-left:15px}
+.merr li{margin:2px 0}
+.merr a{color:#7E2E23;text-decoration:underline;cursor:pointer}
+.fdraft{display:flex;align-items:center;gap:10px;margin:0 20px 11px;background:var(--bg1);
+  border-left:2px solid var(--gold);padding:8px 11px;font-size:11.5px;color:var(--body)}
+.fdraft button{margin-left:auto;flex:none;background:none;border:1px solid var(--line2);
+  border-radius:6px;color:var(--mut);font:inherit;padding:3px 9px;cursor:pointer}
+.fdraft button:hover{background:var(--bg3);color:var(--ink)}
 .mb{padding:16px 20px;max-height:min(62vh,620px);overflow-y:auto}
 .mf{display:flex;align-items:center;gap:8px;padding:13px 20px;border-top:1px solid var(--line);background:var(--bg2)}
 .mfn{font-size:11px;color:var(--mut);margin-right:auto}
@@ -619,6 +643,7 @@ body.focus main{max-width:none}
 </div>
 <div class="tt" id="tt"></div>
 <div id="modal"></div>
+<div id="modal2"></div>
 <div id="toast"></div>
 <!--DB_BOOT-->
 <script>/* ============ Darkbrown V2 — core: data model, components, router ============ */
@@ -2459,18 +2484,59 @@ function validate(fields){
   if(eb) eb.style.display=ok?'none':'block';
   return ok;
 }
+/* ---------- the form engine ----------
+   A form used to be walked a step at a time. It is one page now: every section
+   is rendered together, the rail at the top jumps instead of advancing, and the
+   check runs once, on save. The step definitions were not touched — they are
+   laid out at once rather than in turn.
+
+   Two things follow from that and are handled here. Committing any field
+   redraws the whole form, because a section further down may be derived from
+   one further up and there is no longer a Continue press to trigger it. And the
+   overlay no longer closes on an outside click: a stray click used to empty a
+   form that had thirty fields in it. */
+let FOPEN=false, FINIT='', FRESUMED=false;
+window.FDRAFT={};
+
+function formSnap(){
+  return JSON.stringify({d:FDATA,u:(typeof WZU!=='undefined'?WZU:null),
+    f:Object.keys(window.FFILES||{}).map(k=>k+':'+((FFILES[k]||[]).length))});
+}
+function formBaseline(){collect();FINIT=formSnap()}
+
 window.openForm=(key,ctx)=>{
   FRM=FORMS[key]; if(!FRM){toast('No form defined');return;}
   FKEY=key;
   if(window.DB_LIVE&&BLOCKED[key]){blockedForm(key);return;}
   FSTEP=0; FDATA=Object.assign({},FRM.init?FRM.init(ctx):{}); FDATA.__ctx=ctx;
+  window.FFILES={}; FRESUMED=false;
+  /* Work that was interrupted comes back instead of being retyped. A draft
+     raised against one record is not offered on another, so a form opened with
+     a context starts clean. */
+  const dr=window.FDRAFT[key];
+  if(dr&&!ctx){
+    FDATA=Object.assign(FDATA,dr.data);
+    window.FFILES=dr.files||{};
+    if(dr.wzu&&typeof WZU!=='undefined') WZU=dr.wzu;
+    FRESUMED=true;
+  }
+  document.body.style.overflow='hidden'; FOPEN=true;
+  drawForm(); formBaseline();
+};
+
+/* The resumed draft is offered, not imposed — this is the way back out of it. */
+window.startFresh=()=>{
+  delete window.FDRAFT[FKEY];
+  const ctx=FDATA.__ctx; FRESUMED=false;
+  FDATA=Object.assign({},FRM.init?FRM.init(ctx):{}); FDATA.__ctx=ctx;
   window.FFILES={};
-  document.body.style.overflow='hidden'; drawForm();
+  drawForm(); formBaseline();
 };
 
 /* A form that would collect perfectly and save nothing does not open. */
 function blockedForm(key){
   const f=FORMS[key]||{t:key};
+  FOPEN=false;
   document.body.style.overflow='hidden';
   document.getElementById('modal').innerHTML=`
   <div class="ovl" onclick="if(event.target===this)closeForm()"><div class="mdl">
@@ -2485,40 +2551,202 @@ function blockedForm(key){
      <button class="btn pri" onclick="closeForm()">Close</button></div>
   </div></div>`;
 }
-window.closeForm=()=>{document.getElementById('modal').innerHTML='';document.body.style.overflow=''};
+
+window.closeForm=()=>{FOPEN=false;
+  document.getElementById('modal').innerHTML='';
+  document.getElementById('modal2').innerHTML='';
+  document.body.style.overflow=''};
+
+/* Closing is deliberate now — the X, Cancel or Escape, and nothing else. If
+   there is anything in the form it is kept, and the sheet says so, because a
+   confirm that only offers "lose it" is not much of a choice. */
+function formDirty(){if(!FOPEN)return false;collect();return formSnap()!==FINIT}
+window.tryCloseForm=()=>{
+  if(!formDirty()){closeForm();return}
+  if(document.getElementById('fcnf'))return;
+  /* The sheet is deliberately not inside #modal. Leaving a field fires a change,
+     a change redraws the form, and a redraw replaces #modal wholesale — which
+     used to take the confirm sheet with it before the click on it had landed. */
+  document.getElementById('modal2').innerHTML=(`
+  <div class="ovl2" id="fcnf"><div class="mdl2">
+   <div class="mh"><div><div class="mt2">Leave this form?</div><div class="ms">${FRM.t}</div></div></div>
+   <div class="mb"><p class="pp">Nothing has been saved to the record yet. What you have
+     entered is held here and will be waiting when you open this form again.</p></div>
+   <div class="mf"><span class="mfn"></span>
+     <button class="btn" onclick="dropSheet()">Keep editing</button>
+     <button class="btn pri" onclick="dropSheet();keepDraftAndClose()">Leave and keep it</button>
+   </div></div></div>`);
+};
+window.dropSheet=()=>{document.getElementById('modal2').innerHTML=''};
+window.keepDraftAndClose=()=>{
+  collect();
+  window.FDRAFT[FKEY]={data:Object.assign({},FDATA),files:window.FFILES||{},
+    wzu:(typeof WZU!=='undefined'&&WZU?WZU.slice():null)};
+  closeForm();
+};
+
+/* ---- the single page ---- */
 function drawForm(){
-  const steps=FRM.steps, st=steps[FSTEP], last=FSTEP===steps.length-1;
-  const body=typeof st.body==='function'?st.body(FDATA):
-    `<div class="fg">${st.fields.map(f=>fld(f,FDATA[f.k])).join('')}</div>`;
+  const steps=FRM.steps, multi=steps.length>1;
+  /* redraws are frequent now, so position and focus are carried across one */
+  const old=document.getElementById('fbody');
+  const scroll=old?old.scrollTop:0;
+  const act=document.activeElement;
+  const keep=(old&&act&&old.contains(act)&&act.id)?act.id:null;
+
+  const section=(st,i)=>{
+    const body=typeof st.body==='function'?st.body(FDATA):
+      `<div class="fg">${(st.fields||[]).map(f=>fld(f,FDATA[f.k])).join('')}</div>`;
+    return multi?`<section class="fsec" id="fsec_${i}">
+      <h4><span class="n">${i+1}</span>${st.n}</h4>${body}</section>`:body;
+  };
+
   document.getElementById('modal').innerHTML=`
-  <div class="ovl" onclick="if(event.target===this)closeForm()">
+  <div class="ovl">
    <div class="mdl" role="dialog" aria-label="${FRM.t}">
     <div class="mh"><div><div class="mt2">${FRM.t}</div><div class="ms">${FRM.s||''}</div></div>
-      <button class="x" onclick="closeForm()" aria-label="Close">✕</button></div>
-    ${steps.length>1?`<div class="mstp">${steps.map((s,i)=>
-      `<div class="s ${i<FSTEP?'done':i===FSTEP?'now':''}"><span class="n">${i<FSTEP?'✓':i+1}</span><span>${s.n}</span></div>`)
+      <button class="x" onclick="tryCloseForm()" aria-label="Close">\u2715</button></div>
+    ${multi?`<div class="mstp jump">${steps.map((st,i)=>
+      `<div class="s" onclick="jumpSec(${i})"><span class="n">${i+1}</span><span>${st.n}</span></div>`)
       .join('<span class="ln"></span>')}</div>`:''}
-    <div class="mb" id="fbody">${body}</div>
-    <div class="merr" id="ferr" style="display:none">Fill in the required fields marked *</div>
+    ${FRESUMED?`<div class="fdraft"><span>Picked up where you left off. None of it is saved yet.</span>
+      <button onclick="startFresh()">Start fresh</button></div>`:''}
+    <div class="mb ${multi?'long':''}" id="fbody">${steps.map(section).join('')}</div>
+    <div class="merr" id="ferr" style="display:none"></div>
     <div class="mf">
-      <span class="mfn">${steps.length>1?`Step ${FSTEP+1} of ${steps.length}`:''}</span>
-      ${FSTEP>0?'<button class="btn" onclick="formBack()">Back</button>':''}
-      <button class="btn" onclick="closeForm()">Cancel</button>
-      <button class="btn pri" onclick="formNext()">${last?(FRM.cta||'Submit'):'Continue'}</button>
+      <span class="mfn">${multi?steps.length+' sections, one page':''}</span>
+      <button class="btn" onclick="tryCloseForm()">Cancel</button>
+      <button class="btn pri" onclick="formNext()">${FRM.cta||'Submit'}</button>
     </div>
    </div></div>`;
+
+  const fb=document.getElementById('fbody');
+  if(!fb)return;
+  fb.scrollTop=scroll;
+  if(keep){const e=document.getElementById(keep);
+    if(e){try{e.focus({preventScroll:true});e.setSelectionRange(e.value.length,e.value.length)}catch(_){}}}
+  if(multi){
+    fb.addEventListener('scroll',spySec);
+    fb.addEventListener('change',fieldChanged);
+    spySec();
+  }
 }
-window.liveUpdate=id=>{collect();drawForm();
-  const e=document.getElementById(id); if(e){e.focus();try{e.setSelectionRange(e.value.length,e.value.length)}catch(_){}}};
-window.formBack=()=>{collect();FSTEP--;drawForm()};
+
+/* A committed field may be read by a section other than its own — the payment
+   schedule is built from the lease value, the unit list from the building.
+   There is no Continue press to hang that refresh off any more.
+
+   Redrawing on every change was the first answer and it was too blunt: the
+   whole form is replaced, so the field the cursor was moving to is torn out
+   from under it. What is done instead is to work out, once per form, which keys
+   are actually read by a section other than the one that defines them. Those
+   redraw. Everything else is collected and left alone. The step definitions did
+   not have to be annotated for this — it is read off them. */
+const FLIVE={};
+function liveKeys(key){
+  if(FLIVE[key]) return FLIVE[key];
+  const steps=(FORMS[key]||{}).steps||[];
+  const src=steps.map(st=>typeof st.body==='function'?st.body.toString():'');
+  const defs=steps.map((st,i)=>{
+    const set=new Set((st.fields||[]).map(f=>f.k));
+    (src[i].match(/\{k:'([^']+)'/g)||[]).forEach(m=>set.add(m.slice(4,-1)));
+    return set;
+  });
+  const reads=src.map(t=>new Set((t.match(/\bd\.([A-Za-z_$][\w$]*)/g)||[]).map(m=>m.slice(2))));
+  const out=new Set();
+  defs.forEach((ds,j)=>ds.forEach(k=>reads.forEach((rs,i)=>{if(i!==j&&rs.has(k))out.add(k)})));
+  return (FLIVE[key]=out);
+}
+function fieldChanged(e){
+  const t=e.target;
+  if(!t||!t.hasAttribute||!t.hasAttribute('data-k'))return;
+  if(t.hasAttribute('onchange'))return;       /* live fields redraw themselves */
+  collect();                                   /* always — it costs nothing */
+  if(document.getElementById('fcnf'))return;   /* not underneath the sheet */
+  if(!liveKeys(FKEY).has(t.dataset.k))return;  /* nothing else reads it */
+  drawForm();
+}
+
+function spySec(){
+  const fb=document.getElementById('fbody'); if(!fb)return;
+  const secs=fb.querySelectorAll('.fsec'); if(!secs.length)return;
+  const top=fb.getBoundingClientRect().top; let cur=0;
+  secs.forEach((s,i)=>{if(s.getBoundingClientRect().top-top<=14) cur=i});
+  /* a short last section never reaches the top of the box, so scrolled to the
+     bottom is the last one whatever the arithmetic says */
+  if(fb.scrollTop+fb.clientHeight>=fb.scrollHeight-2) cur=secs.length-1;
+  document.querySelectorAll('.mstp.jump .s').forEach((c,i)=>c.classList.toggle('now',i===cur));
+}
+window.jumpSec=i=>{
+  const fb=document.getElementById('fbody'), s=document.getElementById('fsec_'+i);
+  if(!fb||!s)return;
+  fb.scrollTop+=s.getBoundingClientRect().top-fb.getBoundingClientRect().top-6;
+  spySec();
+};
+window.jumpField=k=>{
+  const e=document.getElementById('f_'+k), fb=document.getElementById('fbody');
+  if(!e||!fb)return;
+  fb.scrollTop+=e.getBoundingClientRect().top-fb.getBoundingClientRect().top-44;
+  try{e.focus({preventScroll:true})}catch(_){}
+  spySec();
+};
+
+window.liveUpdate=id=>{collect();drawForm()};
+window.formBack=()=>{};   /* kept so an older call site does nothing rather than throw */
+
+/* ---- the check, run once, on save ----
+   Every section is examined, not just the one in view, and what comes back is a
+   list of what is missing with a way to reach each one. The field labels are
+   read off the rendered form rather than the step definition, because that is
+   where they live. */
+function labelFor(k){
+  const e=document.getElementById('f_'+k);
+  const w=e&&(e.closest('.fl')||e.closest('.fc'));
+  const sp=w&&w.querySelector('span');
+  return sp?sp.textContent.replace(/\*/g,'').trim():k;
+}
+function validate(fields){   /* retained for any caller checking one group */
+  let ok=true;
+  (fields||[]).filter(f=>f.req).forEach(f=>{
+    const e=document.getElementById('f_'+f.k);
+    const bad=!FDATA[f.k]||String(FDATA[f.k]).trim()==='';
+    if(e)(e.closest('.fl')||e.closest('.fc'))?.classList.toggle('err',bad);
+    if(bad) ok=false;
+  });
+  return ok;
+}
+function checkAll(){
+  const miss=[], notes=[]; const bad={};
+  document.querySelectorAll('.fsec').forEach(s=>s.classList.remove('err'));
+  document.querySelectorAll('.mstp.jump .s').forEach(c=>c.classList.remove('bad'));
+  FRM.steps.forEach((st,i)=>{
+    (st.fields||[]).filter(f=>f.req).forEach(f=>{
+      const e=document.getElementById('f_'+f.k);
+      const empty=!FDATA[f.k]||String(FDATA[f.k]).trim()==='';
+      if(e)(e.closest('.fl')||e.closest('.fc'))?.classList.toggle('err',empty);
+      if(empty){miss.push(f.k);bad[i]=1}
+    });
+    if(st.check&&!st.check(FDATA)){notes.push(st.msg||('Check the '+(st.n||'')+' section'));bad[i]=1}
+  });
+  Object.keys(bad).forEach(i=>{
+    document.getElementById('fsec_'+i)?.classList.add('err');
+    const chip=document.querySelectorAll('.mstp.jump .s')[+i]; if(chip)chip.classList.add('bad');
+  });
+  const eb=document.getElementById('ferr');
+  if(!miss.length&&!notes.length){if(eb)eb.style.display='none';return true}
+  if(eb){
+    eb.style.display='block';
+    eb.innerHTML='<b>Not saved \u2014 this is outstanding</b><ul>'
+      +miss.map(k=>`<li><a onclick="jumpField('${k}')">${labelFor(k)}</a> is empty</li>`).join('')
+      +notes.map(m=>`<li>${m}</li>`).join('')+'</ul>';
+  }
+  if(miss.length) jumpField(miss[0]);
+  return false;
+}
+
 window.formNext=()=>{
   collect();
-  const st=FRM.steps[FSTEP];
-  if(st.fields&&!validate(st.fields))return;
-  if(st.check&&!st.check(FDATA)){const ec=document.getElementById('ferr');
-    if(ec){ec.style.display='block';ec.textContent=st.msg||'Check the values above'}
-    else toast(st.msg||'Check the values above');return}
-  if(FSTEP<FRM.steps.length-1){FSTEP++;drawForm();return}
+  if(!checkAll())return;
   const w=window.DB_LIVE?WIRE[FKEY]:null;
   if(w){submitLive(w);return}
   /* No WIRE entry and a live site meant falling through to the prototype
@@ -2610,6 +2838,8 @@ async function submitLive(w){
 }
 
 function formDone(res){
+  /* the record exists now, so the held draft is stale — it goes */
+  FOPEN=false; delete window.FDRAFT[FKEY];
   document.getElementById('modal').innerHTML=`
    <div class="ovl" onclick="if(event.target===this)closeForm()"><div class="mdl">
     <div class="mh"><div><div class="mt2">${res.title||'Done'}</div><div class="ms">${FRM.t}</div></div>
@@ -3051,7 +3281,11 @@ const FORMS={
 };
 const RECON={imported:false,unmatched:9,lastRun:'07:04 today'};
 
-document.addEventListener('keydown',e=>{if(e.key==='Escape'&&document.getElementById('modal').innerHTML)closeForm()});
+document.addEventListener('keydown',e=>{
+  if(e.key!=='Escape'||!document.getElementById('modal').innerHTML)return;
+  if(document.getElementById('fcnf')){dropSheet();return}
+  FOPEN?tryCloseForm():closeForm();
+});
 
 /* ============ Darkbrown V2 — all views and workflows ============ */
 ROUTES.dash=()=>DASH_TPL;
