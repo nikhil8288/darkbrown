@@ -998,6 +998,21 @@ function go(h){
   else location.hash=h;
 }
 window.go=go;
+/* A route that threw never reached the assignment below, so #view kept the
+   screen before it and the nav highlight never moved. On the display that
+   reads as a dead button, not as a fault, and it costs an hour to find. The
+   route says what broke and where now. */
+function routeError(r,e){
+  console.error('route '+r+' failed',e);
+  return page('This screen could not be drawn','Route \u00b7 '+r,'',
+   `<div class="card"><div class="unwired big"><span class="uw-tag">ERROR</span>
+     <p>Something in this screen threw while it was rendering, so nothing is
+     shown rather than half a screen of figures that may not agree.</p>
+     <p class="uw-note">${(e&&e.message?e.message:String(e))
+       .replace(/[<>&]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]))}</p>
+     <p class="uw-note">The console carries the stack. Other screens are
+     unaffected \u2014 this is one route, not the application.</p></div></div>`);
+}
 function router(){
   const h=(location.hash||'#/dash').slice(2);
   const [r,rawId]=h.split('/');
@@ -1007,15 +1022,22 @@ function router(){
   const id=rawId?decodeURIComponent(rawId):rawId;
   const fn=ROUTES[r]||ROUTES.dash;
   document.body.classList.remove('focus');
-  el('#view').innerHTML=(typeof roleCan==='function'&&!roleCan(r))?roleBlock(r)
-    :(window.DB_LIVE&&UNWIRED[r])?unwiredPage(r):(fn(id)||empty('Not found'));
-  if(typeof emptyBanner==='function') emptyBanner(r);
+  let out;
+  try{
+    out=(typeof roleCan==='function'&&!roleCan(r))?roleBlock(r)
+      :(window.DB_LIVE&&UNWIRED[r])?unwiredPage(r):(fn(id)||empty('Not found'));
+  }catch(e){ out=routeError(r,e); }
+  el('#view').innerHTML=out;
+  try{ if(typeof emptyBanner==='function') emptyBanner(r); }catch(e){console.error(e)}
   window.scrollTo(0,0);
   document.querySelectorAll('.nv').forEach(n=>n.classList.toggle('on',n.dataset.r===r));
   el('#ptoggle').style.display=r==='dash'?'flex':'none';
-  gateAlerts(); setBadge(); gateNav();
-  if(r==='dash') renderDash();
-  else if(window.DB_LIVE) gateChrome();
+  /* the chrome is drawn after the screen and must not be able to take it
+     down with it — a bad badge is a cosmetic fault, not a blank page */
+  try{ gateAlerts(); setBadge(); gateNav(); }catch(e){console.error('chrome',e)}
+  try{ if(r==='dash') renderDash(); else if(window.DB_LIVE) gateChrome(); }
+  catch(e){ console.error('dash',e);
+    if(r==='dash') el('#view').innerHTML=routeError('dash',e); }
   if(r==='data'&&window.dtResume) setTimeout(window.dtResume,0);
   const fc=el('#footcount');
   if(fc) fc.textContent = window.DB_LIVE
@@ -2414,7 +2436,10 @@ function validate(fields){
     if(e) (e.closest('.fl')||e.closest('.fc'))?.classList.toggle('err',bad);
     if(bad) ok=false;
   });
-  document.getElementById('ferr').style.display=ok?'none':'block';
+  /* a modal without the error strip — the blocked-form panel is one — used to
+     throw here rather than simply having nowhere to put the message */
+  const eb=document.getElementById('ferr');
+  if(eb) eb.style.display=ok?'none':'block';
   return ok;
 }
 window.openForm=(key,ctx)=>{
@@ -2473,11 +2498,24 @@ window.formNext=()=>{
   collect();
   const st=FRM.steps[FSTEP];
   if(st.fields&&!validate(st.fields))return;
-  if(st.check&&!st.check(FDATA)){document.getElementById('ferr').style.display='block';
-    document.getElementById('ferr').textContent=st.msg||'Check the values above';return}
+  if(st.check&&!st.check(FDATA)){const ec=document.getElementById('ferr');
+    if(ec){ec.style.display='block';ec.textContent=st.msg||'Check the values above'}
+    else toast(st.msg||'Check the values above');return}
   if(FSTEP<FRM.steps.length-1){FSTEP++;drawForm();return}
   const w=window.DB_LIVE?WIRE[FKEY]:null;
   if(w){submitLive(w);return}
+  /* No WIRE entry and a live site meant falling through to the prototype
+     handler: it pushed an invented row into a browser array and showed a
+     green tick. The record was never on the server and nobody could tell.
+     Refusing is the honest answer until the form is wired. */
+  if(window.DB_LIVE){
+    const err=document.getElementById('ferr');
+    if(err){err.style.display='block';
+      err.textContent='This form has no server behind it yet, so nothing was '
+        +'saved. Recording it here would put a figure on your screen that is '
+        +'in no ledger.';}
+    return;
+  }
   formDone(FRM.submit?FRM.submit(FDATA):{msg:'Saved'});
 };
 
@@ -3430,8 +3468,14 @@ ROUTES.utilities=()=>page('Utilities','Kahramaa billing vs tenant recovery · co
 /* ---------------- Document intake / OCR (2F) ---------------- */
 ROUTES.intake=()=>page('Document intake','AI extraction → review queue → push to vault',
  fbtn('Upload documents','upload-docs'),
- stat([['In queue',DOCS.filter(d=>d.st==='Needs review').length,'','a'],['Flagged',DOCS.filter(d=>d.st==='Flagged').length,'','r'],
-  ['Validated today',2],['Avg confidence','82%']])+
+ /* Queue and flagged counts come off the register. "Validated today" and the
+    average confidence were fixed strings sitting beside them, which is how a
+    prototype figure gets read as a measurement. They are withheld on a live
+    site rather than made up. */
+ stat([['In queue',DOCS.filter(d=>d.st==='Needs review').length,'','a'],
+  ['Flagged',DOCS.filter(d=>d.st==='Flagged').length,'','r'],
+  ['Validated today',window.DB_LIVE?'\u2014':2,window.DB_LIVE?'not read yet':''],
+  ['Avg confidence',window.DB_LIVE?'\u2014':'82%',window.DB_LIVE?'not read yet':'']])+
  `<div class="card"><h3>Intake pipeline — workflow 2F</h3>
   ${steps(['Upload','AI extraction','Human review','Validation','Push to vault'],2)}</div>
  <div class="card">${tbl([
@@ -3610,13 +3654,16 @@ ROUTES.closing=()=>{
         (dbWhy('closing')?'<br><span class="mini">'+dbWhy('closing')+'</span>':''))
      : empty('The close runs on the server. Nothing to show without one.')}</div>`);
 
- const derived=c.checks.filter(x=>x.kind==='derived');
- const manual=c.checks.filter(x=>x.kind==='manual');
+ /* a payload that arrived without its checks used to throw here, and the
+    throw left the previous screen on the display */
+ const cks=c.checks||[];
+ const derived=cks.filter(x=>x.kind==='derived');
+ const manual=cks.filter(x=>x.kind==='manual');
  const blocking=derived.filter(x=>!x.ok);
  const cur=c.current;
  const done=cur&&cur.st==='Closed';
  return page('Weekly closing',
-  'Week '+c.period+' \u00b7 discrepancies carried to the MD dashboard',
+  'Week '+(c.period||'\u2014')+' \u00b7 discrepancies carried to the MD dashboard',
   done?actbtn('This week is closed','Already closed'):fbtn('Start close','start-close'),
   stat([
    ['This week',done?'Closed':(cur?cur.st:'Not started'),
@@ -3639,7 +3686,7 @@ ROUTES.closing=()=>{
    <div class="foot"><span>nothing in the ledger answers these</span>
     <span>ticked on the close, recorded against whoever closed it</span></div></div>`+
   (cur&&cur.notes?`<div class="note"><b>Notes on this week's close.</b> ${cur.notes}</div>`:'')+
-  (c.history.length?`<div class="card"><h3>Earlier closes</h3>${tbl([
+  ((c.history||[]).length?`<div class="card"><h3>Earlier closes</h3>${tbl([
     {h:'Week ending',r:1,v:r=>r.period},{h:'Status',v:r=>chip(r.st,stChip(r.st))},
     {h:'Discrepancies',r:1,mono:1,v:r=>r.discrepancies||'\u2014',
      style:r=>r.discrepancies?'color:var(--amber)':''},
@@ -4146,7 +4193,7 @@ FORMS['onboard-building']={t:'Onboard a building',s:'Workflow 2A · property, la
   const n=WZU.length;
   return{title:'Building onboarded',msg:d.name+' created as '+id,
    detail:d.ll+' filed as '+llid+' · '+n+' unit'+(n===1?'':'s')+' created · '+(d.nchq||1)+
-    ' payments a year of QAR '+n0((((+d.annual||0)/(+d.nchq||1))/1000)),
+    ' payments a year of QAR '+n0((+d.annual||0)/(+d.nchq||1)),
    goto:'#/building/'+id}}};
 
 FORMS['add-tenant']={t:'Add tenant',s:'Workflow 2B · tenancy onboarding',cta:'Create tenant and agreement',
@@ -4220,7 +4267,7 @@ FORMS['add-tenant']={t:'Add tenant',s:'Workflow 2B · tenancy onboarding',cta:'C
   if(auto){ALERTS.unshift({ty:'Tenancy activated',t:d.name+' · '+(d.unit||'')+' · '+aid+' · no approval was required',
     w:'just now',s:'g',go:'#/agreement/'+aid});
    addNote(aid,'System','Workflow','Activated on creation. QID number recorded and signed pack attached, so the approval queue was skipped. GM and MD notified.');}
-  else{APPR.push({id:'APR-0'+(108+APPR.length),ty:'Tenancy approval',ref:aid+' · raised by '+ROLES[ROLEV][0],
+  else{APPR.push({id:'APR-0'+(108+APPR.length),ty:'Tenancy approval',ref:aid+' · raised by '+roleInfo(ROLEV)[0],
     amt:+(+d.rent||0).toFixed(1),age:0,res:0,st:'Pending',
     why:(!d.doc?'No signed agreement or QID copy attached. ':'')+(!d.qid?'QID number missing. ':'')+'The tenancy cannot self-activate without both.'});}
   return{title:auto?'Tenant created · tenancy active':'Tenant created · approval needed',
@@ -4472,10 +4519,18 @@ let ROLEV='MD';
    MD can still check what everyone else sees. */
 if(window.DB_ROLE) ROLEV=window.DB_ROLE;
 const DB_REAL_ROLE=ROLEV;
-const ROLES={MD:['Managing Director','Reserved approvals · full access'],
- GM:['General Manager','Operations · reads owner balances'],
- ACC:['Accounts','Fatima N. · classifies, cannot see balances'],
- DOC:['Documentation','Aisha R. · intake and vault']};
+const ROLES={MD:['Managing Director','Reserved approvals \u00b7 full access'],
+ GM:['General Manager','Operations \u00b7 reads owner balances'],
+ ACC:['Accounts','Classifies movements \u00b7 cannot see owner balances'],
+ DOC:['Documentation','Document intake and the vault'],
+ MNT:['Maintenance','Jobs and unit condition']};
+/* role_code() can return a code this map has never heard of — Maintenance was
+   one, and reading ROLES[code][0] on it threw at module scope. That took the
+   whole boot with it: seeded arrays left at their prototype values, five
+   routes never defined, an empty view and no error anyone could see. An
+   unrecognised code degrades to a label now. The staff names came out at the
+   same time; the person signed in is not always the person the label named. */
+const roleInfo=c=>ROLES[c]||[c||'User','Role not recognised by this build'];
 const RESTRICTED=['owners','shareholder','policy','runs','run','memo','data'];
 
 /* ============ Data & demo ============
@@ -4567,11 +4622,12 @@ window.dtPoll=async()=>{
   DATA_POLL=setInterval(tick,2000);
 };
 const PLANONLY=['planning','capacity','forecast','fva','scenarios','scenario','compare','model','portfolioplan','unitplan','targets','solver','risks','optimise','cfo','pactions','pconfig'];
-window.cycleRole=()=>{const o=['MD','GM','ACC','DOC'];
-  if(DB_REAL_ROLE!=='MD'){toast('Your role is set by your login');return}ROLEV=o[(o.indexOf(ROLEV)+1)%4];applyRole();
+window.cycleRole=()=>{const o=Object.keys(ROLES);
+  if(DB_REAL_ROLE!=='MD'){toast('Your role is set by your login');return}
+  ROLEV=o[(Math.max(0,o.indexOf(ROLEV))+1)%o.length];applyRole();
   const cur=(location.hash||'#/dash').slice(2).split('/')[0];
   if(!roleCan(cur)){go('#/dash')}else{router()}
-  toast('Viewing as '+ROLES[ROLEV][0])};
+  toast('Viewing as '+roleInfo(ROLEV)[0])};
 function roleCan(r){
   if(RESTRICTED.includes(r))return ROLEV==='MD'||ROLEV==='GM';
   if(PLANONLY.includes(r))return ROLEV==='MD'||ROLEV==='GM';
@@ -4579,7 +4635,7 @@ function roleCan(r){
 function applyRole(){
   const u=document.getElementById('userbox');
   if(u)u.innerHTML=`<div class="av">${ROLEV==='ACC'?'AC':ROLEV==='DOC'?'DO':ROLEV}</div>
-    <div>${ROLES[ROLEV][0]}<small>${ROLES[ROLEV][1]}</small></div>`;
+    <div>${roleInfo(ROLEV)[0]}<small>${roleInfo(ROLEV)[1]}</small></div>`;
   document.querySelectorAll('.nv').forEach(n=>{
     const r=n.dataset.r;n.style.display=roleCan(r)?'':'none'});
   document.querySelectorAll('.grp').forEach(g=>{
@@ -4725,7 +4781,7 @@ ROUTES.shareholder=id=>{const s=id?SH(id):SHOLD[0]; if(!s) return notFound('Shar
 
 ROUTES.policy=()=>page('Distribution policy',
  `Version ${DPOL.v} · approved by ${DPOL.by} on ${DPOL.on}`,
- ROLEV==='MD'?fbtn('Revise the policy','revise-policy'):`<span class="chip a">read only for ${ROLES[ROLEV][0]}</span>`,
+ ROLEV==='MD'?fbtn('Revise the policy','revise-policy'):`<span class="chip a">read only for ${roleInfo(ROLEV)[0]}</span>`,
  `<div class="note"><b>The target is a parameter, not a constant.</b> D65 retired the fixed QAR 300,000 figure that earlier drafts carried.
    What protects the company is the gate — D66 — not the size of the target.</div>`+
  stat([['Target',k(DPOL.target)],['Frequency',DPOL.freq],['Reserve',DPOL.months+' months'],
@@ -4794,7 +4850,7 @@ ROUTES.memo=id=>{const r=DR(id);if(!r)return empty('No run with that reference')
   (ROLEV==='MD'&&r.st==='Pending MD approval'
    ?`<button class="btn" onclick="openForm('reject-run')">Reject</button><button class="btn pri" onclick="approveRun('${r.id}')">Approve the distribution</button>`
    :`<span class="chip ${r.st==='Posted'?'g':'a'}">${r.st}</span>`),
-  (ROLEV!=='MD'?`<div class="note"><b>Only the MD can approve a distribution.</b> You are viewing as ${ROLES[ROLEV][0]}.</div>`:'')+
+  (ROLEV!=='MD'?`<div class="note"><b>Only the MD can approve a distribution.</b> You are viewing as ${roleInfo(ROLEV)[0]}.</div>`:'')+
   (stale?`<div class="note" style="border-left-color:var(--red)"><b>The figures have moved since this run was computed.</b>
     Headroom is now ${k(headK())}, not ${k(r.head)}. Approval is refused on a stale computation — the run has to be recomputed first.</div>`:'')+
   `<div class="card"><h3>What is being asked</h3>
@@ -5264,7 +5320,7 @@ Object.assign(FORMS,{
  submit:d=>{const tot=+d.amount||0,h=headK();
   CURRUN={id:'DR-2026-07',from:fdate(new Date(d.from)),to:fdate(new Date(d.to)),st:'Computed',
    gate:h>=tot?'Pass':'Fail',avail:AVAIL,den:denomK(),floor:floorK(),head:h,tot,over:'',
-   by:ROLES[ROLEV][0],ap:'',props:SHOLD.map(s=>({sh:s.id,n:s.n,hold:s.hold,amt:+(tot*s.hold/100).toFixed(1),why:''}))};
+   by:roleInfo(ROLEV)[0],ap:'',props:SHOLD.map(s=>({sh:s.id,n:s.n,hold:s.hold,amt:+(tot*s.hold/100).toFixed(1),why:''}))};
   return{title:'Run computed',msg:h>=tot?'Gate passed with '+k(h-tot)+' to spare':'Gate failed — short by '+k(tot-h),
    detail:'Nothing has moved yet. The run is locked to the figures above until it is recomputed.',goto:'#/run/DR-2026-07'}}},
 
@@ -5351,7 +5407,7 @@ Object.assign(FORMS,{
     <div><span>Reserve gate</span><b>still applies to any distribution under this scenario</b></div></div>
    <div class="note">A scenario changes what the company could afford. It does not change what it may take — that is the gate's job.</div>`}],
  submit:d=>{const eff=(+d.sub||0)-(+d.head||0);
-  SCEN.push({id:'SC-0'+(SCEN.length+1),n:d.name,by:ROLES[ROLEV][0],on:fdate(TODAY),st:'Draft',d:+eff.toFixed(1),
+  SCEN.push({id:'SC-0'+(SCEN.length+1),n:d.name,by:roleInfo(ROLEV)[0],on:fdate(TODAY),st:'Draft',d:+eff.toFixed(1),
    note:d.note||'',lev:[['Head-lease cost',-(+d.head||0)],['Sublease income',+d.sub||0],['Fill period',d.fill]]});
   return{title:'Scenario saved',msg:d.name,detail:'Steady-state effect on capacity '+k(eff)+' a month',goto:'#/scenarios'}}},
 
@@ -5454,8 +5510,8 @@ addEventListener('DOMContentLoaded',applyRole);
 applyRole();
 
 function roleBlock(r){return page('Not available to this role',
- ROLES[ROLEV][0]+' · '+ROLES[ROLEV][1],'',
- `<div class="note" style="border-left-color:var(--red)"><b>${ROLES[ROLEV][0]} cannot open this area.</b>
+ roleInfo(ROLEV)[0]+' · '+roleInfo(ROLEV)[1],'',
+ `<div class="note" style="border-left-color:var(--red)"><b>${roleInfo(ROLEV)[0]} cannot open this area.</b>
    Owner current account balances are restricted to the Managing Director and the General Manager under D73. Accounts can classify a
    shareholder movement at reconciliation, but never sees the running balance.</div>
   <div class="card"><h3>Restricted-data matrix</h3>${tbl([
@@ -5601,7 +5657,7 @@ Object.assign(FORMS,{
  submit:d=>{const t=TENANTS.find(x=>x.n===d.tenant)||TENANTS[0];
   const id='TOC-'+String(180+CASES.length).padStart(4,'0');
   CASES.push({id,t:t.id,tn:d.tenant,amt:+d.amt||0,stage:d.stage,age:0,owner:d.owner,promise:'—',manual:1});
-  addNote(id,ROLES[ROLEV][0],ROLEV,d.why);
+  addNote(id,roleInfo(ROLEV)[0],ROLEV,d.why);
   return{title:'Case opened',msg:id+' · '+d.tenant,
    detail:'Assigned to '+d.owner+' · the reason is the first entry in the case history',goto:'#/case/'+id}}}
 });
@@ -5776,25 +5832,25 @@ window.genEditSave=(i,mode)=>{
  const l=GEN.lines[i], before=billTotal(l);
  if(mode==='excl'){l.excl=true;l.reason=why;l.edited=1;
   GEN.changes.push({a:l.a,tn:l.tn,what:'Left out of the run',from:k(before),to:'—',why,
-   by:ROLES[ROLEV][0],when:fdate(TODAY),st:'Proposed'})}
+   by:roleInfo(ROLEV)[0],when:fdate(TODAY),st:'Proposed'})}
  else{['rent','util','mnt','arr'].forEach(f=>{const e=document.getElementById('g_'+f);if(e)l[f]=+e.value||0});
   l.edited=1;l.reason=why;
   GEN.changes.push({a:l.a,tn:l.tn,what:'Amount amended',from:k(before),to:k(billTotal(l)),why,
-   by:ROLES[ROLEV][0],when:fdate(TODAY),st:'Proposed'})}
+   by:roleInfo(ROLEV)[0],when:fdate(TODAY),st:'Proposed'})}
  GEN.approved=null;GEN.st='Draft';GEN.editing=-1;router()};
 window.genRevert=i=>{const l=GEN.lines[i];
  GEN.changes=GEN.changes.filter(c=>c.a!==l.a);
  Object.assign(l,l.orig);l.excl=!!l.skip;l.edited=0;l.reason='';
  GEN.approved=null;router()};
 window.genSend=()=>{GEN.st='Pending GM approval';
- APPR.push({id:'APR-0'+(108+APPR.length),ty:'Invoice amendment',ref:GEN.bn+' · '+GEN.period+' · raised by '+ROLES[ROLEV][0],
+ APPR.push({id:'APR-0'+(108+APPR.length),ty:'Invoice amendment',ref:GEN.bn+' · '+GEN.period+' · raised by '+roleInfo(ROLEV)[0],
   amt:+billSum(GEN),age:0,res:0,st:'Pending',
   why:GEN.changes.length+' invoice line'+(GEN.changes.length===1?'':'s')+' differ from the agreement. Each carries a reason.'});
  ALERTS.unshift({ty:'Invoice amendment',t:GEN.bn+' · '+GEN.changes.length+' changed line'+(GEN.changes.length===1?'':'s')+' awaiting the GM',
   w:'just now',s:'a',go:'#/generate'});
  toast('Sent to the General Manager');router()};
 window.genApprove=()=>{GEN.changes.forEach(c=>c.st='Approved');
- GEN.approved={by:ROLES[ROLEV][0],when:fdate(TODAY)};GEN.st='Approved';toast('Changes approved');router()};
+ GEN.approved={by:roleInfo(ROLEV)[0],when:fdate(TODAY)};GEN.st='Approved';toast('Changes approved');router()};
 window.genSendBack=()=>{const why=(document.getElementById('gback')||{}).value||'';
  if(!why.trim()){toast('Say what needs to change');return}
  GEN.changes.forEach(c=>{c.st='Sent back';c.back=why});
@@ -5812,7 +5868,7 @@ window.genIssue=()=>{
  addJrn('Sales','Invoices generated — '+GEN.bn,'BR-'+String(2600+BILLRUNS.length),
   [['1100',total,0],['4010',0,+(total*0.94).toFixed(1)],['4020',0,+(total*0.03).toFixed(1)],['4030',0,+(total*0.03).toFixed(1)]]);
  BILLRUNS.unshift({id:'BR-'+String(2600+BILLRUNS.length),b:GEN.b,bn:GEN.bn,period:GEN.period,date:GEN.date,
-  due:GEN.due,by:ROLES[ROLEV][0],incl:GEN.incl,changes:GEN.changes,lines:GEN.lines,
+  due:GEN.due,by:roleInfo(ROLEV)[0],incl:GEN.incl,changes:GEN.changes,lines:GEN.lines,
   st:'Issued',total,count:inc.length,approved:GEN.approved});
  const id=BILLRUNS[0].id;GEN=null;go('#/billrun/'+id);toast(inc.length+' invoices generated')};
 
@@ -5947,7 +6003,7 @@ ROUTES.generate=()=>{
         ?`<div class="note" style="border-left-color:var(--red)"><b>Sent back by the General Manager.</b>
           ${GEN.changes[0].back||''} Go back to the drafts, fix them, and send again.</div>`
         :(canApproveChanges()
-          ?`<div class="note"><b>You can approve your own changes.</b> As ${ROLES[ROLEV][0]} the approval is recorded against your name
+          ?`<div class="note"><b>You can approve your own changes.</b> As ${roleInfo(ROLEV)[0]} the approval is recorded against your name
              rather than routed.</div>
             <div class="genbar"><span class="mini">every change above is recorded either way</span>
              <button class="btn pri" onclick="genApprove()">Approve the changes</button></div>`
@@ -5988,7 +6044,7 @@ function genLiveView(){
    ['Status',GEN.st]])+
   (GEN.varr?`<div class="note" style="border-left-color:var(--amber)"><b>${varied.length} line${
      varied.length===1?'':'s'} do not match the agreement rent.</b> ${GEN.vwhy||
-     'Each carries its reason below.'} ${gm?'As '+ROLES[ROLEV][0]+' you can issue it yourself.'
+     'Each carries its reason below.'} ${gm?'As '+roleInfo(ROLEV)[0]+' you can issue it yourself.'
      :'It goes to the General Manager before anything is raised.'}</div>`:'')+
   `<div class="card"><h3>What will be invoiced</h3>${lines.length?tbl([
     {h:'Agreement',v:l=>l.a},{h:'Tenant',v:l=>l.tn},{h:'Unit',v:l=>l.u||'\u2014'},
@@ -6119,9 +6175,9 @@ FORMS['log-cheque']={t:'Log a cheque',s:'Money in or money out · the register i
    bank:d.bank,no:d.no,mat:d.mat,matD:14,adv:+d.adv||14,acct:d.acct||'',purpose:d.purpose||'',
    st:inc?(d.loc==='Deposited straight away'?'Deposited':'On hand'):'Issued',reason:'',act:'',
    replaces:d.replaces?d.replaces.split(' · ')[0]:'',
-   hist:[{d:fdate(TODAY),act:inc?'Received and logged':'Issued and logged',by:ROLES[ROLEV][0],note:d.note||''}]});
+   hist:[{d:fdate(TODAY),act:inc?'Received and logged':'Issued and logged',by:roleInfo(ROLEV)[0],note:d.note||''}]});
   if(d.replaces){const old=C(d.replaces.split(' · ')[0]);
-   if(old){old.act='Replaced by '+id;old.hist.push({d:fdate(TODAY),act:'Replacement received',by:ROLES[ROLEV][0],note:id})}}
+   if(old){old.act='Replaced by '+id;old.hist.push({d:fdate(TODAY),act:'Replacement received',by:roleInfo(ROLEV)[0],note:id})}}
   return{title:'Cheque logged',msg:id+' · '+d.party+' · '+k(+d.amt||0),
    detail:(inc?'Money in':'Money out')+' · '+d.bank+' · presented from '+d.mat+' with '+(d.adv||14)+' days notice',
    goto:'#/cheque/'+id}}};
@@ -6161,7 +6217,7 @@ FORMS['cheque-action']={t:'Update the cheque',s:'Every change is kept on the che
     CASES.push({id,t:c.t,tn:c.tn,amt:c.amt,stage:'Promise broken',age:0,owner:'Fatima N.',promise:'—',manual:0});
     addNote(id,'System','Workflow','Opened automatically on a returned cheque — '+c.id+', '+(d.reason||''))}}
   if(a==='Mark cleared'){addJrn('Receipt','Cheque cleared — '+(c.party||c.tn),c.id,[['1010',c.amt,0],['1150',0,c.amt]])}
-  c.hist.push({d:d.date,act:a,by:ROLES[ROLEV][0],note:[d.reason,d.next,d.note].filter(Boolean).join(' · ')});
+  c.hist.push({d:d.date,act:a,by:roleInfo(ROLEV)[0],note:[d.reason,d.next,d.note].filter(Boolean).join(' · ')});
   return{title:'Cheque updated',msg:c.id+' · '+was+' → '+c.st,
    detail:/returned/i.test(a)?(d.reason||'')+' · '+(d.next||''):'Recorded on the cheque history',goto:'#/cheque/'+c.id}}};
 
@@ -6264,10 +6320,10 @@ FORMS['amend-invoice']={t:'Amend an issued invoice',s:'The change is proposed, n
   const nw=cancel?0:+(((+d.rent||0)+(+d.util||0)+(+d.mnt||0)).toFixed(1));
   const id='AMD-'+String(9001+AMEND.length);
   AMEND.push({id,inv:i.id,tn:i.tn,b:i.b,bn:i.bn,kind:d.kind,from:i.amt,to:nw,
-   why:d.why,evid:d.evid||'',by:ROLES[ROLEV][0],when:fdate(TODAY),st:'Pending GM approval',
+   why:d.why,evid:d.evid||'',by:roleInfo(ROLEV)[0],when:fdate(TODAY),st:'Pending GM approval',
    lines:{rent:+d.rent||0,util:+d.util||0,mnt:+d.mnt||0}});
   i.pending=id;
-  APPR.push({id:'APR-0'+(108+APPR.length),ty:'Invoice amendment',ref:i.id+' · '+i.tn+' · raised by '+ROLES[ROLEV][0],
+  APPR.push({id:'APR-0'+(108+APPR.length),ty:'Invoice amendment',ref:i.id+' · '+i.tn+' · raised by '+roleInfo(ROLEV)[0],
    amt:Math.abs(nw-i.amt),age:0,res:0,st:'Pending',why:d.why});
   ALERTS.unshift({ty:'Invoice amendment',t:i.id+' · '+i.tn+' · '+k(i.amt)+' → '+k(nw)+' · awaiting the GM',
    w:'just now',s:'a',go:'#/amendment/'+id});
@@ -6275,7 +6331,7 @@ FORMS['amend-invoice']={t:'Amend an issued invoice',s:'The change is proposed, n
    detail:'Nothing has posted. The invoice stands as issued until the amendment is approved.',goto:'#/amendment/'+id}}};
 
 window.amdApprove=id=>{const a=AM(id);const i=I(a.inv);
- a.st='Approved';a.appBy=ROLES[ROLEV][0];a.appOn=fdate(TODAY);
+ a.st='Approved';a.appBy=roleInfo(ROLEV)[0];a.appOn=fdate(TODAY);
  const diff=+(a.to-a.from).toFixed(1);
  i.amt=a.to;i.pending='';i.amended=a.why;i.amendedBy=a.appBy;
  i.st=a.to===0?'Cancelled':i.paid>=a.to?'Paid':i.paid>0?'Part paid':'Unpaid';
@@ -6410,7 +6466,7 @@ FORMS['issue-receipt']={t:'Issue a receipt',s:'Cash on the day · a cheque only 
   const id='RCP-'+String(7001+RCPT.length);
   RCPT.push({id,kind:d.kind,party,t:t?t.id:'',amt,date:d.date,collector:d.collector||'',
    slip:d.slip||'',stmt:d.stmt||'',chq:c?c.id:'',inv:d.inv||'Oldest open invoice first',
-   by:ROLES[ROLEV][0],st:'Issued'});
+   by:roleInfo(ROLEV)[0],st:'Issued'});
   if(t)t.arr=+Math.max(0,t.arr-amt).toFixed(1);
   const inv=INV.find(x=>x.t===(t&&t.id)&&x.st!=='Paid');
   if(inv){inv.paid=+Math.min(inv.amt,inv.paid+amt).toFixed(1);inv.st=inv.paid>=inv.amt?'Paid':'Part paid'}
@@ -6528,7 +6584,7 @@ const WIRE={
  a:d=>({payload:{notes:d.notes,
    rows:BANKS().map((x,i)=>({bank_account:x.name,balance:d['bal_'+i]}))
      .filter(r=>r.balance!==undefined&&r.balance!=='')}}),
- ok:r=>({title:'Cash position declared',msg:k(r.total/1000)+' across '+r.declared.length+' account'+(r.declared.length===1?'':'s'),
+ ok:r=>({title:'Cash position declared',msg:k(r.total)+' across '+r.declared.length+' account'+(r.declared.length===1?'':'s'),
    detail:'Declared '+r.on+' · the runway now opens from this figure'})},
 
 'import-statement':{

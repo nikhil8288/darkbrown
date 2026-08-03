@@ -122,9 +122,11 @@ def find_party_by_id(id_number):
 				}
 
 	if frappe.db.exists("DocType", "Party Document"):
+		# document_no, not id_number; and the row has no holder_name — the
+		# holder is the parent, whose name is read from it just below.
 		row = frappe.db.get_value(
-			"Party Document", {"id_number": q},
-			["parent", "parenttype", "holder_name"], as_dict=True,
+			"Party Document", {"document_no": q},
+			["parent", "parenttype"], as_dict=True,
 		)
 		if row:
 			name_field = "customer_name" if row.parenttype == "Customer" else "supplier_name"

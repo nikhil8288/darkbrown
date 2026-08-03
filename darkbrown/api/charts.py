@@ -32,7 +32,7 @@ import frappe
 from frappe.utils import (getdate, nowdate, get_first_day, get_last_day,
                           add_months, add_days, flt, cint)
 
-from darkbrown.api.md_dashboard import _guard, _has
+from darkbrown.api.attention import _guard, _has
 from darkbrown.utils.rent_invoicing import GENERATION_START
 
 HORIZON = 12
@@ -53,7 +53,7 @@ def get_projection():
     months = _months(HORIZON)
 
     leases = frappe.get_all(
-        "Tenant Rental Agreement", filters={"status": "Active"},
+        "Tenancy Agreement", filters={"status": ["in", ["Active", "Expiring"]]},
         fields=["monthly_rent", "start_date", "end_date"])
     contracts = frappe.get_all(
         "Landlord Contract", filters={"status": "Active"},

@@ -116,9 +116,11 @@ def get_expiring_ids(days=60):
 			"document_type": ["in", ["QID / National ID", "Passport"]],
 			"expiry_date": ["<=", cutoff],
 		},
+		# Party Document carries document_no; id_number and holder_name are
+		# V1 names and this query returned an Unknown column error, not rows.
 		fields=[
 			"parent", "parenttype", "document_type",
-			"id_number", "holder_name", "expiry_date",
+			"document_no", "expiry_date",
 		],
 		order_by="expiry_date asc",
 	)
