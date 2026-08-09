@@ -7,12 +7,14 @@ leaves a trail on the tenancy it came from.
 
 import frappe
 from frappe.utils import today, getdate, add_days, flt
+from darkbrown.guards import guard, ACC, MD
 
 
 # ------------------------------------------------------------------ cheques
 
 @frappe.whitelist()
 def clear_cheque(cheque, cleared_on=None, payment_entry=None):
+    guard(MD, ACC)
     doc = frappe.get_doc("Cheque", cheque)
     if doc.status in ("Cleared", "Cancelled"):
         frappe.throw(f"Cheque {doc.cheque_no} is already {doc.status.lower()}.")
@@ -30,6 +32,7 @@ def clear_cheque(cheque, cleared_on=None, payment_entry=None):
 def return_cheque(cheque, reason, charge=0, returned_on=None):
     """A return is an event. It records the reason and the charge, tells the
     collections side, and leaves the cheque available for replacement."""
+    guard(MD, ACC)
     if not reason:
         frappe.throw("A returned cheque needs a reason.")
     doc = frappe.get_doc("Cheque", cheque)
@@ -47,6 +50,7 @@ def return_cheque(cheque, reason, charge=0, returned_on=None):
 def replace_cheque(cheque, cheque_no, cheque_date, amount=None, bank=None):
     """The replacement is a new record on the register, linked back to what it
     replaces. The old one is not edited into shape."""
+    guard(MD, ACC)
     old = frappe.get_doc("Cheque", cheque)
     new = frappe.get_doc({
         "doctype": "Cheque",

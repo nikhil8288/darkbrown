@@ -1,187 +1,154 @@
-# Single-page forms · Staff · Petty cash
+# Role guards on every endpoint
 
-Repo-root overlay. **Supersedes both earlier zips** (`darkbrown_single_page_forms.zip`
-and `darkbrown_forms_and_hr.zip`). Apply this one only.
+Repo-root overlay. **Supersedes `darkbrown_forms_staff_pettycash.zip`.** Apply
+this one on top of it.
 
-Needs a migrate — two new doctypes and a new settings field:
+**No migrate needed.** No doctype changed, no field added.
 
-    bench --site <site> migrate
+    git pull
     bench --site <site> clear-cache
+    bench --site <site> restart
 
-Then hard-refresh, and set **DBR Settings → People → Staff Pay Day**. It defaults to
-the 5th, which is an assumption that was never confirmed and decides which week of
-the runway carries payroll.
+Then delete the tracked `.pyc` that `.gitignore` should already have caught:
+
+    git rm --cached darkbrown/www/managing_director_dashboard/__pycache__/index.cpython-312.pyc
 
 ## Files
 
 New:
 
-    darkbrown/api/people.py
-    darkbrown/api/pettycash.py
-    darkbrown/darkbrown/doctype/staff_member/…
-    darkbrown/darkbrown/doctype/petty_cash_entry/…
+    darkbrown/guards.py
 
-Changed:
+Changed (20): `api/agreements.py` `api/app.py` `api/approvals.py`
+`api/cashdesk.py` `api/command.py` `api/doc_intake.py`
+`api/doc_intake_phase2.py` `api/documents.py` `api/finance.py`
+`api/md_dashboard.py` `api/number_cards.py` `api/operations.py`
+`api/people.py` `api/pettycash.py` `api/portfolio.py`
+`darkbrown/doctype/building/building.py` `utils/cheques.py`
+`utils/collections_case.py` `utils/pdc_accounting.py` `utils/rent_invoicing.py`
 
-    darkbrown/shell/index.html
-    darkbrown/api/command.py
-    darkbrown/api/charts.py
-    darkbrown/api/app.py
-    darkbrown/darkbrown/doctype/dbr_settings/dbr_settings.json
-
----
-
-# 1 — Every form is one page
-
-The engine reads the same step definitions and renders them together instead of one
-at a time. Steps became numbered sections down the page, the step rail became a jump
-rail, Back and Continue went, and there is one save button carrying the form's own
-wording. All 17 multi-step forms convert; the 24 single-step forms are untouched.
-
-**Clicking outside no longer closes anything.** X, Cancel or Escape only. If there is
-anything in the form, a sheet asks first, and leaving keeps what was entered —
-including chosen files — restored next time that form opens, with a "Start fresh"
-button. Drafts are per form, held for the browser session, dropped once the record
-saves.
-
-**Validation runs once, on save.** Every section is checked. What comes back is a list
-of what is outstanding, each entry a link that scrolls to and focuses the field, with
-the sections and rail chips concerned marked red.
-
-Three things behind that, each of which was a bug found by building this:
-
-*Derived sections refresh on change.* A section may read a field defined in another —
-the payment schedule from the lease value. Redrawing on every change was the first
-attempt and it was too blunt: the whole form is replaced, so the field the cursor was
-moving to gets torn out from under it. The engine now works out per form which keys
-are read outside the section that defines them, and redraws only on those. Read off
-the step definitions, so new forms need no annotation.
-
-*Redraws are deferred to the end of the turn.* Typing in a live field and then
-clicking Save ran blur, change, redraw — and the redraw replaced the button between
-mousedown and mouseup, so no click was ever dispatched. The button looked dead; it had
-been rebuilt underneath the finger. **This affected the existing forms too, before any
-of this work.**
-
-*On save: check, then redraw, then check again.* A step's own check is what commits
-editor state that is not a plain field — the unit editor reads its rows out of the DOM
-when asked — so redrawing first threw that work away and onboard-building stopped
-saving. Redrawing after is safe and is needed, or a conditional field like the petty
-cash reason box is demanded by an error message but never shown.
-
-*The confirm sheet renders into a new `#modal2`,* not `#modal`, or a redraw takes it
-with it before the click on it lands.
+127 lines added, 4 removed. Nothing was deleted or rewritten; every change is a
+guard line, an import, or a comment.
 
 ---
 
-# 2 — Staff
+# 1 — What was wrong
 
-Scope is small on purpose. The point is the money: salaries are a fixed monthly
-operating cost that this system recorded nowhere.
+Every endpoint in this app writes through `ignore_permissions=True`, which tells
+Frappe to skip the DocType permission tables. Those tables are correct — Cheque
+is Accounts/GM/MD, Weekly Closing is Accounts/MD, Staff Member holds pay at
+`permlevel: 1`. All of it was bypassed on every call.
 
-- **D74** Portfolio overhead. Does not touch building margin, which stays the spread
-  after head-lease.
-- **D75** No gratuity accrual. Basic and allowances stored separately so it can be
-  added without revisiting records.
-- **D76** Pay visible to Accounts and the MD. GM sees headcount, names, departments.
+Six modules had **no role check at all**: `finance.py` (13 endpoints),
+`operations.py` (7), `cashdesk.py` (4), `documents.py` (4), `pettycash.py` (4),
+`portfolio.py` (3), plus `number_cards.py` (10).
 
-`Staff Member` — not named `Employee`, ERPNext already has one. Pay fields sit at
-`permlevel: 1`, so Frappe withholds them rather than the screen doing it.
-`monthly_staff_cost` is **not** whitelisted: a whitelisted total salary bill is one
-available to anyone who can call it. `save_staff` refuses to write pay when the caller
-cannot see it, or a GM editing a job title would silently blank a salary.
+The only thing between a Maintenance login and `finance.record_receipt` was that
+the screen did not draw the button. `/api/method/...` does not care what the
+screen draws.
 
-Not in it: payroll runs, WPS, attendance, leave, employee documents and expiry,
-gratuity, approvals. Document expiry is the cheapest to add back — the lease-expiry
-alerting already exists and employee documents would ride on it.
+Four other modules did guard, in four different idioms — `admin._guard()`,
+`attention._guard()`, `approvals._is_md()/_is_gm()`, `doc_intake`'s
+`has_permission`. The pattern existed. It had never reached the modules that
+move money.
 
----
+# 2 — What this does
 
-# 3 — Petty cash
+`darkbrown/guards.py` — role constants and one `guard(*roles)` function that
+throws `PermissionError` unless the caller holds one of them. System Manager and
+Administrator always pass. Called with no roles it denies everyone but those
+two: a guard that fails closed is a bug report, one that fails open is an
+incident.
 
-- **D78** A float with a running balance, not an expense log.
-- **D79** Portfolio overhead, no building tag. Same reasoning as D74.
+It is a plain call at the top of each function, **not a decorator**. Frappe
+introspects a whitelisted function's signature to map form arguments onto
+parameters, and wrapping changes what that introspection sees. A first line in
+the body cannot break argument passing, and it greps.
 
-An expense log says what was spent. Only a float says whether the money that should be
-in the box still is, which in a business this cash-heavy is the question worth being
-able to answer. Three movements: top-up, expense, and the adjustment when a physical
-count disagrees.
+**82 guards added across 106 whitelisted endpoints.** The other 24 already had a
+real check and were left alone.
 
-The balance is derived from the movements every time and never stored, because a
-stored balance and a movement history can disagree and there is then no way to tell
-which one lied. Running balances compute forward from the beginning, so a back-dated
-entry reshapes everything after it.
+## Where the role sets come from
 
-Adjustments carry a mandatory reason and their own direction. Both matter: a count
-that does not agree is a fact about the cash and possibly about a person, and writing
-the book silently down to the box destroys the only evidence. The direction is
-explicit because assuming one meant a shortfall *increasing* the book — that was a
-real bug in the first draft of this module.
+Not invented. Read off the DocType permission JSON. An endpoint that writes a
+record gets the roles that DocType grants write or create to; an endpoint that
+reads gets the read set. If a guard looks wrong, the DocType table is where the
+argument is, and changing it there is the fix.
 
-**Partly answers Q24.** Top-ups name the account they came from, so an ATM withdrawal
-that funds the float stops being an unclassified cash movement. Not all of Q24 — cash
-leaves the accounts for other reasons — but a real piece of it.
+Worked examples:
 
----
-
-# 4 — Where the money actually lands
-
-This was the question that prompted the batch, and the honest answer had been "two of
-four". Now:
-
-| | payroll | petty cash |
+| Endpoint | Guard | From |
 |---|---|---|
-| Spread bridge `_waterfall` | yes, one **Overhead** bar | yes, same bar |
-| 13-week runway `_runway_flows` | yes, in the pay-day week | expected line only |
-| 12-month projection `get_projection` | **yes, new (D80)** | yes, trailing average |
-| Headline `spread` KPI | no — **D77**, unconfirmed | no |
+| `finance.record_receipt` | MD, ACC | Cheque: MD RWCD, ACC RWCD, GM **R** only |
+| `finance.build_invoice_run` | MD, GM, ACC | Invoice Run: MD, GM RWC, ACC RWCD |
+| `pettycash.record_entry` | MD, GM, ACC | Petty Cash Entry grants GM **create** |
+| `pettycash.record_count` | MD, ACC | ...but not **write**, and an adjustment is a write |
+| `portfolio.set_unit_status` | MD, GM, MNT | Unit: MNT has RW - readiness is their job |
+| `portfolio.onboard_building` | MD, GM | Building: MNT and ACC are read-only |
+| `operations.raise_job` | MD, GM, MNT | Maintenance Request: MNT RWCD, ACC **R** |
+| `people.save_staff` | MD, ACC | Staff Member: GM is **R** only |
 
-The projection was the one that mattered. Its whole purpose is finding the month the
-cumulative line goes under, and it modelled rent in against head-lease out and nothing
-else — so it was reporting a danger month later than the truth. Payroll enters at
-today's figure; petty cash as a trailing three-month average, because a one-off last
-March says nothing about next March. The runway keeps actual dated movements and gets
-the average only on its *expected* line, never the confirmed one — the confirmed line
-answers "what is certain", and an average is not.
+Three endpoints are open to all five roles on purpose: `app.refresh` (the boot
+payload, already role-filtered inside), `number_cards.vacant_units` and
+`occupancy_pct` (portfolio counts every role's own screen already shows them).
 
-The bridge shows staff and petty cash as one **Overhead** bar rather than two. Petty
-cash is small beside payroll and a seventh bar would be a sliver against labels the
-box cannot fit; the split is returned alongside for the panel to name.
+# 3 — Three bugs the sweep found
 
-**D77 still needs your call.** The headline `spread` KPI is billed minus head-lease,
-compared period-on-period, and feeds several panels. Netting overhead into it would
-change what the number means without renaming it, so it was left alone.
+Not introduced here. Found by looking at all 106 at once rather than one at a
+time.
 
-## A correction
+**`decide_amendment` could be approved by anyone.** The reserved-category check
+only fired when status was `Pending MD`. An amendment sitting at `Pending GM`
+had no check at all - a Maintenance login could approve a rent change. Now
+guarded MD/GM at entry, with the stricter MD rule for `Pending MD` intact.
 
-Earlier notes said staff cost reaches the reserve floor and the distribution gate.
-**It does not, because they do not exist in the code.** Stage 2I is in the Product
-Bible and the Design Working Document, not in `api/`. Nothing enforces a reserve gate
-today. The `people.py` docstring has been corrected.
+**`charts.py` has never once run.** It does
+`from darkbrown.utils.rent_invoicing import GENERATION_START`, and that constant
+lives in `api/md_dashboard.py`. The module raised `ImportError` on load, so all
+three endpoints - including `get_projection`, **the 12-month projection the D80
+work went into** - were dead on arrival. The constant now lives in
+`rent_invoicing.py`, where charts already expected it and where it belongs; it
+is the date invoice generation begins, not a dashboard setting. `md_dashboard`
+re-exports it so the two cannot drift.
 
----
+**A second V1 doctype name.** `PDC Cheque` - 60 references across 11 files,
+including `attention.py` and `charts.py`, which are both live. That is larger
+than the `Tenant Rental Agreement` problem and belongs with it in the next
+batch.
 
-## Tested, and not
+# 4 — On `ignore_permissions`, and what is still open
 
-Against the prototype's seeded data: 41 forms open with all sections rendered, 69
-routes clean across MD/GM/ACC/DOC/MNT, drafts and the confirm sheet behave,
-onboard-building and add-staff save end to end, the bridge renders six bars with no
-overflow, staff masking is right per role, and the float arithmetic is verified —
-including that a shortfall decreases the book and a count that agrees writes nothing.
+113 occurrences app-wide. They are **not removed**, deliberately:
 
-**Not verified:** anything against a real database. Neither doctype has been through
-`bench migrate`; `_staff_seed` and `_petty_seed` are untested against real records.
-Run it on a test site first.
+- ~30 are in `patches/`, `demo/` and `install.py`, which run as Administrator
+  during migrate or seed. Correct as they are.
+- 12 target ERPNext records - Sales Invoice, Payment Entry, Cost Center,
+  Customer, Supplier, File. DarkBrown's five roles hold no ERPNext accounts
+  permissions **by design**, so removing these would break every posting.
+- The rest target DarkBrown's own doctypes. Behind a guard these are now
+  redundancy rather than a hole, and stripping them cannot be tested without a
+  real database. That is a separate, testable change.
 
-Known, neither introduced here:
+**One gap the guard does not close.** `ignore_permissions=True` also bypasses
+`permission_query_conditions`, which is how `permissions.py` restricts a General
+Manager to their assigned buildings. A GM scoped to three buildings can still
+act on all twenty-two through these endpoints. The guard says *which role*, not
+*which buildings*. If GM scoping is meant to bite, that needs its own pass.
 
-- Bridge bar labels truncate at 18 characters, so "Spread after recorded costs" was
-  already clipped.
-- `classify-line` throws when opened without a context. It always has; it is only ever
-  called as `openForm('classify-line',{id})`.
+# 5 — Tested, and not
 
-## Testing note
+The harness imports the **real shipped modules** against a stubbed Frappe - not
+a replica of the logic - and calls all 106 endpoints once per role, with a stub
+that raises if anything reaches the database.
 
-`fill()` does not blur, and `change` fires on blur — so a test that fills and clicks
-Save without tabbing out will not trigger the live redraw and will not reproduce what
-a person sees. Click the field, fill it, tab out, then move on.
+- All 106 modules import cleanly. Before this batch, three did not.
+- **Zero endpoints reachable by a user holding no DarkBrown role.** Before: 67.
+- Every endpoint's allowed-role set matches the table in §2.
+- Every module imports every constant it uses (checked by AST, after this
+  exact bug slipped through the first pass).
+- Whole app byte-compiles.
+
+**Not verified:** anything against a real database. The guard is pure addition
+and cannot change what a permitted call does, but the role sets are a judgement
+about who should be doing what, and they are worth ten minutes of you reading
+the table in §2. If Fatima needs to log a cheque and cannot, that table is why.

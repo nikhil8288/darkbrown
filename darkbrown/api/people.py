@@ -31,6 +31,7 @@ import json
 
 import frappe
 from frappe.utils import flt, getdate, today
+from darkbrown.guards import guard, ACC, GM, MD
 
 
 def _payload(payload):
@@ -55,6 +56,7 @@ def staff_list(include_left=0):
     document, so a pay figure cannot arrive on a screen that was never meant
     to carry one.
     """
+    guard(MD, GM, ACC)
     filters = {} if int(include_left or 0) else {"status": "Active"}
     rows = frappe.get_all(
         "Staff Member", filters=filters,
@@ -87,6 +89,7 @@ def staff_list(include_left=0):
 @frappe.whitelist()
 def staff_member(name):
     """One record. Same masking as the list."""
+    guard(MD, GM, ACC)
     doc = frappe.get_doc("Staff Member", name)
     out = {
         "id": doc.name, "name": doc.full_name, "title": doc.job_title or "",
@@ -109,6 +112,7 @@ def save_staff(payload):
     """Create or update. Pay only moves if the caller is allowed to see it —
     otherwise an edit by the General Manager would silently write a blank
     salary over a real one."""
+    guard(MD, ACC)
     p = _payload(payload)
     name = p.get("id")
 
@@ -173,6 +177,7 @@ def monthly_staff_cost(on=None):
 @frappe.whitelist()
 def staff_summary(on=None):
     """Headcount for everyone, cost for those entitled to it."""
+    guard(MD, GM, ACC)
     on = getdate(on or today())
     heads = frappe.db.sql("""
         select department, count(*) n

@@ -35,6 +35,7 @@ from darkbrown.api.doc_intake_prompts import (
 )
 from darkbrown.api import id_validation
 from darkbrown.api.party_documents import append_party_document
+from darkbrown.guards import guard, ACC, DOC, MD
 
 ANTHROPIC_URL = "https://api.anthropic.com/v1/messages"
 ANTHROPIC_VERSION = "2023-06-01"
@@ -310,6 +311,7 @@ def _find_duplicate(file_url):
 @frappe.whitelist()
 def create_intake(file_url):
 	"""Create a Document Register record for an uploaded file (status Draft)."""
+	guard(MD, DOC)
 	if not frappe.has_permission("Document Register", "create"):
 		frappe.throw(_("Not permitted"), frappe.PermissionError)
 
@@ -324,6 +326,7 @@ def create_intake(file_url):
 def extract_document(docname, escalate=0):
 	"""Run extraction on a Document Register record and save the result.
 	Returns the updated doc as a dict for the UI to render."""
+	guard(MD, DOC)
 	reg = frappe.get_doc("Document Register", docname)
 	if not reg.has_permission("write"):
 		frappe.throw(_("Not permitted"), frappe.PermissionError)
@@ -358,6 +361,7 @@ def extract_from_upload(file_url, escalate=0, skip_duplicate_check=0):
 	"""Convenience: create the register record AND extract in one call.
 	Duplicate files (same content hash as an existing non-rejected register
 	entry) are skipped BEFORE any API spend, unless explicitly overridden."""
+	guard(MD, DOC)
 	if not int(skip_duplicate_check or 0):
 		twin = _find_duplicate(file_url)
 		if twin:
@@ -368,6 +372,7 @@ def extract_from_upload(file_url, escalate=0, skip_duplicate_check=0):
 
 @frappe.whitelist()
 def reject_document(docname, reason=None):
+	guard(MD, DOC)
 	reg = frappe.get_doc("Document Register", docname)
 	if not reg.has_permission("write"):
 		frappe.throw(_("Not permitted"), frappe.PermissionError)
@@ -386,6 +391,7 @@ def reject_document(docname, reason=None):
 @frappe.whitelist()
 def get_document(docname):
 	"""Fetch one register record for the review UI."""
+	guard(MD, DOC, ACC)
 	reg = frappe.get_doc("Document Register", docname)
 	if not reg.has_permission("read"):
 		frappe.throw(_("Not permitted"), frappe.PermissionError)
@@ -395,6 +401,7 @@ def get_document(docname):
 @frappe.whitelist()
 def list_queue(limit=30):
 	"""Register records awaiting action, newest first."""
+	guard(MD, DOC, ACC)
 	if not frappe.has_permission("Document Register", "read"):
 		frappe.throw(_("Not permitted"), frappe.PermissionError)
 	return frappe.get_all(
@@ -411,6 +418,7 @@ def list_queue(limit=30):
 def save_edits(docname, updates):
 	"""Apply reviewer edits. `updates` is a JSON dict of flat fields, plus an
 	optional 'cheques' list that replaces the child rows wholesale."""
+	guard(MD, DOC)
 	reg = frappe.get_doc("Document Register", docname)
 	if not reg.has_permission("write"):
 		frappe.throw(_("Not permitted"), frappe.PermissionError)
@@ -456,6 +464,7 @@ def save_edits(docname, updates):
 @frappe.whitelist()
 def validate_id(docname):
 	"""Run the two-check identity validation for the review UI."""
+	guard(MD, DOC)
 	reg = frappe.get_doc("Document Register", docname)
 	if not reg.has_permission("read"):
 		frappe.throw(_("Not permitted"), frappe.PermissionError)
@@ -615,6 +624,7 @@ def _push_cheques(reg, refs, party_type=None, party=None):
 def confirm_and_push(docname):
 	"""Reviewer confirmation: archive the document, link identity docs to the
 	matched party, push confirmed cheques. Status -> Pushed."""
+	guard(MD, DOC)
 	reg = frappe.get_doc("Document Register", docname)
 	if not reg.has_permission("write"):
 		frappe.throw(_("Not permitted"), frappe.PermissionError)
@@ -869,6 +879,7 @@ def match_statement(docname):
 	"""Suggest a PDC Cheque for every unmatched statement line. Matching:
 	exact cheque-number hit (strong), else amount+direction within a small
 	date window (weak). Suggestions are saved onto the lines."""
+	guard(MD, DOC, ACC)
 	reg = frappe.get_doc("Document Register", docname)
 	if not reg.has_permission("write"):
 		frappe.throw(_("Not permitted"), frappe.PermissionError)
@@ -943,6 +954,7 @@ def match_statement(docname):
 def apply_statement_line(docname, line_name, pdc=None):
 	"""Reviewer accepted a match: clear the PDC as of the line's date (this
 	creates the Payment Entry via the Phase-2 engine) and mark the line."""
+	guard(MD, DOC, ACC)
 	from darkbrown.utils import pdc_accounting
 	reg = frappe.get_doc("Document Register", docname)
 	if not reg.has_permission("write"):
@@ -967,6 +979,7 @@ def apply_statement_line(docname, line_name, pdc=None):
 @frappe.whitelist()
 def ignore_statement_line(docname, line_name, note=None):
 	"""Line is not a cheque event we track (bank charges, transfers, etc.)."""
+	guard(MD, DOC, ACC)
 	reg = frappe.get_doc("Document Register", docname)
 	if not reg.has_permission("write"):
 		frappe.throw(_("Not permitted"), frappe.PermissionError)

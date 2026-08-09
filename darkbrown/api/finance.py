@@ -14,6 +14,7 @@ question asked later is always "what happened", not "what is it now".
 import frappe
 from frappe import _
 from frappe.utils import flt, today, getdate, add_days, add_months, date_diff
+from darkbrown.guards import guard, ACC, GM, MD
 
 def _settings():
     return frappe.get_single("DBR Settings")
@@ -34,6 +35,7 @@ def log_cheque(payload):
     at a time is where mistakes get made, so a count and a first number is
     enough to lay the whole series down.
     """
+    guard(MD, ACC)
     data = frappe.parse_json(payload)
     agreement = data.get("tenancy_agreement")
     ta = frappe.get_doc("Tenancy Agreement", agreement) if agreement else None
@@ -93,6 +95,7 @@ def log_cheque(payload):
 @frappe.whitelist()
 def present_cheque(cheque, bank_account=None, on=None):
     """Send a cheque to the bank. It is out of our hands from here."""
+    guard(MD, ACC)
     doc = frappe.get_doc("Cheque", cheque)
     if doc.status not in ("Received", "Deposited"):
         frappe.throw(_("{0} is {1} and cannot be presented.").format(
@@ -107,6 +110,7 @@ def present_cheque(cheque, bank_account=None, on=None):
 @frappe.whitelist()
 def clear_cheque(cheque, on=None):
     """The cheque cleared. That is a receipt, so the ledger gets one."""
+    guard(MD, ACC)
     doc = frappe.get_doc("Cheque", cheque)
     if doc.status == "Cleared":
         return {"cheque": doc.name, "status": doc.status,
@@ -131,6 +135,7 @@ def return_cheque(cheque, reason, charge=None, notes=None, on=None):
     """A bounce. Reverse the money, then open a case if one is warranted —
     both, in one pass, because a bounce that only changes a status is a bounce
     nobody chases."""
+    guard(MD, ACC)
     doc = frappe.get_doc("Cheque", cheque)
     if doc.status == "Returned":
         frappe.throw(_("{0} is already recorded as returned.").format(cheque))
@@ -202,6 +207,7 @@ def _case_for_bounce(cheque):
 @frappe.whitelist()
 def replace_cheque(cheque, payload):
     """A replacement points back at what it replaces."""
+    guard(MD, ACC)
     data = frappe.parse_json(payload)
     old = frappe.get_doc("Cheque", cheque)
     data.setdefault("party", old.party)
@@ -225,6 +231,7 @@ def build_invoice_run(building, period_start=None):
     line by line, with the variance against each agreement shown, and only
     then does it go anywhere.
     """
+    guard(MD, GM, ACC)
     start = getdate(period_start or today()).replace(day=1)
     end = add_days(add_months(start, 1), -1)
 
@@ -289,6 +296,7 @@ def invoice_run(run):
     where the two differ — because reading them is the whole point of a run
     existing before anything is issued.
     """
+    guard(MD, GM, ACC)
     doc = frappe.get_doc("Invoice Run", run)
     tenants = {}
     for t in {l.tenant for l in doc.lines if l.tenant}:
@@ -320,6 +328,7 @@ def invoice_run(run):
 @frappe.whitelist()
 def submit_invoice_run(run):
     """Send a drafted run for approval."""
+    guard(MD, GM, ACC)
     doc = frappe.get_doc("Invoice Run", run)
     if doc.status != "Draft":
         frappe.throw(_("{0} is {1}.").format(run, doc.status))
@@ -332,6 +341,7 @@ def submit_invoice_run(run):
 def issue_invoice_run(run):
     """Approve the run and raise the invoices. This is the point of no return,
     so it is one transaction: every line becomes an invoice or none does."""
+    guard(MD, GM, ACC)
     doc = frappe.get_doc("Invoice Run", run)
     if doc.status not in ("Draft", "Pending GM"):
         frappe.throw(_("{0} is {1} and cannot be issued.").format(
@@ -416,6 +426,7 @@ def record_receipt(payload):
     what the ageing report assumes and what a tenant disputing a balance will
     be shown.
     """
+    guard(MD, ACC)
     data = frappe.parse_json(payload)
     tenant = data.get("tenant")
     amount = flt(data.get("amount"))
@@ -542,6 +553,7 @@ def create_deposit_batch(payload):
     replacement: the slip is captured here before it goes in, so the statement
     line can be matched to the slip rather than to a name that is not there.
     """
+    guard(MD, ACC)
     data = frappe.parse_json(payload)
     lines = data.get("lines") or []
     if not lines:
@@ -588,6 +600,7 @@ def deposit_batch(batch, on=None, reason=None):
     exception — so there has to be a way to say why, and it has to be
     recorded on the batch.
     """
+    guard(MD, GM, ACC)
     doc = frappe.get_doc("Deposit Batch", batch)
     if doc.status != "Draft":
         frappe.throw(_("{0} is {1}.").format(batch, doc.status))
@@ -612,6 +625,7 @@ def deposit_batch(batch, on=None, reason=None):
 @frappe.whitelist()
 def pay_head_lease(head_lease, row, payload=None):
     """Rent out to the landlord. The other half of the spread."""
+    guard(MD, ACC)
     data = frappe.parse_json(payload) if payload else {}
     hl = frappe.get_doc("Head Lease", head_lease)
     line = None

@@ -12,6 +12,7 @@ reviewing it, filing it against the right party, and tracking what expires.
 import frappe
 from frappe import _
 from frappe.utils import flt, today, getdate, date_diff, add_days
+from darkbrown.guards import guard, ACC, DOC, GM, MD
 
 PARTY_FIELD = {"Customer": "db_documents", "Supplier": "db_documents"}
 
@@ -19,6 +20,7 @@ PARTY_FIELD = {"Customer": "db_documents", "Supplier": "db_documents"}
 @frappe.whitelist()
 def register(payload):
     """File a document. It lands needing review unless it arrives confirmed."""
+    guard(MD, GM, ACC, DOC)
     data = frappe.parse_json(payload)
 
     doc = frappe.get_doc({
@@ -58,6 +60,7 @@ def review(document, decision, payload=None):
     any earlier document of the same type for the same party. A QID that has
     been renewed should not leave the old one looking current.
     """
+    guard(MD, GM, DOC)
     data = frappe.parse_json(payload) if payload else {}
     doc = frappe.get_doc("Document Register", document)
 
@@ -146,6 +149,7 @@ def expiring(days=None):
     Sorted by how overdue it is, because an expired QID is a bigger problem
     than one expiring next month.
     """
+    guard(MD, GM, ACC, DOC)
     window = int(days or 60)
     rows = frappe.get_all(
         "Document Register",
@@ -177,6 +181,7 @@ def missing_for(party_type, party):
     The requirement list is configuration, not code, so it can change without
     a deploy.
     """
+    guard(MD, GM, ACC, DOC)
     applies = "Tenant" if party_type == "Customer" else "Landlord"
     required = frappe.get_all(
         "Document Requirement",

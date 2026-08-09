@@ -12,6 +12,7 @@ here, on the server, not in the interface that happens to be showing.
 
 import frappe
 from frappe import _
+from darkbrown.guards import guard, GM, MD
 from frappe.utils import flt, today
 
 RESERVED = {"Deposit release", "Emergency maint."}
@@ -33,7 +34,12 @@ def decide(kind, reference, decision, note=None):
     `kind` is the category the queue displayed; `reference` is the record it
     came from. Both are checked against the record itself rather than trusted,
     so a forged category cannot route a decision to a softer check.
+
+    The per-category checks below are the real rule. This first line only makes
+    sure someone with no standing at all is refused before the endpoint starts
+    telling them what the queue contains.
     """
+    guard(MD, GM)
     if decision not in ("approve", "reject"):
         frappe.throw(_("A decision is either an approval or a rejection."))
     if decision == "reject" and not note:

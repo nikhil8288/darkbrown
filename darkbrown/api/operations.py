@@ -3,6 +3,7 @@
 import frappe
 from frappe import _
 from frappe.utils import flt, cint, today
+from darkbrown.guards import guard, ACC, GM, MD, MNT
 
 STAGE_STATUS = {
     "Reminder sent": "Contacted",
@@ -18,6 +19,7 @@ def log_contact(case, method, outcome, notes=None, promised_amount=None,
                 promised_date=None):
     """Every touch on a case is a row in the log, not an overwrite of the last
     one. The stage follows from the outcome."""
+    guard(MD, GM, ACC)
     doc = frappe.get_doc("Collection Case", case)
     doc.append("actions", {
         "action_on": frappe.utils.now(),
@@ -41,6 +43,7 @@ def log_contact(case, method, outcome, notes=None, promised_amount=None,
 
 @frappe.whitelist()
 def escalate(case, reason=None):
+    guard(MD, GM, ACC)
     doc = frappe.get_doc("Collection Case", case)
     if doc.status in ("Resolved", "Closed"):
         frappe.throw(_("That case is already closed."))
@@ -60,6 +63,7 @@ def escalate(case, reason=None):
 
 @frappe.whitelist()
 def open_case(tenancy_agreement, reason):
+    guard(MD, GM, ACC)
     from darkbrown.utils.collections_case import open_manual
     return open_manual(tenancy_agreement, reason)
 
@@ -68,6 +72,7 @@ def open_case(tenancy_agreement, reason):
 
 @frappe.whitelist()
 def raise_job(payload):
+    guard(MD, GM, MNT)
     data = frappe.parse_json(payload)
     if not data.get("building"):
         frappe.throw(_("A job needs a building."))
@@ -89,6 +94,7 @@ def raise_job(payload):
 
 @frappe.whitelist()
 def advance_job(job, status, cost=None, notes=None, assigned_to=None):
+    guard(MD, GM, MNT)
     doc = frappe.get_doc("Maintenance Request", job)
     doc.status = status
     if assigned_to:
@@ -114,6 +120,7 @@ MO_STATUS = ["Notice Received", "Inspection Pending", "Inspection Done",
 
 @frappe.whitelist()
 def open_moveout(payload):
+    guard(MD, GM, ACC)
     data = frappe.parse_json(payload)
     ta = data.get("tenancy_agreement")
     if not ta:
@@ -148,6 +155,7 @@ def open_moveout(payload):
 def advance_moveout(case, payload):
     """Walks the case one step. Each step writes only its own fields, so a
     half-finished move-out never looks settled."""
+    guard(MD, GM, ACC)
     data = frappe.parse_json(payload)
     doc = frappe.get_doc("Move Out Case", case)
     step = data.get("step")

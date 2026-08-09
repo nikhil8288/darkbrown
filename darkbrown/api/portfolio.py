@@ -9,10 +9,12 @@ counts them.
 import frappe
 from frappe import _
 from frappe.utils import flt, cint
+from darkbrown.guards import guard, GM, MD, MNT
 
 @frappe.whitelist()
 def onboard_building(payload):
     """One atomic pass. Raises before anything commits if any part fails."""
+    guard(MD, GM)
     data = frappe.parse_json(payload)
 
     name = (data.get("building_name") or "").strip()
@@ -146,6 +148,7 @@ def _landlord(data):
 
 @frappe.whitelist()
 def set_unit_status(unit, status):
+    guard(MD, GM, MNT)
     allowed = frappe.get_meta("Unit").get_field("status").options.split("\n")
     if status not in allowed:
         frappe.throw(_("{0} is not a unit status.").format(status))
@@ -169,6 +172,7 @@ def add_unit(data):
     to the onboarding loop above, so a unit added here is indistinguishable
     from one created with its building.
     """
+    guard(MD, GM)
     data = frappe.parse_json(data) or {}
 
     building = (data.get("building") or "").strip()

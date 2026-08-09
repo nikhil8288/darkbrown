@@ -28,6 +28,7 @@ renders.
 import frappe
 from frappe.utils import (add_days, add_months, cint, flt, get_datetime,
                           get_first_day, get_last_day, getdate, today)
+from darkbrown.guards import guard, ACC, GM, MD
 
 def _k(v):
     """Money crosses to the shell in whole riyals. No scaling anywhere."""
@@ -103,6 +104,7 @@ def unissued(period_start=None):
     on the Command Centre that sets billed revenue against head-lease cost
     has to know about it, because the cost is always complete and the billing
     is not."""
+    guard(MD, GM, ACC)
     period_start = period_start or _months(0)
     rows = frappe.db.sql("""
         select ir.building as building, sum(ir.total_amount) as amount

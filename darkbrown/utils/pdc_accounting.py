@@ -24,6 +24,7 @@ True once the team trusts the engine.
 import frappe
 from frappe import _
 from frappe.utils import flt, getdate, nowdate
+from darkbrown.guards import guard, ACC, MD
 
 PE_AUTO_SUBMIT = False          # drafts first; flip after trust is earned
 SECURITY_LIABILITY_NAME = "Security Deposits Held"
@@ -137,6 +138,7 @@ def _fifo_invoices(incoming, party, amount):
 def mark_cleared(pdc, clearance_date=None, submit=None):
 	"""Bank confirmed the cheque. Creates the Payment Entry (draft by
 	default) and moves the PDC to Cleared."""
+	guard(MD, ACC)
 	doc = frappe.get_doc("PDC Cheque", pdc)
 	if not doc.has_permission("write"):
 		frappe.throw(_("Not permitted"), frappe.PermissionError)
@@ -210,6 +212,7 @@ def mark_cleared(pdc, clearance_date=None, submit=None):
 def bank_security_deposit(pdc, deposit_date=None):
 	"""A security cheque was actually banked: Dr Bank / Cr Security Deposits
 	Held. Income is never touched."""
+	guard(MD, ACC)
 	doc = frappe.get_doc("PDC Cheque", pdc)
 	if not doc.has_permission("write"):
 		frappe.throw(_("Not permitted"), frappe.PermissionError)
@@ -256,6 +259,7 @@ def mark_bounced(pdc, bounce_date=None):
 	"""Bank returned the cheque. Cancels the linked Payment Entry (if
 	submitted), deletes it (if draft), sets Bounced - which fires the
 	existing T5 recovery handoff to Accounts."""
+	guard(MD, ACC)
 	doc = frappe.get_doc("PDC Cheque", pdc)
 	if not doc.has_permission("write"):
 		frappe.throw(_("Not permitted"), frappe.PermissionError)

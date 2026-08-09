@@ -26,6 +26,7 @@ import json
 
 import frappe
 from frappe.utils import add_months, flt, get_first_day, getdate, today
+from darkbrown.guards import guard, ACC, GM, MD
 
 
 def _payload(payload):
@@ -110,6 +111,7 @@ def entries(limit=100, direction=None):
     backward from now, so an entry back-dated into the middle of the history
     reshapes every balance after it, which is what actually happened.
     """
+    guard(MD, GM, ACC)
     filters = {}
     if direction:
         filters["direction"] = direction
@@ -141,6 +143,7 @@ def entries(limit=100, direction=None):
 
 @frappe.whitelist()
 def petty_cash_summary(on=None):
+    guard(MD, GM, ACC)
     on = getdate(on or today())
     month_start = get_first_day(on)
     return {
@@ -157,6 +160,7 @@ def petty_cash_summary(on=None):
 
 @frappe.whitelist()
 def record_entry(payload):
+    guard(MD, GM, ACC)
     p = _payload(payload)
     doc = frappe.new_doc("Petty Cash Entry")
     doc.entry_date = getdate(p.get("date") or today())
@@ -183,6 +187,7 @@ def record_count(counted, on=None, reason=None):
     count happened and what it found. Writing the book silently down to the
     box would leave no trace that anything went missing.
     """
+    guard(MD, ACC)
     on = getdate(on or today())
     book = float_balance(on)
     diff = round(flt(counted) - book, 2)

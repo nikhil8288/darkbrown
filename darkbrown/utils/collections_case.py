@@ -12,6 +12,7 @@ because two cases against one tenant means two people chasing the same money.
 
 import frappe
 from frappe.utils import today, getdate, date_diff, flt
+from darkbrown.guards import guard, ACC, GM, MD
 
 LIVE_STATES = ("Open", "Contacted", "Promised", "Broken Promise",
                "Escalated", "Legal")
@@ -187,6 +188,7 @@ def nightly():
 @frappe.whitelist()
 def open_manual(tenancy_agreement, reason):
     """The fifth route. A person may open a case by hand, with a reason."""
+    guard(MD, GM, ACC)
     if not (reason or "").strip():
         frappe.throw("A case opened by hand needs a reason.")
     if live_case(tenancy_agreement):

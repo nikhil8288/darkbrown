@@ -8,16 +8,19 @@ Strings give exact control ("97.1%", "QAR 12,345", plain counts)."""
 
 import frappe
 from frappe.utils import add_days, nowdate
+from darkbrown.guards import guard, ACC, APP, DOC, GM, MD, MNT
 
 
 @frappe.whitelist()
 def vacant_units():
     # Same truth source as the MD dashboard: Unit.occupancy_status.
+    guard(*APP)
     return str(frappe.db.count("Unit", {"occupancy_status": "Vacant"}))
 
 
 @frappe.whitelist()
 def occupancy_pct():
+    guard(*APP)
     total = frappe.db.count("Unit")
     if not total:
         return "0%"
@@ -27,6 +30,7 @@ def occupancy_pct():
 
 @frappe.whitelist()
 def arrears_total():
+    guard(MD, GM, ACC)
     val = frappe.db.sql(
         """select ifnull(sum(outstanding_amount), 0)
            from `tabSales Invoice`
@@ -37,6 +41,7 @@ def arrears_total():
 
 @frappe.whitelist()
 def maintenance_aged_48h():
+    guard(MD, GM, MNT)
     n = frappe.db.sql(
         """select count(*) from `tabMaintenance Request`
            where status in ('Open', 'In Progress')
@@ -54,21 +59,25 @@ def _expiring(dt, date_field, days):
 
 @frappe.whitelist()
 def tra_expiring_30():
+    guard(MD, GM, ACC, DOC)
     return str(_expiring("Tenant Rental Agreement", "end_date", 30))
 
 
 @frappe.whitelist()
 def tra_expiring_60():
+    guard(MD, GM, ACC, DOC)
     return str(_expiring("Tenant Rental Agreement", "end_date", 60))
 
 
 @frappe.whitelist()
 def tra_expiring_90():
+    guard(MD, GM, ACC, DOC)
     return str(_expiring("Tenant Rental Agreement", "end_date", 90))
 
 
 @frappe.whitelist()
 def headlease_expiring_90():
+    guard(MD, GM, ACC, DOC)
     return str(_expiring("Landlord Contract", "contract_end_date", 90))
 
 
@@ -82,9 +91,11 @@ def _pending(state):
 
 @frappe.whitelist()
 def pending_gm_approvals():
+    guard(MD, GM)
     return str(_pending("Pending GM Approval"))
 
 
 @frappe.whitelist()
 def pending_md_approvals():
+    guard(MD, GM)
     return str(_pending("Pending MD Approval"))

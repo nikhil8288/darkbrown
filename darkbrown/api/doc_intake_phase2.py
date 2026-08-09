@@ -25,6 +25,7 @@
 import frappe
 from frappe import _
 from frappe.utils import flt, getdate, nowdate
+from darkbrown.guards import guard, ACC, DOC, MD
 
 # -----------------------------------------------------------------------------
 # CONFIG — adjust fieldnames here if they differ on your site
@@ -226,6 +227,7 @@ def _rows_missing_dates(doc):
 def check_missing_dates(register_name):
     """Optional preflight for the /doc-intake page: call before enabling Push.
     Returns {"ok": bool, "missing": [labels]} so the UI can amber-flag rows."""
+    guard(MD, DOC, ACC)
     doc = frappe.get_doc(REGISTER_DOCTYPE, register_name)
     if doc.get(REGISTER_DOCTYPE_FIELD) != "Cheque Batch":
         return {"ok": True, "missing": []}
@@ -258,6 +260,7 @@ def register_on_update(doc, method=None):
 def attach_register_to_party(register_name):
     """Append a Party Document row on the linked Customer/Supplier.
     Idempotent per (party, source_register)."""
+    guard(MD, DOC, ACC)
     reg = frappe.get_doc(REGISTER_DOCTYPE, register_name)
 
     party_doctype, party_name = None, None
@@ -295,6 +298,7 @@ def attach_register_to_party(register_name):
 
 @frappe.whitelist()
 def mark_cleared_v2(pdc_name, clearance_date, create_payment=1):
+    guard(MD, ACC)
     create_payment = frappe.utils.cint(create_payment)
     clearance_date = getdate(clearance_date)
 

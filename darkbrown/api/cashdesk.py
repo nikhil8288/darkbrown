@@ -22,6 +22,7 @@ import json
 
 import frappe
 from frappe.utils import flt, get_datetime, getdate, now_datetime, today
+from darkbrown.guards import guard, ACC, MD
 
 
 def _payload(payload):
@@ -35,6 +36,7 @@ def _payload(payload):
 @frappe.whitelist()
 def declare_balances(payload):
     """One declaration row per account. Returns the new opening total."""
+    guard(MD, ACC)
     p = _payload(payload)
     rows = p.get("rows") or []
     if not rows:
@@ -88,6 +90,7 @@ def latest_declarations():
 def record_close(payload):
     """Upserts the close for a period end. Starting one sets it In Progress;
     completing it sets Closed and stamps the time."""
+    guard(MD, ACC)
     p = _payload(payload)
     period_end = p.get("period_end") or today()
     name = frappe.db.get_value("Weekly Closing", {"period_end": period_end})
@@ -187,6 +190,7 @@ def _checks(start, end):
 @frappe.whitelist()
 def closing(period_end=None):
     """The current close, what it is waiting on, and the ones before it."""
+    guard(MD, ACC)
     end = _week_end(period_end)
     start = frappe.utils.add_days(end, -6)
 
@@ -249,6 +253,7 @@ def _already_matched(kind):
 def import_statement(payload):
     """Creates the import with its lines and runs the conservative matcher.
     Nothing is posted; unmatched lines surface on the Command Centre."""
+    guard(MD, ACC)
     p = _payload(payload)
     lines = p.get("lines") or []
     if not lines:

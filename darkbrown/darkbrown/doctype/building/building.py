@@ -1,6 +1,7 @@
 import frappe
 from frappe import _
 from frappe.model.document import Document
+from darkbrown.guards import guard, GM, MD
 
 
 class Building(Document):
@@ -40,6 +41,7 @@ def bulk_create_units(building: str, unit_numbers: str, unit_type: str = None,
     Unit numbers are never generated. Whatever is pasted here is what is on the door.
     Duplicates against the existing register are skipped and reported rather than merged.
     """
+    guard(MD, GM)
     frappe.has_permission("Unit", "create", throw=True)
 
     raw = (unit_numbers or "").replace(",", "\n").split("\n")

@@ -21,6 +21,7 @@ frontend's job.
 import frappe
 from frappe import _
 from frappe.utils import getdate, nowdate, flt, cint, formatdate, add_days
+from darkbrown.guards import guard, MD
 
 _ALLOWED = {"Managing Director", "System Manager", "Administrator"}
 
@@ -30,9 +31,9 @@ NOTICE_WINDOW = 60
 # How far ahead we look for expiries, both tenant and landlord side.
 EXPIRY_WINDOW = 90
 
-# ERPNext starts carrying real money from this date. Before it, the manual
-# Excel books are authoritative and live in Historical Monthly PL.
-GENERATION_START = "2026-07-01"
+# ERPNext starts carrying real money from this date. Defined once in
+# utils.rent_invoicing and re-exported here so the two modules cannot drift.
+from darkbrown.utils.rent_invoicing import GENERATION_START  # noqa: F401
 
 # Tenant cheques from payers with bounce history are discounted before
 # they are allowed into a forward-cash figure.
@@ -632,6 +633,7 @@ def get_alerts():
     """The 6 surviving attention items, filtered against shared
     dismissals. Logic lives in darkbrown.api.attention; the entry shape
     is unchanged: [id, severity, icon, message, drill_route, label]."""
+    guard(MD)
     from darkbrown.api import attention
     return attention.get_attention()
 

@@ -18,6 +18,16 @@ which keeps ERPNext the owner of the ledger.
 import frappe
 from frappe.utils import (today, getdate, add_days, add_months, flt,
                           get_first_day, get_last_day)
+from darkbrown.guards import guard, ACC, GM, MD
+
+# ERPNext starts carrying real money from this date. Before it, the manual
+# Excel books are authoritative and live in Historical Monthly PL.
+#
+# This lived in api/md_dashboard.py while api/charts.py imported it from here,
+# so charts.py raised ImportError on load and all three of its endpoints —
+# including the 12-month projection — have never once run. It belongs here:
+# it is the date invoice generation begins, not a dashboard setting.
+GENERATION_START = "2026-07-01"
 
 
 def _company(building):
@@ -71,6 +81,7 @@ def _recharges(tenant, building):
 @frappe.whitelist()
 def build_run(building, period_start=None):
     """Draft an Invoice Run for one building. Creates nothing in the ledger."""
+    guard(MD, GM, ACC)
     period_start = getdate(period_start or get_first_day(today()))
     period_end = get_last_day(period_start)
 
@@ -120,6 +131,7 @@ def build_run(building, period_start=None):
 def issue_run(run_name):
     """Post the run. Allocation order is oldest invoice first, and within an
     invoice rent settles before recharge."""
+    guard(MD, GM, ACC)
     run = frappe.get_doc("Invoice Run", run_name)
 
     if run.status == "Issued":

@@ -13,6 +13,7 @@ human. Which human depends on the value at stake.
 import frappe
 from frappe import _
 from frappe.utils import flt, today, getdate, add_days, date_diff
+from darkbrown.guards import guard, ACC, DOC, GM, MD
 
 def _settings():
     return frappe.get_single("DBR Settings")
@@ -27,6 +28,7 @@ def create_agreement(payload):
     The unit is claimed here too. A unit already carrying a live tenancy is
     refused rather than quietly double-let.
     """
+    guard(MD, GM, ACC, DOC)
     data = frappe.parse_json(payload)
 
     unit = data.get("unit")
@@ -184,6 +186,7 @@ def _missing(doc):
 def activate(agreement, note=None):
     """Approve an agreement that was routed. The approver is standing in for
     the missing paperwork, so the reason is kept."""
+    guard(MD, GM)
     doc = frappe.get_doc("Tenancy Agreement", agreement)
     if doc.status != "Pending Approval":
         frappe.throw(_("Only an agreement pending approval can be activated. "
@@ -205,6 +208,7 @@ def activate(agreement, note=None):
 
 @frappe.whitelist()
 def terminate(agreement, reason):
+    guard(MD, GM)
     doc = frappe.get_doc("Tenancy Agreement", agreement)
     doc.status = "Terminated"
     doc.notes = (doc.notes or "") + f"\n\nTerminated: {reason}"
@@ -283,6 +287,7 @@ def _open_deposit(agreement, data):
 def request_amendment(payload):
     """Anything that changes a live agreement goes through here. The routing
     is decided by value, not by who is asking."""
+    guard(MD, GM, ACC)
     data = frappe.parse_json(payload)
     agreement = data.get("agreement")
     if not agreement:
@@ -319,7 +324,14 @@ def request_amendment(payload):
 
 @frappe.whitelist()
 def decide_amendment(amendment, decision, note=None):
-    """Approve or reject. Approval applies the change; rejection never does."""
+    """Approve or reject. Approval applies the change; rejection never does.
+
+    The reserved check below only ever fired on `Pending MD`, so an amendment
+    sitting at `Pending GM` could be decided by anyone who could reach the
+    endpoint. Approving is a General Manager act or above, the same rule
+    `approvals.decide` applies to everything else in the queue.
+    """
+    guard(MD, GM)
     doc = frappe.get_doc("Agreement Amendment", amendment)
     if doc.status not in ("Pending GM", "Pending MD"):
         frappe.throw(_("{0} is already {1}.").format(amendment, doc.status))
@@ -364,6 +376,7 @@ def _apply_amendment(doc):
 def renew(agreement, payload):
     """A renewal is a new agreement pointing at the one it replaces, not an
     edit. The history stays intact and the spread stays comparable."""
+    guard(MD, GM, ACC, DOC)
     data = frappe.parse_json(payload)
     old = frappe.get_doc("Tenancy Agreement", agreement)
 

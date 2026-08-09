@@ -13,6 +13,7 @@ formatters expect. One place converts, here.
 
 import frappe
 from frappe.utils import flt, getdate, today, date_diff, add_days
+from darkbrown.guards import guard, APP
 
 def _k(v):
     """Money crosses to the shell in whole riyals. No scaling anywhere."""
@@ -444,6 +445,7 @@ def seed():
 def refresh():
     """Called by the front end after a write, so the screen reflects what was
     actually saved rather than what the browser thinks it saved."""
+    guard(*APP)
     return {"seed": seed(), "role": role_code(),
             "user": frappe.db.get_value("User", frappe.session.user,
                                         "full_name")}
