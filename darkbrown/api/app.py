@@ -50,7 +50,7 @@ def buildings():
     rows = frappe.get_all(
         "Building",
         fields=["name", "building_name", "status", "landlord", "area_name",
-                "floors", "total_units"],
+                "floors", "total_units", "handover_date"],
         order_by="building_name asc")
     if not rows:
         return []
@@ -95,6 +95,12 @@ def buildings():
             "hlRent": cost,
             "area": b.area_name or "—",
             "floors": b.floors or 0,
+            # The building's own state. Queried since this function was
+            # written and then not passed on, so the screen had no way to
+            # tell an onboarding building from a trading one.
+            "st": b.status or "Onboarding",
+            "ho": _fdate(b.handover_date),
+            "nr": len([u for u in us if u.status == "Not Ready"]),
         })
     return out
 

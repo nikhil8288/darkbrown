@@ -1,151 +1,113 @@
-# V1 doctype names removed
+# Handover
 
-Repo-root overlay. **Supersedes `darkbrown_role_guards.zip`.** Apply this one;
-it contains that batch as well.
+Repo-root overlay. **Supersedes `darkbrown_v1_names.zip`.** Contains that batch
+and the guard batch before it.
 
-**Needs a migrate** — one new field on DBR Settings.
+**Needs a migrate** (carried over from the previous batch — one new DBR Settings
+field).
 
     git pull
     bench --site <site> migrate
+    bench --site <site> build
     bench --site <site> clear-cache
     bench --site <site> restart
 
+`DELETE_THESE.txt` in this zip lists two files to `git rm` — an overlay cannot
+delete.
+
 ---
 
-# 1 — There were three V1 names, not one
+# 1 — A correction to the audit first
 
-The running notes had this as eleven dead notification rules. The sweep found
-three doctype names V2 never defines, in 24 files:
+The audit said onboarding creates every unit `Not Ready` and leaves 276 units
+unlettable. **That was wrong.** The wizard has sent `status:'Vacant'` since
+31 July; I read the default in `portfolio.py` and did not check what the screen
+actually sends. Bulk-onboarded units have been lettable the whole time.
 
-| V1 name | V2 name | refs | files |
-|---|---|---|---|
-| `Tenant Rental Agreement` | `Tenancy Agreement` | 41 | 12 |
-| `PDC Cheque` | `Cheque` | 60 | 11 |
-| `Landlord Contract` | `Head Lease` | 27 | 7 |
+What was true:
 
-You confirmed PDC cheques work in V2, and the code agrees: `Cheque` carries the
-whole lifecycle — direction, party, cheque_date, Received → Deposited →
-Presented → Cleared → Returned → Replaced, `payment_entry`, `replaced_by`. So
-`PDC Cheque` was pure V1 leftover, not a parallel doctype. Nothing was migrated;
-the names were simply wrong.
+- **A building never left Onboarding.** The success message said it stays there
+  "until handover is recorded", and nothing in the application could record one.
+  `handover_date` was a field `portfolio.py` accepted and the screen never sent.
+- **`set_unit_status` was unreachable.** Written, whitelisted, correct, called
+  from nowhere. Add Unit defaults to `Not Ready` and offers it in its picker, so
+  a unit added after onboarding could be created unlettable **with no way out
+  of it** short of the desk.
+- **The shell could not see a building's state at all.** `app.buildings()`
+  queried `status` and then did not pass it on.
 
-## The fields had to move too
+# 2 — What this adds
 
-Renaming a doctype and leaving V1 field names just moves the failure. Checked
-by AST at every call site:
+**`portfolio.record_handover(building, handover_date, ready_units=1)`** —
+guarded MD/GM. Three things happen together because they are one event: the date
+is written, the building goes Onboarding → Active, and any unit still marked
+Not Ready becomes Vacant.
 
-- `Tenant Rental Agreement` → `Tenancy Agreement`: **all 9 fields survive.** Pure rename.
-- `PDC Cheque` → `Cheque`: **all 5 fields survive.** Pure rename.
-- `Landlord Contract` → `Head Lease`: four had to be mapped —
+Units that are **Occupied, Reserved or Under Maintenance are left alone.**
+Handover is a fact about the building and must not overwrite what somebody has
+said about a particular door. `ready_units=0` records the date and touches no
+unit at all.
 
-      contract_start_date  ->  start_date
-      contract_end_date    ->  end_date
-      grace_period_days    ->  rent_free_days
-      total_owner_rent     ->  monthly_rent
+Refused: an unknown building, one already Exited or on Notice Period, and a
+handover date falling after an exit date already on the record.
 
-`total_owner_rent` is added once per month as an outflow in the projection, so
-it is the monthly figure, not the annual one. `grace_period_days` is used as
-"grace end = start + N days", which is exactly `rent_free_days`.
+**`portfolio.set_unit_status` hardened and wired.** It now checks the unit
+exists, and **refuses to set Occupied by hand** — a unit becomes occupied when
+its tenancy is activated and stops being occupied through a move-out. Letting
+those two disagree is how a unit ends up let on one screen and empty on another.
+The existing refusal to vacate a unit with a live tenancy is unchanged.
 
-Then the same sweep run against every doctype found more V1 field names on
-doctypes that **do** exist:
+**`app.buildings()` now sends `st`, `ho` and `nr`** — status, handover date, and
+how many units are still Not Ready.
 
-| Doctype | V1 field | V2 field |
-|---|---|---|
-| Unit | `occupancy_status` | `status` |
-| Unit | `unit_name` | `unit_no` |
-| Unit | `furnishing_status` | `furnishing` |
-| Unit | `monthly_rent` | `asking_rent` |
-| Document Register | `party_name`, `id_number` | `party`, `document_no` |
-| Document Register | `notes` | `rejection_reason` |
-| Party Document | `id_number`, `holder_name` | `document_no`, parent party |
+## On screen
 
-`Unit.monthly_rent` needed care: `monthly_rent` is correct on Tenancy Agreement
-and Head Lease and wrong only on Unit, so this was edited by hand at each site
-rather than swept.
+Building page: a **Record handover** button, shown only while the building is
+Onboarding, and a banner saying why it matters — void days run from nowhere, and
+naming the units that cannot be let. Status and handover date join the stat row.
+Once Active the button goes; recording it twice is not a thing.
 
-# 2 — What this was actually breaking
+Unit page: a **Change status** button on any unit that is not Occupied. The
+picker offers Vacant, Not Ready, Reserved, Under Maintenance — Occupied is
+deliberately absent, and the form says so rather than leaving you to wonder.
 
-**Occupancy and vacancy read zero.** `number_cards.vacant_units` and
-`occupancy_pct` both counted `Unit.occupancy_status`, which does not exist. Two
-of the ten number cards, wrong on every workspace.
+# 3 — Tested
 
-**The Documentation role could not open `/doc-intake`.** `www/doc_intake.py`
-gates on `Legal and Documentation` — a role `install.py` never creates. Same
-orphan role sat on `Document Archive`'s permission table and in four patches.
-All now read `Documentation`.
+**jsdom, against the real shipped `index.html`**, calling `router()` directly
+rather than through `dispatchEvent`, which swallows exceptions and turns a broken
+route into a silent pass. 24 checks, all passing:
 
-**Cheque clearing wrote unattributed entries.** `pdc_accounting` looked up
-building and tenant off `Tenant Rental Agreement`, got `None`, and posted
-anyway — no cost centre, no party.
+- Routes still render across dash, buildings, units, portfolio, and both
+  building and both unit states.
+- Record handover appears on the Onboarding building and **not** on the Active
+  one; the Active one shows its handover date.
+- Change status appears on Not Ready and Vacant units and **not** on the
+  Occupied one.
+- Both forms open with every section rendered; record-handover names the five
+  Not Ready units by count; set-unit-status does not offer Occupied.
+- Both WIRE payloads carry the right shape, `ready_units` honours No, and both
+  guards refuse to run without a context.
 
-**The 12-month projection was wrong in four separate ways**, which is worth
-stating plainly because D80 went into it:
+**Python, importing the real `portfolio.py`** against a stubbed Frappe. 9 cases:
+handover flips only the Not Ready units and leaves Occupied and Under
+Maintenance alone, does not reach into another building, `ready_units=0` touches
+nothing, unknown and Exited buildings are refused, a handover after the exit date
+is refused, Maintenance cannot record one, Occupied is not settable by hand, an
+unknown unit is refused.
 
-1. `charts.py` raised `ImportError` on load, so it never ran at all (fixed in
-   the previous batch).
-2. Head-lease outflow read `Landlord Contract` → **zero outflow every month**.
-3. PDC inflow read `PDC Cheque` → **zero**, and silently, because the code
-   checks whether the doctype exists and returns `[]` when it does not.
-4. The danger-month test compared the cumulative line against
-   `DBR Settings.minimum_cash_floor`, **which was not a field** —
-   `set_cash_floor` wrote to nothing and the floor was always zero.
+Guard sweep re-run: 107 endpoints now, still nothing reachable by a user holding
+no DarkBrown role.
 
-The projection would have reported rent coming in against no cost at all. Its
-one job is finding the month cash goes under.
+**Not verified:** anything against a real database.
 
-# 3 — Where a rename was not enough
+# 4 — Left alone deliberately
 
-**`utils/pdc_accounting.py` — the security-cheque test.** V1 asked a
-`cheque_type` field on the cheque. V2 has no such field and does not need one:
-a security cheque is the one a `Security Deposit` record points at through
-`receipt_cheque`. Ported to `is_security_cheque()`, reading it from there. The
-safety property is unchanged — a security cheque must never create income.
+Add Unit still offers `Not Ready`, and still defaults to it. That is the right
+default for a unit added mid-refurbishment, and it is no longer a trap now that
+Change status exists.
 
-This module could not simply be deleted, though it looked dead:
-`doc_intake.apply_statement_line` imports and calls `mark_cleared`. It is
-reachable through `/doc-intake`.
+Buildings already on the live site sit in Onboarding with no handover date.
+Recording one per building is the migration, and it is a button.
 
-**It is also a second engine.** `mark_cleared` / `mark_bounced` duplicate
-`finance.clear_cheque` / `finance.return_cheque`, and both are live — one from
-the shell, one from doc-intake. Two engines posting the same Payment Entry is
-how a fix lands in the wrong one. A warning header now says so. **Fold one into
-the other before either is trusted with real clearings.** Not done here; it
-needs a real database to test.
-
-**`patches/seed_pdc_outgoing.py`** wrote `direction: "Outgoing (to Landlord)"`,
-`cheque_number` and `status: "Pending"` — none of which V2 accepts. Now
-`Outgoing`, `cheque_no`, `Received`, plus `party_type: Supplier`. Still a
-one-shot loader with a `dry_run`; run that first.
-
-**`patches/extend_pdc_cheque.py` deleted.** It added custom fields and desk-form
-buttons to a doctype that does not exist. V2's Cheque carries `cleared_on` and
-`returned_on` natively and no business user sees the desk.
-
-# 4 — New field
-
-`DBR Settings.minimum_cash_floor` (Currency, QAR) — the absolute floor the
-projection tests against. Distinct from `reserve_months` above it, which is a
-multiple of monthly cost rather than an amount. **Set it after migrating**, or
-the danger month is still measured against zero.
-
-# 5 — Tested, and not
-
-- Every reference to the three V1 names is gone. One deliberate exception:
-  `attention.py:14`, a docstring explaining the old bug in the past tense.
-- **Zero unresolvable field references app-wide** — AST check across every
-  `get_all` / `get_value` / `exists` / `count` call against every DocType JSON.
-  Before this batch: 20.
-- All 106 endpoints still import; guard sweep still clean, nothing reachable by
-  a user holding no DarkBrown role.
-- Whole app byte-compiles, all JSON parses.
-- Overlay applied to a fresh clone of HEAD and re-verified end to end.
-
-**Not verified:** anything against a real database. In particular, if any live
-site rows were created carrying V1 field values, this changes what the code
-reads, not what is stored. Worth spot-checking occupancy on the workspace after
-migrate — it should stop reading zero.
-
-**Still open from the audit:** the handover flow (nothing moves units out of
-"Not Ready"), `patches.txt` running one patch of thirteen, and rent-free
-treatment with Fatima. Next in order.
+**Next in order:** `patches.txt` runs one patch of thirteen, then rent-free
+treatment with Fatima.

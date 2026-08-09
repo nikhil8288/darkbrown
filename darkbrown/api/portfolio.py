@@ -8,7 +8,7 @@ counts them.
 
 import frappe
 from frappe import _
-from frappe.utils import flt, cint
+from frappe.utils import flt, cint, getdate, today
 from darkbrown.guards import guard, GM, MD, MNT
 
 @frappe.whitelist()
@@ -147,11 +147,70 @@ def _landlord(data):
 
 
 @frappe.whitelist()
+def record_handover(building, handover_date=None, ready_units=1):
+    """The landlord has handed the building over. It is now trading.
+
+    Onboarding created the building in status Onboarding and the success
+    message told you it would stay there "until handover is recorded" — and
+    then nothing in the application could record one. A building therefore sat
+    in Onboarding for its whole life, and `handover_date` was a field the
+    wizard accepted and the screen never sent.
+
+    Three things happen together because they are one event: the date is
+    written, the building starts trading, and any unit still marked Not Ready
+    becomes lettable. Units already Occupied, Reserved or Under Maintenance are
+    left exactly as they are — handover is a fact about the building, and it
+    must not overwrite what somebody has said about a particular door.
+    """
+    guard(MD, GM)
+    if not frappe.db.exists("Building", building):
+        frappe.throw(_("No building called {0}.").format(building))
+
+    doc = frappe.get_doc("Building", building)
+    if doc.status not in ("Onboarding", "Active"):
+        frappe.throw(_("{0} is {1}. Handover is recorded on a building that "
+                       "is still onboarding.").format(building, doc.status))
+
+    on = getdate(handover_date or today())
+    if doc.exit_date and getdate(doc.exit_date) < on:
+        frappe.throw(_("Handover cannot fall after the exit date already "
+                       "recorded on this building."))
+
+    doc.handover_date = on
+    doc.status = "Active"
+    doc.save()
+
+    readied = 0
+    if cint(ready_units):
+        not_ready = frappe.get_all("Unit",
+                                   filters={"building": building,
+                                            "status": "Not Ready"},
+                                   pluck="name")
+        for name in not_ready:
+            frappe.db.set_value("Unit", name, "status", "Vacant")
+        readied = len(not_ready)
+
+    return {"building": building, "handover_date": str(on),
+            "status": doc.status, "units_readied": readied}
+
+
+@frappe.whitelist()
 def set_unit_status(unit, status):
+    """Readiness, set by hand.
+
+    Occupancy is not settable here. A unit becomes Occupied when a tenancy is
+    activated and stops being Occupied through a move-out; letting the two
+    disagree is how a unit ends up let on one screen and empty on another.
+    """
     guard(MD, GM, MNT)
+    if not frappe.db.exists("Unit", unit):
+        frappe.throw(_("No unit called {0}.").format(unit))
     allowed = frappe.get_meta("Unit").get_field("status").options.split("\n")
     if status not in allowed:
         frappe.throw(_("{0} is not a unit status.").format(status))
+    if status == "Occupied":
+        frappe.throw(_("A unit becomes occupied when its tenancy is "
+                       "activated, not by hand."))
     if frappe.db.get_value("Unit", unit, "status") == "Occupied" \
             and status in ("Vacant", "Not Ready"):
         if frappe.db.exists("Tenancy Agreement",

@@ -3493,8 +3493,17 @@ ROUTES.building=id=>{const b=id?B(id):BUILDINGS[0]; if(!b) return notFound('Buil
  const js=JOBS.filter(j=>j.b===b.id); const ags=AGR.filter(a=>a.b===b.id);
  return crumb([['Buildings','#/buildings'],[b.n,'']])+page(b.n,
   `${b.id} · ${b.area} · ${b.floors} floors · head-lease from ${b.ll}`,
-  fbtn('New unit','add-unit',{b:b.id,bn:b.n})+fbtn('Log maintenance','raise-job',{bn:b.n}),
-  stat([['Units',b.units],['Occupied',us.filter(u=>u.st==='Occupied').length+' / '+b.units],
+  /* Handover is offered while the building is still onboarding. Once it is
+     Active the button goes, because recording it twice is not a thing. */
+  (b.st==='Onboarding'?fbtn('Record handover','record-handover',{b:b.id,bn:b.n}):'')
+   +fbtn('New unit','add-unit',{b:b.id,bn:b.n})+fbtn('Log maintenance','raise-job',{bn:b.n}),
+  (b.st==='Onboarding'?`<div class="note" style="border-left-color:var(--amber)">
+    <b>This building is still onboarding.</b> It has no handover date, so void days
+    run from nowhere${b.nr?` and ${b.nr} unit${b.nr===1?'':'s'} cannot be let`:''}.
+    Record the handover when the landlord hands it over.</div>`:'')+
+  stat([['Status',chip(b.st||'—',b.st==='Active'?'g':b.st==='Onboarding'?'a':'n')],
+   ['Handover',b.ho||'—'],
+   ['Units',b.units],['Occupied',us.filter(u=>u.st==='Occupied').length+' / '+b.units],
    ['Monthly revenue',n0(b.rev)],['Head-lease rent',n0(b.cost)],
    ['Margin',n0(b.m)+' · '+mpTxt(b),'',mpBad(b,14)?'r':'g'],['Arrears',n0(b.arr),'',b.arr>30000?'r':''],
    ['Void days',b.vd,'',b.vd>20?'a':''],['Head-lease ends',b.hlEnd]])+
@@ -3529,7 +3538,9 @@ window.openU=id=>go('#/unit/'+id);
 ROUTES.unit=id=>{const u=id?U(id):UNITS[0]; if(!u) return notFound('Unit','#/units'); const ag=AGR.find(a=>a.u===u.id);
  return crumb([['Units','#/units'],[u.bn,'#/building/'+u.b],[u.id,'']])+page(u.id,
   `${u.type} · floor ${u.floor} · ${u.sqm} sqm · ${u.bn}`,
-  fbtn('Log maintenance','raise-job',{bn:u.bn,u:u.id})+(u.st==='Occupied'?fbtn('Start move-out','start-moveout',{unit:u.id}):fbtn('Create agreement','new-agreement',{unit:u.id})),
+  fbtn('Log maintenance','raise-job',{bn:u.bn,u:u.id})+(u.st==='Occupied'?fbtn('Start move-out','start-moveout',{unit:u.id}):fbtn('Create agreement','new-agreement',{unit:u.id}))
+   /* Readiness had no way out: a unit created Not Ready stayed Not Ready. */
+   +(u.st==='Occupied'?'':fbtn('Change status','set-unit-status',{unit:u.id,st:u.st})),
   stat([['Status',chip(u.st,stChip(u.st))],['Tenant rent',n0(u.rent)],['Landlord cost',n0(u.llRent)],
    ['Monthly spread','+'+n0((u.rent-u.llRent)),'','g'],['Void days',u.vd||'—','',u.vd>30?'r':'']])+
   `<div class="grid2">
@@ -6296,6 +6307,38 @@ Object.assign(FORMS,{
   addNote(id,roleInfo(ROLEV)[0],ROLEV,d.why);
   return{title:'Case opened',msg:id+' · '+d.tenant,
    detail:'Assigned to '+d.owner+' · the reason is the first entry in the case history',goto:'#/case/'+id}}}
+,
+
+/* ---------------- handover ----------------
+   Onboarding put a building into Onboarding and told you it stayed there
+   "until handover is recorded". Nothing could record one. */
+
+'record-handover':{t:'Record handover',s:'The landlord has handed the building over and it starts trading',
+ cta:'Record the handover',
+ init:c=>{const b=(c&&c.b)?B(c.b):null;
+  return {b:(c&&c.b)||'',date:new Date().toISOString().slice(0,10),
+          ready:b&&b.nr?'Yes':'No'}},
+ steps:[{n:'Handover',body:d=>{const b=d.b?B(d.b):null;const nr=b?(b.nr||0):0;
+  return `<div class="note">Handover is the day the building became yours to let. It is what moves
+    the building out of Onboarding, and it is the date every void-day count runs from.</div>
+   <div class="fg">
+    ${fld({k:'date',l:'Handover date',t:'date',req:1},d.date)}
+    ${nr?fld({k:'ready',l:'Mark the '+nr+' unit'+(nr===1?'':'s')+' still Not Ready as Vacant',
+      t:'sel',o:['Yes','No'],req:1},d.ready):''}</div>
+   ${nr?`<div class="note">Only units still marked <b>Not Ready</b> are touched. Anything Occupied,
+     Reserved or Under Maintenance keeps the status somebody gave it.</div>`
+    :`<div class="note">No unit in this building is marked Not Ready, so nothing changes on the units.</div>`}`},
+  fields:[{k:'date',req:1}]}]},
+
+'set-unit-status':{t:'Change unit status',s:'Readiness only \u2014 occupancy follows the tenancy',
+ cta:'Save status',
+ init:c=>({unit:(c&&c.unit)||'',status:(c&&c.st)||'Vacant'}),
+ steps:[{n:'Status',body:d=>`<div class="fg">
+    ${fld({k:'status',l:'Status',t:'sel',o:['Vacant','Not Ready','Reserved','Under Maintenance'],req:1},d.status)}</div>
+   <div class="note">Occupied is not on this list. A unit becomes occupied when its tenancy is
+    activated and stops being occupied through a move-out; setting it by hand is how a unit ends up
+    let on one screen and empty on another.</div>`,
+  fields:[{k:'status',req:1}]}]}
 });
 
 
@@ -7417,6 +7460,29 @@ const WIRE={
   :'That tenant has no live agreement on record, and a case hangs off an agreement. Check the tenant, or open the case from the agreement itself.',
  ok:r=>({title:'Case opened',msg:'Collection case '+r+' opened',
    detail:'Opened by hand \u2014 the reason is on the record',goto:'#/case/'+r})},
+
+'record-handover':{
+ m:'portfolio.record_handover',
+ guard:d=>((d.__ctx&&d.__ctx.b)||d.b)?'':'Open this from a building — handover is recorded against one.',
+ a:d=>({building:wBld((d.__ctx&&d.__ctx.b)||d.b),
+   handover_date:d.date,
+   ready_units:d.ready==='No'?0:1}),
+ ok:r=>({title:'Handover recorded',
+   msg:r.building+' handed over on '+r.handover_date,
+   detail:r.units_readied
+     ?r.units_readied+' unit'+(r.units_readied===1?'':'s')+' moved from Not Ready to Vacant \u00b7 the building is now Active'
+     :'The building is now Active \u00b7 no unit needed its status changed',
+   goto:'#/building/'+r.building})},
+
+'set-unit-status':{
+ m:'portfolio.set_unit_status',
+ guard:d=>((d.__ctx&&d.__ctx.unit)||d.unit)?'':'Open this from a unit.',
+ /* UNITS[].id is the Unit docname already (app.units sends u.name), so
+    unlike buildings there is nothing to map back. */
+ a:d=>({unit:(d.__ctx&&d.__ctx.unit)||d.unit,status:d.status}),
+ ok:(r,d)=>({title:'Status changed',msg:r.unit+' is now '+r.status,
+   detail:r.status==='Vacant'?'It can be let from today':'It will not be offered while it is '+String(r.status).toLowerCase(),
+   goto:'#/unit/'+(d.__ctx&&d.__ctx.unit||d.unit)})},
 
 'add-unit':{
  m:'portfolio.add_unit',
