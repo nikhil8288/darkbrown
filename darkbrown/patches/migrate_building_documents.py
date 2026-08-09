@@ -59,7 +59,7 @@ def _migrate_table(child_dt, fmap):
         title = f"{r.parent} - {doc_type}"
 
         marker = f"Migrated from {child_dt} row {r.name}"
-        if frappe.db.exists("Document Register", {"notes": marker}):
+        if frappe.db.exists("Document Register", {"rejection_reason": marker}):
             continue
 
         reg = frappe.get_doc({
@@ -75,7 +75,7 @@ def _migrate_table(child_dt, fmap):
             "issue_date": r.get(fmap.get("issue")) if fmap.get("issue") else None,
             "expiry_date": r.get(fmap.get("expiry")) if fmap.get("expiry") else None,
             "file": r.get(fmap.get("file")) if fmap.get("file") else None,
-            "notes": marker,
+            "rejection_reason": marker,  # V2 Document Register has no notes field
         })
         reg.insert(ignore_permissions=True)
         created += 1

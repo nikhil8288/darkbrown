@@ -6,9 +6,9 @@ a mock. The frontend renders "no data yet" states from the numbers alone,
 so nothing has to change when the first invoice posts.
 
 Sources
-    Portfolio / Tenants   Building, Unit, Tenant Rental Agreement,
-                          Landlord Contract        (populated now)
-    Finance               Sales Invoice, Purchase Invoice, PDC Cheque,
+    Portfolio / Tenants   Building, Unit, Tenancy Agreement,
+                          Head Lease        (populated now)
+    Finance               Sales Invoice, Purchase Invoice, Cheque,
                           GL Entry                  (from 2026-07-01)
     History               Historical Monthly PL     (imported from Excel)
     Maintenance           Maintenance Request       (new)
@@ -69,7 +69,7 @@ def _company():
 
 def _active_leases():
     return frappe.get_all(
-        "Tenant Rental Agreement",
+        "Tenancy Agreement",
         filters={"status": "Active"},
         fields=["name", "tenant", "building", "unit", "monthly_rent",
                 "start_date", "end_date", "security_deposit"],
@@ -78,10 +78,10 @@ def _active_leases():
 
 def _landlord_contracts():
     return frappe.get_all(
-        "Landlord Contract",
+        "Head Lease",
         filters={"status": "Active"},
-        fields=["name", "landlord", "building", "total_owner_rent",
-                "contract_start_date", "contract_end_date", "grace_period_days"],
+        fields=["name", "landlord", "building", "monthly_rent",
+                "start_date", "end_date", "rent_free_days"],
     )
 
 
@@ -91,13 +91,13 @@ def _customer_names():
 
 
 def _unit_labels():
-    return {u.name: (u.unit_no or u.unit_name or u.name)
-            for u in frappe.get_all("Unit", fields=["name", "unit_no", "unit_name"])}
+    return {u.name: (u.unit_no or u.unit_no or u.name)
+            for u in frappe.get_all("Unit", fields=["name", "unit_no"])}
 
 
 def _unit_status(unit, lease):
     """Unit stores only Vacant|Occupied. Notice is derived from the lease."""
-    if unit.occupancy_status == "Vacant":
+    if unit.status == "Vacant":
         return "Vacant"
     if lease:
         d = _days_until(lease.end_date)
@@ -118,8 +118,8 @@ def get_portfolio():
 
     units = frappe.get_all(
         "Unit",
-        fields=["name", "unit_no", "unit_name", "building", "unit_type",
-                "monthly_rent", "occupancy_status", "furnishing_status"],
+        fields=["name", "unit_no", "building", "unit_type",
+                "asking_rent", "status", "furnishing"],
     )
     leases = {l.unit: l for l in _active_leases() if l.unit}
     contracts = {c.building: c for c in _landlord_contracts()}
@@ -131,7 +131,10 @@ def get_portfolio():
         lease = leases.get(u.name)
         status = _unit_status(u, lease)
         # Contracted rent when let; asking rent when empty.
-        rent = flt(lease.monthly_rent) if lease else flt(u.monthly_rent)
+        # Contracted rent comes off the lease; the fallback is the unit's
+        # asking rent. V1 called that field monthly_rent on Unit too, which is
+        # why this read a lease figure off a unit row and got nothing.
+        rent = flt(lease.monthly_rent) if lease else flt(u.asking_rent)
 
         tenant = ""
         if lease:
@@ -141,12 +144,12 @@ def get_portfolio():
 
         unit_rows.append([
             u.building,
-            u.unit_no or u.unit_name or u.name,
+            u.unit_no or u.unit_no or u.name,
             status,
             tenant,
             round(rent / 1000.0, 1),
             None,                      # vac_days: Unit has no vacant_since yet
-            u.furnishing_status or "",
+            u.furnishing or "",
             u.unit_type or "",
             move_out,
         ])
@@ -164,11 +167,11 @@ def get_portfolio():
     building_rows = []
     for bname, agg in by_building.items():
         c = contracts.get(bname)
-        headlease = flt(c.total_owner_rent) if c else 0.0
+        headlease = flt(c.monthly_rent) if c else 0.0
 
         # Rent leakage: how far below asking the let units actually achieve.
-        asking = sum(flt(u.monthly_rent) for u in units
-                     if u.building == bname and u.occupancy_status == "Occupied")
+        asking = sum(flt(u.asking_rent) for u in units
+                     if u.building == bname and u.status == "Occupied")
         leak = 0
         if asking > 0 and agg["income"] < asking:
             leak = int(round((1 - agg["income"] / asking) * 100))
@@ -179,7 +182,7 @@ def get_portfolio():
             round(headlease / 1000.0, 1),
             agg["total"],
             agg["vacant"],
-            _fmt(c.contract_end_date) if c else "",
+            _fmt(c.end_date) if c else "",
             agg["at_risk"],
             leak,
         ])
@@ -193,7 +196,7 @@ def get_portfolio():
 
     # Head-lease still payable on the share of each building that earns nothing.
     bleed = sum(
-        flt(contracts[b[0]].total_owner_rent) * (b[4] / b[3])
+        flt(contracts[b[0]].monthly_rent) * (b[4] / b[3])
         for b in building_rows if b[0] in contracts and b[3]
     )
 
@@ -235,13 +238,13 @@ def _arrears_by_customer():
 
 
 def _bounces_by_customer():
-    if not _has("PDC Cheque"):
+    if not _has("Cheque"):
         return {}
     rows = frappe.get_all(
-        "PDC Cheque",
+        "Cheque",
         filters={"status": "Bounced"},
         fields=["name", "status"] + (
-            ["tenant"] if frappe.get_meta("PDC Cheque").has_field("tenant") else []
+            ["tenant"] if frappe.get_meta("Cheque").has_field("tenant") else []
         ),
     )
     out = {}
@@ -259,7 +262,7 @@ def get_tenants():
     _guard()
 
     agreements = frappe.get_all(
-        "Tenant Rental Agreement",
+        "Tenancy Agreement",
         fields=["name", "tenant", "building", "unit", "monthly_rent",
                 "status", "start_date", "end_date"],
         order_by="end_date asc",
@@ -430,13 +433,13 @@ def get_finance(timeframe="month"):
 
     # Forward PDC. Face value, then discounted for bounce history.
     pdc_rows, cheques = [], []
-    if _has("PDC Cheque"):
-        meta = frappe.get_meta("PDC Cheque")
+    if _has("Cheque"):
+        meta = frappe.get_meta("Cheque")
         fields = ["name", "status"]
         for f in ("amount", "cheque_date", "tenant", "landlord", "direction"):
             if meta.has_field(f):
                 fields.append(f)
-        allc = frappe.get_all("PDC Cheque", fields=fields, limit=200)
+        allc = frappe.get_all("Cheque", fields=fields, limit=200)
         bounces = _bounces_by_customer()
         today = getdate(nowdate())
         horizons = {30: [0.0, 0.0], 60: [0.0, 0.0], 90: [0.0, 0.0]}
@@ -507,7 +510,7 @@ def _recv_detail():
     for c, e in sorted(_arrears_by_customer().items(),
                        key=lambda kv: -kv[1]["amount"])[:10]:
         lease = frappe.db.get_value(
-            "Tenant Rental Agreement", {"tenant": c, "status": "Active"},
+            "Tenancy Agreement", {"tenant": c, "status": "Active"},
             ["building", "unit"], as_dict=True)
         loc = ("%s · %s" % (lease.building, lease.unit)) if lease else ""
         rows.append([
@@ -648,10 +651,10 @@ def get_approvals():
 
     # agreements in the Legal -> GM -> MD approval flow, stuck at MD
     for dt, label, party_field, amt_field in (
-            ("Tenant Rental Agreement", "Tenant Agreement",
+            ("Tenancy Agreement", "Tenant Agreement",
              "tenant", "monthly_rent"),
-            ("Landlord Contract", "Landlord Contract",
-             "landlord", "total_owner_rent")):
+            ("Head Lease", "Head Lease",
+             "landlord", "monthly_rent")):
         if not (_has(dt) and frappe.db.has_column(dt, "workflow_state")):
             continue
         for a in frappe.get_all(dt,

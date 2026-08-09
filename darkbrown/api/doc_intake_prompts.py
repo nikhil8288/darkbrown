@@ -37,7 +37,7 @@ the drawer name printed above the account number, the account number, and the ba
 If the payee is "DARK BROWN REAL ESTATE" the cheque is INCOMING (from a tenant). \
 If the drawer/account holder is "DARK BROWN REAL ESTATE" and the payee is someone else, \
 it is OUTGOING (to a landlord). Set "direction" accordingly per cheque.
-- "Landlord Contract" / "Owner Contract": a lease where DarkBrown rents a property FROM an \
+- "Head Lease" / "Owner Contract": a lease where DarkBrown rents a property FROM an \
 owner. The owner is the first party (lessor); DarkBrown is the lessee.
 - "Tenant Agreement": a lease where DarkBrown rents a unit TO a tenant. DarkBrown is the \
 lessor (first party); the tenant is the second party (lessee).
@@ -62,7 +62,7 @@ DarkBrown is the LESSOR (collecting rent from a tenant) it is a Tenant Agreement
 OUTPUT SCHEMA (include only the blocks relevant to the detected type):
 
 {
-  "document_type": "Cheque Batch" | "Landlord Contract" | "Tenant Agreement" | "Owner Contract" | "QID / National ID" | "Passport" | "Utility / Other" | "Bank Statement" | "Unknown",
+  "document_type": "Cheque Batch" | "Head Lease" | "Tenant Agreement" | "Owner Contract" | "QID / National ID" | "Passport" | "Utility / Other" | "Bank Statement" | "Unknown",
   "overall_confidence": 0.0-1.0,
   "notes": ["..."],
 

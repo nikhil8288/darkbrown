@@ -4,7 +4,7 @@ import frappe
 # shared across sessions.
 no_cache = 1
 
-ALLOWED_ROLES = {"Legal and Documentation", "System Manager", "Managing Director"}
+ALLOWED_ROLES = {"Documentation", "System Manager", "Managing Director"}
 
 
 def get_context(context):

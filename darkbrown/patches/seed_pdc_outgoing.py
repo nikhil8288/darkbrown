@@ -1,4 +1,4 @@
-"""One-shot seed of owner-rent cheques payable as PDC Cheque records
+"""One-shot seed of owner-rent cheques payable as Cheque records
 (direction = Outgoing). Feeds the MD dashboard "Upcoming Landlord PDC"
 alert and chart C2.
 
@@ -109,7 +109,7 @@ def run():
     made = skipped = 0
     for r in rows:
         sup, _ = _match(r["party"], idx)
-        exists = frappe.db.exists("PDC Cheque", {
+        exists = frappe.db.exists("Cheque", {
             "party": sup,
             "cheque_date": r["cheque_date"],
             "amount": float(r["amount"]),
@@ -118,14 +118,20 @@ def run():
             skipped += 1
             continue
         made += 1
-        doc = frappe.new_doc("PDC Cheque")
+        doc = frappe.new_doc("Cheque")
         doc.update({
             "party": sup,
-            "direction": "Outgoing (to Landlord)",
+            # V2 Cheque takes Incoming/Outgoing, not the V1 prose value; the
+            # field is cheque_no, not cheque_number; and there is no "Pending"
+            # status. A landlord cheque written but not yet cleared is
+            # "Received" - the default, and the only one of the seven that
+            # means "in hand, nothing done with it yet".
+            "direction": "Outgoing",
+            "party_type": "Supplier",
             "cheque_date": r["cheque_date"],
             "amount": float(r["amount"]),
-            "cheque_number": "TBC-%d" % made,
-            "status": "Pending",
+            "cheque_no": "TBC-%d" % made,
+            "status": "Received",
         })
         doc.flags.ignore_permissions = True
         doc.insert()

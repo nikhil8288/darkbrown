@@ -1,6 +1,6 @@
 """Agreement approval flow: Legal drafts -> GM approves -> MD approves.
 
-Applied to Tenant Rental Agreement and Landlord Contract via a
+Applied to Tenancy Agreement and Head Lease via a
 `workflow_state` field (auto-created by Frappe on Workflow insert; the
 existing `status` field is untouched). All existing records are
 backfilled to Active so nothing regresses to Draft.
@@ -13,7 +13,7 @@ Idempotent: every create is guarded by an exists() check.
 
 import frappe
 
-DOCTYPES = ["Tenant Rental Agreement", "Landlord Contract"]
+DOCTYPES = ["Tenancy Agreement", "Head Lease"]
 
 STATES = [
     ("Draft", "Danger"),
@@ -65,7 +65,7 @@ def _create_workflow(dt):
         "send_email_alert": 0,
         "states": [
             {"state": "Draft", "doc_status": "0",
-             "allow_edit": "Legal and Documentation"},
+             "allow_edit": "Documentation"},
             {"state": "Pending GM Approval", "doc_status": "0",
              "allow_edit": "General Manager"},
             {"state": "Pending MD Approval", "doc_status": "0",
@@ -76,7 +76,7 @@ def _create_workflow(dt):
         "transitions": [
             {"state": "Draft", "action": "Submit for Approval",
              "next_state": "Pending GM Approval",
-             "allowed": "Legal and Documentation"},
+             "allowed": "Documentation"},
             {"state": "Pending GM Approval", "action": "Approve",
              "next_state": "Pending MD Approval",
              "allowed": "General Manager"},
@@ -87,7 +87,7 @@ def _create_workflow(dt):
             {"state": "Pending MD Approval", "action": "Reject",
              "next_state": "Draft", "allowed": "Managing Director"},
             {"state": "Active", "action": "Amend",
-             "next_state": "Draft", "allowed": "Legal and Documentation"},
+             "next_state": "Draft", "allowed": "Documentation"},
         ],
     }).insert(ignore_permissions=True)
 
@@ -108,7 +108,7 @@ def _create_notifications(dt):
          "{{ doc.name }} awaits your (GM) approval"),
         ("N13", "Pending MD Approval", "Managing Director",
          "{{ doc.name }} awaits your (MD) approval"),
-        ("N14", None, "Legal and Documentation",
+        ("N14", None, "Documentation",
          "{{ doc.name }}: {{ doc.workflow_state }}"),
     ]
     for suffix, state, role, subject in rules:

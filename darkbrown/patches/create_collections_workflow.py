@@ -46,7 +46,7 @@ def execute():
             {"state": "Collected", "doc_status": "0",
              "allow_edit": "System Manager"},
             {"state": "Legal", "doc_status": "0",
-             "allow_edit": "Legal and Documentation"},
+             "allow_edit": "Documentation"},
         ],
         "transitions": [
             {"state": "Open", "action": "Contact",

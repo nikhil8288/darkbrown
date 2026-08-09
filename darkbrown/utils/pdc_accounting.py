@@ -1,7 +1,13 @@
 # Copyright (c) 2026, DarkBrown RealEstate and contributors
 # For license information, please see license.txt
+# WARNING: mark_cleared and mark_bounced are a second implementation of
+# api.finance.clear_cheque and api.finance.return_cheque. Both are live -
+# api.finance from the shell, this one from doc_intake.apply_statement_line.
+# Two engines posting the same Payment Entry is how a fix lands in the wrong
+# one. Fold one into the other before either is trusted with real clearings.
+
 """
-PDC Cheque accounting engine (Phase 2).
+Cheque accounting engine (Phase 2).
 
 mark_cleared(pdc, clearance_date)
     Incoming Rent  -> Payment Entry (Receive) against the tenant's oldest
@@ -28,6 +34,18 @@ from darkbrown.guards import guard, ACC, MD
 
 PE_AUTO_SUBMIT = False          # drafts first; flip after trust is earned
 SECURITY_LIABILITY_NAME = "Security Deposits Held"
+
+
+def is_security_cheque(cheque):
+	"""Is this cheque a tenant's security deposit rather than rent?
+
+	V1 answered this with a `cheque_type` field on the cheque itself. V2 has no
+	such field and does not need one: a security cheque is the one a Security
+	Deposit record points at through `receipt_cheque`. Reading it from the
+	Security Deposit keeps one fact in one place, and the safety property is the
+	same either way - a security cheque must never create income.
+	"""
+	return bool(frappe.db.exists("Security Deposit", {"receipt_cheque": cheque}))
 
 
 # ------------------------------------------------------------ helpers
@@ -62,10 +80,10 @@ def _cost_center(building):
 def _building_for(pdc):
 	if pdc.get("tenant_rental_agreement"):
 		return frappe.db.get_value(
-			"Tenant Rental Agreement", pdc.tenant_rental_agreement, "building")
+			"Tenancy Agreement", pdc.tenant_rental_agreement, "building")
 	if pdc.get("landlord_contract"):
 		return frappe.db.get_value(
-			"Landlord Contract", pdc.landlord_contract, "building")
+			"Head Lease", pdc.landlord_contract, "building")
 	return None
 
 
@@ -83,12 +101,12 @@ def _party_for(pdc, incoming):
 	# 2) via agreement
 	if incoming and pdc.get("tenant_rental_agreement"):
 		t = frappe.db.get_value(
-			"Tenant Rental Agreement", pdc.tenant_rental_agreement, "tenant")
+			"Tenancy Agreement", pdc.tenant_rental_agreement, "tenant")
 		if t:
 			return t
 	if not incoming and pdc.get("landlord_contract"):
 		l = frappe.db.get_value(
-			"Landlord Contract", pdc.landlord_contract, "landlord")
+			"Head Lease", pdc.landlord_contract, "landlord")
 		if l:
 			return l
 	# 3) party field only if it actually holds a name/docname (Link or Data)
@@ -139,12 +157,12 @@ def mark_cleared(pdc, clearance_date=None, submit=None):
 	"""Bank confirmed the cheque. Creates the Payment Entry (draft by
 	default) and moves the PDC to Cleared."""
 	guard(MD, ACC)
-	doc = frappe.get_doc("PDC Cheque", pdc)
+	doc = frappe.get_doc("Cheque", pdc)
 	if not doc.has_permission("write"):
 		frappe.throw(_("Not permitted"), frappe.PermissionError)
 	if doc.status == "Cleared":
 		frappe.throw(_("Already cleared."))
-	if (doc.get("cheque_type") or "Rent") == "Security Deposit":
+	if is_security_cheque(doc.name):
 		frappe.throw(_(
 			"This is a SECURITY cheque - it must not create income. "
 			"If it was actually banked, use bank_security_deposit() "
@@ -213,10 +231,10 @@ def bank_security_deposit(pdc, deposit_date=None):
 	"""A security cheque was actually banked: Dr Bank / Cr Security Deposits
 	Held. Income is never touched."""
 	guard(MD, ACC)
-	doc = frappe.get_doc("PDC Cheque", pdc)
+	doc = frappe.get_doc("Cheque", pdc)
 	if not doc.has_permission("write"):
 		frappe.throw(_("Not permitted"), frappe.PermissionError)
-	if (doc.get("cheque_type") or "") != "Security Deposit":
+	if not is_security_cheque(doc.name):
 		frappe.throw(_("This action is only for Security Deposit cheques."))
 
 	co = _company()
@@ -260,7 +278,7 @@ def mark_bounced(pdc, bounce_date=None):
 	submitted), deletes it (if draft), sets Bounced - which fires the
 	existing T5 recovery handoff to Accounts."""
 	guard(MD, ACC)
-	doc = frappe.get_doc("PDC Cheque", pdc)
+	doc = frappe.get_doc("Cheque", pdc)
 	if not doc.has_permission("write"):
 		frappe.throw(_("Not permitted"), frappe.PermissionError)
 

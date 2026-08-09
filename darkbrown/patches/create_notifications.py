@@ -11,35 +11,35 @@ import frappe
 
 RULES = [
     # (name, document_type, event, config, roles, subject)
-    ("N1 - Landlord PDC maturing 15d", "PDC Cheque", "Days Before",
+    ("N1 - Landlord PDC maturing 15d", "Cheque", "Days Before",
      {"date_changed": "cheque_date", "days_in_advance": 15,
       "condition": 'doc.direction == "Outgoing"'},
      ["Accounts"],
      "Landlord cheque {{ doc.cheque_number or doc.name }} matures in 15 days"),
 
-    ("N2a - Tenant agreement expiring 90d", "Tenant Rental Agreement",
+    ("N2a - Tenant agreement expiring 90d", "Tenancy Agreement",
      "Days Before",
      {"date_changed": "end_date", "days_in_advance": 90,
       "condition": 'doc.status == "Active"'},
      ["General Manager"],
      "{{ doc.name }} expires in 90 days"),
 
-    ("N2b - Tenant agreement expiring 60d", "Tenant Rental Agreement",
+    ("N2b - Tenant agreement expiring 60d", "Tenancy Agreement",
      "Days Before",
      {"date_changed": "end_date", "days_in_advance": 60,
       "condition": 'doc.status == "Active"'},
      ["General Manager"],
      "{{ doc.name }} expires in 60 days"),
 
-    ("N2c - Tenant agreement expiring 30d", "Tenant Rental Agreement",
+    ("N2c - Tenant agreement expiring 30d", "Tenancy Agreement",
      "Days Before",
      {"date_changed": "end_date", "days_in_advance": 30,
       "condition": 'doc.status == "Active"'},
      ["General Manager"],
      "{{ doc.name }} expires in 30 days"),
 
-    ("N3 - Head-lease expiring 90d", "Landlord Contract", "Days Before",
-     {"date_changed": "contract_end_date", "days_in_advance": 90,
+    ("N3 - Head-lease expiring 90d", "Head Lease", "Days Before",
+     {"date_changed": "end_date", "days_in_advance": 90,
       "condition": 'doc.status == "Active"'},
      ["General Manager", "Managing Director"],
      "Head-lease {{ doc.name }} ({{ doc.building }}) expires in 90 days"),
@@ -47,7 +47,7 @@ RULES = [
     ("N4 - Register document expiring 30d", "Document Register",
      "Days Before",
      {"date_changed": "expiry_date", "days_in_advance": 30},
-     ["Legal and Documentation"],
+     ["Documentation"],
      "Document expiring in 30 days: {{ doc.title }}"),
 
     ("N7 - Invoice overdue", "Sales Invoice", "Days After",
@@ -57,7 +57,7 @@ RULES = [
      "Invoice {{ doc.name }} ({{ doc.customer }}) is overdue - "
      "QAR {{ doc.outstanding_amount }}"),
 
-    ("N8 - PDC bounced", "PDC Cheque", "Value Change",
+    ("N8 - PDC bounced", "Cheque", "Value Change",
      {"value_changed": "status", "condition": 'doc.status == "Bounced"'},
      ["Accounts", "General Manager"],
      "Cheque {{ doc.cheque_number or doc.name }} ({{ doc.party }}) BOUNCED"),
@@ -75,7 +75,7 @@ RULES = [
      "Maintenance request {{ doc.name }} open for 48h+ "
      "({{ doc.building }})"),
 
-    ("N11 - Unit went vacant", "Tenant Rental Agreement", "Value Change",
+    ("N11 - Unit went vacant", "Tenancy Agreement", "Value Change",
      {"value_changed": "status",
       "condition": 'doc.status in ("Expired", "Terminated", "Cancelled")'},
      ["General Manager"],

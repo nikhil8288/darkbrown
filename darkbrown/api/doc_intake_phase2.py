@@ -14,7 +14,7 @@
 #    PART B — Missing-date guard: blocks a Cheque Batch Document Register
 #             from moving to "Pushed" while any CONFIRMED cheque row has no
 #             cheque date. Wire via hooks.py doc_events (see bottom docstring).
-#    PART C — mark_cleared_v2: clears a PDC Cheque, backfills a missing
+#    PART C — mark_cleared_v2: clears a Cheque, backfills a missing
 #             cheque date, and creates + submits a Payment Entry reconciled
 #             FIFO against the party's outstanding invoices.
 #
@@ -60,13 +60,13 @@ PARTY_ATTACHABLE_TYPES = (
     "QID/National ID",
     "Passport",
     "Tenant Contract",
-    "Landlord Contract",
+    "Head Lease",
     "Owner Contract",
     "Utility/Other",
 )
 
-# PDC Cheque
-PDC_DOCTYPE = "PDC Cheque"
+# Cheque
+PDC_DOCTYPE = "Cheque"
 PDC_STATUS_FIELD = "status"                      # In Hand / Deposited / Cleared / Bounced ...
 PDC_DIRECTION_FIELD = "direction"                # "Incoming (from Tenant)" / "Outgoing (to Landlord)"
 PDC_CHEQUE_NO_FIELD = "cheque_number"
@@ -74,15 +74,15 @@ PDC_CHEQUE_DATE_FIELD = "cheque_date"
 PDC_CLEARED_DATE_FIELD = "cleared_date"
 PDC_AMOUNT_FIELD = "amount"
 PDC_BANK_FIELD = "bank_name"
-PDC_TRA_FIELD = "tenant_rental_agreement"        # Link -> Tenant Rental Agreement
-PDC_LLC_FIELD = "landlord_contract"              # Link -> Landlord Contract
+PDC_TRA_FIELD = "tenant_rental_agreement"        # Link -> Tenancy Agreement
+PDC_LLC_FIELD = "landlord_contract"              # Link -> Head Lease
 PDC_PAYMENT_ENTRY_FIELD = "payment_entry"        # optional Link -> Payment Entry (skipped if absent)
 
 DIRECTION_INCOMING = "Incoming (from Tenant)"
 
 # Party fields on the agreement doctypes
-TRA_CUSTOMER_FIELD = "customer"                  # Tenant Rental Agreement -> Customer
-LLC_SUPPLIER_FIELD = "supplier"                  # Landlord Contract -> Supplier
+TRA_CUSTOMER_FIELD = "customer"                  # Tenancy Agreement -> Customer
+LLC_SUPPLIER_FIELD = "supplier"                  # Head Lease -> Supplier
 
 # Child DocType created by the patch
 PARTY_DOC_DOCTYPE = "Party Document"
@@ -118,7 +118,7 @@ def _create_party_document_doctype():
                 "fieldname": "document_type",
                 "label": "Document Type",
                 "fieldtype": "Select",
-                "options": "QID/National ID\nPassport\nTenant Contract\nLandlord Contract\nOwner Contract\nCheque Batch\nUtility/Other",
+                "options": "QID/National ID\nPassport\nTenant Contract\nHead Lease\nOwner Contract\nCheque Batch\nUtility/Other",
                 "in_list_view": 1,
                 "reqd": 1,
             },
@@ -292,7 +292,7 @@ def attach_register_to_party(register_name):
 
 # =============================================================================
 # PART C — MARK CLEARED v2: clearance + Payment Entry reconciliation
-#   Point the PDC Cheque "Mark Cleared" dialog at:
+#   Point the Cheque "Mark Cleared" dialog at:
 #       darkbrown.api.doc_intake_phase2.mark_cleared_v2
 # =============================================================================
 
@@ -440,14 +440,14 @@ def _get_customer_from_pdc(pdc):
     tra = pdc.get(PDC_TRA_FIELD)
     if not tra:
         return None
-    return frappe.db.get_value("Tenant Rental Agreement", tra, TRA_CUSTOMER_FIELD)
+    return frappe.db.get_value("Tenancy Agreement", tra, TRA_CUSTOMER_FIELD)
 
 
 def _get_supplier_from_pdc(pdc):
     llc = pdc.get(PDC_LLC_FIELD)
     if not llc:
         return None
-    return frappe.db.get_value("Landlord Contract", llc, LLC_SUPPLIER_FIELD)
+    return frappe.db.get_value("Head Lease", llc, LLC_SUPPLIER_FIELD)
 
 
 # =============================================================================
@@ -464,7 +464,7 @@ def _get_supplier_from_pdc(pdc):
 #           },
 #       }
 #
-# 3) PDC Cheque client script — point the existing Mark Cleared dialog at
+# 3) Cheque client script — point the existing Mark Cleared dialog at
 #    the new endpoint (keep your dialog UI as-is):
 #
 #       frappe.call({

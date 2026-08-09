@@ -26,6 +26,7 @@
   "cb_appr",
   "weekly_closing_day",
   "reserve_months",
+  "minimum_cash_floor",
   "sec_wall",
   "wall_cover_days",
   "wall_cover_green",
@@ -160,6 +161,13 @@
    "default": "3"
   },
   {
+   "fieldname": "minimum_cash_floor",
+   "fieldtype": "Currency",
+   "options": "QAR",
+   "label": "Minimum Cash Floor (QAR)",
+   "description": "Absolute floor the 12-month projection tests the cumulative cash line against. Distinct from the reserve months above, which is a multiple of monthly cost. charts.set_cash_floor writes here; it wrote to a field that did not exist, so the danger month was always measured against zero."
+  },
+  {
    "fieldname": "sec_wall",
    "fieldtype": "Section Break",
    "label": "Command Centre Thresholds"
@@ -174,14 +182,14 @@
   {
    "fieldname": "wall_cover_green",
    "fieldtype": "Float",
-   "label": "Cover \u2014 Green At or Above",
+   "label": "Cover — Green At or Above",
    "default": "1.2",
    "description": "Ratio of expected inflow to landlord rent due. 1.2 leaves a fifth in hand for bounces."
   },
   {
    "fieldname": "wall_cover_red",
    "fieldtype": "Float",
-   "label": "Cover \u2014 Red Below",
+   "label": "Cover — Red Below",
    "default": "1.0",
    "description": "Below 1.0 the money expected does not cover what is owed."
   },
@@ -192,26 +200,26 @@
   {
    "fieldname": "wall_margin_green",
    "fieldtype": "Float",
-   "label": "Spread Margin \u2014 Green At or Above (%)",
+   "label": "Spread Margin — Green At or Above (%)",
    "default": "20"
   },
   {
    "fieldname": "wall_margin_red",
    "fieldtype": "Float",
-   "label": "Spread Margin \u2014 Red Below (%)",
+   "label": "Spread Margin — Red Below (%)",
    "default": "12",
    "description": "Set this to the margin that just covers overhead. Below it the portfolio is not paying for itself."
   },
   {
    "fieldname": "wall_collection_green",
    "fieldtype": "Float",
-   "label": "Collection Rate \u2014 Green At or Above (%)",
+   "label": "Collection Rate — Green At or Above (%)",
    "default": "95"
   },
   {
    "fieldname": "wall_collection_red",
    "fieldtype": "Float",
-   "label": "Collection Rate \u2014 Red Below (%)",
+   "label": "Collection Rate — Red Below (%)",
    "default": "85"
   },
   {
@@ -221,13 +229,13 @@
   {
    "fieldname": "wall_loss_amber",
    "fieldtype": "Int",
-   "label": "Loss-Making Buildings \u2014 Amber At",
+   "label": "Loss-Making Buildings — Amber At",
    "default": "1"
   },
   {
    "fieldname": "wall_loss_red",
    "fieldtype": "Int",
-   "label": "Loss-Making Buildings \u2014 Red At",
+   "label": "Loss-Making Buildings — Red At",
    "default": "3"
   },
   {

@@ -1,0 +1,9 @@
+Two files must be REMOVED from the repo — an overlay cannot delete, so do this
+by hand after copying the overlay in:
+
+    git rm darkbrown/patches/extend_pdc_cheque.py
+    git rm --cached darkbrown/www/managing_director_dashboard/__pycache__/index.cpython-312.pyc
+
+The first adds custom fields and desk buttons to the PDC Cheque doctype, which
+V2 does not have. The second is a compiled file .gitignore should already have
+caught.

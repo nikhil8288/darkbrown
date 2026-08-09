@@ -20,7 +20,7 @@ Modelling choices (deliberate, keep in sync with the spec):
   - Head-lease cost continues at the same rate past contract end
     (renewal assumed — conservative on cash), with the expiry flagged.
   - Grace months are skipped on the outflow side, same rule as the
-    invoicer: skipped while contract_start + grace_period_days covers
+    invoicer: skipped while contract_start + rent_free_days covers
     the whole month.
 
 C4 (spread trend) intentionally has no endpoint — the frontend renders
@@ -56,17 +56,17 @@ def get_projection():
         "Tenancy Agreement", filters={"status": ["in", ["Active", "Expiring"]]},
         fields=["monthly_rent", "start_date", "end_date"])
     contracts = frappe.get_all(
-        "Landlord Contract", filters={"status": "Active"},
-        fields=["building", "total_owner_rent", "contract_start_date",
-                "contract_end_date", "grace_period_days"])
+        "Head Lease", filters={"status": "Active"},
+        fields=["building", "monthly_rent", "start_date",
+                "end_date", "rent_free_days"])
 
     pdc_field = None
-    if _has("PDC Cheque"):
-        meta = frappe.get_meta("PDC Cheque")
+    if _has("Cheque"):
+        meta = frappe.get_meta("Cheque")
         if meta.has_field("direction") and meta.has_field("cheque_date"):
             pdc_field = "direction"
     cheques = frappe.get_all(
-        "PDC Cheque", fields=["amount", "cheque_date", "direction"]
+        "Cheque", fields=["amount", "cheque_date", "direction"]
     ) if pdc_field else []
 
     floor = 0.0
@@ -101,16 +101,16 @@ def get_projection():
 
         outflow = 0.0
         for c in contracts:
-            amt = flt(c.total_owner_rent)
-            if amt <= 0 or (c.contract_start_date
-                            and getdate(c.contract_start_date) > me):
+            amt = flt(c.monthly_rent)
+            if amt <= 0 or (c.start_date
+                            and getdate(c.start_date) > me):
                 continue
-            g = cint(c.grace_period_days)
-            if g and c.contract_start_date and \
-                    getdate(add_days(c.contract_start_date, g)) >= me:
+            g = cint(c.rent_free_days)
+            if g and c.start_date and \
+                    getdate(add_days(c.start_date, g)) >= me:
                 continue                 # whole month inside grace
             outflow += amt               # continues past end: renewal assumed
-            if c.contract_end_date and ms <= getdate(c.contract_end_date) <= me:
+            if c.end_date and ms <= getdate(c.end_date) <= me:
                 hl_expiring.append("%s (%s)" % (c.building, label))
 
         pdc_in = sum(flt(q.amount) for q in cheques

@@ -63,10 +63,10 @@ def t1_assign_maintenance(doc, method=None):
 # ------------------------------------------------- T5: bounced cheque
 
 def t5_assign_bounced(doc, method=None):
-    """on_update on PDC Cheque -> recovery to-do for Accounts."""
+    """on_update on Cheque -> recovery to-do for Accounts."""
     if doc.status != "Bounced" or not doc.has_value_changed("status"):
         return
-    _assign("PDC Cheque", doc.name, "Accounts",
+    _assign("Cheque", doc.name, "Accounts",
             f"Bounced cheque {doc.cheque_number or doc.name} "
             f"({doc.party or ''}) - start recovery")
 
@@ -76,12 +76,12 @@ def t5_assign_bounced(doc, method=None):
 def daily_renewal_todos():
     """T3: tenant agreement hits 30 days to expiry -> GM renewal task."""
     target = add_days(nowdate(), 30)
-    for a in frappe.get_all("Tenant Rental Agreement",
+    for a in frappe.get_all("Tenancy Agreement",
                             filters={"status": "Active",
                                      "end_date": target},
                             fields=["name", "tenant", "building"]):
-        if not _already_assigned("Tenant Rental Agreement", a.name):
-            _assign("Tenant Rental Agreement", a.name, "General Manager",
+        if not _already_assigned("Tenancy Agreement", a.name):
+            _assign("Tenancy Agreement", a.name, "General Manager",
                     f"Agreement {a.name} ({a.tenant or ''}, "
                     f"{a.building or ''}) expires in 30 days - "
                     f"decide renewal")
@@ -98,29 +98,30 @@ def daily_document_todos():
     for d in frappe.get_all("Party Document",
                             filters={"expiry_date": target},
                             fields=["name", "parent", "parenttype",
-                                    "document_type", "id_number",
-                                    "holder_name"]):
+                                    "document_type", "document_no"]):
         if not _already_assigned(d.parenttype, d.parent):
             _assign(d.parenttype, d.parent,
-                    "Legal and Documentation",
+                    "Documentation",
+                    # V2 Party Document has no holder_name; the holder is the
+                    # parent party, which is what the message wanted anyway.
                     f"{d.document_type} expiring in 30 days: "
-                    f"{d.holder_name or d.parent} ({d.id_number or ''}) - renew")
+                    f"{d.parent} ({d.document_no or ''}) - renew")
 
 
 # ------------------------------------------------ N5: grace period end
 
 def grace_period_alerts():
     """Bell to Accounts + GM 7 days before a head-lease grace window
-    ends (grace end = contract_start_date + grace_period_days)."""
-    for lc in frappe.get_all("Landlord Contract",
+    ends (grace end = start_date + rent_free_days)."""
+    for lc in frappe.get_all("Head Lease",
                              filters={"status": "Active"},
                              fields=["name", "building",
-                                     "contract_start_date",
-                                     "grace_period_days"]):
-        if not (lc.contract_start_date and lc.grace_period_days):
+                                     "start_date",
+                                     "rent_free_days"]):
+        if not (lc.start_date and lc.rent_free_days):
             continue
-        grace_end = add_days(getdate(lc.contract_start_date),
-                             int(lc.grace_period_days))
+        grace_end = add_days(getdate(lc.start_date),
+                             int(lc.rent_free_days))
         if getdate(nowdate()) != add_days(grace_end, -7):
             continue
         subject = (f"Grace period on {lc.name} ({lc.building or ''}) "
@@ -132,6 +133,6 @@ def grace_period_alerts():
                     "for_user": user,
                     "type": "Alert",
                     "subject": subject,
-                    "document_type": "Landlord Contract",
+                    "document_type": "Head Lease",
                     "document_name": lc.name,
                 }).insert(ignore_permissions=True)

@@ -12,15 +12,15 @@ def execute():
     create_custom_fields({
         "Sales Invoice": [
             {"fieldname": "custom_rental_agreement", "label": "Rental Agreement",
-             "fieldtype": "Link", "options": "Tenant Rental Agreement",
+             "fieldtype": "Link", "options": "Tenancy Agreement",
              "insert_after": "customer", "read_only": 1, "search_index": 1},
             {"fieldname": "custom_billing_period", "label": "Billing Period",
              "fieldtype": "Data", "insert_after": "custom_rental_agreement",
              "read_only": 1, "search_index": 1},
         ],
         "Purchase Invoice": [
-            {"fieldname": "custom_landlord_contract", "label": "Landlord Contract",
-             "fieldtype": "Link", "options": "Landlord Contract",
+            {"fieldname": "custom_landlord_contract", "label": "Head Lease",
+             "fieldtype": "Link", "options": "Head Lease",
              "insert_after": "supplier", "read_only": 1, "search_index": 1},
             {"fieldname": "custom_billing_period", "label": "Billing Period",
              "fieldtype": "Data", "insert_after": "custom_landlord_contract",

@@ -1,154 +1,151 @@
-# Role guards on every endpoint
+# V1 doctype names removed
 
-Repo-root overlay. **Supersedes `darkbrown_forms_staff_pettycash.zip`.** Apply
-this one on top of it.
+Repo-root overlay. **Supersedes `darkbrown_role_guards.zip`.** Apply this one;
+it contains that batch as well.
 
-**No migrate needed.** No doctype changed, no field added.
+**Needs a migrate** — one new field on DBR Settings.
 
     git pull
+    bench --site <site> migrate
     bench --site <site> clear-cache
     bench --site <site> restart
 
-Then delete the tracked `.pyc` that `.gitignore` should already have caught:
-
-    git rm --cached darkbrown/www/managing_director_dashboard/__pycache__/index.cpython-312.pyc
-
-## Files
-
-New:
-
-    darkbrown/guards.py
-
-Changed (20): `api/agreements.py` `api/app.py` `api/approvals.py`
-`api/cashdesk.py` `api/command.py` `api/doc_intake.py`
-`api/doc_intake_phase2.py` `api/documents.py` `api/finance.py`
-`api/md_dashboard.py` `api/number_cards.py` `api/operations.py`
-`api/people.py` `api/pettycash.py` `api/portfolio.py`
-`darkbrown/doctype/building/building.py` `utils/cheques.py`
-`utils/collections_case.py` `utils/pdc_accounting.py` `utils/rent_invoicing.py`
-
-127 lines added, 4 removed. Nothing was deleted or rewritten; every change is a
-guard line, an import, or a comment.
-
 ---
 
-# 1 — What was wrong
+# 1 — There were three V1 names, not one
 
-Every endpoint in this app writes through `ignore_permissions=True`, which tells
-Frappe to skip the DocType permission tables. Those tables are correct — Cheque
-is Accounts/GM/MD, Weekly Closing is Accounts/MD, Staff Member holds pay at
-`permlevel: 1`. All of it was bypassed on every call.
+The running notes had this as eleven dead notification rules. The sweep found
+three doctype names V2 never defines, in 24 files:
 
-Six modules had **no role check at all**: `finance.py` (13 endpoints),
-`operations.py` (7), `cashdesk.py` (4), `documents.py` (4), `pettycash.py` (4),
-`portfolio.py` (3), plus `number_cards.py` (10).
+| V1 name | V2 name | refs | files |
+|---|---|---|---|
+| `Tenant Rental Agreement` | `Tenancy Agreement` | 41 | 12 |
+| `PDC Cheque` | `Cheque` | 60 | 11 |
+| `Landlord Contract` | `Head Lease` | 27 | 7 |
 
-The only thing between a Maintenance login and `finance.record_receipt` was that
-the screen did not draw the button. `/api/method/...` does not care what the
-screen draws.
+You confirmed PDC cheques work in V2, and the code agrees: `Cheque` carries the
+whole lifecycle — direction, party, cheque_date, Received → Deposited →
+Presented → Cleared → Returned → Replaced, `payment_entry`, `replaced_by`. So
+`PDC Cheque` was pure V1 leftover, not a parallel doctype. Nothing was migrated;
+the names were simply wrong.
 
-Four other modules did guard, in four different idioms — `admin._guard()`,
-`attention._guard()`, `approvals._is_md()/_is_gm()`, `doc_intake`'s
-`has_permission`. The pattern existed. It had never reached the modules that
-move money.
+## The fields had to move too
 
-# 2 — What this does
+Renaming a doctype and leaving V1 field names just moves the failure. Checked
+by AST at every call site:
 
-`darkbrown/guards.py` — role constants and one `guard(*roles)` function that
-throws `PermissionError` unless the caller holds one of them. System Manager and
-Administrator always pass. Called with no roles it denies everyone but those
-two: a guard that fails closed is a bug report, one that fails open is an
-incident.
+- `Tenant Rental Agreement` → `Tenancy Agreement`: **all 9 fields survive.** Pure rename.
+- `PDC Cheque` → `Cheque`: **all 5 fields survive.** Pure rename.
+- `Landlord Contract` → `Head Lease`: four had to be mapped —
 
-It is a plain call at the top of each function, **not a decorator**. Frappe
-introspects a whitelisted function's signature to map form arguments onto
-parameters, and wrapping changes what that introspection sees. A first line in
-the body cannot break argument passing, and it greps.
+      contract_start_date  ->  start_date
+      contract_end_date    ->  end_date
+      grace_period_days    ->  rent_free_days
+      total_owner_rent     ->  monthly_rent
 
-**82 guards added across 106 whitelisted endpoints.** The other 24 already had a
-real check and were left alone.
+`total_owner_rent` is added once per month as an outflow in the projection, so
+it is the monthly figure, not the annual one. `grace_period_days` is used as
+"grace end = start + N days", which is exactly `rent_free_days`.
 
-## Where the role sets come from
+Then the same sweep run against every doctype found more V1 field names on
+doctypes that **do** exist:
 
-Not invented. Read off the DocType permission JSON. An endpoint that writes a
-record gets the roles that DocType grants write or create to; an endpoint that
-reads gets the read set. If a guard looks wrong, the DocType table is where the
-argument is, and changing it there is the fix.
-
-Worked examples:
-
-| Endpoint | Guard | From |
+| Doctype | V1 field | V2 field |
 |---|---|---|
-| `finance.record_receipt` | MD, ACC | Cheque: MD RWCD, ACC RWCD, GM **R** only |
-| `finance.build_invoice_run` | MD, GM, ACC | Invoice Run: MD, GM RWC, ACC RWCD |
-| `pettycash.record_entry` | MD, GM, ACC | Petty Cash Entry grants GM **create** |
-| `pettycash.record_count` | MD, ACC | ...but not **write**, and an adjustment is a write |
-| `portfolio.set_unit_status` | MD, GM, MNT | Unit: MNT has RW - readiness is their job |
-| `portfolio.onboard_building` | MD, GM | Building: MNT and ACC are read-only |
-| `operations.raise_job` | MD, GM, MNT | Maintenance Request: MNT RWCD, ACC **R** |
-| `people.save_staff` | MD, ACC | Staff Member: GM is **R** only |
+| Unit | `occupancy_status` | `status` |
+| Unit | `unit_name` | `unit_no` |
+| Unit | `furnishing_status` | `furnishing` |
+| Unit | `monthly_rent` | `asking_rent` |
+| Document Register | `party_name`, `id_number` | `party`, `document_no` |
+| Document Register | `notes` | `rejection_reason` |
+| Party Document | `id_number`, `holder_name` | `document_no`, parent party |
 
-Three endpoints are open to all five roles on purpose: `app.refresh` (the boot
-payload, already role-filtered inside), `number_cards.vacant_units` and
-`occupancy_pct` (portfolio counts every role's own screen already shows them).
+`Unit.monthly_rent` needed care: `monthly_rent` is correct on Tenancy Agreement
+and Head Lease and wrong only on Unit, so this was edited by hand at each site
+rather than swept.
 
-# 3 — Three bugs the sweep found
+# 2 — What this was actually breaking
 
-Not introduced here. Found by looking at all 106 at once rather than one at a
-time.
+**Occupancy and vacancy read zero.** `number_cards.vacant_units` and
+`occupancy_pct` both counted `Unit.occupancy_status`, which does not exist. Two
+of the ten number cards, wrong on every workspace.
 
-**`decide_amendment` could be approved by anyone.** The reserved-category check
-only fired when status was `Pending MD`. An amendment sitting at `Pending GM`
-had no check at all - a Maintenance login could approve a rent change. Now
-guarded MD/GM at entry, with the stricter MD rule for `Pending MD` intact.
+**The Documentation role could not open `/doc-intake`.** `www/doc_intake.py`
+gates on `Legal and Documentation` — a role `install.py` never creates. Same
+orphan role sat on `Document Archive`'s permission table and in four patches.
+All now read `Documentation`.
 
-**`charts.py` has never once run.** It does
-`from darkbrown.utils.rent_invoicing import GENERATION_START`, and that constant
-lives in `api/md_dashboard.py`. The module raised `ImportError` on load, so all
-three endpoints - including `get_projection`, **the 12-month projection the D80
-work went into** - were dead on arrival. The constant now lives in
-`rent_invoicing.py`, where charts already expected it and where it belongs; it
-is the date invoice generation begins, not a dashboard setting. `md_dashboard`
-re-exports it so the two cannot drift.
+**Cheque clearing wrote unattributed entries.** `pdc_accounting` looked up
+building and tenant off `Tenant Rental Agreement`, got `None`, and posted
+anyway — no cost centre, no party.
 
-**A second V1 doctype name.** `PDC Cheque` - 60 references across 11 files,
-including `attention.py` and `charts.py`, which are both live. That is larger
-than the `Tenant Rental Agreement` problem and belongs with it in the next
-batch.
+**The 12-month projection was wrong in four separate ways**, which is worth
+stating plainly because D80 went into it:
 
-# 4 — On `ignore_permissions`, and what is still open
+1. `charts.py` raised `ImportError` on load, so it never ran at all (fixed in
+   the previous batch).
+2. Head-lease outflow read `Landlord Contract` → **zero outflow every month**.
+3. PDC inflow read `PDC Cheque` → **zero**, and silently, because the code
+   checks whether the doctype exists and returns `[]` when it does not.
+4. The danger-month test compared the cumulative line against
+   `DBR Settings.minimum_cash_floor`, **which was not a field** —
+   `set_cash_floor` wrote to nothing and the floor was always zero.
 
-113 occurrences app-wide. They are **not removed**, deliberately:
+The projection would have reported rent coming in against no cost at all. Its
+one job is finding the month cash goes under.
 
-- ~30 are in `patches/`, `demo/` and `install.py`, which run as Administrator
-  during migrate or seed. Correct as they are.
-- 12 target ERPNext records - Sales Invoice, Payment Entry, Cost Center,
-  Customer, Supplier, File. DarkBrown's five roles hold no ERPNext accounts
-  permissions **by design**, so removing these would break every posting.
-- The rest target DarkBrown's own doctypes. Behind a guard these are now
-  redundancy rather than a hole, and stripping them cannot be tested without a
-  real database. That is a separate, testable change.
+# 3 — Where a rename was not enough
 
-**One gap the guard does not close.** `ignore_permissions=True` also bypasses
-`permission_query_conditions`, which is how `permissions.py` restricts a General
-Manager to their assigned buildings. A GM scoped to three buildings can still
-act on all twenty-two through these endpoints. The guard says *which role*, not
-*which buildings*. If GM scoping is meant to bite, that needs its own pass.
+**`utils/pdc_accounting.py` — the security-cheque test.** V1 asked a
+`cheque_type` field on the cheque. V2 has no such field and does not need one:
+a security cheque is the one a `Security Deposit` record points at through
+`receipt_cheque`. Ported to `is_security_cheque()`, reading it from there. The
+safety property is unchanged — a security cheque must never create income.
+
+This module could not simply be deleted, though it looked dead:
+`doc_intake.apply_statement_line` imports and calls `mark_cleared`. It is
+reachable through `/doc-intake`.
+
+**It is also a second engine.** `mark_cleared` / `mark_bounced` duplicate
+`finance.clear_cheque` / `finance.return_cheque`, and both are live — one from
+the shell, one from doc-intake. Two engines posting the same Payment Entry is
+how a fix lands in the wrong one. A warning header now says so. **Fold one into
+the other before either is trusted with real clearings.** Not done here; it
+needs a real database to test.
+
+**`patches/seed_pdc_outgoing.py`** wrote `direction: "Outgoing (to Landlord)"`,
+`cheque_number` and `status: "Pending"` — none of which V2 accepts. Now
+`Outgoing`, `cheque_no`, `Received`, plus `party_type: Supplier`. Still a
+one-shot loader with a `dry_run`; run that first.
+
+**`patches/extend_pdc_cheque.py` deleted.** It added custom fields and desk-form
+buttons to a doctype that does not exist. V2's Cheque carries `cleared_on` and
+`returned_on` natively and no business user sees the desk.
+
+# 4 — New field
+
+`DBR Settings.minimum_cash_floor` (Currency, QAR) — the absolute floor the
+projection tests against. Distinct from `reserve_months` above it, which is a
+multiple of monthly cost rather than an amount. **Set it after migrating**, or
+the danger month is still measured against zero.
 
 # 5 — Tested, and not
 
-The harness imports the **real shipped modules** against a stubbed Frappe - not
-a replica of the logic - and calls all 106 endpoints once per role, with a stub
-that raises if anything reaches the database.
+- Every reference to the three V1 names is gone. One deliberate exception:
+  `attention.py:14`, a docstring explaining the old bug in the past tense.
+- **Zero unresolvable field references app-wide** — AST check across every
+  `get_all` / `get_value` / `exists` / `count` call against every DocType JSON.
+  Before this batch: 20.
+- All 106 endpoints still import; guard sweep still clean, nothing reachable by
+  a user holding no DarkBrown role.
+- Whole app byte-compiles, all JSON parses.
+- Overlay applied to a fresh clone of HEAD and re-verified end to end.
 
-- All 106 modules import cleanly. Before this batch, three did not.
-- **Zero endpoints reachable by a user holding no DarkBrown role.** Before: 67.
-- Every endpoint's allowed-role set matches the table in §2.
-- Every module imports every constant it uses (checked by AST, after this
-  exact bug slipped through the first pass).
-- Whole app byte-compiles.
+**Not verified:** anything against a real database. In particular, if any live
+site rows were created carrying V1 field values, this changes what the code
+reads, not what is stored. Worth spot-checking occupancy on the workspace after
+migrate — it should stop reading zero.
 
-**Not verified:** anything against a real database. The guard is pure addition
-and cannot change what a permitted call does, but the role sets are a judgement
-about who should be doing what, and they are worth ten minutes of you reading
-the table in §2. If Fatima needs to log a cheque and cannot, that table is why.
+**Still open from the audit:** the handover flow (nothing moves units out of
+"Not Ready"), `patches.txt` running one patch of thirteen, and rent-free
+treatment with Fatima. Next in order.

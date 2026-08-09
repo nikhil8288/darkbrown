@@ -27,7 +27,7 @@ def execute():
                                "name")
     if name:
         frappe.db.set_value("Number Card", name, "filters_json",
-                            json.dumps([["Tenant Rental Agreement",
+                            json.dumps([["Tenancy Agreement",
                                          "start_date", "Timespan",
                                          "this month"]]))
 
