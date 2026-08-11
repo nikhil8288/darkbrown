@@ -6,7 +6,7 @@
  "engine": "InnoDB",
  "index_web_pages_for_search": 0,
  "links": [],
- "modified": "2026-08-01 00:00:00.000000",
+ "modified": "2026-08-11 00:00:00.000000",
  "module": "Darkbrown",
  "name": "Bank Statement Line",
  "owner": "Administrator",
@@ -22,7 +22,13 @@
   "direction",
   "status",
   "matched_type",
-  "matched_ref"
+  "matched_ref",
+  "sec_classify",
+  "classification",
+  "classify_note",
+  "cb_classify",
+  "classified_by",
+  "classified_on"
  ],
  "fields": [
   {
@@ -55,7 +61,7 @@
    "fieldname": "direction",
    "fieldtype": "Select",
    "label": "Direction",
-   "options": "Credit\\nDebit",
+   "options": "Credit\nDebit",
    "reqd": 1,
    "in_list_view": 1
   },
@@ -63,7 +69,7 @@
    "fieldname": "status",
    "fieldtype": "Select",
    "label": "Status",
-   "options": "Unmatched\\nMatched\\nExcluded",
+   "options": "Unmatched\nMatched\nClassified\nExcluded",
    "default": "Unmatched",
    "in_list_view": 1
   },
@@ -76,6 +82,41 @@
    "fieldname": "matched_ref",
    "fieldtype": "Data",
    "label": "Matched Ref"
+  },
+  {
+   "fieldname": "sec_classify",
+   "fieldtype": "Section Break",
+   "label": "Classification"
+  },
+  {
+   "fieldname": "classification",
+   "fieldtype": "Select",
+   "label": "Classification",
+   "options": "\nTenant collection\nLandlord payment\nPayroll\nUtility payment\nMaintenance cost\nPetty cash top-up\nBank charge\nOther operating cost\nShareholder drawing\nShareholder injection\nTransfer between own accounts\nUnattributed cash",
+   "in_list_view": 1,
+   "description": "What the movement actually is. Owner drawings and injections are equity, not cost, and are excluded from the operating outflow."
+  },
+  {
+   "fieldname": "classify_note",
+   "fieldtype": "Small Text",
+   "label": "Note"
+  },
+  {
+   "fieldname": "cb_classify",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "classified_by",
+   "fieldtype": "Link",
+   "label": "Classified By",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "classified_on",
+   "fieldtype": "Datetime",
+   "label": "Classified On",
+   "read_only": 1
   }
  ],
  "permissions": []

@@ -221,3 +221,172 @@ def nightly():
             frappe.db.set_value("Document Register", d.name,
                                 "days_to_expiry", left, update_modified=False)
     frappe.db.commit()
+
+
+# ------------------------------------------------------------------ the vault
+
+#: What the register's own status values are called on the screen. Kept
+#: identical to app.DOC_STATE so a document does not change its apparent state
+#: between the intake queue and the vault.
+VAULT_STATE = {"Draft": "Needs review", "Extracting": "Needs review",
+               "Needs Review": "Needs review", "Confirmed": "Validated",
+               "Rejected": "Flagged", "Superseded": "Superseded"}
+
+#: The vault carries two things: the register, which is everything filed, and
+#: the archive, which is what intake pushed through with a permanent title.
+#: Both are documents a person is looking for, so both are searchable here.
+VAULT_LIMIT = 400
+
+
+def _short(user):
+    if not user or user == "Administrator":
+        return "System"
+    full = frappe.db.get_value("User", user, "full_name") or user
+    bits = full.split()
+    return bits[0] + (" " + bits[-1][0] + "." if len(bits) > 1 else "")
+
+
+def _size(file_url):
+    """File size as the vault shows it, or an em dash when the File row is
+    gone. A missing size is not an error worth surfacing — the document is
+    still findable, which is what the screen is for."""
+    if not file_url:
+        return "—"
+    size = frappe.db.get_value("File", {"file_url": file_url}, "file_size")
+    if not size:
+        return "—"
+    size = flt(size)
+    for unit in ("B", "KB", "MB", "GB"):
+        if size < 1024 or unit == "GB":
+            return f"{size:.0f} {unit}" if unit == "B" else f"{size:.1f} {unit}"
+        size /= 1024.0
+    return "—"
+
+
+def _entity(party_type, party, building, unit, agreement=None):
+    if agreement:
+        return "Agreement"
+    if unit:
+        return "Unit"
+    if party_type == "Customer":
+        return "Tenant"
+    if party_type == "Supplier":
+        return "Landlord"
+    if building:
+        return "Building"
+    return "Unfiled"
+
+
+@frappe.whitelist()
+def vault(q=None, ty=None, ent=None, st=None, limit=None):
+    """Everything on the register and in the archive, filed and findable.
+
+    The screen has always had filters. It filtered a generated list. Filtering
+    happens here now, on records, and the counts the screen prints are counts
+    of things that exist.
+    """
+    guard(MD, GM, ACC, DOC)
+    limit = int(limit or VAULT_LIMIT)
+
+    reg = frappe.get_all(
+        "Document Register",
+        fields=["name", "source_file", "document_type", "status", "party",
+                "party_type", "building", "unit", "document_no", "expiry_date",
+                "owner", "modified", "creation"],
+        order_by="modified desc", limit=limit)
+
+    arch = frappe.get_all(
+        "Document Archive",
+        fields=["name", "file", "document_type", "archive_title", "party",
+                "party_type", "building", "unit", "id_number", "archived_on",
+                "archived_by", "original_filename", "source_register",
+                "owner", "modified"],
+        order_by="modified desc", limit=limit)
+
+    # A register row that was archived is the same document twice. The archive
+    # copy wins: it is the one with the permanent title and the filed name.
+    archived_from = {a.source_register for a in arch if a.source_register}
+
+    rows = []
+    for d in reg:
+        if d.name in archived_from:
+            continue
+        rows.append({
+            "id": d.name,
+            "f": (d.source_file or "").split("/")[-1] or "—",
+            "ty": d.document_type or "Unknown",
+            "link": str(d.party or d.building or "—"),
+            "ent": _entity(d.party_type, d.party, d.building, d.unit),
+            "filed": str(d.modified)[:10] if d.modified else "",
+            "by": _short(d.owner),
+            "size": _size(d.source_file),
+            "st": VAULT_STATE.get(d.status, d.status or "Needs review"),
+            "url": d.source_file or "",
+            "no": d.document_no or "",
+            "exp": str(d.expiry_date) if d.expiry_date else "",
+            "src": "Register",
+        })
+    for a in arch:
+        rows.append({
+            "id": a.name,
+            "f": (a.original_filename
+                  or (a.file or "").split("/")[-1] or a.archive_title or "—"),
+            "ty": a.document_type or "Unknown",
+            "link": str(a.party or a.building or "—"),
+            "ent": _entity(a.party_type, a.party, a.building, a.unit),
+            "filed": str(a.archived_on or a.modified)[:10],
+            "by": _short(a.archived_by or a.owner),
+            "size": _size(a.file),
+            "st": "Validated",
+            "url": a.file or "",
+            "no": a.id_number or "",
+            "exp": "",
+            "src": "Archive",
+        })
+
+    total = len(rows)
+
+    def keep(r):
+        if ty and not str(ty).startswith("All") and r["ty"] != ty:
+            return False
+        if ent and not str(ent).startswith("All") and r["ent"] != ent:
+            return False
+        if st and not str(st).startswith("All") and r["st"] != st:
+            return False
+        if q:
+            hay = " ".join([r["f"], r["ty"], r["link"], r["ent"], r["no"],
+                            r["id"]]).lower()
+            if str(q).lower() not in hay:
+                return False
+        return True
+
+    matched = [r for r in rows if keep(r)]
+    matched.sort(key=lambda r: r["filed"], reverse=True)
+    return {
+        "rows": matched,
+        "total": total,
+        "validated": sum(1 for r in rows if r["st"] == "Validated"),
+        "review": sum(1 for r in rows if r["st"] == "Needs review"),
+        "types": sorted({r["ty"] for r in rows}),
+        "filers": sorted({r["by"] for r in rows}),
+        "capped": total >= limit,
+    }
+
+
+@frappe.whitelist()
+def preview(document):
+    """Where the file actually is, so the viewer can open it.
+
+    Returns the URL rather than the bytes. The file is served by Frappe with
+    its own permission check on the way out, which is the check that should be
+    deciding this — not one written again here and drifting from it.
+    """
+    guard(MD, GM, ACC, DOC)
+    for doctype, field in (("Document Register", "source_file"),
+                           ("Document Archive", "file")):
+        if frappe.db.exists(doctype, document):
+            url = frappe.db.get_value(doctype, document, field)
+            if not url:
+                frappe.throw(_("No file is attached to that record."))
+            return {"url": url, "doctype": doctype, "name": document}
+    frappe.throw(_("That document is not on the register."))

@@ -57,7 +57,7 @@
    "fieldname": "status",
    "fieldtype": "Select",
    "label": "Status",
-   "options": "Draft\\nPosted",
+   "options": "Draft\nPosted",
    "default": "Posted",
    "in_list_view": 1
   },

@@ -35,7 +35,7 @@
    "fieldname": "status",
    "fieldtype": "Select",
    "label": "Status",
-   "options": "Open\\nIn Progress\\nClosed",
+   "options": "Open\nIn Progress\nClosed",
    "default": "Open",
    "in_list_view": 1
   },

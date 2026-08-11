@@ -670,3 +670,143 @@ def nightly():
 def _kk(v):
     """Money crosses to the shell in whole riyals. No scaling anywhere."""
     return round(flt(v))
+
+
+# ------------------------------------------------------------------- receipts
+
+#: How many receipts the list carries before it says it is capped.
+RECEIPT_CAP = 300
+
+
+def _short_user(user):
+    if not user or user == "Administrator":
+        return "System"
+    full = frappe.db.get_value("User", user, "full_name") or user
+    bits = full.split()
+    return bits[0] + (" " + bits[-1][0] + "." if len(bits) > 1 else "")
+
+
+def _receipt_row(pe, names=None):
+    names = names or {}
+    mode = (pe.mode_of_payment or "").lower()
+    return {
+        "id": pe.name,
+        "t": pe.party,
+        "tn": names.get(pe.party, pe.party),
+        "party": names.get(pe.party, pe.party),
+        # The screen groups by how the money actually arrived, because a cash
+        # receipt needs a collection slip behind it and a cheque needs the
+        # bank to have confirmed the clearing first.
+        "kind": ("Cash received" if "cash" in mode
+                 else "Cheque cleared" if "cheque" in mode
+                 else (pe.mode_of_payment or "Transfer") + " received"),
+        "amt": flt(pe.paid_amount),
+        "when": str(pe.posting_date),
+        "date": str(pe.posting_date),
+        "mode": pe.mode_of_payment or "—",
+        "ref": pe.reference_no or "—",
+        "stmt": pe.reference_no or "",
+        "acct": pe.paid_to or "—",
+        "un": flt(pe.unallocated_amount),
+        "st": "Cancelled" if pe.docstatus == 2 else "Issued",
+        "alloc": ("Cancelled" if pe.docstatus == 2
+                  else "Part-allocated" if flt(pe.unallocated_amount) > 0.005
+                  else "Allocated"),
+        "by": _short_user(pe.owner),
+    }
+
+
+@frappe.whitelist()
+def receipts(q=None, limit=None):
+    """Every receipt posted, newest first.
+
+    A receipt is a Payment Entry. There is no separate receipt record and
+    there should not be one — the screen had an empty array behind it and a
+    detail view that said it was not wired, which is what happens when a list
+    exists before the thing it lists does.
+    """
+    guard(MD, GM, ACC)
+    limit = int(limit or RECEIPT_CAP)
+    rows = frappe.get_all(
+        "Payment Entry",
+        filters={"payment_type": "Receive", "docstatus": ["<", 2]},
+        fields=["name", "party", "paid_amount", "posting_date",
+                "mode_of_payment", "reference_no", "paid_to", "docstatus",
+                "unallocated_amount", "owner"],
+        order_by="posting_date desc, creation desc", limit=limit)
+    if not rows:
+        return {"rows": [], "total": 0, "value": 0, "unallocated": 0,
+                "capped": False}
+
+    parties = {r.party for r in rows if r.party}
+    names = {}
+    if parties:
+        names = {c.name: (c.customer_name or c.name) for c in frappe.get_all(
+            "Customer", filters={"name": ["in", list(parties)]},
+            fields=["name", "customer_name"])}
+
+    out = [_receipt_row(r, names) for r in rows]
+    if q:
+        needle = str(q).lower()
+        out = [r for r in out if needle in " ".join(
+            [r["id"], str(r["tn"]), r["ref"], r["mode"]]).lower()]
+    return {
+        "rows": out,
+        "total": len(out),
+        "value": round(sum(r["amt"] for r in out), 2),
+        "unallocated": round(sum(r["un"] for r in out), 2),
+        "capped": len(rows) >= limit,
+    }
+
+
+@frappe.whitelist()
+def receipt(name):
+    """One receipt, with what it settled.
+
+    The allocation table is the point of this view. A tenant asking why their
+    balance did not move by what they paid is answered by the reference lines,
+    not by the header.
+    """
+    guard(MD, GM, ACC)
+    if not frappe.db.exists("Payment Entry", name):
+        frappe.throw(_("No receipt with that reference."))
+    pe = frappe.get_doc("Payment Entry", name)
+    if pe.payment_type != "Receive":
+        frappe.throw(_("{0} is a payment, not a receipt.").format(name))
+
+    customer = (frappe.db.get_value("Customer", pe.party, "customer_name")
+                if pe.party else None)
+    row = _receipt_row(pe, {pe.party: customer or pe.party})
+
+    applied = []
+    row["inv"] = ""
+    for ref in pe.references or []:
+        outstanding = frappe.db.get_value(
+            ref.reference_doctype, ref.reference_name,
+            "outstanding_amount") if ref.reference_name else None
+        applied.append({
+            "dt": ref.reference_doctype,
+            "id": ref.reference_name,
+            "total": flt(ref.total_amount),
+            "alloc": flt(ref.allocated_amount),
+            "left": flt(outstanding) if outstanding is not None else None,
+        })
+
+    cheque = None
+    if pe.reference_no and frappe.db.exists("DocType", "Cheque"):
+        hit = frappe.get_all(
+            "Cheque", filters={"cheque_number": pe.reference_no},
+            fields=["name", "status", "cheque_date", "bank"], limit=1)
+        if hit:
+            cheque = {"id": hit[0].name, "st": hit[0].status,
+                      "d": str(hit[0].cheque_date or ""),
+                      "bank": hit[0].bank or "—"}
+
+    row["applied"] = applied
+    row["inv"] = (", ".join(f"{a['id']} {a['alloc']:,.0f}" for a in applied)
+                  or ("unallocated" if flt(pe.unallocated_amount)
+                      else "nothing open to settle"))
+    row["applied"] = applied
+    row["cheque"] = cheque
+    row["remarks"] = pe.remarks or ""
+    return row

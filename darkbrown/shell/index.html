@@ -669,7 +669,9 @@ const esc=s=>String(s).replace(/[<>&]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[
 const escA=s=>String(s===undefined||s===null?'':s)
   .replace(/[<>&"']/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&#39;'}[c]));
 const DAY=864e5, TODAY=new Date('2026-07-26');
-const fdate=d=>d.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'2-digit'});
+const asDate=d=>d instanceof Date?d:new Date(d);
+const fdate=d=>{const t=asDate(d);
+  return isFinite(t)?t.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'2-digit'}):'\u2014'};
 const dplus=n=>fdate(new Date(TODAY.getTime()+n*DAY));
 /* Lease-end dates cross from the server already formatted ('31 Oct 26'), so
    the shell only ever has the display string. "Expiring in 90 days" was
@@ -1023,10 +1025,49 @@ async function dbRefresh(){
        reported an empty site. Deleting everything is a legitimate outcome and
        has to be able to reach the screen. */
     applySeed();
+    /* A write can change any of them, and a stale ledger beside a fresh
+       dashboard is worse than a slow one. */
+    window.DB_LAZY={};
     router();
   }catch(e){ toast('Could not refresh: '+e.message); }
 }
 window.dbRefresh = dbRefresh;
+
+/* ---------- screens the boot payload does not carry ----------
+   The ledger, the vault, the receipt list, utilities and reconciliation are
+   all large and none of them is on the morning path, so putting them in the
+   boot payload would make every login pay for screens most logins never open.
+   They are fetched the first time their screen is asked for and held until a
+   write invalidates them.
+
+   Three states, and they are kept distinct on purpose. Loading is not empty,
+   and a call that raised is not a clean book — the same distinction the
+   dashboard gate makes, for the same reason. */
+window.DB_LAZY={};
+function lazy(key,method,args){
+  if(!window.DB_LIVE) return {state:'demo'};
+  const c=DB_LAZY[key];
+  if(c) return c;
+  DB_LAZY[key]={state:'load'};
+  dbCall(method,args||{})
+    .then(d=>{DB_LAZY[key]={state:'ok',data:d};router();})
+    .catch(e=>{DB_LAZY[key]={state:'err',msg:e.message};router();});
+  return DB_LAZY[key];
+}
+window.lazy=lazy;
+
+/* What to show while it is in flight, or after it failed. */
+function lazyPage(title,sub,c){
+  if(c.state==='load') return page(title,sub,'',
+    `<div class="card"><div class="unwired"><span class="uw-tag">READING</span>
+      <p>Asking the server for these records.</p></div></div>`);
+  return page(title,sub,'',
+    `<div class="card"><div class="unwired"><span class="uw-tag">SERVER ERROR</span>
+      <p>${esc(c.msg||'The server did not answer.')}</p>
+      <p class="uw-note">Nothing is shown rather than something invented. The
+      traceback is in the Error Log.</p></div></div>`);
+}
+window.lazyPage=lazyPage;
 
 /* Wraps an action so failures surface as a toast rather than silence. */
 window.dbDo = async (fn, okMsg) => {
@@ -1041,8 +1082,6 @@ const ROUTES={};
    because there is no way to tell an invented number from a real one by
    looking at it. When live, they say what they are and why. */
 const UNWIRED={
- vault:'Document Register records exist. The vault view has not been pointed at them yet.',
- receipt:'Payment Entries exist. This detail view has not been pointed at them yet.',
  runs:'Distribution runs belong to Stage 2I. Blocked on Q20 and Q21.',
  run:'Distribution runs belong to Stage 2I. Blocked on Q20 and Q21.',
  owners:'Owner and shareholder accounting is designed but not built. Blocked on Q20 and Q21.',
@@ -1058,11 +1097,7 @@ const UNWIRED={
  pactions:'Planning actions need the solver. Blocked on Q10.',
  risks:'Stress tests, the risk register and the spread of outcomes all read from the solver. Blocked on Q10.',
  cfo:'The Digital CFO needs the governed calculation services behind it before it can answer anything.',
- reports:'Reporting has not been built against live records yet.',
- coa:'Reads ERPNext accounts. Not pointed at them yet.',
- ledger:'Reads ERPNext GL entries. Not pointed at them yet.',
- journal:'Reads ERPNext journal entries. Not pointed at them yet.',
- trial:'Reads ERPNext trial balance. Not pointed at them yet.'};
+ reports:'Reporting has not been built against live records yet.'};
 
 /* one panel inside an otherwise live screen */
 function uw(msg){
@@ -1205,7 +1240,11 @@ const COA=[
  ['5010','Head-lease rent','Expense','Dr'],['5020','Maintenance','Expense','Dr'],
  ['5030','Utilities','Expense','Dr'],['5040','Payroll','Expense','Dr'],
  ['5050','Bank charges','Expense','Dr'],['5060','Bad debt written off','Expense','Dr']];
-const acc=c=>COA.find(a=>a[0]===c);
+/* A code that is not in the chart is a real possibility once the chart is
+   the company's own rather than a fixed list of twenty — an account can be
+   renumbered, or a posting can sit against one outside the window. Returning
+   a placeholder keeps the ledger readable instead of throwing on render. */
+const acc=c=>COA.find(a=>a[0]===c)||[c,c,'Asset','Dr',0,0];
 
 const JRN=[];
 (function seedLedger(){
@@ -1241,16 +1280,56 @@ function ledgerRows(f={}){
   JRN.forEach(j=>j.lines.forEach(l=>{
     if(f.acc&&l[0]!==f.acc)return;
     if(f.ty&&f.ty!=='All types'&&j.ty!==f.ty)return;
-    if(f.q){const s=(j.desc+' '+j.ref+' '+j.id+' '+acc(l[0])[1]).toLowerCase();
+    if(f.q){const s=(j.desc+' '+j.ref+' '+j.id+' '+(acc(l[0])[1]||'')).toLowerCase();
       if(!s.includes(f.q.toLowerCase()))return}
     out.push({jid:j.id,d:j.d,ty:j.ty,desc:j.desc,ref:j.ref,code:l[0],name:acc(l[0])[1],dr:l[1]||0,cr:l[2]||0});
   }));
   return out;
 }
 function accBalance(code){
+  const a=acc(code), nat=a[3];
+  /* Live, the balance is what the server summed over the whole window, not
+     what the journal list happens to hold. The list is capped; the balance
+     must not move when the cap does. */
+  if(window.BOOKS){const dr=a[4]||0,cr=a[5]||0;
+    return{dr,cr,bal:nat==='Dr'?dr-cr:cr-dr,nat}}
   let dr=0,cr=0; ledgerRows({acc:code}).forEach(r=>{dr+=r.dr;cr+=r.cr});
-  const nat=acc(code)[3];
   return{dr,cr,bal:nat==='Dr'?dr-cr:cr-dr,nat};
+}
+
+/* The ledger screen used to add up '1010', '1020' and '1030' by name for
+   "cash at bank". Those codes are the prototype's. The server names which of
+   the company's own accounts are banks, receivables and deposits, and the
+   prototype codes are only the fallback when nothing is live. */
+function accGroup(k,fallback){
+  const g=(window.BOOKS&&BOOKS.groups&&BOOKS.groups[k]&&BOOKS.groups[k].length)
+    ?BOOKS.groups[k]:fallback;
+  return g.reduce((s,c)=>s+accBalance(c).bal,0);
+}
+
+/* Chart and journals for the five ledger screens, fetched once between them.
+   Returns true when the screen may render, or the pending state to show. */
+function books(){
+  const c=lazy('books','accounting.books');
+  if(c.state==='demo') return true;
+  if(c.state!=='ok') return c;
+  if(!c.applied){
+    c.applied=1;
+    window.BOOKS=c.data;
+    COA.length=0; (c.data.coa||[]).forEach(r=>COA.push(r));
+    JRN.length=0; (c.data.jrn||[]).forEach(j=>JRN.push(j));
+  }
+  return true;
+}
+window.books=books;
+
+/* The window and the cap, said out loud on every screen that is subject to
+   them, because a ledger that silently shows twelve months reads as a ledger. */
+function booksNote(){
+  if(!window.BOOKS) return '';
+  const b=BOOKS;
+  return `<div class="foot"><span>${b.from} to ${b.to} \u00b7 ${b.accounts} accounts on the chart</span>
+    <span>${b.capped?'capped at '+b.cap+' postings \u2014 older ones are in the desk':'every posting in the window'}</span></div>`;
 }
 
 const DASH_TPL=`<div class="grid">
@@ -1411,12 +1490,12 @@ const WALL=[
   sub:'QAR 418,000 outstanding \u00b7 rolling 90 days',
   means:'Of everything invoiced in the last 90 days, the share that has actually been received.',
   why:'A healthy spread on paper means nothing if the money does not arrive. Most of your rent comes in by cheque, and a cheque is a promise until it clears. This is the number that separates a profitable business from a failing one with good invoices.',
-  act:'QAR 418,000 outstanding. Worth a pass through the oldest cases before it hardens.',go:'#/arrears'},
+  act:'QAR 418,000 outstanding. Worth a pass through the oldest cases before it hardens.',go:'#/cases'},
  {id:'losers',label:'Buildings losing money',value:'2',band:'amber',
   sub:'Al Wakra Residences worst at QAR -18,000/month \u00b7 QAR 26,000 total',
   means:'Buildings where the rent you collect from tenants is less than the rent you pay the landlord.',
   why:'The portfolio average hides the loser. A building at low occupancy still owes its landlord in full, so it quietly eats the profit the good buildings make. A negative building does not recover on its own \u2014 something has to change.',
-  act:'Al Wakra Residences is running at a loss. Check its occupancy and when its head lease is next up.',go:'#/portfolio'}];
+  act:'Al Wakra Residences is running at a loss. Check its occupancy and when its head lease is next up.',go:'#/buildings'}];
 
 /* live data \u00b7 replaces the seed when the server sent rows */
 if(window.DB_SEED&&DB_SEED.wall&&DB_SEED.wall.length){WALL.length=0;WALL.push.apply(WALL,DB_SEED.wall);}
@@ -2292,7 +2371,7 @@ function renderUnmatched(){
     const y=x=>108-x/mx*92;
     let s=`<polyline points="${v.map((x,i)=>`${L+i*step},${y(x)}`).join(' ')}" fill="none" stroke="#B07C2A" stroke-width="1.8"/>`;
     v.forEach((x,i)=>s+=`<circle cx="${L+i*step}" cy="${y(x)}" r="2.2" fill="#B07C2A" data-tt="wk −${v.length-1-i} · ${x} unmatched"/>`);
-    if(LP.items) s+=`<text x="${L+(v.length-1)*step}" y="${y(v[v.length-1])-8}" text-anchor="end" class="n" font-size="10" fill="#B07C2A">${LP.items} items · ${kf(LP.value||0)}</text>`;
+    if(LP.items) s+=`<text x="${L+(v.length-1)*step}" y="${y(v[v.length-1])-8}" text-anchor="end" class="n" font-size="10" fill="#B07C2A">${LP.items} items \u00b7 ${n0(LP.value||0)}</text>`;
     $('#unmatched').innerHTML=`<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto">${s}</svg>
     <div class="foot"><span>${LP.items?LP.items+' open · '+(LP.aged||0)+' over 5 days':'nothing open — fully matched'}</span><span>${fbtn('Import','import-statement')}</span></div>`;
     return;
@@ -3938,7 +4017,49 @@ ROUTES.job=id=>{const j=id?J(id):JOBS[0]; if(!j) return notFound('Maintenance jo
    {id:'jc',foot:['Total '+n0(j.cost),j.rch?'recharged to tenant — own income account':'absorbed by Darkbrown']})}</div>`)};
 
 /* ---------------- Utilities ---------------- */
-ROUTES.utilities=()=>page('Utilities','Kahramaa billing vs tenant recovery · consolidated monthly invoice per tenant','',
+/* Utilities read the bills, not a multiplier.
+
+   This screen used to print b.units*420 as "billed to us" and b.units*350 as
+   "recovered", next to a real building list. Both are arithmetic on a
+   constant, and neither had ever been near a Kahramaa invoice.
+
+   Recovery means one thing here: an allocation line carrying a Sales Invoice.
+   An allocation worked out and never billed is exactly the gap this screen
+   exists to show, so it is counted as unrecovered rather than as recovered. */
+ROUTES.utilities=()=>{
+ const c=lazy('utilities','utilities.overview');
+ if(c.state!=='ok'&&c.state!=='demo')
+   return lazyPage('Utilities','Reads utility bills and their allocations',c);
+ if(c.state==='ok'){
+  const d=c.data, rows=d.rows||[];
+  if(!rows.length) return page('Utilities',
+    'Kahramaa billing against tenant recovery',
+    fbtn('Upload documents','upload-docs'),
+    `<div class="card">${empty('No utility bill has been entered for this period. '+
+      'Nothing is billed, nothing is allocated, and nothing is outstanding — '+
+      'which is a different thing from a recovery rate of zero.')}</div>`);
+  return page('Utilities',
+   `${d.bills} bill${d.bills===1?'':'s'} \u00b7 ${d.from} to ${d.to} \u00b7 one consolidated recovery invoice per tenant per month`,
+   fbtn('Upload documents','upload-docs'),
+   stat([['Billed to us',n0(d.billed)],['Allocated',n0(d.allocated)],
+    ['Recovered',n0(d.recovered),'invoiced to tenants','g'],
+    ['Recovery rate',d.rate+'%','',d.rate>=90?'g':d.rate>=75?'a':'r'],
+    ['Unrecovered',n0(d.unrecovered),'',d.unrecovered?'r':'g'],
+    ['Flagged',d.flagged,d.flagged?'against their own trailing average':'nothing unusual',d.flagged?'r':'g']])+
+   `<div class="card">${tbl([
+    {h:'Building',v:r=>esc(r.n)},{h:'Bills',r:1,mono:1,v:r=>r.bills},
+    {h:'Billed to us',r:1,mono:1,v:r=>n0(r.billed)},
+    {h:'Allocated',r:1,mono:1,v:r=>n0(r.allocated)},
+    {h:'Recovered',r:1,mono:1,v:r=>n0(r.recovered)},
+    {h:'Recovery',r:1,mono:1,v:r=>r.rate+'%',style:r=>r.rate<75?'color:var(--red)':r.rate<90?'color:var(--amber)':''},
+    {h:'Unrecovered',r:1,mono:1,v:r=>r.unrecovered?n0(r.unrecovered):'\u2014'},
+    {h:'Status',v:r=>chip(r.flagged?'Variance flagged':r.unrecovered?'Under-recovered':'Normal',
+      r.flagged?'r':r.unrecovered?'a':'g')},
+    {h:'Why',v:r=>esc(r.why||'')}],
+    rows.map(r=>({...r,__id:r.id})),{id:'utl',click:'openB',
+     foot:['recovered means an allocation line that reached an invoice',
+      'a variance is a building against its own trailing average, not against the portfolio']})}</div>`)}
+ return page('Utilities','Kahramaa billing vs tenant recovery \u00b7 consolidated monthly invoice per tenant','',
  stat([['Paid to provider',n0(94000)],['Recovered',n0(79000)],['Recovery rate','84%','','a'],
   ['Unrecovered',n0(15000),'','r'],['Flagged variances',1,'','r']])+
  `<div class="card">${tbl([
@@ -3948,7 +4069,7 @@ ROUTES.utilities=()=>page('Utilities','Kahramaa billing vs tenant recovery · co
   {h:'Recovery',r:1,mono:1,v:b=>((0.35/0.42)*100).toFixed(0)+'%'},
   {h:'Status',v:b=>chip(b.id==='B09'?'Variance flagged':'Normal',b.id==='B09'?'r':'g')}],
   BUILDINGS.map(b=>({...b,__id:b.id})),{id:'utl',click:'openB',
-   foot:['One consolidated recovery invoice per tenant per month','B09 +38% vs trailing average — flagged in intake']})}</div>`);
+   foot:['One consolidated recovery invoice per tenant per month','B09 +38% vs trailing average — flagged in intake']})}</div>`)};
 
 /* ---------------- Document intake / OCR (2F) ---------------- */
 ROUTES.intake=()=>page('Document intake','AI extraction → review queue → push to vault',
@@ -4327,7 +4448,8 @@ function vaultFiltered(){
     if(VF.ent!=='All records'&&d.ent!==VF.ent)return false;
     if(VF.st!=='All'&&d.st!==VF.st)return false;
     if(VF.by!=='Anyone'&&d.by!==VF.by)return false;
-    if((TODAY-d.filed)/DAY>days)return false;
+    const filed=asDate(d.filed);
+    if(isFinite(filed)&&(TODAY-filed)/DAY>days)return false;
     return true;
   });
 }
@@ -4425,6 +4547,16 @@ document.addEventListener('click',e=>{
 
 /* ---------- Vault with filters ---------- */
 ROUTES.vault=()=>{
+ /* The register and the archive are the vault. It used to generate its own
+    contents, which meant a filter on a live site filtered inventions. The
+    filtering still happens in the browser — the list is capped at a size
+    that makes that fine — but the list is now the register. */
+ const c=lazy('vault','documents.vault');
+ if(c.state!=='ok'&&c.state!=='demo')
+   return lazyPage('Document vault','Reads the register and the archive',c);
+ if(c.state==='ok'&&!c.applied){c.applied=1;
+   VDOCS.length=0;(c.data.rows||[]).forEach(r=>VDOCS.push(r));
+   window.VAULT=c.data;}
  const res=vaultFiltered(), types=['All types',...new Set(VDOCS.map(d=>d.ty))].sort((a,b)=>a==='All types'?-1:b==='All types'?1:a.localeCompare(b));
  const sel=(k,opts)=>`<select onchange="vfSet('${k}',this.value)">${opts.map(o=>
    `<option ${VF[k]===o?'selected':''}>${o}</option>`).join('')}</select>`;
@@ -4441,7 +4573,8 @@ ROUTES.vault=()=>{
        oninput="clearTimeout(window.__vq);window.__vq=setTimeout(()=>vfSet('q',this.value),260)"></div>
      ${sel('ty',types)} ${sel('ent',['All records','Tenant','Building','Agreement','Batch','Move-out'])}
      ${sel('age',['Any time','Last 7 days','Last 30 days','Last 90 days','This year'])}
-     ${sel('st',['All','Validated','Needs review'])} ${sel('by',['Anyone','Aisha R.','Yusuf K.','Fatima N.','System'])}
+     ${sel('st',['All','Validated','Needs review','Flagged','Superseded'])}
+     ${sel('by',['Anyone',...((window.VAULT&&VAULT.filers)||['Aisha R.','Yusuf K.','System'])])}
      ${active?`<button class="btn" onclick="vfClear()">Clear filters</button>`:''}
    </div>
    <div class="vchips">${[['Tenant contracts',()=>vfSet('ty','Tenant contract')],['Head-leases',()=>vfSet('ty','Head-lease')],
@@ -4456,7 +4589,17 @@ ROUTES.vault=()=>{
     res.slice(0,40).map(d=>({...d,__id:d.id})),{id:'vl',click:'openVDoc',
     foot:[`showing ${Math.min(40,res.length)} of ${res.length} matching`,'click any row to preview']})}</div>`
    :`<div class="card">${empty('No documents match these filters. Try clearing one.')}</div>`}`)};
-window.openVDoc=id=>{const d=VDOCS.find(x=>x.id===id);toast(d.f+' — preview opens in the viewer')};
+window.openVDoc=id=>{
+  const d=VDOCS.find(x=>x.id===id); if(!d) return;
+  if(!window.DB_LIVE) return toast(d.f+' \u2014 preview opens in the viewer');
+  /* The file is served by Frappe, which runs its own permission check on the
+     way out. That is the check that should decide this, rather than a second
+     one written here and drifting from it. */
+  dbCall('documents.preview',{document:id})
+    .then(r=>{if(r&&r.url) window.open(r.url,'_blank','noopener');
+              else toast('No file is attached to '+d.f)})
+    .catch(e=>toast(e.message));
+};
 
 /* ---------- Approval with notes ---------- */
 ROUTES.approval=id=>{const a=id?AP(id):APPR[0]; if(!a) return notFound('Approval','#/approvals');
@@ -4506,6 +4649,7 @@ function jrnFiltered(){
   });
 }
 ROUTES.ledger=()=>{
+  const rdy=books(); if(rdy!==true) return lazyPage('General ledger','Reads GL entries in ERPNext',rdy);
   const res=jrnFiltered();
   const totDr=JRN.reduce((a,j)=>a+j.lines.reduce((x,l)=>x+(l[1]||0),0),0);
   const totCr=JRN.reduce((a,j)=>a+j.lines.reduce((x,l)=>x+(l[2]||0),0),0);
@@ -4517,9 +4661,9 @@ ROUTES.ledger=()=>{
    fbtn('New journal entry','journal-entry')+actbtn('Export trial balance')+actbtn('Period close'),
    stat([['Journals',JRN.length],['Debits',money(totDr)],['Credits',money(totCr)],
      ['In balance',Math.abs(totDr-totCr)<0.01?'Yes':'No','',Math.abs(totDr-totCr)<0.01?'g':'r'],
-     ['Cash at bank',money(accBalance('1010').bal+accBalance('1020').bal+accBalance('1030').bal),'','g'],
-     ['Receivables',money(accBalance('1100').bal),'','a'],
-     ['Deposits held',money(accBalance('2100').bal),'liability']])+
+     ['Cash at bank',money(accGroup('bank',['1010','1020'])+accGroup('cash',['1030'])),'','g'],
+     ['Receivables',money(accGroup('receivable',['1100'])),'','a'],
+     ['Deposits held',money(accGroup('deposits',['2100'])),'liability']])+
    `<div class="grid2">
     <div class="card"><h3>Trial balance <span class="plabel">as at ${fdate(TODAY)}</span></h3>
      ${tbl([{h:'Code',v:r=>r[0]},{h:'Account',v:r=>r[1]},{h:'Class',v:r=>r[2]},
@@ -4550,10 +4694,12 @@ ROUTES.ledger=()=>{
       <td>${j.id}</td><td>${j.d}</td><td>${chip(j.ty,'n')}</td><td>${j.ref}</td><td>${j.desc}</td>
       <td>${j.lines.length} lines</td><td class="r num">${money(j.tot)}</td></tr>`).join('')}
     </tbody></table></div>
-    <div class="foot"><span>showing ${Math.min(30,res.length)} of ${res.length}</span><span>click a journal for its lines</span></div></div>`)};
+    <div class="foot"><span>showing ${Math.min(30,res.length)} of ${res.length}</span><span>click a journal for its lines</span></div>
+    ${booksNote()}</div>`)};
 window.openAcct=code=>go('#/account/'+code);
 
 ROUTES.account=code=>{
+  const rdy=books(); if(rdy!==true) return lazyPage('Account','Reads the ledger for one account',rdy);
   const a=acc(code)||COA[0], b=accBalance(a[0]);
   const rows=ledgerRows({acc:a[0]});
   let run=0; const withBal=rows.slice().reverse().map(r=>{
@@ -5054,6 +5200,7 @@ addEventListener('keydown',e=>{if(e.key==='Escape')closeNotif()});
 
 /* ---------- Chart of accounts ---------- */
 ROUTES.coa=()=>{
+  const rdy=books(); if(rdy!==true) return lazyPage('Chart of accounts','Reads the company chart in ERPNext',rdy);
   const cls=['Asset','Liability','Equity','Income','Expense'];
   let rows='';
   cls.forEach(c=>{
@@ -5063,7 +5210,7 @@ ROUTES.coa=()=>{
        <td>${a[3]}</td><td class="r num">${b.dr?money(b.dr):'—'}</td><td class="r num">${b.cr?money(b.cr):'—'}</td>
        <td class="r num">${money(Math.abs(b.bal))} ${b.nat}</td></tr>`});
   });
-  return page('Chart of accounts',COA.length+' accounts · five classes · used by every automatic posting',
+  return page('Chart of accounts',COA.length+' accounts · five classes · used by every automatic posting'+(window.BOOKS?' · balances as at '+BOOKS.to:'')+'',
    fbtn('New journal entry','journal-entry')+actbtn('Add account'),
    stat(cls.map(c=>[c+'s',COA.filter(a=>a[2]===c).length]))+
    `<div class="card"><h3>Accounts <span class="plabel">click any account for its ledger</span></h3>
@@ -5073,6 +5220,7 @@ ROUTES.coa=()=>{
 
 /* ---------- Journal entries list ---------- */
 ROUTES.journal=id=>{
+  const rdy=books(); if(rdy!==true) return lazyPage('Journal entries','Reads postings in ERPNext',rdy);
   if(id) return journalDetail(id);
   const res=jrnFiltered();
   const sel=(k,opts)=>`<select onchange="lfSet('${k}',this.value)">${opts.map(o=>
@@ -5081,7 +5229,7 @@ ROUTES.journal=id=>{
    fbtn('New journal entry','journal-entry')+actbtn('Export'),
    stat([['Journals',JRN.length],['Manual',JRN.filter(j=>j.ty==='Journal'||j.by==='Managing Director').length],
      ['Automatic',JRN.filter(j=>j.ty!=='Journal').length],['Types',new Set(JRN.map(j=>j.ty)).size],
-     ['Latest',JRN[0].d]])+
+     ['Latest',JRN.length?JRN[0].d:'\u2014']])+
    `<div class="card"><h3>All postings <span class="plabel">${res.length} of ${JRN.length}</span></h3>
     <div class="vfilters">
       <div class="vsearch"><span>⌕</span><input value="${LF.q}" placeholder="Search narration, reference or journal number"
@@ -5095,10 +5243,47 @@ ROUTES.journal=id=>{
       <td>${chip(j.ty,'n')}</td><td>${j.ref}</td><td>${j.desc}</td><td>${j.lines.length}</td>
       <td class="r num">${money(j.tot)}</td><td>${j.by||'Fatima N.'}</td></tr>`).join('')}
     </tbody></table></div>
-    <div class="foot"><span>showing ${Math.min(40,res.length)} of ${res.length}</span><span>every posting drills to its lines</span></div></div>`)};
+    <div class="foot"><span>showing ${Math.min(40,res.length)} of ${res.length}</span><span>every posting drills to its lines</span></div>
+    ${booksNote()}</div>`)};
 
 /* ---------- Trial balance ---------- */
+/* Trial balance as at a date, from the server's own sum over every posting
+   up to it. Debits equal credits or they do not, and the screen says which. */
+function trialLive(d){
+  const rows=d.rows||[];
+  const cls=t=>rows.filter(r=>r[2]===t).reduce((s,r)=>
+    s+(r[3]==='Dr'?r[4]-r[5]:r[5]-r[4]),0);
+  return page('Trial balance',`As at ${fdate(d.as_on)} \u00b7 every account with movement`,
+   actbtn('Print'),
+   stat([['Accounts with movement',rows.length],['Total debits',money(d.dr)],
+     ['Total credits',money(d.cr)],
+     ['Difference',money(Math.abs(d.dr-d.cr)),'',d.balanced?'g':'r'],
+     ['In balance',d.balanced?'Yes':'No','',d.balanced?'g':'r']])+
+   (d.balanced?'':`<div class="note" style="border-left-color:var(--red)">
+     <b>The ledger does not balance.</b> A difference of ${money(Math.abs(d.dr-d.cr))} is
+     not a rounding artefact and not something this screen can resolve. It is
+     an ERPNext question before it is a Darkbrown one.</div>`)+
+   `<div class="card"><h3>Trial balance</h3>
+    ${rows.length?`<div class="tw"><table><thead><tr><th>Code</th><th>Account</th><th>Class</th>
+      <th class="r">Debit</th><th class="r">Credit</th></tr></thead><tbody>
+    ${rows.map(r=>`<tr class="drill" onclick="go('#/account/'+'${encodeURIComponent(r[0])}')">
+      <td>${esc(String(r[0]))}</td><td>${esc(r[1])}</td><td>${esc(r[2])}</td>
+      <td class="r num">${r[4]?money(r[4]):'\u2014'}</td>
+      <td class="r num">${r[5]?money(r[5]):'\u2014'}</td></tr>`).join('')}
+    </tbody><tfoot><tr><th colspan="3">Total</th><th class="r num">${money(d.dr)}</th>
+      <th class="r num">${money(d.cr)}</th></tr></tfoot></table></div>`
+    :empty('Nothing has been posted to the ledger yet.')}
+    <div class="foot"><span>assets and expenses ${money(cls('Asset')+cls('Expense'))}</span>
+      <span>income less expenses ${money(cls('Income')-cls('Expense'))}</span></div></div>`)}
+window.trialLive=trialLive;
+
+/* The trial balance is asked as at a date, not over a window, so it has its
+   own call rather than reusing the windowed read — running it off `books`
+   would quietly drop every opening position and still print "in balance". */
 ROUTES.trial=()=>{
+  const c=lazy('trial','accounting.trial_balance');
+  if(c.state!=='ok'&&c.state!=='demo') return lazyPage('Trial balance','Reads the ledger as at today',c);
+  if(c.state==='ok') return trialLive(c.data);
   const used=COA.filter(a=>{const b=accBalance(a[0]);return b.dr||b.cr});
   const totDr=used.reduce((s,a)=>s+accBalance(a[0]).dr,0);
   const totCr=used.reduce((s,a)=>s+accBalance(a[0]).cr,0);
@@ -5896,14 +6081,47 @@ Object.entries(FOLDED).forEach(([from,to])=>{ROUTES[from]=()=>{setTimeout(()=>go
    Forms, integrations and overrides
    ================================================================ */
 window.classifyLine=id=>openForm('classify-line',{id});
+/* Live, the line being classified is a Bank Statement Line the server sent,
+   not a SHLINES row. Both are looked up through here so the form body does
+   not have to know which world it is in. */
+window.reconLine=id=>{
+  const d=(DB_LAZY.recon&&DB_LAZY.recon.data)||{};
+  return (d.flagged||[]).find(l=>l.id===id)||null;
+};
+window.reconOptions=()=>((DB_LAZY.recon&&DB_LAZY.recon.data&&DB_LAZY.recon.data.options)||[]);
 
 Object.assign(FORMS,{
 
-'classify-line':{t:'Classify a bank line',s:'Reconciliation · workflow 2C · decision D68',cta:'Save classification',
- init:ctx=>{const l=SHLINES.find(x=>x.id===ctx.id)||SHLINES[0];
+'classify-line':{t:'Classify a bank line',s:'Reconciliation \u00b7 workflow 2C \u00b7 decision D68',cta:'Save classification',
+ init:ctx=>{
+  const rl=window.DB_LIVE?reconLine(ctx&&ctx.id):null;
+  if(rl) return{__live:1,__l:rl.id,ref:rl.ref,when:rl.d,amount:n0(rl.amt),
+   narrative:rl.nar,dir:rl.dir==='Credit'?'Inflow':'Outflow',
+   cls:rl.suggest||'Choose one',__why:rl.why||''};
+  const l=SHLINES.find(x=>x.id===ctx.id)||SHLINES[0];
   return{__l:l.id,ref:l.id,when:l.d,amount:k(l.amt),narrative:l.nar,dir:l.inn?'Inflow':'Outflow',cls:'Choose one'}},
  steps:[
-  {n:'Classify',body:d=>{const l=SHLINES.find(x=>x.id===d.__l);
+  {n:'Classify',body:d=>{
+   if(d.__live){
+    const isEq=/Shareholder/.test(d.cls||'');
+    return `${d.__why?`<div class="note" style="border-left-color:var(--amber)">
+      <b>Suggested from the narrative.</b> ${esc(d.__why)}. A suggestion is a prompt to
+      look, not an answer \u2014 nothing is applied until you choose it.</div>`:''}
+    <div class="fg">
+     ${fld({k:'ref',l:'Bank reference',t:'ro'},d.ref)}
+     ${fld({k:'when',l:'Value date',t:'ro'},d.when)}
+     ${fld({k:'amount',l:'Amount',t:'ro'},d.amount)}
+     ${fld({k:'dir',l:'Direction',t:'ro'},d.dir)}
+     ${fld({k:'narrative',l:'Narrative',t:'ro',full:1},d.narrative)}
+     ${fld({k:'cls',l:'Classification',t:'sel',o:['Choose one',...reconOptions()],live:1,req:1},d.cls)}
+     ${fld({k:'note',l:'Note',t:'ta',p:'Why this is what it is \u2014 read by whoever asks later'},d.note)}
+    </div>
+    ${isEq?`<div class="note"><b>This is an equity movement, not a cost.</b> Tagging it takes it
+      out of the operating outflow immediately. It does <b>not</b> post to the owners' current
+      account: the posting account is Q21 and the owners module is Stage 2I, and writing an entry
+      against an account nobody has agreed would be a guess in the ledger. The tag is durable and
+      the posting run reads it once both are settled.</div>`:''}`}
+   const l=SHLINES.find(x=>x.id===d.__l);
    const opts=l.inn?['Choose one','Collection slip','Cheque clearing','Shareholder injection','Other income']
                    :['Choose one','Head-lease rent','Staff cost','Utilities','Maintenance','Administration','Petty cash','Shareholder drawing'];
    const isSh=/Shareholder/.test(d.cls||'');
@@ -5923,7 +6141,7 @@ Object.assign(FORMS,{
      You are classifying, not approving. The same user cannot do both without recording a reason.</div>`:''}
    ${isSh?`<div class="note" style="border-left-color:var(--em)"><b>Effect on the reserve.</b> Operating outflow falls from
      ${k(denomK())} to ${k(denomK()-l.amt)}, and the floor falls three times that — from ${k(floorK())} to ${k((denomK()-l.amt)*DPOL.months)}.</div>`:''}`},
-   check:d=>d.cls&&d.cls!=='Choose one'&&(!/Shareholder/.test(d.cls)||d.sh),
+   check:d=>d.cls&&d.cls!=='Choose one'&&(d.__live||!/Shareholder/.test(d.cls)||d.sh),
    msg:'Choose a classification, and a shareholder if this is an owner movement'}],
  submit:d=>{const l=SHLINES.find(x=>x.id===d.__l);l.cls=d.cls;
   if(/Shareholder/.test(d.cls)){const s=SHOLD.find(x=>x.n===d.sh)||SHOLD[0];
@@ -6088,6 +6306,79 @@ Object.assign(FORMS,{
    constant — sitting next to a live Import statement action. None of it came
    from a server. When live, each fabricated panel says so and the wired
    action stays. The demo rendering is untouched. */
+/* Reconciliation, read back.
+
+   The import path has been live for months: cashdesk.import_statement writes
+   a Bank Statement Import with its lines and a match status on each. Nothing
+   ever read it, so this screen showed a fixed 148 lines, 139 matched and 9
+   flagged beside real portfolio figures.
+
+   No reserve floor is computed. The denominator is Q11 and the posting
+   account is Q21; a floor built on either would be a number with a decimal
+   point and no meaning behind it. What is shown instead is the classified
+   value that is out of the cost base, which is the input that floor needs. */
+function reconLive(){
+ const c=lazy('recon','cashdesk.reconciliation');
+ if(c.state!=='ok') return lazyPage('Bank reconciliation',
+   'Reads imported statement lines',c);
+ const d=c.data, sm=d.summary||{};
+ if(!d.imports) return page('Bank reconciliation',
+   'Statement lines matched to cheques, collection slips and payments',
+   fbtn('Import statement','import-statement'),
+   `<div class="card">${empty('No bank statement has ever been imported. '+
+     'Reconciliation has nothing to read until one is \u2014 and it has never '+
+     'been run against a real statement, which is a go-live gate.')}</div>`);
+ const flagged=d.flagged||[], classified=d.classified||[];
+ return page('Bank reconciliation',
+  `${sm.lines} line${sm.lines===1?'':'s'} across ${d.imports} import${d.imports===1?'':'s'} \u00b7 last ${sm.last}`,
+  fbtn('Import statement','import-statement'),
+  stat([['Statement lines',sm.lines],['Matched',sm.matched,'','g'],
+   ['Open',sm.unmatched,sm.aged?sm.aged+' over five days':'none aged',sm.unmatched?'r':'g'],
+   ['Value open',n0(sm.value||0),'',sm.value?'a':'g'],
+   ['Classified',sm.classified],
+   ['Equity movement',n0(sm.drawings||0),'out of the cost base',sm.drawings?'g':'']])+
+  `<div class="card"><h3>Reconciliation workflow \u2014 2C</h3>
+   ${steps(['Import statement','Auto-match','Review exceptions','Post entries','Close period'],2)}</div>
+  <div class="note"><b>Three quarters of inflow value carries no payer identity.</b> Matching therefore runs
+   deposit to collection slip, and the slip carries the tenant attribution. Value date is used for matching,
+   posting date for the ledger \u2014 Doha Bank runs up to two days apart.</div>
+  ${d.deployed?'':`<div class="note" style="border-left-color:var(--red)">
+   <b>Classification fields are not on the site yet.</b> Run <b>bench migrate</b> and this queue becomes
+   writable. Until then the lines below can be read but not classified.</div>`}
+  <div class="card"><h3>Open lines \u2014 needs classification
+   ${flagged.length?`<span class="tag red">${flagged.length}</span>`:''}</h3>
+   ${flagged.length?tbl([
+    {h:'Bank ref',v:l=>esc(l.ref)},{h:'Date',r:1,v:l=>l.d},
+    {h:'Amount',r:1,mono:1,v:l=>n0(l.amt)},
+    {h:'Dir',v:l=>chip(l.dir,l.dir==='Credit'?'g':'n')},
+    {h:'Narrative',v:l=>esc(l.nar)},
+    {h:'Age',r:1,mono:1,v:l=>l.age+'d',style:l=>l.age>5?'color:var(--red)':''},
+    {h:'Suggested',v:l=>l.suggest?esc(l.suggest)+'<div style="font-size:10px;color:var(--dim)">'+esc(l.why)+'</div>':'\u2014'},
+    {h:'',v:l=>d.deployed?`<button class="btn" onclick="event.stopPropagation();classifyLine('${l.id}')">Classify</button>`:''}],
+    flagged.map(l=>({...l,__id:l.id})),{id:'shl',
+     foot:['a suggestion is a prompt to look, never an answer \u2014 nothing is applied without a person choosing it',
+      'owner drawings left in the cost base overstate the operating outflow']})
+   :`<div class="note" style="border-left-color:var(--em)"><b>Every line is accounted for.</b>
+     Nothing is waiting on a classification.</div>`}</div>
+  <div class="card"><h3>Classified</h3>
+   ${classified.length?tbl([
+    {h:'Bank ref',v:l=>esc(l.ref)},{h:'Date',r:1,v:l=>l.d},
+    {h:'Amount',r:1,mono:1,v:l=>n0(l.amt)},{h:'Narrative',v:l=>esc(l.nar)},
+    {h:'Classification',v:l=>chip(l.cls,l.equity?'a':'g')},
+    {h:'Note',v:l=>esc(l.note||'')},{h:'By',v:l=>esc(String(l.by||'').split('@')[0])}],
+    classified.map(l=>({...l,__id:l.id})),{id:'shc',
+     foot:['an equity movement is tagged here and posted by the owners module \u2014 blocked on Q21',
+      n0(sm.drawings||0)+' of equity movement is out of the operating outflow']})
+   :empty('Nothing classified yet')}</div>
+  <div class="card"><h3>Imports</h3>${tbl([
+   {h:'Import',v:r=>esc(r.id)},{h:'Bank',v:r=>esc(String(r.bank||'\u2014'))},
+   {h:'Period',v:r=>r.from+' to '+r.to},{h:'Lines',r:1,mono:1,v:r=>r.lines},
+   {h:'Matched',r:1,mono:1,v:r=>r.matched},
+   {h:'Unmatched',r:1,mono:1,v:r=>r.unmatched,style:r=>r.unmatched?'color:var(--red)':''},
+   {h:'When',r:1,v:r=>r.when}],
+   (d.runs||[]).map(r=>({...r,__id:r.id})),{id:'rci'})}</div>`)}
+window.reconLive=reconLive;
+
 ROUTES.recon=()=>{
  const live=!!window.DB_LIVE;
  const head=page('Bank reconciliation',
@@ -6102,13 +6393,7 @@ ROUTES.recon=()=>{
    <div class="note"><b>Three quarters of inflow value carries no payer identity.</b> Matching therefore runs deposit to collection slip, and the
     slip carries the tenant attribution. Value date is used for matching, posting date for the ledger — Doha Bank runs up to two days apart.</div>`);
 
- if(live) return head+
-  `<div class="card"><h3>Matching and classification</h3>
-   ${uw('A bank statement can be imported — that write path is live — but nothing reads the imported lines back to this screen. '+
-        'Matching, the classification queue and the reserve-floor arithmetic all need doc_intake.match_statement and '+
-        'doc_intake.apply_statement_line wired up. Those endpoints exist and are not called.')}</div>
-   <div class="card"><h3>Unmatched items</h3>
-   ${uw('The Command Centre derives an unmatched count from real records. This screen has never been pointed at it.')}</div>`;
+ if(live) return reconLive();
 
  return head+
   `<div class="card"><h3>Flagged on import — needs classification</h3>${
@@ -7157,18 +7442,26 @@ FORMS['issue-receipt']={t:'Issue a receipt',s:'Cash on the day · a cheque only 
 window.rcptCancel=id=>{const r=RC(id);r.st='Cancelled';toast('Receipt cancelled · issue a replacement');router()};
 
 ROUTES.receipts=()=>{
+ /* A receipt is a Payment Entry. There is no separate receipt record and
+    there should not be one — the list held an array the browser filled as it
+    issued them, so a reload emptied it and a live site showed none. */
+ const c=lazy('receipts','finance.receipts');
+ if(c.state!=='ok'&&c.state!=='demo')
+   return lazyPage('Receipts','Reads payment entries in ERPNext',c);
+ if(c.state==='ok'&&!c.applied){c.applied=1;
+   RCPT.length=0;(c.data.rows||[]).forEach(r=>RCPT.push(r));}
  const pend=CHQ.filter(c=>c.st==='Cleared'&&c.dir!=='out'&&!RCPT.some(r=>r.chq===c.id));
  return page('Receipts','Cash on the day · a cheque only once the bank confirms the clearing',
   fbtn('Issue a receipt','issue-receipt'),
   stat([['Issued',RCPT.filter(r=>r.st==='Issued').length],
    ['Cash',RCPT.filter(r=>r.kind==='Cash received').length],
    ['From cleared cheques',RCPT.filter(r=>r.kind==='Cheque cleared').length],
-   ['Value',k(RCPT.filter(r=>r.st==='Issued').reduce((a,r)=>a+r.amt,0))],
+   ['Value',n0(RCPT.filter(r=>r.st==='Issued').reduce((a,r)=>a+r.amt,0))],
    ['Awaiting a receipt',pend.length,'cheques cleared, not yet receipted',pend.length?'a':'g'],
    ['Cancelled',RCPT.filter(r=>r.st==='Cancelled').length]])+
   (pend.length?`<div class="card"><h3>Cleared cheques with no receipt yet</h3>${tbl([
     {h:'Cheque',v:c=>c.id},{h:'Drawer',v:c=>c.party||c.tn},{h:'Bank',v:c=>c.bank},
-    {h:'Amount',r:1,mono:1,v:c=>k(c.amt)},{h:'Cleared',r:1,v:c=>c.mat},
+    {h:'Amount',r:1,mono:1,v:c=>n0(c.amt)},{h:'Cleared',r:1,v:c=>c.mat},
     {h:'',v:c=>`<button class="btn" onclick="event.stopPropagation();openForm('issue-receipt',{kind:'Cheque cleared'})">Issue the receipt</button>`}],
     pend.map(c=>({...c,__id:c.id})),{id:'rcpp',
      foot:['a receipt is the proof of payment the tenant keeps','it follows the bank, not the cheque changing hands']})}</div>`:'')+
@@ -7176,14 +7469,49 @@ ROUTES.receipts=()=>{
   `<div class="card">${RCPT.length?tbl([
    {h:'Receipt',v:r=>r.id},{h:'Kind',v:r=>chip(r.kind.replace(' received','').replace(' cleared',''),
      r.kind==='Cash received'?'a':'n')},
-   {h:'Received from',v:r=>r.party},{h:'Amount',r:1,mono:1,v:r=>k(r.amt)},{h:'Date',r:1,v:r=>r.date},
+   {h:'Received from',v:r=>r.party},{h:'Amount',r:1,mono:1,v:r=>n0(r.amt)},{h:'Date',r:1,v:r=>r.date},
    {h:'Evidence',v:r=>r.slip?'Slip '+r.slip:r.stmt?r.stmt:'—'},
    {h:'Issued by',v:r=>r.by},{h:'Status',v:r=>chip(r.st,r.st==='Issued'?'g':'r')}],
    RCPT.map(r=>({...r,__id:r.id})),{id:'rcl',click:'openRC'})
   :empty('No receipts yet — issue one from a cash collection or a cleared cheque')}</div>`)};
 window.openRC=id=>go('#/receipt/'+id);
 
-ROUTES.receipt=id=>{const r=RC(id);if(!r)return empty('No receipt with that reference');
+ROUTES.receipt=id=>{
+ /* Live, the detail is fetched for the one receipt asked for rather than
+    found in a list that may never have been loaded — the list screen is not
+    a prerequisite for a link into this one. */
+ if(window.DB_LIVE){
+   const c=lazy('rcpt:'+id,'finance.receipt',{name:id});
+   if(c.state!=='ok') return lazyPage('Receipt',id,c);
+   const d=c.data;
+   return crumb([['Receipts','#/receipts'],[d.id,'']])+page(d.id,
+    `${d.party} \u00b7 ${n0(d.amt)} \u00b7 ${d.date}`,
+    actbtn('Print','Receipt printed'),
+    (d.st==='Cancelled'?`<div class="note" style="border-left-color:var(--red)"><b>Cancelled.</b>
+      The number stays used so the sequence has no hole in it.</div>`:'')+
+    `<div class="card receipt"><h3>Official receipt</h3>
+     <div class="kv">${[['Receipt number',d.id],['Date',d.date],['Received from',esc(String(d.party||'\u2014'))],
+       ['Amount',n0(d.amt)],['Method',esc(d.mode)],['Paid into',esc(d.acct)],
+       ...(d.ref&&d.ref!=='\u2014'?[['Reference',esc(d.ref)]]:[]),
+       ...(d.cheque?[['Cheque',esc(d.cheque.id)+' \u00b7 '+esc(d.cheque.st)]]:[]),
+       ['Issued by',esc(d.by)]]
+      .map(x=>`<div><span>${x[0]}</span><b>${x[1]}</b></div>`).join('')}</div>
+     <div class="foot"><span>DarkBrown Real Estate \u00b7 Doha, Qatar</span>
+      <span>${d.st==='Cancelled'?'cancelled':'posted to the ledger'}</span></div></div>
+    <div class="card"><h3>What it settled</h3>
+     ${(d.applied||[]).length?`<div class="tw"><table><thead><tr><th>Invoice</th>
+       <th class="r">Invoice total</th><th class="r">Applied here</th><th class="r">Still open</th>
+       </tr></thead><tbody>${d.applied.map(a=>`<tr><td>${esc(a.id)}</td>
+       <td class="r num">${a.total?n0(a.total):'\u2014'}</td>
+       <td class="r num">${n0(a.alloc)}</td>
+       <td class="r num">${a.left===null?'\u2014':n0(a.left)}</td></tr>`).join('')}</tbody></table></div>`
+      :empty('Nothing was open to settle, so the whole receipt sits unallocated.')}
+     ${d.un>0.005?`<div class="note"><b>${n0(d.un)} is unallocated.</b> It stays on the
+       tenant's account and will settle the next invoice raised against them.</div>`:''}
+     <div class="foot"><span>oldest open invoice first, unless one was named</span>
+      <span>allocation is what moves the tenant's balance, not the header</span></div></div>`);
+ }
+ const r=RC(id);if(!r)return empty('No receipt with that reference');
  return crumb([['Receipts','#/receipts'],[r.id,'']])+page(r.id,
   `${r.party} · ${k(r.amt)} · ${r.date}`,
   actbtn('Print','Receipt printed')+actbtn('Send to the tenant','Receipt sent by email and WhatsApp')+
@@ -7303,6 +7631,17 @@ const WIRE={
      .filter(r=>r.balance!==undefined&&r.balance!=='')}}),
  ok:r=>({title:'Cash position declared',msg:k(r.total)+' across '+r.declared.length+' account'+(r.declared.length===1?'':'s'),
    detail:'Declared '+r.on+' · the runway now opens from this figure'})},
+
+'classify-line':{
+ guard:d=>d.__live?null:'This line is not a record the server holds.',
+ m:'cashdesk.classify_line',
+ a:d=>({line:d.__l,classification:d.cls,note:(d.note||'').trim()||null}),
+ ok:(r,d)=>({title:r.equity?'Classified as an equity movement':'Classified',
+   msg:d.ref+' \u2014 '+r.classification,
+   detail:r.equity
+     ?'Out of the operating outflow. Nothing was posted to the owners\u2019 current account \u2014 that waits on Q21.'
+     :'It leaves the open queue at the next refresh.',
+   goto:'#/recon'})},
 
 'import-statement':{
  guard:d=>BANKS().length?null:'No company Bank Account records exist yet.',
@@ -7609,7 +7948,6 @@ const WIRE={
 /* Forms with no server behind them. Each says what is missing, and refuses to
    open rather than printing a confirmation for a save that never happened. */
 const BLOCKED={
- 'classify-line':'Classification writes to a reconciliation workbench that has not been built. Until it is, open the Bank Statement Import in the desk and set the line to Matched or Excluded there.',
  'journal-entry':'Manual journals post straight to the ledger, so this stays shut until the posting rules are agreed. Everything the app posts today goes through a named workflow.',
  'send-doc':'There is no send path \u2014 no template, no delivery, no record that it went. The document is in the vault and can be downloaded from there.',
  'generate-report':'Reporting has not been built against live records. Anything produced here would be the prototype\u2019s own figures.',

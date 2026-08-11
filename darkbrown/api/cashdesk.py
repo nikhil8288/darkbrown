@@ -21,7 +21,8 @@ Three rules hold this module together:
 import json
 
 import frappe
-from frappe.utils import flt, get_datetime, getdate, now_datetime, today
+from frappe.utils import (flt, date_diff, get_datetime, getdate,
+                          now_datetime, today)
 from darkbrown.guards import guard, ACC, MD
 
 
@@ -346,6 +347,216 @@ def unmatched_summary():
                sum(case when datediff(%s, txn_date) > 5 then 1 else 0 end)
         from `tabBank Statement Line` where status = 'Unmatched'
     """, (today(),))[0]
+    # Whole riyals. This used to divide by a thousand on the way out, so the
+    # panel's own label said QAR and showed thousandths of one.
     return {"imports": 1, "weeks": weeks, "items": open_rows[0],
-            "value": round(flt(open_rows[1]) / 1000.0, 1),
+            "value": round(flt(open_rows[1]), 2),
             "aged": int(open_rows[2] or 0)}
+
+
+# --------------------------------------------------- classification workbench
+
+#: What a bank line can be, and what that means for the cost base.
+#:
+#: `operating` decides whether the line belongs in the operating outflow the
+#: reserve floor is computed on. An owner drawing is an equity movement, not a
+#: cost, and leaving it in overstates the denominator — which is the whole
+#: reason this screen exists.
+#:
+#: `equity` marks the two that move the owners' current account. Tagging one
+#: does not post it. The posting account is Q21 and the Owners module is
+#: Stage 2I; writing an equity entry against an account nobody has agreed
+#: would be a guess in the ledger, which is the one place a guess must not go.
+#: The tag is durable and the posting can be run against it later.
+CLASSIFICATIONS = {
+    "Tenant collection": {"operating": True},
+    "Landlord payment": {"operating": True},
+    "Payroll": {"operating": True},
+    "Utility payment": {"operating": True},
+    "Maintenance cost": {"operating": True},
+    "Petty cash top-up": {"operating": True},
+    "Bank charge": {"operating": True},
+    "Other operating cost": {"operating": True},
+    "Shareholder drawing": {"operating": False, "equity": True},
+    "Shareholder injection": {"operating": False, "equity": True},
+    "Transfer between own accounts": {"operating": False},
+    "Unattributed cash": {"operating": True},
+}
+
+#: Narrative fragments that suggest what a line is. A suggestion is a prompt to
+#: look, never an answer — nothing is applied without a person choosing it.
+HINTS = (
+    ("shareholder drawing", ("kunhabdu", "khayaz", "raziya")),
+    ("Bank charge", ("charge", "fee", "commission", "returned item")),
+    ("Unattributed cash", ("atm", "cash wdl", "cash withdrawal")),
+    ("Petty cash top-up", ("petty",)),
+    ("Payroll", ("salary", "payroll", "wps")),
+)
+
+
+def _suggest(line):
+    narrative = (line.get("narrative") or "").lower()
+    for label, needles in HINTS:
+        for n in needles:
+            if n in narrative:
+                # The shareholder hint is a name match, and a name match is
+                # the weakest evidence there is — two people can share one.
+                if label == "shareholder drawing":
+                    return ("Shareholder drawing",
+                            "payer name matches a shareholder — verify")
+                return (label, f"narrative contains '{n}'")
+    return (None, "")
+
+
+@frappe.whitelist()
+def reconciliation(limit=200):
+    """Everything the reconciliation screen shows, read from the imports.
+
+    The import path has been live for months and nothing ever read it back,
+    so the screen showed a fixed 148/139/9 next to real portfolio figures.
+    This is the read side: what was imported, what matched, what is still
+    open, and what has been classified out of the cost base.
+
+    No reserve floor is computed here. The denominator is Q11 and the
+    posting account is Q21; a floor built on either would be a number with
+    a decimal point and no meaning.
+    """
+    guard(MD, ACC)
+    limit = int(limit or 200)
+
+    imports = frappe.get_all(
+        "Bank Statement Import",
+        fields=["name", "bank_account", "from_date", "to_date", "status",
+                "total_lines", "matched", "unmatched", "creation"],
+        order_by="creation desc", limit=20)
+    if not imports:
+        return {"imports": 0, "lines": [], "classified": [], "flagged": [],
+                "summary": {}, "runs": []}
+
+    has_classification = frappe.get_meta(
+        "Bank Statement Line").has_field("classification")
+
+    fields = ["name", "parent", "txn_date", "bank_ref", "narrative", "amount",
+              "direction", "status", "matched_type", "matched_ref"]
+    if has_classification:
+        fields += ["classification", "classify_note", "classified_by",
+                   "classified_on"]
+
+    rows = frappe.get_all(
+        "Bank Statement Line", filters={"parenttype": "Bank Statement Import"},
+        fields=fields, order_by="txn_date desc", limit=5000)
+
+    total = len(rows)
+    matched = sum(1 for r in rows if r.status == "Matched")
+    classified, flagged = [], []
+    drawings = 0.0
+    operating_out = 0.0
+
+    for r in rows:
+        cls = r.get("classification") if has_classification else None
+        amount = flt(r.amount)
+        debit = r.direction == "Debit"
+        if cls:
+            rule = CLASSIFICATIONS.get(cls, {})
+            if rule.get("equity"):
+                drawings += amount
+            elif debit and rule.get("operating"):
+                operating_out += amount
+            classified.append({
+                "id": r.name, "ref": r.bank_ref or "—",
+                "d": str(r.txn_date), "amt": amount, "dir": r.direction,
+                "nar": r.narrative or "—", "cls": cls,
+                "note": r.get("classify_note") or "",
+                "by": r.get("classified_by") or "",
+                "equity": bool(rule.get("equity")),
+            })
+            continue
+        if r.status in ("Matched", "Excluded"):
+            if debit:
+                operating_out += amount
+            continue
+        suggestion, why = _suggest(r)
+        row = {
+            "id": r.name, "ref": r.bank_ref or "—", "d": str(r.txn_date),
+            "amt": amount, "dir": r.direction, "nar": r.narrative or "—",
+            "age": date_diff(today(), r.txn_date) if r.txn_date else 0,
+            "suggest": suggestion, "why": why,
+            "flag": why or "no record matched on amount and date",
+            "import": r.parent,
+        }
+        flagged.append(row)
+        if debit:
+            operating_out += amount
+
+    flagged.sort(key=lambda r: -r["age"])
+    classified.sort(key=lambda r: r["d"], reverse=True)
+
+    return {
+        "imports": len(imports),
+        "runs": [{"id": i.name, "bank": i.bank_account,
+                  "from": str(i.from_date or ""), "to": str(i.to_date or ""),
+                  "lines": i.total_lines, "matched": i.matched,
+                  "unmatched": i.unmatched, "st": i.status,
+                  "when": str(i.creation)[:16]} for i in imports],
+        "flagged": flagged[:limit],
+        "classified": classified[:limit],
+        "options": sorted(CLASSIFICATIONS.keys()),
+        "deployed": has_classification,
+        "summary": {
+            "lines": total,
+            "matched": matched,
+            "unmatched": len(flagged),
+            "classified": len(classified),
+            "value": round(sum(r["amt"] for r in flagged), 2),
+            "aged": sum(1 for r in flagged if r["age"] > 5),
+            "drawings": round(drawings, 2),
+            "operating": round(operating_out, 2),
+            "last": str(imports[0].creation)[:16],
+        },
+    }
+
+
+@frappe.whitelist()
+def classify_line(line, classification, note=None):
+    """Tag one bank line with what it actually is.
+
+    This writes a classification and nothing else. It does not post, does not
+    clear a cheque and does not touch the owners' current account: an equity
+    movement needs an agreed posting account (Q21) and Stage 2I behind it, and
+    until both exist the honest thing to record is the classification itself,
+    which the posting run can then be driven from.
+    """
+    guard(MD, ACC)
+    if classification not in CLASSIFICATIONS:
+        frappe.throw(f"{classification} is not a classification this app knows.")
+    meta = frappe.get_meta("Bank Statement Line")
+    if not meta.has_field("classification"):
+        frappe.throw("Classification fields are not on the site yet — "
+                     "run bench migrate.")
+
+    parent = frappe.db.get_value("Bank Statement Line", line, "parent")
+    if not parent:
+        frappe.throw("That statement line is not on any import.")
+    doc = frappe.get_doc("Bank Statement Import", parent)
+    row = next((l for l in doc.lines if l.name == line), None)
+    if not row:
+        frappe.throw("That statement line is not on any import.")
+
+    rule = CLASSIFICATIONS[classification]
+    row.classification = classification
+    row.classify_note = (note or "").strip() or None
+    row.classified_by = frappe.session.user
+    row.classified_on = now_datetime()
+    # A line that is not an operating movement is out of the cost base, and
+    # the status has to say so or the next reader has to know the rule.
+    if not rule.get("operating"):
+        row.status = "Excluded"
+    elif row.status == "Unmatched":
+        row.status = "Classified"
+
+    doc.flags.ignore_permissions = True
+    doc.save()
+    frappe.db.commit()
+    return {"line": line, "classification": classification,
+            "status": row.status, "equity": bool(rule.get("equity")),
+            "import": parent}
