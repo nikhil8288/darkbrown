@@ -3,9 +3,9 @@
   "building_name": "AK-12",
   "status": "Active",
   "area_name": "Ain Khalid",
-  "company": null,
   "landlord": {
-   "supplier_name": "AL MADAR REAL ESTATE W.L.L"
+   "name": "AL MADAR REAL ESTATE W.L.L",
+   "type": "Company"
   },
   "units": [
    {
@@ -48,15 +48,21 @@
     "unit_type": "",
     "status": "Occupied"
    }
-  ]
+  ],
+  "head_lease": {
+   "annual_rent": 216000.0,
+   "start_date": "2025-11-01",
+   "end_date": "2026-11-30",
+   "payment_frequency": "Monthly"
+  }
  },
  {
   "building_name": "DAJ-21",
   "status": "Active",
   "area_name": "Doha Al Jadeeda",
-  "company": null,
   "landlord": {
-   "supplier_name": "HASSAN BIN HASSAN AL JUFFAIRY"
+   "name": "HASSAN BIN HASSAN AL JUFFAIRY",
+   "type": "Individual"
   },
   "units": [
    {
@@ -184,15 +190,21 @@
     "unit_type": "2BR",
     "status": "Occupied"
    }
-  ]
+  ],
+  "head_lease": {
+   "annual_rent": 936000.0,
+   "start_date": "2025-09-01",
+   "end_date": "2027-08-31",
+   "payment_frequency": "Monthly"
+  }
  },
  {
   "building_name": "MR-130",
   "status": "Active",
   "area_name": "Mansoura",
-  "company": null,
   "landlord": {
-   "supplier_name": "AHMED A RAHMAN AL AL SHEEBI"
+   "name": "AHMED A RAHMAN AL AL SHEEBI",
+   "type": "Individual"
   },
   "units": [
    {
@@ -245,15 +257,21 @@
     "unit_type": "2BR",
     "status": "Occupied"
    }
-  ]
+  ],
+  "head_lease": {
+   "annual_rent": 408000.0,
+   "start_date": "2025-11-01",
+   "end_date": "2028-10-31",
+   "payment_frequency": "Monthly"
+  }
  },
  {
   "building_name": "MQ-56",
   "status": "Active",
   "area_name": "Mathar Qadeem",
-  "company": null,
   "landlord": {
-   "supplier_name": "JASIM ALI A A SHAMS"
+   "name": "JASIM ALI A A SHAMS",
+   "type": "Individual"
   },
   "units": [
    {
@@ -301,15 +319,21 @@
     "unit_type": "2BR",
     "status": "Occupied"
    }
-  ]
+  ],
+  "head_lease": {
+   "annual_rent": 180000.0,
+   "start_date": "2025-12-01",
+   "end_date": "2028-03-31",
+   "payment_frequency": "Monthly"
+  }
  },
  {
   "building_name": "MT-21",
   "status": "Active",
   "area_name": "Muaither",
-  "company": null,
   "landlord": {
-   "supplier_name": "AYSHA MOHAMMED AL MAHMOUD"
+   "name": "AYSHA MOHAMMED AL MAHMOUD",
+   "type": "Individual"
   },
   "units": [
    {
@@ -317,15 +341,21 @@
     "unit_type": "",
     "status": "Occupied"
    }
-  ]
+  ],
+  "head_lease": {
+   "annual_rent": 240000.0,
+   "start_date": "2025-08-01",
+   "end_date": "2026-07-31",
+   "payment_frequency": "Monthly"
+  }
  },
  {
   "building_name": "OG-48",
   "status": "Active",
   "area_name": "Old Al Ghanim",
-  "company": null,
   "landlord": {
-   "supplier_name": "SULTHAN GHANIM S AL GHANIM"
+   "name": "SULTHAN GHANIM S AL GHANIM",
+   "type": "Individual"
   },
   "units": [
    {
@@ -418,15 +448,21 @@
     "unit_type": "1BR",
     "status": "Occupied"
    }
-  ]
+  ],
+  "head_lease": {
+   "annual_rent": 624000.0,
+   "start_date": "2026-02-01",
+   "end_date": "2027-01-31",
+   "payment_frequency": "Monthly"
+  }
  },
  {
   "building_name": "TV-20",
   "status": "Active",
   "area_name": "Thumama",
-  "company": null,
   "landlord": {
-   "supplier_name": "JAMAL JASSIM M AL-HADDAD"
+   "name": "JAMAL JASSIM M AL-HADDAD",
+   "type": "Individual"
   },
   "units": [
    {
@@ -474,15 +510,21 @@
     "unit_type": "Studio",
     "status": "Occupied"
    }
-  ]
+  ],
+  "head_lease": {
+   "annual_rent": 156000.0,
+   "start_date": "2025-11-01",
+   "end_date": "2027-08-31",
+   "payment_frequency": "Monthly"
+  }
  },
  {
   "building_name": "TV-27",
   "status": "Active",
   "area_name": "Thumama",
-  "company": null,
   "landlord": {
-   "supplier_name": "(not identified)"
+   "name": "(landlord not identified) TV-27",
+   "type": "Individual"
   },
   "units": [
    {
@@ -540,15 +582,21 @@
     "unit_type": "",
     "status": "Occupied"
    }
-  ]
+  ],
+  "head_lease": {
+   "annual_rent": 300000.0,
+   "start_date": "2026-01-01",
+   "end_date": "2028-02-29",
+   "payment_frequency": "Monthly"
+  }
  },
  {
   "building_name": "TV-66",
   "status": "Active",
   "area_name": "Thumama",
-  "company": null,
   "landlord": {
-   "supplier_name": "ALI MUBARAK Y A AL-KUWARI"
+   "name": "ALI MUBARAK Y A AL-KUWARI",
+   "type": "Individual"
   },
   "units": [
    {
@@ -596,15 +644,21 @@
     "unit_type": "",
     "status": "Occupied"
    }
-  ]
+  ],
+  "head_lease": {
+   "annual_rent": 168000.0,
+   "start_date": "2025-09-01",
+   "end_date": "2027-09-30",
+   "payment_frequency": "Monthly"
+  }
  },
  {
   "building_name": "TV-68",
   "status": "Active",
   "area_name": "Thumama",
-  "company": null,
   "landlord": {
-   "supplier_name": "ALI MUBARAK Y A AL-KUWARI"
+   "name": "ALI MUBARAK Y A AL-KUWARI",
+   "type": "Individual"
   },
   "units": [
    {
@@ -652,15 +706,21 @@
     "unit_type": "",
     "status": "Occupied"
    }
-  ]
+  ],
+  "head_lease": {
+   "annual_rent": 168000.0,
+   "start_date": "2025-09-01",
+   "end_date": "2027-09-30",
+   "payment_frequency": "Monthly"
+  }
  },
  {
   "building_name": "TWR-12",
   "status": "Active",
   "area_name": "Twar",
-  "company": null,
   "landlord": {
-   "supplier_name": "AL ADEKHAR REAL ESTATE L.L.C"
+   "name": "AL ADEKHAR REAL ESTATE L.L.C",
+   "type": "Company"
   },
   "units": [
    {
@@ -738,15 +798,21 @@
     "unit_type": "",
     "status": "Occupied"
    }
-  ]
+  ],
+  "head_lease": {
+   "annual_rent": 192000.0,
+   "start_date": "2026-03-01",
+   "end_date": "2028-07-31",
+   "payment_frequency": "Monthly"
+  }
  },
  {
   "building_name": "TWR-16",
   "status": "Active",
   "area_name": "Twar",
-  "company": null,
   "landlord": {
-   "supplier_name": "AL ADEKHAR REAL ESTATE L.L.C"
+   "name": "AL ADEKHAR REAL ESTATE L.L.C",
+   "type": "Company"
   },
   "units": [
    {
@@ -824,15 +890,21 @@
     "unit_type": "",
     "status": "Occupied"
    }
-  ]
+  ],
+  "head_lease": {
+   "annual_rent": 192000.0,
+   "start_date": "2026-03-01",
+   "end_date": "2028-04-30",
+   "payment_frequency": "Monthly"
+  }
  },
  {
   "building_name": "TWR-17",
   "status": "Active",
   "area_name": "Twar",
-  "company": null,
   "landlord": {
-   "supplier_name": "AL ADEKHAR REAL ESTATE L.L.C"
+   "name": "AL ADEKHAR REAL ESTATE L.L.C",
+   "type": "Company"
   },
   "units": [
    {
@@ -910,15 +982,21 @@
     "unit_type": "",
     "status": "Vacant"
    }
-  ]
+  ],
+  "head_lease": {
+   "annual_rent": 192000.0,
+   "start_date": "2026-03-01",
+   "end_date": "2029-01-31",
+   "payment_frequency": "Monthly"
+  }
  },
  {
   "building_name": "TWR-19",
   "status": "Active",
   "area_name": "Twar",
-  "company": null,
   "landlord": {
-   "supplier_name": "AL ADEKHAR REAL ESTATE L.L.C"
+   "name": "AL ADEKHAR REAL ESTATE L.L.C",
+   "type": "Company"
   },
   "units": [
    {
@@ -996,15 +1074,21 @@
     "unit_type": "",
     "status": "Vacant"
    }
-  ]
+  ],
+  "head_lease": {
+   "annual_rent": 192000.0,
+   "start_date": "2026-03-01",
+   "end_date": "2029-01-31",
+   "payment_frequency": "Monthly"
+  }
  },
  {
   "building_name": "TWR-20",
   "status": "Active",
   "area_name": "Twar",
-  "company": null,
   "landlord": {
-   "supplier_name": "AL ADEKHAR REAL ESTATE L.L.C"
+   "name": "AL ADEKHAR REAL ESTATE L.L.C",
+   "type": "Company"
   },
   "units": [
    {
@@ -1142,15 +1226,21 @@
     "unit_type": "",
     "status": "Occupied"
    }
-  ]
+  ],
+  "head_lease": {
+   "annual_rent": 192000.0,
+   "start_date": "2026-03-01",
+   "end_date": "2028-04-30",
+   "payment_frequency": "Monthly"
+  }
  },
  {
   "building_name": "TWR-35",
   "status": "Active",
   "area_name": "Twar",
-  "company": null,
   "landlord": {
-   "supplier_name": "AL ADEKHAR REAL ESTATE L.L.C"
+   "name": "AL ADEKHAR REAL ESTATE L.L.C",
+   "type": "Company"
   },
   "units": [
    {
@@ -1233,15 +1323,21 @@
     "unit_type": "",
     "status": "Occupied"
    }
-  ]
+  ],
+  "head_lease": {
+   "annual_rent": 192000.0,
+   "start_date": "2026-03-01",
+   "end_date": "2028-09-30",
+   "payment_frequency": "Monthly"
+  }
  },
  {
   "building_name": "TWR-37",
   "status": "Active",
   "area_name": "Twar",
-  "company": null,
   "landlord": {
-   "supplier_name": "AL ADEKHAR REAL ESTATE L.L.C"
+   "name": "AL ADEKHAR REAL ESTATE L.L.C",
+   "type": "Company"
   },
   "units": [
    {
@@ -1309,15 +1405,21 @@
     "unit_type": "",
     "status": "Occupied"
    }
-  ]
+  ],
+  "head_lease": {
+   "annual_rent": 192000.0,
+   "start_date": "2026-03-01",
+   "end_date": "2029-01-31",
+   "payment_frequency": "Monthly"
+  }
  },
  {
   "building_name": "TWR-39",
   "status": "Active",
   "area_name": "Twar",
-  "company": null,
   "landlord": {
-   "supplier_name": "AL ADEKHAR REAL ESTATE L.L.C"
+   "name": "AL ADEKHAR REAL ESTATE L.L.C",
+   "type": "Company"
   },
   "units": [
    {
@@ -1395,15 +1497,21 @@
     "unit_type": "",
     "status": "Occupied"
    }
-  ]
+  ],
+  "head_lease": {
+   "annual_rent": 192000.0,
+   "start_date": "2026-03-01",
+   "end_date": "2028-09-30",
+   "payment_frequency": "Monthly"
+  }
  },
  {
   "building_name": "TWR-45",
   "status": "Active",
   "area_name": "Twar",
-  "company": null,
   "landlord": {
-   "supplier_name": "AL ADEKHAR REAL ESTATE L.L.C"
+   "name": "AL ADEKHAR REAL ESTATE L.L.C",
+   "type": "Company"
   },
   "units": [
    {
@@ -1476,15 +1584,21 @@
     "unit_type": "",
     "status": "Occupied"
    }
-  ]
+  ],
+  "head_lease": {
+   "annual_rent": 192000.0,
+   "start_date": "2026-03-01",
+   "end_date": "2028-04-30",
+   "payment_frequency": "Monthly"
+  }
  },
  {
   "building_name": "TWR-58",
   "status": "Active",
   "area_name": "Twar",
-  "company": null,
   "landlord": {
-   "supplier_name": "AL ADEKHAR REAL ESTATE L.L.C"
+   "name": "AL ADEKHAR REAL ESTATE L.L.C",
+   "type": "Company"
   },
   "units": [
    {
@@ -1547,15 +1661,21 @@
     "unit_type": "",
     "status": "Occupied"
    }
-  ]
+  ],
+  "head_lease": {
+   "annual_rent": 192000.0,
+   "start_date": "2026-03-01",
+   "end_date": "2028-04-30",
+   "payment_frequency": "Monthly"
+  }
  },
  {
   "building_name": "UG-169",
   "status": "Active",
   "area_name": "Umm Ghuwailina",
-  "company": null,
   "landlord": {
-   "supplier_name": "(not identified)"
+   "name": "(landlord not identified) UG-169",
+   "type": "Individual"
   },
   "units": [
    {
@@ -1603,15 +1723,21 @@
     "unit_type": "",
     "status": "Occupied"
    }
-  ]
+  ],
+  "head_lease": {
+   "annual_rent": 180000.0,
+   "start_date": "2026-01-01",
+   "end_date": "2028-12-31",
+   "payment_frequency": "Monthly"
+  }
  },
  {
   "building_name": "UG-180",
   "status": "Active",
   "area_name": "Umm Ghuwailina",
-  "company": null,
   "landlord": {
-   "supplier_name": "(not identified)"
+   "name": "(landlord not identified) UG-180",
+   "type": "Individual"
   },
   "units": [
    {
@@ -1689,15 +1815,21 @@
     "unit_type": "",
     "status": "Vacant"
    }
-  ]
+  ],
+  "head_lease": {
+   "annual_rent": 180000.0,
+   "start_date": "2026-01-01",
+   "end_date": "2028-12-31",
+   "payment_frequency": "Monthly"
+  }
  },
  {
   "building_name": "UG-20",
   "status": "Active",
   "area_name": "Umm Ghuwailina",
-  "company": null,
   "landlord": {
-   "supplier_name": "(not identified)"
+   "name": "(landlord not identified) UG-20",
+   "type": "Individual"
   },
   "units": [
    {
@@ -1775,6 +1907,12 @@
     "unit_type": "3BR",
     "status": "Occupied"
    }
-  ]
+  ],
+  "head_lease": {
+   "annual_rent": 672000.0,
+   "start_date": "2026-02-01",
+   "end_date": "2028-01-31",
+   "payment_frequency": "Monthly"
+  }
  }
 ]

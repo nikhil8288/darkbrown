@@ -4,7 +4,7 @@ Unpacks over the repo root. Everything lands in `darkbrown/patches/`.
 
     darkbrown/patches/tenancies.csv            266 live agreements
     darkbrown/patches/opening_arrears.csv       56 rows, 124,202.00
-    darkbrown/patches/buildings_payload.json    23 buildings, 305 units
+    darkbrown/patches/buildings_payload.json    23 buildings, 305 units, 23 head leases
     darkbrown/patches/customers.json           432 tenant names
     darkbrown/patches/load_buildings.py        new — no bulk building importer existed
     darkbrown/patches/load_customers.py        new — no bulk customer importer existed
@@ -17,11 +17,30 @@ Unpacks over the repo root. Everything lands in `darkbrown/patches/`.
 The pack is built for reading and the importers are built for loading, and their
 column contracts are not the same. Three gaps had to be closed:
 
+**Correction — v2, 28-Aug.** The first cut of `buildings_payload.json` passed the
+landlord as `{"supplier_name": ...}`. `portfolio._landlord()` reads `name`, so it
+resolved to empty and threw "The building needs a landlord" on every one of the
+23 buildings — nothing was created, and with no units the tenancy import had
+nothing to resolve against either. Fixed, and this time the payload was executed
+against the real `onboard_building` rather than only inspected: 23 of 23 onboard,
+305 units, 13 suppliers, 23 head leases, and all 266 tenancy unit keys resolve.
+
 **No bulk building or customer importer existed.** `portfolio.onboard_building` is
 one atomic wizard call per building; `import_tenancies` refuses to auto-create a
 Customer by design, because a typo would otherwise become a party with a ledger.
 So 23 buildings, 305 units and 432 customers had no route in. Two new scripts
 drive the existing endpoints rather than working around them.
+
+**Head leases come in with the buildings.** `onboard_building` creates a Head
+Lease in the same atomic pass when `annual_rent` and `start_date` are both
+present, so the payload carries them. There is no head-lease importer and now
+none is needed. Total lands at 529,000 a month, which is the FREE MONTH control.
+
+**Four buildings have no named landlord.** TV-27, UG-169, UG-180 and UG-20 read
+`(not identified)` in the source. Rather than file four buildings' documents
+against one shared anonymous Supplier, each gets its own placeholder —
+`(landlord not identified) TV-27` and so on — so they can be corrected one at a
+time as the head-lease papers surface.
 
 **The old `opening_arrears.csv` was keyed on the superseded TWAR convention.** It
 used room numbers as `R-nn`; the ledger — and therefore the unit master — uses
@@ -93,7 +112,8 @@ never merged — so a partial failure is safe to re-run.
   matches the figure the business already knows, which is the strongest single
   check that the tenancy book landed correctly.
 - Opening arrears **124,202** across 56 rows.
-- 23 buildings, 305 units, 432 customers, 266 active tenancies.
+- 23 buildings, 305 units, 432 customers, 266 active tenancies, 23 head leases.
+- Head-lease rent **529,000** a month across the live agreements.
 - Balance sheet says Balanced; cash flow says Reconciled.
 - Every tenancy will show `missing_items` and `activation_route = Routed for
   Approval`, because no QID or signed pack is in the system yet. That is not a
