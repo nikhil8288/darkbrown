@@ -8,27 +8,50 @@ Past due dates mean the existing auto_open_cases scheduled job will open
 Collection Cases automatically on its next run, which feeds get_arrears()
 and the MD dashboard Arrears alert.
 
-DRY RUN (matches names, creates nothing — always run this first):
-    bench --site erp.darkbrown.qa execute darkbrown.patches.seed_opening_arrears.dry_run
+    STEP 1  bench --site erp.darkbrown.qa execute darkbrown.patches.seed_opening_arrears.dry_run
+    STEP 2  map any unmatched names in arrears_name_map.csv, re-run dry_run
+    STEP 3  bench --site erp.darkbrown.qa execute darkbrown.patches.seed_opening_arrears.run
 
-REAL RUN:
-    bench --site erp.darkbrown.qa execute darkbrown.patches.seed_opening_arrears.run
+MATCHING (A-1, A-3)
+    Exact normalised name only. There is no fuzzy fallback: a token-overlap
+    match posts one tenant's arrears onto another tenant's receivable, and
+    with the shared name components common in this tenant base it fires often.
+    Anything that does not match exactly goes in arrears_name_map.csv, which is
+    a two-column file a human fills in and commits:
 
-Idempotent: each invoice carries a remarks tag SEED-ARREARS-<n>; rows whose
-tag already exists on a non-cancelled Sales Invoice are skipped.
+        tenant_name,customer
+        THASMEER/ SHAMNADH,CUST-00042
+
+    run() ABORTS while any row is unmatched. It never invents a Customer.
+
+IDEMPOTENCY (A-2)
+    Each invoice carries a delimited, zero-padded tag [SEED-ARREARS-001].
+    Existing tags are read once, up front, and compared as exact strings.
+    The previous version tested `remarks LIKE '%SEED-ARREARS-1%'` per row,
+    which also matched -10..-19, so rows 1-7 of a 78-row file were silently
+    skipped on any re-run after a partial failure.
+
+This module is deliberately NOT a Frappe patch. It is bench-execute only, so
+that a migrate can never post to the ledger as a side effect.
 """
 import csv
 import os
 import re
 
 import frappe
-from frappe.utils import today
 
 CSV = os.path.join(os.path.dirname(__file__), "opening_arrears.csv")
+NAME_MAP = os.path.join(os.path.dirname(__file__), "arrears_name_map.csv")
 
-# TESTING PHASE: auto-create a Customer for any unmatched tenant name
-# instead of aborting. Set to False before the real go-live run.
-TEST_MODE = True
+TAG_PREFIX = "SEED-ARREARS"
+TAG_RE = re.compile(r"\[(%s-\d{3})\]" % TAG_PREFIX)
+
+EXPECTED_TOTAL = 216519.00
+
+
+def _tag(i):
+    """Delimited and zero-padded so no tag is a substring of another."""
+    return "[%s-%03d]" % (TAG_PREFIX, i + 1)
 
 
 # ---------------------------------------------------------------- matching
@@ -41,41 +64,56 @@ def _norm(s):
 
 
 def _customer_index():
-    """name-normalised lookup of all Customers."""
+    """name-normalised lookup of all Customers.
+
+    A normalised name that resolves to more than one Customer is ambiguous and
+    is treated as no match at all — picking the first would be arbitrary.
+    """
     idx = {}
     for c in frappe.get_all("Customer", fields=["name", "customer_name"]):
         idx.setdefault(_norm(c.customer_name), []).append(c.name)
     return idx
 
 
-def _match_customer(tenant_name, idx):
-    n = _norm(tenant_name)
-    if n in idx:
-        return idx[n][0], "exact"
-    # containment either way (handles 'THASMEER/ SHAMNADH ...' style rows)
-    cands = [(k, v) for k, v in idx.items()
-             if (n in k or k in n) and len(k) >= 8]
-    if len(cands) == 1:
-        return cands[0][1][0], "contains"
-    # token-overlap fallback: >= 2 shared tokens of length >= 4
-    toks = {t for t in n.split() if len(t) >= 4}
-    best, best_score = None, 0
-    for k, v in idx.items():
-        score = len(toks & {t for t in k.split() if len(t) >= 4})
-        if score > best_score:
-            best, best_score = v[0], score
-    if best_score >= 2:
-        return best, "fuzzy"
-    return None, "unmatched"
+def _name_map():
+    """Human-curated tenant_name -> Customer docname overrides."""
+    if not os.path.exists(NAME_MAP):
+        return {}
+    out = {}
+    with open(NAME_MAP) as f:
+        for row in csv.DictReader(f):
+            src = _norm(row.get("tenant_name"))
+            dest = (row.get("customer") or "").strip()
+            if src and dest:
+                out[src] = dest
+    return out
 
+
+def _match_customer(tenant_name, idx, overrides):
+    n = _norm(tenant_name)
+    if n in overrides:
+        cust = overrides[n]
+        if not frappe.db.exists("Customer", cust):
+            return None, "map-target-missing"
+        return cust, "mapped"
+    hit = idx.get(n)
+    if not hit:
+        return None, "unmatched"
+    if len(hit) > 1:
+        return None, "ambiguous"
+    return hit[0], "exact"
+
+
+# ---------------------------------------------------------------- accounts
 
 def _resolve_accounts():
     company = frappe.defaults.get_global_default("company") or \
         frappe.get_all("Company", limit=1)[0].name
-    abbr = frappe.db.get_value("Company", company, "abbr")
     debtor = frappe.db.get_value(
         "Account", {"account_type": "Receivable", "company": company,
                     "is_group": 0}, "name")
+    if not debtor:
+        frappe.throw("No receivable Account found for company %s." % company)
     temp_open = frappe.db.get_value(
         "Account", {"account_name": "Temporary Opening", "company": company},
         "name")
@@ -90,20 +128,36 @@ def _resolve_accounts():
                             "parent_account": ["is", "not set"]}, "name"),
             "account_type": "Temporary",
         }).insert(ignore_permissions=True).name
-    return company, abbr, debtor, temp_open
+    return company, debtor, temp_open
 
+
+# ---------------------------------------------------------------- rows
 
 def _load_rows():
     with open(CSV) as f:
         return list(csv.DictReader(f))
 
 
-def _report(rows, idx):
+def _report(rows, idx, overrides):
     matched, unmatched = [], []
     for i, r in enumerate(rows):
-        cust, how = _match_customer(r["tenant_name"], idx)
+        cust, how = _match_customer(r["tenant_name"], idx, overrides)
         (matched if cust else unmatched).append((i, r, cust, how))
     return matched, unmatched
+
+
+def _existing_tags():
+    """Every seed tag already on a non-cancelled Sales Invoice, read in one
+    query and compared as an exact string rather than a LIKE prefix."""
+    rows = frappe.get_all(
+        "Sales Invoice",
+        filters={"remarks": ["like", "%[" + TAG_PREFIX + "-%"],
+                 "docstatus": ["<", 2]},
+        fields=["remarks"])
+    found = set()
+    for r in rows:
+        found.update(TAG_RE.findall(r.remarks or ""))
+    return found
 
 
 # ---------------------------------------------------------------- commands
@@ -111,56 +165,66 @@ def _report(rows, idx):
 def dry_run():
     rows = _load_rows()
     idx = _customer_index()
-    matched, unmatched = _report(rows, idx)
-    print("=" * 70)
-    print("DRY RUN — nothing created")
-    print(f"rows: {len(rows)}  matched: {len(matched)}  "
-          f"UNMATCHED: {len(unmatched)}")
-    print("-" * 70)
+    overrides = _name_map()
+    matched, unmatched = _report(rows, idx, overrides)
+    seeded = _existing_tags()
+
+    print("=" * 72)
+    print("DRY RUN - nothing created")
+    print("rows: %d  matched: %d  UNMATCHED: %d  already seeded: %d"
+          % (len(rows), len(matched), len(unmatched), len(seeded)))
+    print("-" * 72)
     for i, r, cust, how in matched:
-        print(f"OK  [{how:8}] {r['tenant_name'][:38]:<38} -> {cust}  "
-              f"QAR {float(r['amount']):>9,.0f}")
+        mark = "done" if _tag(i).strip("[]") in seeded else "  new"
+        print("%s [%-8s] %-38s -> %-16s QAR %9s"
+              % (mark, how, r["tenant_name"][:38], cust,
+                 format(float(r["amount"]), ",.0f")))
     if unmatched:
-        print("-" * 70)
-        print("UNMATCHED — fix these before the real run (edit tenant_name")
-        print("in opening_arrears.csv to match the Customer name, or create")
-        print("the Customer):")
-        for i, r, _, _ in unmatched:
-            print(f"??  row {i + 2}: {r['tenant_name']}  "
-                  f"({r['property_code']} {r['unit']})  "
-                  f"QAR {float(r['amount']):,.0f}")
+        print("-" * 72)
+        print("UNMATCHED - run() WILL ABORT until every one of these is")
+        print("resolved. Add a line to arrears_name_map.csv for each:")
+        print()
+        print("tenant_name,customer")
+        for i, r, _, how in unmatched:
+            print('"%s",          # row %d  %s %s  QAR %s  (%s)'
+                  % (r["tenant_name"], i + 2, r["property_code"], r["unit"],
+                     format(float(r["amount"]), ",.0f"), how))
     total = sum(float(r["amount"]) for r in rows)
-    print("-" * 70)
-    print(f"TOTAL RECEIVABLE TO SEED: QAR {total:,.2f} "
-          f"(expected 216,519.00)")
+    print("-" * 72)
+    print("TOTAL RECEIVABLE TO SEED: QAR %s (expected %s)"
+          % (format(total, ",.2f"), format(EXPECTED_TOTAL, ",.2f")))
+    if abs(total - EXPECTED_TOTAL) > 0.005:
+        print("*** CSV TOTAL DOES NOT MATCH THE EXPECTED FIGURE ***")
+    return {"rows": len(rows), "matched": len(matched),
+            "unmatched": len(unmatched), "total": total}
 
 
 def run():
     rows = _load_rows()
     idx = _customer_index()
-    matched, unmatched = _report(rows, idx)
-    if unmatched and not TEST_MODE:
-        print(f"ABORTING: {len(unmatched)} unmatched tenant names. "
-              f"Run dry_run for the list.")
-        return
-    if unmatched and TEST_MODE:
-        for i, r, _, _ in unmatched:
-            cust = frappe.get_doc({
-                "doctype": "Customer",
-                "customer_name": r["tenant_name"].title(),
-                "customer_type": "Individual",
-            }).insert(ignore_permissions=True).name
-            print("TEST_MODE created Customer: %s" % cust)
-        idx = _customer_index()
-        matched, unmatched = _report(rows, idx)
+    overrides = _name_map()
+    matched, unmatched = _report(rows, idx, overrides)
 
-    company, abbr, debtor, temp_open = _resolve_accounts()
+    if unmatched:
+        print("ABORTING: %d unmatched tenant names." % len(unmatched))
+        print("Nothing was created. Run dry_run for the list, then map each")
+        print("one in arrears_name_map.csv. This seeder never auto-creates a")
+        print("Customer - a phantom party is worse than a stopped run.")
+        return {"created": 0, "skipped": 0, "aborted": True}
+
+    total = sum(float(r["amount"]) for r in rows)
+    if abs(total - EXPECTED_TOTAL) > 0.005:
+        print("ABORTING: CSV total QAR %s does not match the expected %s."
+              % (format(total, ",.2f"), format(EXPECTED_TOTAL, ",.2f")))
+        return {"created": 0, "skipped": 0, "aborted": True}
+
+    company, debtor, temp_open = _resolve_accounts()
+    seeded = _existing_tags()
     made = skipped = 0
+
     for i, r, cust, how in matched:
-        tag = "SEED-ARREARS-%d" % (i + 1)
-        if frappe.db.exists("Sales Invoice",
-                            {"remarks": ["like", "%%%s%%" % tag],
-                             "docstatus": ["<", 2]}):
+        tag = _tag(i)
+        if tag.strip("[]") in seeded:
             skipped += 1
             continue
         si = frappe.new_doc("Sales Invoice")
@@ -185,20 +249,9 @@ def run():
         si.insert()
         si.submit()
         made += 1
+
     frappe.db.commit()
     print("created %d invoices, skipped %d (already seeded)" % (made, skipped))
     print("Collection Cases will auto-open on the next scheduled "
           "auto_open_cases run (or trigger it manually via bench execute).")
-
-
-# ---------------------------------------------------------------- patch entry
-
-def execute():
-    """Frappe patch entrypoint — runs automatically during migrate.
-    Defensive: logs errors instead of failing the whole deployment."""
-    try:
-        run()
-    except Exception:
-        import traceback
-        print("PATCH FAILED (non-fatal):")
-        traceback.print_exc()
+    return {"created": made, "skipped": skipped, "aborted": False}

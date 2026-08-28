@@ -1,306 +1,147 @@
 # Copyright (c) 2026, DarkBrown RealEstate and contributors
 # For license information, please see license.txt
-# WARNING: mark_cleared and mark_bounced are a second implementation of
-# api.finance.clear_cheque and api.finance.return_cheque. Both are live -
-# api.finance from the shell, this one from doc_intake.apply_statement_line.
-# Two engines posting the same Payment Entry is how a fix lands in the wrong
-# one. Fold one into the other before either is trusted with real clearings.
+"""Security-deposit banking, and back-compat shims for the old PDC engine.
 
-"""
-Cheque accounting engine (Phase 2).
+WHAT CHANGED (A-5)
 
-mark_cleared(pdc, clearance_date)
-    Incoming Rent  -> Payment Entry (Receive) against the tenant's oldest
-                      outstanding Sales Invoices (FIFO), cost centre = building.
-    Outgoing Rent  -> Payment Entry (Pay) against the landlord's oldest
-                      outstanding Purchase Invoices (FIFO).
-    Security type  -> refuses; use bank_security_deposit() which books
-                      Dr Bank / Cr Security Deposits Held (a liability -
-                      NEVER income).
+This module used to carry a second, complete implementation of cheque
+clearing - mark_cleared / mark_bounced - alongside api.finance. Two engines
+posting the same Payment Entry is how a fix lands in the wrong one, and this
+one had drifted badly: it was written against a Cheque schema that does not
+exist. It read cheque_number, bank_name, cleared_date, bounce_date,
+tenant_rental_agreement and landlord_contract; the doctype has cheque_no,
+bank, cleared_on, tenancy_agreement and head_lease. mark_cleared raised
+AttributeError before it ever inserted a Payment Entry, and mark_bounced set
+status "Bounced", which is not one of the seven Select options.
 
-mark_bounced(pdc)
-    Cancels a linked submitted Payment Entry, sets status Bounced
-    (which fires the existing T5 Accounts handoff), records bounce_date.
+Because _building_for read two fields that do not exist, it always returned
+None, so every clearing would have posted to the company default cost centre
+rather than the building - even though Cheque carries a building field.
 
-Philosophy matches the rent invoicer: PE_AUTO_SUBMIT = False means every
-generated entry lands as Draft for Accounts to review and submit. Flip to
-True once the team trusts the engine.
+api.finance is now the single engine. mark_cleared and mark_bounced remain as
+thin delegating shims so nothing that already calls them breaks, but they hold
+no logic of their own.
+
+WHAT STAYED
+
+bank_security_deposit is the one piece of accounting api.finance did not have,
+and its treatment is right: a tenant's security cheque that is actually banked
+books Dr Bank / Cr Security Deposits Held. It is a refundable liability and it
+must NEVER touch income. It is kept here, repaired against the real schema.
 """
 
 import frappe
 from frappe import _
-from frappe.utils import flt, getdate, nowdate
+from frappe.utils import flt, nowdate
+
 from darkbrown.guards import guard, ACC, MD
 
-PE_AUTO_SUBMIT = False          # drafts first; flip after trust is earned
 SECURITY_LIABILITY_NAME = "Security Deposits Held"
+
+#: Drafts first, as elsewhere. Flip once the team trusts the engine.
+JE_AUTO_SUBMIT = False
 
 
 def is_security_cheque(cheque):
-	"""Is this cheque a tenant's security deposit rather than rent?
-
-	V1 answered this with a `cheque_type` field on the cheque itself. V2 has no
-	such field and does not need one: a security cheque is the one a Security
-	Deposit record points at through `receipt_cheque`. Reading it from the
-	Security Deposit keeps one fact in one place, and the safety property is the
-	same either way - a security cheque must never create income.
-	"""
-	return bool(frappe.db.exists("Security Deposit", {"receipt_cheque": cheque}))
+    """Kept as a re-export. The definition now lives with the engine that
+    enforces it, so the guard and the test cannot drift apart."""
+    from darkbrown.api.finance import is_security_cheque as _impl
+    return _impl(cheque)
 
 
-# ------------------------------------------------------------ helpers
-
-def _company():
-	return frappe.db.get_value("Company", {}, ["name", "abbr",
-		"default_receivable_account", "default_payable_account"], as_dict=True)
-
-
-def _bank_account(company):
-	acc = frappe.db.get_value(
-		"Account",
-		{"account_type": "Bank", "company": company, "is_group": 0},
-		"name",
-	)
-	if not acc:
-		frappe.throw(_("No Bank account found in the Chart of Accounts."))
-	return acc
-
-
-def _cost_center(building):
-	"""Same convention as rent_invoicing: Cost Center named after the building."""
-	if building:
-		cc = frappe.db.get_value(
-			"Cost Center", {"cost_center_name": building, "is_group": 0}, "name"
-		)
-		if cc:
-			return cc
-	return frappe.db.get_value("Company", {}, "cost_center")
-
-
-def _building_for(pdc):
-	if pdc.get("tenant_rental_agreement"):
-		return frappe.db.get_value(
-			"Tenancy Agreement", pdc.tenant_rental_agreement, "building")
-	if pdc.get("landlord_contract"):
-		return frappe.db.get_value(
-			"Head Lease", pdc.landlord_contract, "building")
-	return None
-
-
-def _party_for(pdc, incoming):
-	"""Resolve the Customer/Supplier docname. The live 'party' field is a
-	role Select (Tenant/Landlord); the actual party is in a link field
-	(tenant/customer or landlord/supplier) or reachable via the agreement."""
-	doctype = "Customer" if incoming else "Supplier"
-	name_field = "customer_name" if incoming else "supplier_name"
-	# 1) dedicated link field
-	for c in (["tenant", "customer"] if incoming else ["landlord", "supplier"]):
-		f = pdc.meta.get_field(c)
-		if f and f.fieldtype == "Link" and pdc.get(c):
-			return pdc.get(c)
-	# 2) via agreement
-	if incoming and pdc.get("tenant_rental_agreement"):
-		t = frappe.db.get_value(
-			"Tenancy Agreement", pdc.tenant_rental_agreement, "tenant")
-		if t:
-			return t
-	if not incoming and pdc.get("landlord_contract"):
-		l = frappe.db.get_value(
-			"Head Lease", pdc.landlord_contract, "landlord")
-		if l:
-			return l
-	# 3) party field only if it actually holds a name/docname (Link or Data)
-	pf = pdc.meta.get_field("party")
-	raw = pdc.get("party")
-	if raw and pf and pf.fieldtype != "Select":
-		if frappe.db.exists(doctype, raw):
-			return raw
-		hit = frappe.db.get_value(doctype, {name_field: raw}, "name")
-		if hit:
-			return hit
-	return None
-
-
-def _fifo_invoices(incoming, party, amount):
-	"""Oldest outstanding invoices for the party, allocated FIFO up to amount.
-	Returns (references list, unallocated remainder)."""
-	inv_doctype = "Sales Invoice" if incoming else "Purchase Invoice"
-	party_field = "customer" if incoming else "supplier"
-	rows = frappe.get_all(
-		inv_doctype,
-		filters={party_field: party, "docstatus": 1,
-		         "outstanding_amount": [">", 0.005]},
-		fields=["name", "outstanding_amount", "due_date", "posting_date",
-		        "grand_total"],
-		order_by="due_date asc, posting_date asc",
-	)
-	refs, remaining = [], flt(amount)
-	for r in rows:
-		if remaining <= 0.005:
-			break
-		alloc = min(remaining, flt(r.outstanding_amount))
-		refs.append({
-			"reference_doctype": inv_doctype,
-			"reference_name": r.name,
-			"total_amount": flt(r.grand_total),
-			"outstanding_amount": flt(r.outstanding_amount),
-			"allocated_amount": alloc,
-		})
-		remaining -= alloc
-	return refs, remaining
-
-
-# ------------------------------------------------------------ actions
-
-@frappe.whitelist()
-def mark_cleared(pdc, clearance_date=None, submit=None):
-	"""Bank confirmed the cheque. Creates the Payment Entry (draft by
-	default) and moves the PDC to Cleared."""
-	guard(MD, ACC)
-	doc = frappe.get_doc("Cheque", pdc)
-	if not doc.has_permission("write"):
-		frappe.throw(_("Not permitted"), frappe.PermissionError)
-	if doc.status == "Cleared":
-		frappe.throw(_("Already cleared."))
-	if is_security_cheque(doc.name):
-		frappe.throw(_(
-			"This is a SECURITY cheque - it must not create income. "
-			"If it was actually banked, use bank_security_deposit() "
-			"(books Dr Bank / Cr {0}).").format(SECURITY_LIABILITY_NAME))
-
-	incoming = "Incoming" in (doc.direction or "")
-	clearance_date = clearance_date or nowdate()
-	co = _company()
-	party = _party_for(doc, incoming)
-	if not party:
-		frappe.throw(_(
-			"Cannot resolve the {0} for this cheque - set the party or "
-			"agreement link first.").format("Customer" if incoming else "Supplier"))
-
-	refs, remainder = _fifo_invoices(incoming, party, doc.amount)
-	building = _building_for(doc)
-	bank = _bank_account(co.name)
-
-	pe = frappe.new_doc("Payment Entry")
-	pe.payment_type = "Receive" if incoming else "Pay"
-	pe.company = co.name
-	pe.posting_date = clearance_date
-	pe.party_type = "Customer" if incoming else "Supplier"
-	pe.party = party
-	pe.paid_amount = flt(doc.amount)
-	pe.received_amount = flt(doc.amount)
-	if incoming:
-		pe.paid_from = co.default_receivable_account
-		pe.paid_to = bank
-	else:
-		pe.paid_from = bank
-		pe.paid_to = co.default_payable_account
-	pe.reference_no = doc.cheque_number
-	pe.reference_date = doc.cheque_date or clearance_date
-	pe.cost_center = _cost_center(building)
-	pe.remarks = (f"Cheque {doc.cheque_number} ({doc.bank_name or ''}) "
-	              f"cleared {clearance_date}. PDC {doc.name}.")
-	for r in refs:
-		pe.append("references", r)
-	pe.flags.ignore_permissions = True
-	pe.insert()
-
-	do_submit = PE_AUTO_SUBMIT if submit is None else bool(int(submit))
-	if do_submit:
-		pe.submit()
-
-	doc.db_set("status", "Cleared")
-	doc.db_set("cleared_date", clearance_date)
-	if doc.meta.has_field("payment_entry"):
-		doc.db_set("payment_entry", pe.name)
-	frappe.db.commit()
-
-	alloc_msg = (f"allocated to {len(refs)} invoice(s)"
-	             + (f", {remainder:,.2f} QAR unallocated (advance)" if remainder > 0.005 else ""))
-	return {
-		"payment_entry": pe.name,
-		"submitted": do_submit,
-		"msg": (f"Payment Entry {pe.name} created as "
-		        f"{'submitted' if do_submit else 'DRAFT (Accounts to review and submit)'}; "
-		        f"{alloc_msg}."),
-	}
-
+# ------------------------------------------------------------ security deposits
 
 @frappe.whitelist()
 def bank_security_deposit(pdc, deposit_date=None):
-	"""A security cheque was actually banked: Dr Bank / Cr Security Deposits
-	Held. Income is never touched."""
-	guard(MD, ACC)
-	doc = frappe.get_doc("Cheque", pdc)
-	if not doc.has_permission("write"):
-		frappe.throw(_("Not permitted"), frappe.PermissionError)
-	if not is_security_cheque(doc.name):
-		frappe.throw(_("This action is only for Security Deposit cheques."))
+    """A security cheque was actually banked: Dr Bank / Cr Security Deposits
+    Held. Income is never touched."""
+    guard(MD, ACC)
+    doc = frappe.get_doc("Cheque", pdc)
+    if not doc.has_permission("write"):
+        frappe.throw(_("Not permitted"), frappe.PermissionError)
+    if not is_security_cheque(doc.name):
+        frappe.throw(_("This action is only for Security Deposit cheques."))
+    if doc.status == "Cleared":
+        frappe.throw(_("{0} is already cleared.").format(pdc))
 
-	co = _company()
-	liability = frappe.db.get_value(
-		"Account",
-		{"account_name": SECURITY_LIABILITY_NAME, "company": co.name, "is_group": 0},
-		"name",
-	)
-	if not liability:
-		frappe.throw(_("Account '{0}' not found in the Chart of Accounts.")
-		             .format(SECURITY_LIABILITY_NAME))
-	deposit_date = deposit_date or nowdate()
-	bank = _bank_account(co.name)
+    company = (frappe.get_single("DBR Settings").default_company
+               or frappe.db.get_value("Company", {}, "name"))
+    liability = frappe.db.get_value(
+        "Account",
+        {"account_name": SECURITY_LIABILITY_NAME, "company": company,
+         "is_group": 0},
+        "name")
+    if not liability:
+        frappe.throw(_("Account '{0}' not found in the Chart of Accounts.")
+                     .format(SECURITY_LIABILITY_NAME))
 
-	je = frappe.new_doc("Journal Entry")
-	je.company = co.name
-	je.posting_date = deposit_date
-	je.user_remark = (f"Security cheque {doc.cheque_number} banked. "
-	                  f"PDC {doc.name}. Held as refundable liability.")
-	je.append("accounts", {"account": bank, "debit_in_account_currency": flt(doc.amount)})
-	je.append("accounts", {"account": liability, "credit_in_account_currency": flt(doc.amount)})
-	je.flags.ignore_permissions = True
-	je.insert()
-	if PE_AUTO_SUBMIT:
-		je.submit()
+    from darkbrown.api.finance import _paid_to, _settings, _cost_center
+    bank = _paid_to(doc.bank_account or _settings().default_bank_account,
+                    company)
+    if not bank:
+        frappe.throw(_("No bank account resolved for this deposit."))
 
-	doc.db_set("status", "Cleared")
-	doc.db_set("cleared_date", deposit_date)
-	if doc.meta.has_field("journal_entry"):
-		doc.db_set("journal_entry", je.name)
-	frappe.db.commit()
-	return {"journal_entry": je.name,
-	        "msg": f"Journal Entry {je.name} created "
-	               f"({'submitted' if PE_AUTO_SUBMIT else 'DRAFT'}): "
-	               f"Dr Bank / Cr {SECURITY_LIABILITY_NAME}."}
+    deposit_date = deposit_date or nowdate()
+    cc = _cost_center(doc.building) if doc.building else None
+
+    je = frappe.new_doc("Journal Entry")
+    je.company = company
+    je.posting_date = deposit_date
+    je.user_remark = (f"Security cheque {doc.cheque_no} banked. "
+                      f"Cheque {doc.name}. Held as refundable liability.")
+    je.append("accounts", {"account": bank,
+                           "debit_in_account_currency": flt(doc.amount),
+                           "cost_center": cc})
+    je.append("accounts", {"account": liability,
+                           "credit_in_account_currency": flt(doc.amount),
+                           "cost_center": cc})
+    je.flags.ignore_permissions = True
+    je.insert()
+    if JE_AUTO_SUBMIT:
+        je.submit()
+
+    doc.db_set("status", "Cleared")
+    doc.db_set("cleared_on", deposit_date)
+    frappe.db.commit()
+    return {
+        "journal_entry": je.name,
+        "msg": (f"Journal Entry {je.name} created "
+                f"({'submitted' if JE_AUTO_SUBMIT else 'DRAFT'}): "
+                f"Dr Bank / Cr {SECURITY_LIABILITY_NAME}."),
+    }
+
+
+# ------------------------------------------------------------ back-compat shims
+
+@frappe.whitelist()
+def mark_cleared(pdc, clearance_date=None, submit=None):
+    """Deprecated. Delegates to api.finance.clear_cheque, which is the only
+    implementation. Kept so existing callers and client scripts keep working."""
+    from darkbrown.api import finance
+    res = finance.clear_cheque(pdc, on=clearance_date)
+    pe = res.get("payment_entry")
+    return {
+        "payment_entry": pe,
+        "submitted": bool(pe),
+        "msg": (f"Cheque {res['cheque']} cleared"
+                + (f"; Payment Entry {pe}." if pe else ".")),
+    }
 
 
 @frappe.whitelist()
-def mark_bounced(pdc, bounce_date=None):
-	"""Bank returned the cheque. Cancels the linked Payment Entry (if
-	submitted), deletes it (if draft), sets Bounced - which fires the
-	existing T5 recovery handoff to Accounts."""
-	guard(MD, ACC)
-	doc = frappe.get_doc("Cheque", pdc)
-	if not doc.has_permission("write"):
-		frappe.throw(_("Not permitted"), frappe.PermissionError)
+def mark_bounced(pdc, bounce_date=None, reason=None):
+    """Deprecated. Delegates to api.finance.return_cheque.
 
-	msg_parts = []
-	pe_name = doc.get("payment_entry")
-	if pe_name and frappe.db.exists("Payment Entry", pe_name):
-		pe = frappe.get_doc("Payment Entry", pe_name)
-		if pe.docstatus == 1:
-			pe.cancel()
-			msg_parts.append(f"Payment Entry {pe.name} cancelled")
-		elif pe.docstatus == 0:
-			pe.delete()
-			msg_parts.append(f"Draft Payment Entry {pe_name} deleted")
-		if doc.meta.has_field("payment_entry"):
-			doc.db_set("payment_entry", None)
-
-	if doc.meta.has_field("bounce_date"):
-		doc.db_set("bounce_date", bounce_date or nowdate())
-	# .save() (not db_set) so t5_assign_bounced's has_value_changed fires
-	doc.status = "Bounced"
-	doc.flags.ignore_permissions = True
-	doc.save()
-	frappe.db.commit()
-	msg_parts.append("status set to Bounced - Accounts recovery task raised")
-	return {"msg": "; ".join(msg_parts)}
+    Note the status: the register records a bounce as "Returned". "Bounced" is
+    not one of the doctype's Select options and never was, which is why the old
+    implementation could not save and why the recovery handoff never fired.
+    """
+    from darkbrown.api import finance
+    # return_reason is a Select. "Bounced" is not one of its options either, so
+    # a caller that does not supply a reason gets "Other" rather than a
+    # ValidationError from deep inside the shim.
+    res = finance.return_cheque(
+        pdc, reason=reason or "Other", on=bounce_date)
+    return {"msg": (f"Cheque {res['cheque']} recorded as Returned"
+                    + (f"; collection case {res['case']}."
+                       if res.get("case") else "."))}

@@ -7,7 +7,10 @@ class HeadLease(Document):
 	def validate(self):
 		if self.end_date and self.start_date and self.end_date <= self.start_date:
 			frappe.throw(_("End date must fall after the start date."))
-		self.monthly_rent = (self.annual_rent or 0) / 12.0
+		# Rounded to the field precision here so that the stored figure and
+		# any sum(round(annual_rent/12, 2)) elsewhere agree. Left at full
+		# precision, the record and the dashboard reported different rent.
+		self.monthly_rent = frappe.utils.flt((self.annual_rent or 0) / 12.0, 2)
 		self._check_schedule()
 
 	def _check_schedule(self):

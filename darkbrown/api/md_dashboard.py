@@ -242,7 +242,10 @@ def _bounces_by_customer():
         return {}
     rows = frappe.get_all(
         "Cheque",
-        filters={"status": "Bounced"},
+        # "Bounced" is not one of the Cheque status options and never was, so
+        # this panel read zero no matter how many cheques came back. The
+        # register records a bounce as "Returned".
+        filters={"status": "Returned"},
         fields=["name", "status"] + (
             ["tenant"] if frappe.get_meta("Cheque").has_field("tenant") else []
         ),

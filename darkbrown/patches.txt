@@ -1,4 +1,36 @@
 [pre_model_sync]
 
 [post_model_sync]
+# Schema first: the custom fields and the Party Document child table have to
+# exist before the workspaces and notifications that reference them are built.
+darkbrown.patches.add_party_document_tables
+darkbrown.patches.setup_rent_invoicing
 darkbrown.patches.unit_type_br_vocabulary
+
+# Desk furniture and automation. All idempotent. None of these writes to the
+# ledger - the Sales Invoice and Payment Entry mentions inside them are doctype
+# names in workspace links and notification filters, not postings.
+darkbrown.patches.create_role_workspaces
+darkbrown.patches.create_approval_workflow
+darkbrown.patches.create_collections_workflow
+darkbrown.patches.create_notifications
+darkbrown.patches.full_number_cards
+
+# Data-shape migration, then the fixup that depends on it having run.
+darkbrown.patches.migrate_building_documents
+darkbrown.patches.fix_workspace_cards
+
+# ---------------------------------------------------------------------------
+# DELIBERATELY NOT REGISTERED
+#
+# These write business records. A patch runs unattended during a deploy, so a
+# bad run is invisible until the numbers are wrong. All four are bench-execute
+# only and each has a dry_run that must be clean first:
+#
+#   darkbrown.patches.import_tenancies         the live tenancy book
+#   darkbrown.patches.seed_opening_arrears     opening tenant arrears
+#   darkbrown.patches.seed_pdc_outgoing        landlord PDC register
+#   darkbrown.patches.import_history           historical monthly P&L
+#
+# darkbrown.patches.run_july_billing is not listed and should not be. See
+# DEPLOY.md - it is a test-phase artefact that submits a month of invoices.

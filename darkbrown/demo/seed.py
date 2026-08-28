@@ -256,7 +256,7 @@ def _head_lease_schedules(r):
                 continue
             step = every.get(hl.payment_frequency, 3)
             per = flt(hl.annual_rent) * step / 12.0
-            hl.monthly_rent = flt(hl.annual_rent) / 12.0
+            hl.monthly_rent = flt(flt(hl.annual_rent) / 12.0, 2)
             due = getdate(hl.start_date)
             while due <= getdate(hl.end_date):
                 hl.append("payments", {

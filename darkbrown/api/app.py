@@ -438,8 +438,13 @@ def seed():
             # there. Carrying the reason forward turns a dark panel into
             # something a person can act on without opening the desk.
             errors[key] = f"{type(e).__name__}: {e}".split("\n")[0][:300]
-            rows = []
-        if rows:
+            rows = None
+        # A panel that is genuinely empty and a panel whose calculation blew up
+        # are different facts, and the front end renders them differently: []
+        # is a clean book, absent is "the server could not tell you". `if rows:`
+        # collapsed both into absent and left _failed as the only way to tell
+        # them apart. Send [] for empty; omit the key only on failure.
+        if rows is not None:
             data[key] = rows
     if failed:
         data["_failed"] = failed

@@ -119,5 +119,15 @@
    "read_only": 1
   }
  ],
- "permissions": []
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1
+  }
+ ]
 }

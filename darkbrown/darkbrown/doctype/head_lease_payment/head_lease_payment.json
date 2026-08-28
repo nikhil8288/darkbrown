@@ -72,10 +72,20 @@
  "module": "Darkbrown",
  "name": "Head Lease Payment",
  "owner": "Administrator",
- "permissions": [],
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1
+  }
+ ],
  "sort_field": "modified",
  "sort_order": "DESC",
  "states": [],
- "track_changes": 0,
+ "track_changes": 1,
  "istable": 1
 }

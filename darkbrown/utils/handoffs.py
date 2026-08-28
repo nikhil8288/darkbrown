@@ -63,11 +63,19 @@ def t1_assign_maintenance(doc, method=None):
 # ------------------------------------------------- T5: bounced cheque
 
 def t5_assign_bounced(doc, method=None):
-    """on_update on Cheque -> recovery to-do for Accounts."""
-    if doc.status != "Bounced" or not doc.has_value_changed("status"):
+    """on_update on Cheque -> recovery to-do for Accounts.
+
+    The trigger status is "Returned". This guard used to read "Bounced", which
+    is not one of the doctype's seven Select options and so could never be set:
+    the recovery to-do had never once fired. It also read cheque_number, a
+    field that does not exist - the field is cheque_no.
+    """
+    if doc.status != "Returned" or not doc.has_value_changed("status"):
+        return
+    if doc.direction != "Incoming":
         return
     _assign("Cheque", doc.name, "Accounts",
-            f"Bounced cheque {doc.cheque_number or doc.name} "
+            f"Returned cheque {doc.cheque_no or doc.name} "
             f"({doc.party or ''}) - start recovery")
 
 
@@ -136,3 +144,19 @@ def grace_period_alerts():
                     "document_type": "Head Lease",
                     "document_name": lc.name,
                 }).insert(ignore_permissions=True)
+
+
+# ------------------------------------------------------------------ scheduler
+
+def nightly():
+    """Daily handoffs.
+
+    None of this module ran before: it was not in hooks.doc_events and not in
+    scheduler_events, so T1, T3, T4, T5 and the N5 grace-period alert had never
+    fired. T1 and T5 are document events and are wired in hooks.doc_events; the
+    three date-driven ones run here.
+    """
+    daily_renewal_todos()
+    daily_document_todos()
+    grace_period_alerts()
+    frappe.db.commit()

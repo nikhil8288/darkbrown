@@ -15,7 +15,7 @@ RULES = [
      {"date_changed": "cheque_date", "days_in_advance": 15,
       "condition": 'doc.direction == "Outgoing"'},
      ["Accounts"],
-     "Landlord cheque {{ doc.cheque_number or doc.name }} matures in 15 days"),
+     "Landlord cheque {{ doc.cheque_no or doc.name }} matures in 15 days"),
 
     ("N2a - Tenant agreement expiring 90d", "Tenancy Agreement",
      "Days Before",
@@ -57,10 +57,13 @@ RULES = [
      "Invoice {{ doc.name }} ({{ doc.customer }}) is overdue - "
      "QAR {{ doc.outstanding_amount }}"),
 
+    # The register records a bounce as "Returned"; "Bounced" is not one of the
+    # status options, so this notification had never fired. The template also
+    # read cheque_number, which is not a field - it is cheque_no.
     ("N8 - PDC bounced", "Cheque", "Value Change",
-     {"value_changed": "status", "condition": 'doc.status == "Bounced"'},
+     {"value_changed": "status", "condition": 'doc.status == "Returned"'},
      ["Accounts", "General Manager"],
-     "Cheque {{ doc.cheque_number or doc.name }} ({{ doc.party }}) BOUNCED"),
+     "Cheque {{ doc.cheque_no or doc.name }} ({{ doc.party }}) BOUNCED"),
 
     ("N9 - New maintenance request", "Maintenance Request", "New",
      {},

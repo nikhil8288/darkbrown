@@ -12,71 +12,37 @@ from darkbrown.guards import guard, ACC, MD
 
 # ------------------------------------------------------------------ cheques
 
+# ------------------------------------------------------------------ cheques
+#
+# clear_cheque / return_cheque / replace_cheque used to be implemented here as
+# well as in api.finance. This copy was the quiet danger of the two: it flipped
+# the status, returned a name, and booked NO accounting at all, so a clearing
+# routed through it succeeded while the ledger never moved. api.finance is the
+# single engine; these remain as delegating shims so existing callers keep
+# working.
+
 @frappe.whitelist()
 def clear_cheque(cheque, cleared_on=None, payment_entry=None):
-    guard(MD, ACC)
-    doc = frappe.get_doc("Cheque", cheque)
-    if doc.status in ("Cleared", "Cancelled"):
-        frappe.throw(f"Cheque {doc.cheque_no} is already {doc.status.lower()}.")
-    doc.status = "Cleared"
-    doc.cleared_on = cleared_on or today()
-    if payment_entry:
-        doc.payment_entry = payment_entry
-    doc.save()
-    if doc.head_lease:
-        _mark_headlease_payment(doc, "Cleared")
-    return doc.name
+    from darkbrown.api import finance
+    return finance.clear_cheque(cheque, on=cleared_on)["cheque"]
 
 
 @frappe.whitelist()
 def return_cheque(cheque, reason, charge=0, returned_on=None):
-    """A return is an event. It records the reason and the charge, tells the
-    collections side, and leaves the cheque available for replacement."""
-    guard(MD, ACC)
-    if not reason:
-        frappe.throw("A returned cheque needs a reason.")
-    doc = frappe.get_doc("Cheque", cheque)
-    doc.status = "Returned"
-    doc.return_reason = reason
-    doc.return_charge = flt(charge)
-    doc.returned_on = returned_on or today()
-    doc.save()
-    if doc.head_lease:
-        _mark_headlease_payment(doc, "Returned")
-    return doc.name
+    from darkbrown.api import finance
+    return finance.return_cheque(cheque, reason=reason, charge=charge,
+                                 on=returned_on)["cheque"]
 
 
 @frappe.whitelist()
 def replace_cheque(cheque, cheque_no, cheque_date, amount=None, bank=None):
-    """The replacement is a new record on the register, linked back to what it
-    replaces. The old one is not edited into shape."""
-    guard(MD, ACC)
-    old = frappe.get_doc("Cheque", cheque)
-    new = frappe.get_doc({
-        "doctype": "Cheque",
-        "direction": old.direction,
-        "party_type": old.party_type,
-        "party": old.party,
-        "company": old.company,
-        "cheque_no": cheque_no,
-        "bank": bank or old.bank,
-        "cheque_date": cheque_date,
-        "amount": flt(amount) if amount else old.amount,
-        "building": old.building,
-        "unit": old.unit,
-        "tenancy_agreement": old.tenancy_agreement,
-        "head_lease": old.head_lease,
-        "status": "Received",
-    }).insert()
-    old.db_set({"status": "Replaced", "replaced_by": new.name})
-    return new.name
-
-
-def _mark_headlease_payment(cheque, status):
-    row = frappe.db.get_value("Head Lease Payment",
-                              {"cheque": cheque.name}, "name")
-    if row:
-        frappe.db.set_value("Head Lease Payment", row, "status", status)
+    from darkbrown.api import finance
+    payload = {"cheque_no": cheque_no, "cheque_date": cheque_date}
+    if amount:
+        payload["amount"] = flt(amount)
+    if bank:
+        payload["bank"] = bank
+    return finance.replace_cheque(cheque, frappe.as_json(payload))["cheque"]
 
 
 def presentation_due():
@@ -124,7 +90,16 @@ def sweep_agreement_expiry():
 
 
 def sweep_document_expiry():
-    """Documents inside their warning window raise a notification once."""
+    """Documents inside their warning window raise a notification once.
+
+    "Once" was the intent and not the behaviour: there was no guard, so every
+    nightly run re-notified every in-window document to every Documentation
+    user, for as long as the document stayed unrenewed. Across a portfolio this
+    size that is a nightly identical alert, which trains people to ignore the
+    channel. A document is now announced once per entry into the window, keyed
+    on the document and its expiry date, so a renewal (new expiry date) does
+    announce again and a stale one does not.
+    """
     reqs = {r.document_type: r.notice_days for r in frappe.get_all(
         "Document Requirement", filters={"expiry_tracked": 1},
         fields=["document_type", "notice_days"])}
@@ -136,13 +111,32 @@ def sweep_document_expiry():
             fields=["name", "document_type", "expiry_date", "party"]):
         window = int(reqs.get(doc.document_type, default) or default)
         if getdate(doc.expiry_date) <= getdate(add_days(today(), window)):
+            if _already_announced(doc.name, doc.expiry_date):
+                continue
             flagged.append(doc)
     if flagged:
         _notify("Documentation",
                 f"{len(flagged)} documents are expiring or expired",
                 ", ".join(f"{d.document_type} ({d.party or d.name})"
                           for d in flagged[:20]))
+        for d in flagged:
+            _mark_announced(d.name, d.expiry_date)
     return len(flagged)
+
+
+def _announce_key(docname, expiry):
+    return "db_docexp:%s:%s" % (docname, expiry)
+
+
+def _already_announced(docname, expiry):
+    return bool(frappe.cache().get_value(_announce_key(docname, expiry)))
+
+
+def _mark_announced(docname, expiry):
+    """Held for a year: long enough that a document inside its window is
+    announced once, short enough that the key expires with the document."""
+    frappe.cache().set_value(_announce_key(docname, expiry), 1,
+                             expires_in_sec=365 * 24 * 3600)
 
 
 def sweep_cheque_presentation():

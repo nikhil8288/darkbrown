@@ -152,7 +152,7 @@ def _billed(building, period_start):
 def _landlord_cost(building, period_start):
     """One month of head-lease rent for leases live in that month."""
     return flt(frappe.db.sql("""
-        select sum(annual_rent) / 12
+        select sum(round(annual_rent / 12, 2))
         from `tabHead Lease`
         where building = %s and status in ('Active', 'Expiring')
           and start_date <= %s and end_date >= %s
@@ -290,13 +290,13 @@ def _landlord_all(period_start, exclude=None):
     if exclude:
         placeholders = ", ".join(["%s"] * len(exclude))
         return flt(frappe.db.sql(f"""
-            select sum(annual_rent) / 12 from `tabHead Lease`
+            select sum(round(annual_rent / 12, 2)) from `tabHead Lease`
             where status in ('Active', 'Expiring')
               and start_date <= %s and end_date >= %s
               and building not in ({placeholders})
         """, [get_last_day(period_start), period_start] + exclude)[0][0])
     return flt(frappe.db.sql("""
-        select sum(annual_rent) / 12 from `tabHead Lease`
+        select sum(round(annual_rent / 12, 2)) from `tabHead Lease`
         where status in ('Active', 'Expiring')
           and start_date <= %s and end_date >= %s
     """, (get_last_day(period_start), period_start))[0][0])

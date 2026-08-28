@@ -67,22 +67,22 @@ PARTY_ATTACHABLE_TYPES = (
 
 # Cheque
 PDC_DOCTYPE = "Cheque"
-PDC_STATUS_FIELD = "status"                      # In Hand / Deposited / Cleared / Bounced ...
+PDC_STATUS_FIELD = "status"                      # Received/Deposited/Presented/Cleared/Returned/Replaced/Cancelled
 PDC_DIRECTION_FIELD = "direction"                # "Incoming (from Tenant)" / "Outgoing (to Landlord)"
-PDC_CHEQUE_NO_FIELD = "cheque_number"
+PDC_CHEQUE_NO_FIELD = "cheque_no"
 PDC_CHEQUE_DATE_FIELD = "cheque_date"
-PDC_CLEARED_DATE_FIELD = "cleared_date"
+PDC_CLEARED_DATE_FIELD = "cleared_on"
 PDC_AMOUNT_FIELD = "amount"
-PDC_BANK_FIELD = "bank_name"
-PDC_TRA_FIELD = "tenant_rental_agreement"        # Link -> Tenancy Agreement
-PDC_LLC_FIELD = "landlord_contract"              # Link -> Head Lease
+PDC_BANK_FIELD = "bank"
+PDC_TRA_FIELD = "tenancy_agreement"             # Link -> Tenancy Agreement
+PDC_LLC_FIELD = "head_lease"                    # Link -> Head Lease
 PDC_PAYMENT_ENTRY_FIELD = "payment_entry"        # optional Link -> Payment Entry (skipped if absent)
 
-DIRECTION_INCOMING = "Incoming (from Tenant)"
+DIRECTION_INCOMING = "Incoming"
 
 # Party fields on the agreement doctypes
-TRA_CUSTOMER_FIELD = "customer"                  # Tenancy Agreement -> Customer
-LLC_SUPPLIER_FIELD = "supplier"                  # Head Lease -> Supplier
+TRA_CUSTOMER_FIELD = "tenant"                   # Tenancy Agreement -> Customer
+LLC_SUPPLIER_FIELD = "landlord"                 # Head Lease -> Supplier
 
 # Child DocType created by the patch
 PARTY_DOC_DOCTYPE = "Party Document"
@@ -298,142 +298,29 @@ def attach_register_to_party(register_name):
 
 @frappe.whitelist()
 def mark_cleared_v2(pdc_name, clearance_date, create_payment=1):
-    guard(MD, ACC)
-    create_payment = frappe.utils.cint(create_payment)
-    clearance_date = getdate(clearance_date)
+    """Deprecated. Delegates to api.finance.clear_cheque.
 
-    pdc = frappe.get_doc(PDC_DOCTYPE, pdc_name)
+    This was the fourth implementation of "clear a cheque" in the app, and the
+    most dangerous of them: its DIRECTION_INCOMING constant was
+    "Incoming (from Tenant)" while the doctype option is plain "Incoming", so
+    the incoming test was always False and every TENANT cheque would have been
+    posted as an outgoing landlord payment. It also wrote cleared_date, a field
+    that does not exist, so the clearance date was silently discarded, and it
+    submitted its Payment Entry immediately while the other engines drafted.
 
-    if pdc.get(PDC_STATUS_FIELD) == "Cleared":
-        frappe.throw(_("{0} is already Cleared.").format(pdc_name))
-
-    amount = flt(pdc.get(PDC_AMOUNT_FIELD))
-    if amount <= 0:
-        frappe.throw(_("Cheque amount must be greater than zero."))
-
-    result = {
-        "pdc": pdc_name,
+    api.finance is the single engine. create_payment is accepted and ignored:
+    a clearing that does not post a receipt is what the register-versus-ledger
+    drift was made of.
+    """
+    from darkbrown.api import finance
+    res = finance.clear_cheque(pdc_name, on=clearance_date)
+    return {
+        "pdc": res["cheque"],
+        "payment_entry": res.get("payment_entry"),
         "cheque_date_backfilled": False,
-        "payment_entry": None,
         "allocated": [],
         "unallocated": 0.0,
     }
-
-    # --- backfill missing cheque date (cheque #13 scenario) ---
-    if not pdc.get(PDC_CHEQUE_DATE_FIELD):
-        pdc.set(PDC_CHEQUE_DATE_FIELD, clearance_date)
-        pdc.add_comment(
-            "Comment",
-            _("Cheque date was blank at clearance; set to clearance date {0}. "
-              "Verify against the physical cheque.").format(clearance_date),
-        )
-        result["cheque_date_backfilled"] = True
-
-    pdc.set(PDC_STATUS_FIELD, "Cleared")
-    pdc.set(PDC_CLEARED_DATE_FIELD, clearance_date)
-
-    # --- payment entry ---
-    if create_payment:
-        pe = _make_payment_entry(pdc, clearance_date, amount, result)
-        result["payment_entry"] = pe.name
-        if pdc.meta.has_field(PDC_PAYMENT_ENTRY_FIELD):
-            pdc.set(PDC_PAYMENT_ENTRY_FIELD, pe.name)
-
-    pdc.save(ignore_permissions=True)
-    frappe.db.commit()
-    return result
-
-
-def _make_payment_entry(pdc, clearance_date, amount, result):
-    from erpnext.accounts.party import get_party_account
-
-    incoming = pdc.get(PDC_DIRECTION_FIELD) == DIRECTION_INCOMING
-
-    if incoming:
-        party_type = "Customer"
-        party = _get_customer_from_pdc(pdc)
-        invoice_doctype = "Sales Invoice"
-        party_field = "customer"
-        payment_type = "Receive"
-    else:
-        party_type = "Supplier"
-        party = _get_supplier_from_pdc(pdc)
-        invoice_doctype = "Purchase Invoice"
-        party_field = "supplier"
-        payment_type = "Pay"
-
-    if not party:
-        frappe.throw(
-            _("Could not resolve the {0} for this cheque — check the agreement link.")
-            .format(party_type.lower())
-        )
-
-    bank_account = frappe.get_cached_value("Company", COMPANY, "default_bank_account")
-    if not bank_account:
-        frappe.throw(
-            _("Set a Default Bank Account on Company {0} before creating clearance payments.")
-            .format(COMPANY)
-        )
-
-    party_account = get_party_account(party_type, party, COMPANY)
-
-    pe = frappe.new_doc("Payment Entry")
-    pe.payment_type = payment_type
-    pe.company = COMPANY
-    pe.posting_date = clearance_date
-    pe.mode_of_payment = "Cheque"
-    pe.party_type = party_type
-    pe.party = party
-    pe.paid_amount = amount
-    pe.received_amount = amount
-    pe.source_exchange_rate = 1
-    pe.target_exchange_rate = 1
-    pe.reference_no = pdc.get(PDC_CHEQUE_NO_FIELD)
-    pe.reference_date = pdc.get(PDC_CHEQUE_DATE_FIELD) or clearance_date
-
-    if incoming:
-        pe.paid_from = party_account          # Debtors
-        pe.paid_to = bank_account
-    else:
-        pe.paid_from = bank_account
-        pe.paid_to = party_account            # Creditors
-
-    pe.paid_from_account_currency = CURRENCY
-    pe.paid_to_account_currency = CURRENCY
-
-    # --- FIFO allocation against outstanding invoices ---
-    remaining = amount
-    invoices = frappe.get_all(
-        invoice_doctype,
-        filters={
-            party_field: party,
-            "docstatus": 1,
-            "outstanding_amount": [">", 0],
-            "company": COMPANY,
-        },
-        fields=["name", "outstanding_amount", "posting_date", "due_date", "grand_total"],
-        order_by="due_date asc, posting_date asc",
-    )
-
-    for inv in invoices:
-        if remaining <= 0:
-            break
-        alloc = min(remaining, flt(inv.outstanding_amount))
-        pe.append("references", {
-            "reference_doctype": invoice_doctype,
-            "reference_name": inv.name,
-            "total_amount": flt(inv.grand_total),
-            "outstanding_amount": flt(inv.outstanding_amount),
-            "allocated_amount": alloc,
-        })
-        result["allocated"].append({"invoice": inv.name, "amount": alloc})
-        remaining -= alloc
-
-    result["unallocated"] = flt(remaining)
-
-    pe.insert(ignore_permissions=True)
-    pe.submit()
-    return pe
 
 
 def _get_customer_from_pdc(pdc):

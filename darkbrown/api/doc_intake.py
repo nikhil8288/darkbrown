@@ -952,10 +952,12 @@ def match_statement(docname):
 
 @frappe.whitelist()
 def apply_statement_line(docname, line_name, pdc=None):
-	"""Reviewer accepted a match: clear the PDC as of the line's date (this
-	creates the Payment Entry via the Phase-2 engine) and mark the line."""
+	"""Reviewer accepted a match: clear the cheque as of the line's date and
+	mark the line. Clearing goes through api.finance, which is the only engine
+	that posts a receipt - the Phase-2 engine this used to call was written
+	against fields the Cheque doctype does not have."""
 	guard(MD, DOC, ACC)
-	from darkbrown.utils import pdc_accounting
+	from darkbrown.api import finance
 	reg = frappe.get_doc("Document Register", docname)
 	if not reg.has_permission("write"):
 		frappe.throw(_("Not permitted"), frappe.PermissionError)
@@ -966,10 +968,14 @@ def apply_statement_line(docname, line_name, pdc=None):
 	if not target:
 		frappe.throw(_("No PDC selected for this line."))
 
-	result = pdc_accounting.mark_cleared(target, clearance_date=line.txn_date)
+	cleared = finance.clear_cheque(target, on=line.txn_date)
+	pe = cleared.get("payment_entry")
+	msg = (f"Cheque {cleared['cheque']} cleared {line.txn_date}"
+	       + (f"; Payment Entry {pe}." if pe else "."))
+	result = {"msg": msg}
 	line.match_pdc = target
 	line.line_status = "Applied"
-	line.match_note = ((line.match_note or "") + f" | {result.get('msg')}").strip(" |")
+	line.match_note = ((line.match_note or "") + f" | {msg}").strip(" |")
 	reg.flags.ignore_permissions = True
 	reg.save()
 	frappe.db.commit()

@@ -92,6 +92,70 @@ def log_cheque(payload):
     return {"cheques": made, "count": len(made)}
 
 
+# -------------------------------------------------------------- cheque helpers
+
+def is_security_cheque(cheque):
+    """Is this cheque a tenant's security deposit rather than rent?
+
+    There is no cheque_type field and there does not need to be: a security
+    cheque is the one a Security Deposit record points at through
+    receipt_cheque. One fact, one place. The safety property is that a security
+    cheque must NEVER create income - it is a refundable liability - so
+    clear_cheque refuses it and sends the caller to bank_security_deposit().
+    """
+    return bool(frappe.db.exists("Security Deposit",
+                                 {"receipt_cheque": cheque}))
+
+
+def _mark_headlease_payment(cheque, status):
+    """An outgoing cheque against a head lease carries the payment row with it,
+    so the schedule and the register cannot disagree."""
+    if not cheque.head_lease:
+        return
+    row = frappe.db.get_value("Head Lease Payment",
+                              {"cheque": cheque.name}, "name")
+    if row:
+        frappe.db.set_value("Head Lease Payment", row, "status", status)
+
+
+def _book_return_charge(cheque):
+    """A returned cheque costs us a bank charge. It is a real expense and it
+    belongs in the P&L against the building, not stored on the cheque row and
+    forgotten.
+
+    Booked as a DRAFT Journal Entry - Dr charge account / Cr bank - matching
+    the drafts-first policy used elsewhere. If no charge account is configured
+    in DBR Settings the charge is skipped and reported, rather than guessed at.
+    """
+    charge = flt(cheque.return_charge)
+    if charge <= 0:
+        return None
+    account = _settings().returned_cheque_charge_account
+    if not account:
+        return None
+    company = _company()
+    bank = _paid_to(cheque.bank_account or _settings().default_bank_account,
+                    company)
+    if not bank:
+        return None
+
+    je = frappe.new_doc("Journal Entry")
+    je.company = company
+    je.posting_date = cheque.returned_on or today()
+    je.user_remark = (f"Bank charge on returned cheque {cheque.cheque_no} "
+                      f"({cheque.party or ''}). Cheque {cheque.name}.")
+    cc = _cost_center(cheque.building) if cheque.building else None
+    je.append("accounts", {"account": account,
+                           "debit_in_account_currency": charge,
+                           "cost_center": cc})
+    je.append("accounts", {"account": bank,
+                           "credit_in_account_currency": charge,
+                           "cost_center": cc})
+    je.flags.ignore_permissions = True
+    je.insert()
+    return je.name
+
+
 @frappe.whitelist()
 def present_cheque(cheque, bank_account=None, on=None):
     """Send a cheque to the bank. It is out of our hands from here."""
@@ -118,6 +182,12 @@ def clear_cheque(cheque, on=None):
     if doc.status not in ("Presented", "Deposited", "Received"):
         frappe.throw(_("{0} is {1} and cannot clear.").format(
             cheque, doc.status))
+    if is_security_cheque(doc.name):
+        frappe.throw(_(
+            "{0} is a SECURITY cheque and must not create income. If it was "
+            "actually banked, use bank_security_deposit - that books "
+            "Dr Bank / Cr Security Deposits Held, a refundable liability."
+        ).format(cheque))
 
     doc.status = "Cleared"
     doc.cleared_on = on or today()
@@ -126,6 +196,7 @@ def clear_cheque(cheque, on=None):
                                      doc.cleared_on, doc.bank_account,
                                      reference=doc.name)[0]
     doc.save(ignore_permissions=True)
+    _mark_headlease_payment(doc, "Cleared")
     return {"cheque": doc.name, "status": doc.status,
             "payment_entry": doc.payment_entry}
 
@@ -157,12 +228,20 @@ def return_cheque(cheque, reason, charge=None, notes=None, on=None):
     doc.return_charge = flt(charge) if charge else 0
     doc.return_notes = notes
     doc.save(ignore_permissions=True)
+    _mark_headlease_payment(doc, "Returned")
+
+    # The bank charge is a real cost and gets booked. Previously it was stored
+    # on the cheque row and never reached the P&L.
+    charge_je = _book_return_charge(doc)
 
     case = None
     if doc.direction == "Incoming" and doc.tenancy_agreement:
         case = _case_for_bounce(doc)
 
-    return {"cheque": doc.name, "status": doc.status, "case": case}
+    return {"cheque": doc.name, "status": doc.status, "case": case,
+            "charge_journal_entry": charge_je,
+            "charge_unbooked": bool(flt(doc.return_charge) > 0
+                                    and not charge_je)}
 
 
 def _case_for_bounce(cheque):
@@ -795,7 +874,7 @@ def receipt(name):
     cheque = None
     if pe.reference_no and frappe.db.exists("DocType", "Cheque"):
         hit = frappe.get_all(
-            "Cheque", filters={"cheque_number": pe.reference_no},
+            "Cheque", filters={"cheque_no": pe.reference_no},
             fields=["name", "status", "cheque_date", "bank"], limit=1)
         if hit:
             cheque = {"id": hit[0].name, "st": hit[0].status,

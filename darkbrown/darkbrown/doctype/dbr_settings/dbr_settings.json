@@ -9,6 +9,7 @@
   "sec_company",
   "default_company",
   "default_bank_account",
+  "returned_cheque_charge_account",
   "sec_billing",
   "invoice_generation_day",
   "presentation_notice_days",
@@ -58,6 +59,13 @@
    "fieldtype": "Link",
    "label": "Default Bank Account",
    "options": "Bank Account"
+  },
+  {
+   "fieldname": "returned_cheque_charge_account",
+   "fieldtype": "Link",
+   "label": "Returned Cheque Charge Account",
+   "options": "Account",
+   "description": "Expense account the bank charge on a returned cheque is booked to. Leave blank to skip booking the charge (it is then reported as unbooked rather than silently lost)."
   },
   {
    "fieldname": "sec_billing",
@@ -182,14 +190,14 @@
   {
    "fieldname": "wall_cover_green",
    "fieldtype": "Float",
-   "label": "Cover — Green At or Above",
+   "label": "Cover \u2014 Green At or Above",
    "default": "1.2",
    "description": "Ratio of expected inflow to landlord rent due. 1.2 leaves a fifth in hand for bounces."
   },
   {
    "fieldname": "wall_cover_red",
    "fieldtype": "Float",
-   "label": "Cover — Red Below",
+   "label": "Cover \u2014 Red Below",
    "default": "1.0",
    "description": "Below 1.0 the money expected does not cover what is owed."
   },
@@ -200,26 +208,26 @@
   {
    "fieldname": "wall_margin_green",
    "fieldtype": "Float",
-   "label": "Spread Margin — Green At or Above (%)",
+   "label": "Spread Margin \u2014 Green At or Above (%)",
    "default": "20"
   },
   {
    "fieldname": "wall_margin_red",
    "fieldtype": "Float",
-   "label": "Spread Margin — Red Below (%)",
+   "label": "Spread Margin \u2014 Red Below (%)",
    "default": "12",
    "description": "Set this to the margin that just covers overhead. Below it the portfolio is not paying for itself."
   },
   {
    "fieldname": "wall_collection_green",
    "fieldtype": "Float",
-   "label": "Collection Rate — Green At or Above (%)",
+   "label": "Collection Rate \u2014 Green At or Above (%)",
    "default": "95"
   },
   {
    "fieldname": "wall_collection_red",
    "fieldtype": "Float",
-   "label": "Collection Rate — Red Below (%)",
+   "label": "Collection Rate \u2014 Red Below (%)",
    "default": "85"
   },
   {
@@ -229,13 +237,13 @@
   {
    "fieldname": "wall_loss_amber",
    "fieldtype": "Int",
-   "label": "Loss-Making Buildings — Amber At",
+   "label": "Loss-Making Buildings \u2014 Amber At",
    "default": "1"
   },
   {
    "fieldname": "wall_loss_red",
    "fieldtype": "Int",
-   "label": "Loss-Making Buildings — Red At",
+   "label": "Loss-Making Buildings \u2014 Red At",
    "default": "3"
   },
   {

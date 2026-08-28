@@ -177,7 +177,7 @@
    "email": 1,
    "write": 1,
    "create": 1,
-   "delete": 1
+   "delete": 0
   },
   {
    "role": "General Manager",
@@ -201,7 +201,16 @@
    "email": 1,
    "write": 1,
    "create": 1,
-   "delete": 1
+   "delete": 0
+  },
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1
   }
  ],
  "sort_field": "modified",

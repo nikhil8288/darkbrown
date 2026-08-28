@@ -159,7 +159,7 @@
    "label": "Unallocated",
    "options": "QAR",
    "read_only": 1,
-   "description": "What the landlord absorbs — common areas and losses."
+   "description": "What the landlord absorbs \u2014 common areas and losses."
   }
  ],
  "index_web_pages_for_search": 0,
@@ -180,7 +180,7 @@
    "email": 1,
    "write": 1,
    "create": 1,
-   "delete": 1
+   "delete": 0
   },
   {
    "role": "General Manager",
@@ -204,7 +204,16 @@
    "email": 1,
    "write": 1,
    "create": 1,
-   "delete": 1
+   "delete": 0
+  },
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1
   }
  ],
  "sort_field": "modified",

@@ -93,7 +93,7 @@ def _checks():
         select sum(monthly_rent) from `tabTenancy Agreement`
         where status in ('Active', 'Expiring')""")[0][0])
     headlease = flt(frappe.db.sql(
-        "select sum(annual_rent)/12 from `tabHead Lease` where status='Active'"
+        "select sum(round(annual_rent / 12, 2)) from `tabHead Lease` where status='Active'"
     )[0][0])
     spread = sublease - headlease
     margin = (spread / sublease * 100) if sublease else 0

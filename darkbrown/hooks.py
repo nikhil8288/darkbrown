@@ -38,6 +38,15 @@ doc_events = {
         "on_submit": "darkbrown.utils.reconciliation.on_payment_submit",
         "on_cancel": "darkbrown.utils.reconciliation.on_payment_cancel",
     },
+    # T1 and T5. utils.handoffs was written, then never referenced by anything:
+    # not here, not in scheduler_events. A returned cheque raised no recovery
+    # task and a new maintenance request assigned itself to nobody.
+    "Maintenance Request": {
+        "after_insert": "darkbrown.utils.handoffs.t1_assign_maintenance",
+    },
+    "Cheque": {
+        "on_update": "darkbrown.utils.handoffs.t5_assign_bounced",
+    },
 }
 
 # ---------------------------------------------------------------- scheduler
@@ -48,6 +57,8 @@ scheduler_events = {
         "darkbrown.api.agreements.nightly",
         "darkbrown.api.finance.nightly",
         "darkbrown.api.documents.nightly",
+        # T3, T4 and the N5 grace-period alert.
+        "darkbrown.utils.handoffs.nightly",
     ],
     "cron": {
         # 07:00 Doha, on the configured generation day only
