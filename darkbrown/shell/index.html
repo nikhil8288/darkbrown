@@ -596,6 +596,9 @@ body.focus main{max-width:none}
     <div class="nv" data-r="ledger">General Ledger</div>
     <div class="nv" data-r="journal">Journal Entries</div>
     <div class="nv" data-r="trial">Trial Balance</div>
+    <div class="nv" data-r="pl">Profit &amp; Loss</div>
+    <div class="nv" data-r="bs">Balance Sheet</div>
+    <div class="nv" data-r="cf">Cash Flow</div>
     <div class="grp">Planning</div>
     <div class="nv" data-r="planning">Planning home</div>
     <div class="nv" data-r="capacity">Capacity curve</div>
@@ -706,7 +709,7 @@ const FIRST=['Ahmed','Fatima','Mohammed','Aisha','Yusuf','Noora','Khalid','Maria
 const LAST=['Al-Marri','Rahman','Al-Kuwari','Haider','Al-Sulaiti','Nair','Al-Dosari','Menon','Siddiqui','Al-Emadi',
 'Farouk','Al-Naimi','Chowdhury','Al-Hajri','Pillai','Al-Mannai','Iqbal','Al-Kaabi','Zaman','Al-Boainain'];
 const CORP=['GulfServe Catering','Horizon Facilities','Medline Clinics','TransQatar Logistics','Falcon Security'];
-const STAFF=['Aisha R.','Fatima N.','Yusuf K.','Maint. team','GM','MD'];
+const STAFF=['Aisha R.','Anoop M.','Yusuf K.','Maint. team','GM','MD'];
 
 const BUILDINGS=BNAMES.map((n,i)=>{
   const units=[18,14,16,12,10,15,12,8,13,16,11,14,12,10,15,13,12,9,11,12,13,10][i];
@@ -805,7 +808,7 @@ const CASES=[];
 TENANTS.filter(t=>t.arr>0).slice(0,14).forEach((t,i)=>{
   CASES.push({id:'TOC-'+String(180+i).padStart(4,'0'),t:t.id,tn:t.n,amt:t.arr,
     stage:t.arr>30000?pick(['Legal notice','Escalated']):pick(['Reminder sent','Promise to pay','Promise broken']),
-    age:ri(6,88), owner:pick(['Aisha R.','Fatima N.']), promise:R()<0.5?dplus(ri(2,14)):'—'});
+    age:ri(6,88), owner:pick(['Aisha R.','Anoop M.']), promise:R()<0.5?dplus(ri(2,14)):'—'});
 });
 const CS=id=>CASES.find(c=>c.id===id);
 /* live data · replaces the seed when the server sent rows */
@@ -827,11 +830,11 @@ if(B('B14')&&UNITS.some(u=>u.b==='B14'))Object.assign(JOBS.find(j=>j.id==='MNT-0
 const J=id=>JOBS.find(j=>j.id===id);
 
 const APPR=[
- {id:'APR-0102',ty:'Deposit release',ref:'TA-0231 · Fatima N.',amt:24000,age:62,res:1,st:'Pending',
+ {id:'APR-0102',ty:'Deposit release',ref:'TA-0231 · Anoop M.',amt:24000,age:62,res:1,st:'Pending',
   why:'Move-out MO-0044 closed, no deductions raised. Release mirrors original receipt method (bank transfer).'},
  {id:'APR-0103',ty:'Rent concession',ref:'B14-U103 · GM',amt:8500,age:51,res:1,st:'Pending',
   why:'Tenant requests 2-month 15% concession citing hardship. GM recommends approval to avoid a 44-day void.'},
- {id:'APR-0104',ty:'Write-off',ref:'TN-0142 · Fatima N.',amt:6200,age:19,res:1,st:'Pending',
+ {id:'APR-0104',ty:'Write-off',ref:'TN-0142 · Anoop M.',amt:6200,age:19,res:1,st:'Pending',
   why:'Balance uncollectable — tenant departed Qatar. Legal advises cost of pursuit exceeds recovery.'},
  {id:'APR-0105',ty:'Head-lease renewal',ref:'B07 · GM',amt:1458000,age:6,res:1,st:'Pending',
   why:'Landlord proposes 4% uplift on renewal. Sublease book on B07 supports it at current occupancy.'},
@@ -857,7 +860,7 @@ const MO=id=>MOVEOUT.find(m=>m.id===id);
 if(window.DB_SEED&&DB_SEED.moveouts&&DB_SEED.moveouts.length){MOVEOUT.length=0;MOVEOUT.push.apply(MOVEOUT,DB_SEED.moveouts);}
 
 const DOCS=[
- {id:'DOC-0912',ty:'Cheque batch',f:'QNB_batch_scan_0871.pdf',st:'Needs review',conf:71,by:'Fatima N.',when:'07:04',ext:'12 cheques · QAR 486,200 total'},
+ {id:'DOC-0912',ty:'Cheque batch',f:'QNB_batch_scan_0871.pdf',st:'Needs review',conf:71,by:'Anoop M.',when:'07:04',ext:'12 cheques · QAR 486,200 total'},
  {id:'DOC-0911',ty:'Tenant contract',f:'TA-0301_signed.pdf',st:'Needs review',conf:88,by:'Aisha R.',when:'Yesterday',ext:'Tenant: Noora Al-Kaabi · B04-U210 · QAR 6,800/mo'},
  {id:'DOC-0910',ty:'QID',f:'QID_2894412.jpg',st:'Validated',conf:96,by:'Aisha R.',when:'Yesterday',ext:'QID 28944123871 · expiry 2027-04-11'},
  {id:'DOC-0909',ty:'Utility invoice',f:'Kahramaa_B09_Jul.pdf',st:'Flagged',conf:64,by:'System',when:'24 Jul',ext:'B09 · QAR 12,480 — +38% vs trailing average'},
@@ -879,7 +882,7 @@ if(window.DB_SEED&&DB_SEED.docs&&DB_SEED.docs.length){DOCS.length=0;DOCS.push.ap
    The server decides who sees money and simply does not send it to anyone
    else, so `pay` below reports what arrived rather than granting anything. */
 let PEOPLE=[
- {id:'STF-00001',name:'Fatima N.',title:'Accountant',dept:'Office',status:'Active',
+ {id:'STF-00001',name:'Anoop M.',title:'Accountant',dept:'Office',status:'Active',
   joined:'2021-03-14',qid:'28644102993',basic:9000,allow:4500,cost:13500},
  {id:'STF-00002',name:'Aisha R.',title:'Documentation Officer',dept:'Office',status:'Active',
   joined:'2022-09-01',qid:'29144870211',basic:6500,allow:3200,cost:9700},
@@ -1184,6 +1187,7 @@ function router(){
    batches:'Cheque batches',recon:'Reconciliation',closing:'Weekly closing',approvals:'Approvals',
    approval:'Approval',reports:'Reports',admin:'Admin',ledger:'General ledger',coa:'Chart of accounts',
    journal:'Journal entries',trial:'Trial balance',account:'Account ledger',
+   pl:'Profit and loss',bs:'Balance sheet',cf:'Cash flow',
    generate:'Generate invoices',billrun:'Invoice run',receipts:'Receipts',receipt:'Receipt',amendment:'Invoice amendment',
    owners:'Owners & shareholders',shareholder:'Shareholder',policy:'Distribution policy',
    runs:'Distribution runs',run:'Distribution run',memo:'Approval memo',
@@ -1220,7 +1224,7 @@ const ALERTS=[
  {ty:'Promise broken',t:'TN-0142 · QAR 18,000 due 24 Jul, unpaid',w:'06:40',s:'r',go:'#/cases'},
  {ty:'Approval ageing',t:'2 reserved approvals over 48 hours',w:'06:00',s:'r',go:'#/approvals'},
  {ty:'Over ceiling',t:'MNT-0231 · B14 chiller · QAR 3,200 vs QAR 2,000 limit',w:'Yesterday',s:'a',go:'#/job/MNT-0231'},
- {ty:'Override logged',t:'Fatima N. batched and reconciled BATCH-0871',w:'Yesterday',s:'a',go:'#/batches'},
+ {ty:'Override logged',t:'Anoop M. batched and reconciled BATCH-0871',w:'Yesterday',s:'a',go:'#/batches'},
  {ty:'Reconciliation',t:'9 unmatched bank items · 2 over 5 days',w:'24 Jul',s:'a',go:'#/recon'}];
 
 const CASH=[
@@ -1802,7 +1806,7 @@ function renderExceptions(){
    ['r','Cheque bounced — Horizon Facilities · QAR 42,500 · insufficient funds','07:02'],
    ['r','Promise broken — TN-0142 · QAR 18,000 due 24 Jul, unpaid','06:40'],
    ['a','Emergency maint over ceiling — B14 chiller · QAR 3,200 vs QAR 2,000 limit','Yesterday'],
-   ['a','Override — Fatima N. batched + reconciled BATCH-0871 · "Yusuf on leave"','Yesterday'],
+   ['a','Override — Anoop M. batched + reconciled BATCH-0871 · "Yusuf on leave"','Yesterday'],
    ['a','Recon item unmatched 6d — bank ref 8842 · QAR 12,400','24 Jul'],
    ['n','Utility invoice variance — Kahramaa B09 +38% vs trailing avg','23 Jul']];
   $('#exceptions').innerHTML=rows.map(r=>`<div class="it drill" onclick="go('#/mywork')"><span class="dot ${r[0]}"></span>
@@ -2353,7 +2357,7 @@ function renderClosing(){
   $('#closing').innerHTML=`<div class="list">
    <div class="it"><span class="dot g"></span><span class="t">Thu 23 Jul close — completed 19:42</span><span class="chip g">DONE</span></div>
    <div class="it"><span class="dot a"></span><span class="t">Open discrepancies</span><span class="chip a">3</span></div>
-   <div class="it"><span class="dot n"></span><span class="t">Assigned — Fatima N.</span><span class="m">due Tue</span></div>
+   <div class="it"><span class="dot n"></span><span class="t">Assigned — Anoop M.</span><span class="m">due Tue</span></div>
    <div class="it"><span class="dot n"></span><span class="t">Next close — Thu 30 Jul</span><span class="chip n">IN 4 DAYS</span></div></div>`;
 }
 
@@ -2400,7 +2404,7 @@ function renderOverrides(){
     <div class="foot"><span>latest: "${esc((LP[0].last||'').slice(0,44))}" — ${esc(LP[0].ref||'')}</span><span>from deposit batches</span></div>`;
     return;
   }
-  const rows=[['Fatima N.',4,'"Yusuf on leave" · batch + reconcile'],['Yusuf K.',1,'"month-end rush" · same-day recon'],['Aisha R.',0,'—']];
+  const rows=[['Anoop M.',4,'"Yusuf on leave" · batch + reconcile'],['Yusuf K.',1,'"month-end rush" · same-day recon'],['Aisha R.',0,'—']];
   $('#overrides').innerHTML=`<svg viewBox="0 0 380 92" style="width:100%;height:auto">${rows.map((r,i)=>{
     const y=8+i*28,w=r[1]/5*230;
     return `<text x="0" y="${y+12}" font-size="11" fill="#3E2723">${r[0]}</text>
@@ -3366,7 +3370,7 @@ const FORMS={
     It exists only inside this case — there is no standalone inspection record.</p>
    <div class="fg">
     ${fld({k:'insp',l:'Inspection date',t:'date',req:1},d.insp)}
-    ${fld({k:'inspby',l:'Inspector',t:'sel',o:['Aisha R.','Yusuf K.','Fatima N.','External surveyor'],req:1},d.inspby)}
+    ${fld({k:'inspby',l:'Inspector',t:'sel',o:['Aisha R.','Yusuf K.','Anoop M.','External surveyor'],req:1},d.inspby)}
     ${fld({k:'attend',l:'Tenant attending',t:'sel',o:['Yes','No','Representative']},d.attend)}
     ${fld({k:'access',l:'Access arrangement',t:'sel',o:['Tenant present','Keys with security','Spare key held']},d.access)}</div>
    <div class="note">Deductions are agreed at the inspection with the tenant present wherever possible. A deduction raised afterwards
@@ -3532,7 +3536,7 @@ ROUTES.mywork=()=>{
     :empty('Nothing is flagged for your attention'))
   :`<div class="list">
    ${['Cheque bounced — Horizon Facilities · QAR 42,500','Promise broken — TN-0142 · QAR 18,000',
-      'Emergency maint over ceiling — B14 chiller · QAR 3,200','Override — Fatima N. batched + reconciled BATCH-0871',
+      'Emergency maint over ceiling — B14 chiller · QAR 3,200','Override — Anoop M. batched + reconciled BATCH-0871',
       'Head-lease B07 ends before 4 subleases'].map(t=>`<div class="it"><span class="dot r"></span><span class="t">${t}</span></div>`).join('')}
    </div>`;
 
@@ -4335,7 +4339,7 @@ ROUTES.admin=()=>page('Admin','Users, roles and system rules','',
   {h:'User',v:r=>r[0]},{h:'Role',v:r=>r[1]},{h:'Scope',v:r=>r[2]},{h:'Status',v:r=>chip(r[3],'g')}],
   [['Managing Director','MD','Full access · reserved approvals','Active'],
    ['General Manager','GM','Operations, approvals up to limit','Active'],
-   ['Fatima N.','Accounts','Invoices, cheques, reconciliation','Active'],
+   ['Anoop M.','Accounts','Invoices, cheques, reconciliation','Active'],
    ['Yusuf K.','Accounts / Documentation','Batches, documents','Active'],
    ['Aisha R.','Documentation','Agreements, tenants, documents','Active'],
    ['Maint. team','Maintenance','Jobs and costs','Active']].map(r=>({...r,__id:r[0]})),{id:'adu'})}</div>
@@ -4355,7 +4359,7 @@ ROUTES.admin=()=>page('Admin','Users, roles and system rules','',
        'panel from them. This table has never been pointed at it.')
    :tbl([
    {h:'User',v:r=>r[0]},{h:'Count',r:1,mono:1,v:r=>r[1]},{h:'Latest reason',v:r=>r[2]}],
-   [['Fatima N.',4,'"Yusuf on leave" — BATCH-0871'],['Yusuf K.',1,'"month-end rush"'],['Aisha R.',0,'—']]
+   [['Anoop M.',4,'"Yusuf on leave" — BATCH-0871'],['Yusuf K.',1,'"month-end rush"'],['Aisha R.',0,'—']]
     .map(r=>({...r,__id:r[0]})),{id:'ado'})}</div></div>`);
 
 /* ============ Darkbrown V2 — notes, vault filters, ledger views, notifications ============ */
@@ -4411,13 +4415,13 @@ const VDOCS=[];
   ['Insurance_B01_2026.pdf','Insurance','B01 · Al Sadd Tower','Building',60],
   ['Passport_Rahman.pdf','Passport','TN-0018 · S. Rahman','Tenant',22]];
  seed.forEach((s,i)=>VDOCS.push({id:'DOC-'+(800+i),f:s[0],ty:s[1],link:s[2],ent:s[3],
-   filed:new Date(TODAY.getTime()-s[4]*DAY),by:pick(['Aisha R.','Yusuf K.','Fatima N.']),st:'Validated',size:(0.3+R()*4).toFixed(1)+' MB'}));
+   filed:new Date(TODAY.getTime()-s[4]*DAY),by:pick(['Aisha R.','Yusuf K.','Anoop M.']),st:'Validated',size:(0.3+R()*4).toFixed(1)+' MB'}));
  for(let i=0;i<44;i++){
    const ty=pick(types), t=pick(TENANTS), b=pick(BUILDINGS);
    const isT=['Tenant contract','QID','Passport','Receipt','Trade licence'].includes(ty);
    VDOCS.push({id:'DOC-'+(820+i),f:ty.replace(/ /g,'_')+'_'+ri(1000,9999)+(ty==='QID'||ty==='Passport'?'.jpg':'.pdf'),
      ty, link:isT?t.id+' · '+t.n:b.id+' · '+b.n, ent:isT?'Tenant':'Building',
-     filed:new Date(TODAY.getTime()-ri(1,320)*DAY), by:pick(['Aisha R.','Yusuf K.','Fatima N.','System']),
+     filed:new Date(TODAY.getTime()-ri(1,320)*DAY), by:pick(['Aisha R.','Yusuf K.','Anoop M.','System']),
      st:pick(['Validated','Validated','Validated','Needs review']), size:(0.2+R()*5).toFixed(1)+' MB'});
  }
  VDOCS.sort((a,b)=>b.filed-a.filed);
@@ -4519,7 +4523,7 @@ const NOTIF=[
  ['r','Promise broken','TN-0142 · QAR 18,000 due 24 Jul, unpaid','06:40','#/cases'],
  ['a','Approval waiting 62h','Deposit release · TA-0231','06:00','#/approval/APR-0102'],
  ['a','Emergency over ceiling','B14 chiller · QAR 3,200 vs QAR 2,000 limit','Yesterday','#/job/MNT-0231'],
- ['a','Same-user override','Fatima N. batched + reconciled BATCH-0871','Yesterday','#/batches'],
+ ['a','Same-user override','Anoop M. batched + reconciled BATCH-0871','Yesterday','#/batches'],
  ['n','Recon item unmatched 6d','Bank ref 8842 · QAR 12,400','24 Jul','#/recon']];
 window.toggleNotif=()=>{
   const p=document.getElementById('npanel');
@@ -5131,7 +5135,7 @@ FORMS['create-batch']={t:'Create deposit batch',s:'Cheques and cash · two-perso
       ${fld({k:'bank',l:'Deposit to',t:'sel',o:['QNB — 0021 4478','Doha Bank — 7741 2200','CBQ — 3390 8871'],req:1},d.bank)}
       ${fld({k:'date',l:'Deposit date',t:'date',d:'2026-07-27',req:1},d.date)}
       ${fld({k:'slip',l:'Deposit slip number',t:'txt',p:'DS-88214'},d.slip)}
-      ${fld({k:'recon',l:'Reconciled by',t:'sel',o:['Yusuf K.','Fatima N.','Aisha R.'],req:1,live:1},d.recon)}</div>
+      ${fld({k:'recon',l:'Reconciled by',t:'sel',o:['Yusuf K.','Anoop M.','Aisha R.'],req:1,live:1},d.recon)}</div>
      ${stat([['Items',items.length],['Total',n0(tot)],['Created by','Managing Director'],['Account',(d.bank||'').split(' — ')[0]]])}
      ${d.recon==='Managing Director'?'<div class="merr" style="display:block">Same user cannot create and reconcile — an override reason will be required.</div>'
        :'<div class="note">Two-person control satisfied: created by the MD, reconciled by '+(d.recon||'another user')+'.</div>'}`},
@@ -5241,7 +5245,7 @@ ROUTES.journal=id=>{
       <th>Narration</th><th>Lines</th><th class="r">Amount</th><th>By</th></tr></thead><tbody>
     ${res.slice(0,40).map(j=>`<tr class="drill" onclick="go('#/journal/'+'${j.id}')"><td>${j.id}</td><td>${j.d}</td>
       <td>${chip(j.ty,'n')}</td><td>${j.ref}</td><td>${j.desc}</td><td>${j.lines.length}</td>
-      <td class="r num">${money(j.tot)}</td><td>${j.by||'Fatima N.'}</td></tr>`).join('')}
+      <td class="r num">${money(j.tot)}</td><td>${j.by||'\u2014'}</td></tr>`).join('')}
     </tbody></table></div>
     <div class="foot"><span>showing ${Math.min(40,res.length)} of ${res.length}</span><span>every posting drills to its lines</span></div>
     ${booksNote()}</div>`)};
@@ -5319,12 +5323,176 @@ ROUTES.trial=()=>{
         ['Net assets',cls('Asset')-cls('Liability')]].map(r=>({...r,__id:r[0]})),{id:'bs'})}
      <div class="note">Deposits held are a liability, not income — release at move-out mirrors the receipt method.</div></div></div>`)};
 
+/* ---------- The three statements ----------
+   These read darkbrown.api.statements, which is a query over GL Entry and
+   Account and writes nothing. Two things are worth knowing while reading the
+   code below. The balance sheet's "profit for the unclosed period" is a real
+   line and not a plug: assets balance against liabilities and equity only once
+   the profit that no period-closing entry has swept yet sits on the equity
+   side. And the cash flow states its own reconciliation — opening plus the
+   three buckets equals closing — because a cash flow nobody can check is a
+   cash flow nobody should sign. */
+
+/* One statement line. Depth is the account's place in the chart, so a group
+   and its children indent rather than pretending to be a flat list. */
+function stRows(rows){
+  return rows.map(r=>`<tr${r.group?' class="grp2"':''}>
+    <td style="padding-left:${8+(r.depth||0)*18}px">${r.code
+      ?`<span class="num" style="opacity:.55">${esc(String(r.code))}</span> `:''}${esc(r.label)}</td>
+    <td class="r num">${money(r.amount)}</td></tr>`).join('');
+}
+function stTable(rows,label,tot,emptyMsg){
+  if(!rows||!rows.length) return empty(emptyMsg||'Nothing has been posted to these accounts.');
+  return `<div class="tw"><table><thead><tr><th>Account</th><th class="r">Amount</th></tr></thead>
+   <tbody>${stRows(rows)}</tbody>
+   <tfoot><tr><th>${label}</th><th class="r num">${money(tot)}</th></tr></tfoot></table></div>`;
+}
+
+/* ---------- Profit and loss ---------- */
+function plLive(d){
+  const inc=(d.sections||[])[0]||{rows:[],total:0}, exp=(d.sections||[])[1]||{rows:[],total:0};
+  return page('Profit and loss',
+   `${fdate(d.frm)} to ${fdate(d.to)} \u00b7 period closing entries excluded`,
+   actbtn('Print'),
+   stat([['Income',money(d.income)],['Expenses',money(d.expense)],
+     ['Net result',money(d.net),'',d.net>=0?'g':'r'],
+     ['Margin',d.margin===null||d.margin===undefined?'\u2014':d.margin+'%','',
+       d.margin===null||d.margin===undefined?'':d.margin>=0?'g':'r']])+
+   `<div class="card"><h3>Income</h3>
+     ${stTable(inc.rows,'Total income',inc.total,'No income posted in this window.')}</div>
+    <div class="card" style="margin-top:14px"><h3>Expenses</h3>
+     ${stTable(exp.rows,'Total expenses',exp.total,'No expenses posted in this window.')}</div>
+    <div class="card" style="margin-top:14px"><h3>Result</h3>
+     <div class="tw"><table><tbody>
+      <tr><td>Income</td><td class="r num">${money(d.income)}</td></tr>
+      <tr><td>Expenses</td><td class="r num">${money(d.expense)}</td></tr>
+      <tr class="grp2"><td>Net result</td><td class="r num">${money(d.net)}</td></tr>
+     </tbody></table></div>
+     <div class="note">Rent-free periods follow whatever treatment the ledger
+     was posted on. If that decision changes, this statement changes with it \u2014
+     nothing here is restated in the screen.</div></div>`)}
+window.plLive=plLive;
+
+ROUTES.pl=()=>{
+  const c=lazy('pl','statements.profit_and_loss');
+  if(c.state!=='ok'&&c.state!=='demo')
+    return lazyPage('Profit and loss','Reads the ledger over the reporting window',c);
+  if(c.state==='ok') return plLive(c.data);
+  const row=t=>COA.filter(a=>a[2]===t).map(a=>({code:a[0],label:a[1],depth:0,
+    group:false,amount:accBalance(a[0]).bal})).filter(r=>r.amount);
+  const inc=row('Income'), exp=row('Expense');
+  const it=inc.reduce((s,r)=>s+r.amount,0), et=exp.reduce((s,r)=>s+r.amount,0);
+  return plLive({sections:[{rows:inc,total:it},{rows:exp,total:et}],
+    income:it,expense:et,net:it-et,margin:it?Math.round((it-et)/it*1000)/10:null,
+    frm:TODAY,to:TODAY});
+};
+
+/* ---------- Balance sheet ---------- */
+function bsLive(d){
+  const [as,li,eq]=d.sections||[{rows:[],total:0},{rows:[],total:0},{rows:[],total:0}];
+  return page('Balance sheet',`As at ${fdate(d.as_on)}`,
+   actbtn('Print'),
+   stat([['Assets',money(d.assets)],['Liabilities',money(d.liabilities)],
+     ['Equity',money(d.equity)],
+     ['Unclosed profit',money(d.unclosed),'',d.unclosed>=0?'g':'r'],
+     ['Balanced',d.balanced?'Yes':'No','',d.balanced?'g':'r']])+
+   (d.balanced?'':`<div class="note" style="border-left-color:var(--red)">
+     <b>The balance sheet does not balance.</b> Assets are out against
+     liabilities and equity by ${money(Math.abs(d.difference))}. That is not a
+     rounding artefact and not something this screen can resolve \u2014 it is an
+     ERPNext question before it is a Darkbrown one.</div>`)+
+   `<div class="card"><h3>Assets</h3>
+     ${stTable(as.rows,'Total assets',as.total,'No assets posted.')}</div>
+    <div class="card" style="margin-top:14px"><h3>Liabilities</h3>
+     ${stTable(li.rows,'Total liabilities',li.total,'No liabilities posted.')}</div>
+    <div class="card" style="margin-top:14px"><h3>Equity</h3>
+     ${stTable(eq.rows,'Total equity',eq.total,'No equity posted.')}
+     <div class="note">Profit for the unclosed period is the result that no
+     period-closing entry has moved into retained earnings yet. It is shown here
+     because assets balance against liabilities and equity only once it is.</div></div>
+    <div class="card" style="margin-top:14px"><h3>Check</h3>
+     <div class="tw"><table><tbody>
+      <tr><td>Assets</td><td class="r num">${money(d.assets)}</td></tr>
+      <tr><td>Liabilities and equity</td><td class="r num">${money(d.liabilities+d.equity)}</td></tr>
+      <tr class="grp2"><td>Difference</td><td class="r num">${money(d.difference)}</td></tr>
+     </tbody></table></div></div>`)}
+window.bsLive=bsLive;
+
+ROUTES.bs=()=>{
+  const c=lazy('bs','statements.balance_sheet');
+  if(c.state!=='ok'&&c.state!=='demo')
+    return lazyPage('Balance sheet','Reads the ledger as at today',c);
+  if(c.state==='ok') return bsLive(c.data);
+  const row=t=>COA.filter(a=>a[2]===t).map(a=>({code:a[0],label:a[1],depth:0,
+    group:false,amount:accBalance(a[0]).bal})).filter(r=>r.amount);
+  const sum=r=>r.reduce((s,x)=>s+x.amount,0);
+  const as=row('Asset'), li=row('Liability'), eq=row('Equity');
+  const unc=sum(row('Income'))-sum(row('Expense'));
+  eq.push({code:'',label:'Profit for the unclosed period',depth:0,group:false,amount:unc});
+  const at=sum(as), lt=sum(li), et=sum(eq);
+  return bsLive({sections:[{rows:as,total:at},{rows:li,total:lt},{rows:eq,total:et}],
+    assets:at,liabilities:lt,equity:et,unclosed:unc,difference:at-(lt+et),
+    balanced:Math.abs(at-(lt+et))<0.01,as_on:TODAY});
+};
+
+/* ---------- Cash flow ---------- */
+function cfLive(d){
+  const b=d.buckets||[];
+  return page('Cash flow',
+   `${fdate(d.frm)} to ${fdate(d.to)} \u00b7 direct method \u00b7 ${n0(d.vouchers||0)} vouchers moved cash`,
+   actbtn('Print'),
+   stat([['Opening cash',money(d.opening)],['Net movement',money(d.net),'',d.net>=0?'g':'r'],
+     ['Closing cash',money(d.closing)],
+     ['Reconciled',d.reconciled?'Yes':'No','',d.reconciled?'g':'r']])+
+   (d.reconciled?'':`<div class="note" style="border-left-color:var(--red)">
+     <b>The cash flow does not reconcile.</b> Opening plus movement is out
+     against closing by ${money(Math.abs(d.difference))}. Until that is nil the
+     buckets below should not be relied on.</div>`)+
+   (d.note?`<div class="card">${empty(esc(d.note))}</div>`:'')+
+   b.map(x=>`<div class="card" style="margin-top:14px"><h3>${esc(x.label)}</h3>
+     ${stTable(x.rows,'Net '+x.label.toLowerCase(),x.total,
+       'No cash moved against these accounts in the window.')}</div>`).join('')+
+   (d.unallocated?`<div class="card" style="margin-top:14px"><h3>Unallocated</h3>
+     <div class="tw"><table><tbody><tr class="grp2"><td>Cash that could not be
+     attributed to a counterpart account</td><td class="r num">${money(d.unallocated)}</td></tr>
+     </tbody></table></div></div>`:'')+
+   `<div class="card" style="margin-top:14px"><h3>Reconciliation</h3>
+     <div class="tw"><table><tbody>
+      <tr><td>Opening cash</td><td class="r num">${money(d.opening)}</td></tr>
+      ${b.map(x=>`<tr><td>${esc(x.label)}</td><td class="r num">${money(x.total)}</td></tr>`).join('')}
+      ${d.unallocated?`<tr><td>Unallocated</td><td class="r num">${money(d.unallocated)}</td></tr>`:''}
+      <tr class="grp2"><td>Closing cash</td><td class="r num">${money(d.closing)}</td></tr>
+     </tbody></table></div>
+     <div class="note">Closing cash is the same figure the balance sheet shows for
+     the Cash and Bank accounts${(d.accounts&&d.accounts.length)
+       ?' \u2014 '+d.accounts.map(esc).join(', '):''}. Transfers between two of
+     them net to nothing and do not appear above. Each account sits in the
+     bucket its type implies; if one belongs elsewhere, that is a setting on the
+     account rather than a change to this screen.</div></div>`)}
+window.cfLive=cfLive;
+
+ROUTES.cf=()=>{
+  const c=lazy('cf','statements.cash_flow');
+  if(c.state!=='ok'&&c.state!=='demo')
+    return lazyPage('Cash flow','Reads every movement on the cash and bank accounts',c);
+  if(c.state==='ok') return cfLive(c.data);
+  /* The prototype has no cash movement to classify, and a cash flow built from
+     invented vouchers is worse than none. It says so rather than fills in. */
+  return page('Cash flow','Direct method \u00b7 reads the live ledger','',
+   `<div class="card"><div class="unwired big"><span class="uw-tag">LIVE ONLY</span>
+     <p>The cash flow is derived from the vouchers that actually moved the cash
+     and bank accounts. The prototype has no such vouchers, so there is nothing
+     honest to show here.</p>
+     <p class="uw-note">On a live site this reads the ledger and reconciles
+     opening plus movement to closing cash.</p></div></div>`);
+};
+
 function journalDetail(id){const j=JRN.find(x=>x.id===id)||JRN[0];
   const dr=j.lines.reduce((a,l)=>a+(l[1]||0),0), cr=j.lines.reduce((a,l)=>a+(l[2]||0),0);
   return crumb([['Journal entries','#/journal'],[j.id,'']])+page(j.id,`${j.desc} · ${j.d}`,
    actbtn('Print')+actbtn('Reverse entry'),
    stat([['Date',j.d],['Type',j.ty],['Reference',j.ref],['Debits',money(dr)],['Credits',money(cr)],
-     ['Balanced',Math.abs(dr-cr)<0.01?'Yes':'No','',Math.abs(dr-cr)<0.01?'g':'r'],['Posted by',j.by||'Fatima N.']])+
+     ['Balanced',Math.abs(dr-cr)<0.01?'Yes':'No','',Math.abs(dr-cr)<0.01?'g':'r'],['Posted by',j.by||'\u2014']])+
    `<div class="card"><h3>Journal lines</h3>
     <div class="tw"><table><thead><tr><th>Code</th><th>Account</th><th>Class</th><th class="r">Debit</th><th class="r">Credit</th></tr></thead><tbody>
     ${j.lines.map(l=>`<tr class="drill" onclick="go('#/account/'+'${l[0]}')"><td>${l[0]}</td>
@@ -5334,7 +5502,7 @@ function journalDetail(id){const j=JRN.find(x=>x.id===id)||JRN[0];
     </tbody></table></div></div>
    ${noteThread(j.id)}
    <div class="card"><h3>Audit</h3><div class="kv">
-    ${[['Posted by',j.by||'Fatima N.'],['Posted on',j.d],['Source document',j.ref],
+    ${[['Posted by',j.by||'\u2014'],['Posted on',j.d],['Source document',j.ref],
        ['Reversible','yes — creates a mirror entry'],['Edited after posting','no']]
      .map(r=>`<div><span>${r[0]}</span><b>${r[1]}</b></div>`).join('')}</div></div>`)}
 
@@ -5454,6 +5622,13 @@ window.dtPoll=async()=>{
   DATA_POLL=setInterval(tick,2000);
 };
 const PLANONLY=['planning','capacity','forecast','fva','scenarios','scenario','compare','model','portfolioplan','unitplan','targets','solver','risks','optimise','cfo','pactions','pconfig'];
+/* The books. Every endpoint behind these is guard(MD, GM, ACC) on the server,
+   so Documentation and Maintenance were being offered four screens — now
+   seven — that answered them with a SERVER ERROR card. The server remains the
+   authority; this only stops the nav from putting a door there that does not
+   open. Accounts is on the list because the accountant is the person these
+   screens are for. */
+const BOOKS=['coa','ledger','journal','trial','account','pl','bs','cf'];
 window.cycleRole=()=>{const o=Object.keys(ROLES);
   if(DB_REAL_ROLE!=='MD'){toast('Your role is set by your login');return}
   ROLEV=o[(Math.max(0,o.indexOf(ROLEV))+1)%o.length];applyRole();
@@ -5463,6 +5638,7 @@ window.cycleRole=()=>{const o=Object.keys(ROLES);
 function roleCan(r){
   if(RESTRICTED.includes(r))return ROLEV==='MD'||ROLEV==='GM';
   if(PLANONLY.includes(r))return ROLEV==='MD'||ROLEV==='GM';
+  if(BOOKS.includes(r))return ROLEV==='MD'||ROLEV==='GM'||ROLEV==='ACC';
   return true}
 function applyRole(){
   const u=document.getElementById('userbox');
@@ -6581,7 +6757,7 @@ Object.assign(FORMS,{
     ${fld({k:'tenant',l:'Tenant',t:'sel',o:TENANTS.slice(0,20).map(x=>x.n),req:1,live:1},d.tenant)}
     ${fld({k:'amt',l:'Amount at stake (QAR)',t:'num',step:'100',req:1},d.amt||(t?String(Math.round(t.arr)):''))}
     ${fld({k:'stage',l:'Opening stage',t:'sel',o:['Reminder sent','Promise to pay','Promise broken','Legal notice'],req:1},d.stage)}
-    ${fld({k:'owner',l:'Assign to',t:'sel',o:['Aisha R.','Fatima N.','Yusuf K.'],req:1},d.owner)}
+    ${fld({k:'owner',l:'Assign to',t:'sel',o:['Aisha R.','Anoop M.','Yusuf K.'],req:1},d.owner)}
     ${fld({k:'why',l:'Why this needs a case',t:'ta',req:1,full:1,p:'Required — it is the first line of the case history'},d.why)}</div>
    ${t&&t.arr===0?`<div class="note" style="border-left-color:var(--amber)"><b>This tenant has no arrears on file.</b>
      Opening a case anyway is allowed, but the reason above carries the whole justification.</div>`:''}`},
@@ -7066,7 +7242,7 @@ function genLanding(){
    Cheques · money in and money out, and what happens when one returns
    ================================================================ */
 CHQ.forEach(c=>{c.dir=c.dir||'in';c.party=c.party||c.tn;
- c.hist=c.hist||[{d:c.mat,act:'Received and logged',by:'Fatima N.',note:''}];
+ c.hist=c.hist||[{d:c.mat,act:'Received and logged',by:'Anoop M.',note:''}];
  if(c.st==='Bounced'){c.st='Returned';c.hist.push({d:dplus(-3),act:'Returned by the bank',by:'System',note:c.reason})}});
 const CHQNEXT={
  'On hand':[['Deposit','Send it to the bank'],['Return to the drawer','Hand it back'],
@@ -7178,7 +7354,7 @@ FORMS['cheque-action']={t:'Update the cheque',s:'Every change is kept on the che
    ALERTS.unshift({ty:'Cheque returned',t:(c.party||c.tn)+' · '+k(c.amt)+' · '+(d.reason||''),w:'just now',s:'r',go:'#/cheque/'+c.id});
    if(d.next==='Open a collection case'&&!CASES.some(x=>x.t===c.t)){
     const id='TOC-'+String(180+CASES.length).padStart(4,'0');
-    CASES.push({id,t:c.t,tn:c.tn,amt:c.amt,stage:'Promise broken',age:0,owner:'Fatima N.',promise:'—',manual:0});
+    CASES.push({id,t:c.t,tn:c.tn,amt:c.amt,stage:'Promise broken',age:0,owner:'Anoop M.',promise:'—',manual:0});
     addNote(id,'System','Workflow','Opened automatically on a returned cheque — '+c.id+', '+(d.reason||''))}}
   if(a==='Mark cleared'){addJrn('Receipt','Cheque cleared — '+(c.party||c.tn),c.id,[['1010',c.amt,0],['1150',0,c.amt]])}
   c.hist.push({d:d.date,act:a,by:roleInfo(ROLEV)[0],note:[d.reason,d.next,d.note].filter(Boolean).join(' · ')});
@@ -7405,7 +7581,7 @@ FORMS['issue-receipt']={t:'Issue a receipt',s:'Cash on the day · a cheque only 
        ${fld({k:'amt',l:'Amount (QAR)',t:'num',step:'100',req:1},d.amt)}
        ${fld({k:'date',l:'Date received',t:'date',req:1},d.date)}
        ${d.kind==='Cash received'?fld({k:'collector',l:'Collected by',t:'sel',
-         o:['Yusuf K.','Fatima N.','Aisha R.'],req:1},d.collector):
+         o:['Yusuf K.','Anoop M.','Aisha R.'],req:1},d.collector):
         fld({k:'stmt',l:'Bank statement reference',t:'txt',req:1,p:'QNB 04/26 line 8851'},d.stmt)}
        ${d.kind==='Cash received'?fld({k:'slip',l:'Collection slip reference',t:'txt',req:1,p:'CS-4431',
          hint:'written on the slip the tenant signs'},d.slip):''}
