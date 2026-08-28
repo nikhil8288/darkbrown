@@ -1,0 +1,1780 @@
+[
+ {
+  "building_name": "AK-12",
+  "status": "Active",
+  "area_name": "Ain Khalid",
+  "company": null,
+  "landlord": {
+   "supplier_name": "AL MADAR REAL ESTATE W.L.L"
+  },
+  "units": [
+   {
+    "unit_no": "F-01",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-02",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "G-01",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "G-01A",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "G-01B",
+    "unit_type": "1BR",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "O-01",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "P-01",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "P-02",
+    "unit_type": "",
+    "status": "Occupied"
+   }
+  ]
+ },
+ {
+  "building_name": "DAJ-21",
+  "status": "Active",
+  "area_name": "Doha Al Jadeeda",
+  "company": null,
+  "landlord": {
+   "supplier_name": "HASSAN BIN HASSAN AL JUFFAIRY"
+  },
+  "units": [
+   {
+    "unit_no": "F-01",
+    "unit_type": "2BR",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-02",
+    "unit_type": "2BR",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-04",
+    "unit_type": "2BR",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-05",
+    "unit_type": "2BR",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-06",
+    "unit_type": "1BR",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-08",
+    "unit_type": "2BR",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-09",
+    "unit_type": "2BR",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-10",
+    "unit_type": "2BR",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-12",
+    "unit_type": "1BR",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-13",
+    "unit_type": "2BR",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-14",
+    "unit_type": "2BR",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-16",
+    "unit_type": "2BR",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-18",
+    "unit_type": "1BR",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-19",
+    "unit_type": "2BR",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-20",
+    "unit_type": "2BR",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-22",
+    "unit_type": "2BR",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-23",
+    "unit_type": "2BR",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-24",
+    "unit_type": "1BR",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-25",
+    "unit_type": "2BR",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-26",
+    "unit_type": "2BR",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-28",
+    "unit_type": "2BR",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-29",
+    "unit_type": "2BR",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-31",
+    "unit_type": "2BR",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-32",
+    "unit_type": "2BR",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-34",
+    "unit_type": "2BR",
+    "status": "Occupied"
+   }
+  ]
+ },
+ {
+  "building_name": "MR-130",
+  "status": "Active",
+  "area_name": "Mansoura",
+  "company": null,
+  "landlord": {
+   "supplier_name": "AHMED A RAHMAN AL AL SHEEBI"
+  },
+  "units": [
+   {
+    "unit_no": "F-01",
+    "unit_type": "2BR",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-02",
+    "unit_type": "2BR",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-03",
+    "unit_type": "2BR",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-04",
+    "unit_type": "2BR",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-05",
+    "unit_type": "2BR",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-06",
+    "unit_type": "2BR",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-07",
+    "unit_type": "2BR",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-08",
+    "unit_type": "2BR",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-09",
+    "unit_type": "2BR",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-10",
+    "unit_type": "2BR",
+    "status": "Occupied"
+   }
+  ]
+ },
+ {
+  "building_name": "MQ-56",
+  "status": "Active",
+  "area_name": "Mathar Qadeem",
+  "company": null,
+  "landlord": {
+   "supplier_name": "JASIM ALI A A SHAMS"
+  },
+  "units": [
+   {
+    "unit_no": "F-01",
+    "unit_type": "Studio",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-02",
+    "unit_type": "1BR",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-03",
+    "unit_type": "1BR",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "G-01",
+    "unit_type": "1BR",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "G-02",
+    "unit_type": "Studio",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "G-03",
+    "unit_type": "Studio",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "O-01",
+    "unit_type": "Studio",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "O-02",
+    "unit_type": "Studio",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "P-01",
+    "unit_type": "2BR",
+    "status": "Occupied"
+   }
+  ]
+ },
+ {
+  "building_name": "MT-21",
+  "status": "Active",
+  "area_name": "Muaither",
+  "company": null,
+  "landlord": {
+   "supplier_name": "AYSHA MOHAMMED AL MAHMOUD"
+  },
+  "units": [
+   {
+    "unit_no": "VILLA",
+    "unit_type": "",
+    "status": "Occupied"
+   }
+  ]
+ },
+ {
+  "building_name": "OG-48",
+  "status": "Active",
+  "area_name": "Old Al Ghanim",
+  "company": null,
+  "landlord": {
+   "supplier_name": "SULTHAN GHANIM S AL GHANIM"
+  },
+  "units": [
+   {
+    "unit_no": "F-01",
+    "unit_type": "1BR",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-02",
+    "unit_type": "1BR",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-03",
+    "unit_type": "1BR",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-04",
+    "unit_type": "1BR",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-05",
+    "unit_type": "1BR",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-06",
+    "unit_type": "1BR",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-07",
+    "unit_type": "1BR",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-08",
+    "unit_type": "1BR",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-09",
+    "unit_type": "1BR",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-10",
+    "unit_type": "1BR",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-11",
+    "unit_type": "1BR",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-12",
+    "unit_type": "1BR",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-13",
+    "unit_type": "1BR",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-14",
+    "unit_type": "1BR",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-15",
+    "unit_type": "1BR",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-16",
+    "unit_type": "1BR",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-17",
+    "unit_type": "1BR",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-18",
+    "unit_type": "1BR",
+    "status": "Occupied"
+   }
+  ]
+ },
+ {
+  "building_name": "TV-20",
+  "status": "Active",
+  "area_name": "Thumama",
+  "company": null,
+  "landlord": {
+   "supplier_name": "JAMAL JASSIM M AL-HADDAD"
+  },
+  "units": [
+   {
+    "unit_no": "F-01",
+    "unit_type": "1BR",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-02",
+    "unit_type": "1BR",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-03",
+    "unit_type": "Studio",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "G-01",
+    "unit_type": "2BR",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "G-02",
+    "unit_type": "1BR",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "O-01",
+    "unit_type": "Studio",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "O-02",
+    "unit_type": "1BR",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "O-03",
+    "unit_type": "Studio",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "P-01",
+    "unit_type": "Studio",
+    "status": "Occupied"
+   }
+  ]
+ },
+ {
+  "building_name": "TV-27",
+  "status": "Active",
+  "area_name": "Thumama",
+  "company": null,
+  "landlord": {
+   "supplier_name": "(not identified)"
+  },
+  "units": [
+   {
+    "unit_no": "CABIN",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-01",
+    "unit_type": "1BR",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-02",
+    "unit_type": "2BR",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-03",
+    "unit_type": "1BR",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-04",
+    "unit_type": "1BR",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "G-01",
+    "unit_type": "2BR",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "G-02",
+    "unit_type": "2BR",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "G-03",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "G-04",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "G-05",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "G-06",
+    "unit_type": "",
+    "status": "Occupied"
+   }
+  ]
+ },
+ {
+  "building_name": "TV-66",
+  "status": "Active",
+  "area_name": "Thumama",
+  "company": null,
+  "landlord": {
+   "supplier_name": "ALI MUBARAK Y A AL-KUWARI"
+  },
+  "units": [
+   {
+    "unit_no": "F-04",
+    "unit_type": "1BR",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-05",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-06",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "G-01",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "G-02",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "G-03",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "O-01",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "O-02",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "P-01",
+    "unit_type": "",
+    "status": "Occupied"
+   }
+  ]
+ },
+ {
+  "building_name": "TV-68",
+  "status": "Active",
+  "area_name": "Thumama",
+  "company": null,
+  "landlord": {
+   "supplier_name": "ALI MUBARAK Y A AL-KUWARI"
+  },
+  "units": [
+   {
+    "unit_no": "F-04",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-05",
+    "unit_type": "1BR",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-06",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "G-01",
+    "unit_type": "1BR",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "G-02",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "G-03",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "O-01",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "O-02",
+    "unit_type": "",
+    "status": "Vacant"
+   },
+   {
+    "unit_no": "P-01",
+    "unit_type": "",
+    "status": "Occupied"
+   }
+  ]
+ },
+ {
+  "building_name": "TWR-12",
+  "status": "Active",
+  "area_name": "Twar",
+  "company": null,
+  "landlord": {
+   "supplier_name": "AL ADEKHAR REAL ESTATE L.L.C"
+  },
+  "units": [
+   {
+    "unit_no": "F-01",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-02",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-03",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-04",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-05",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-06",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-07",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-08",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-09",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-10",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-11",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-12",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-13",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-14",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-15",
+    "unit_type": "",
+    "status": "Occupied"
+   }
+  ]
+ },
+ {
+  "building_name": "TWR-16",
+  "status": "Active",
+  "area_name": "Twar",
+  "company": null,
+  "landlord": {
+   "supplier_name": "AL ADEKHAR REAL ESTATE L.L.C"
+  },
+  "units": [
+   {
+    "unit_no": "F-01",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-02",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-03",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-04",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-05",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-06",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-07",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-08",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-09",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-10",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-11",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-12",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-13",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-14",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-15",
+    "unit_type": "",
+    "status": "Occupied"
+   }
+  ]
+ },
+ {
+  "building_name": "TWR-17",
+  "status": "Active",
+  "area_name": "Twar",
+  "company": null,
+  "landlord": {
+   "supplier_name": "AL ADEKHAR REAL ESTATE L.L.C"
+  },
+  "units": [
+   {
+    "unit_no": "F-01",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-02",
+    "unit_type": "",
+    "status": "Vacant"
+   },
+   {
+    "unit_no": "F-02&1",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-02&2",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-03",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-04",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-05",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-06",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-07",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-08",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-09",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-10",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-11",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-12",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-13",
+    "unit_type": "",
+    "status": "Vacant"
+   }
+  ]
+ },
+ {
+  "building_name": "TWR-19",
+  "status": "Active",
+  "area_name": "Twar",
+  "company": null,
+  "landlord": {
+   "supplier_name": "AL ADEKHAR REAL ESTATE L.L.C"
+  },
+  "units": [
+   {
+    "unit_no": "F-01",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-02",
+    "unit_type": "",
+    "status": "Vacant"
+   },
+   {
+    "unit_no": "F-02&1",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-02&2",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-03",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-04",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-05",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-06",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-07",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-08",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-09",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-10",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-11",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-12",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-13",
+    "unit_type": "",
+    "status": "Vacant"
+   }
+  ]
+ },
+ {
+  "building_name": "TWR-20",
+  "status": "Active",
+  "area_name": "Twar",
+  "company": null,
+  "landlord": {
+   "supplier_name": "AL ADEKHAR REAL ESTATE L.L.C"
+  },
+  "units": [
+   {
+    "unit_no": "F-01",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-02",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-03",
+    "unit_type": "",
+    "status": "Vacant"
+   },
+   {
+    "unit_no": "F-03&1",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-03&2",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-04",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-05",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-06",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-07",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-08",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-09",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-10",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-11",
+    "unit_type": "",
+    "status": "Vacant"
+   },
+   {
+    "unit_no": "F-12",
+    "unit_type": "",
+    "status": "Vacant"
+   },
+   {
+    "unit_no": "F-13",
+    "unit_type": "",
+    "status": "Vacant"
+   },
+   {
+    "unit_no": "F-14",
+    "unit_type": "",
+    "status": "Vacant"
+   },
+   {
+    "unit_no": "F-15",
+    "unit_type": "",
+    "status": "Vacant"
+   },
+   {
+    "unit_no": "F-16",
+    "unit_type": "",
+    "status": "Vacant"
+   },
+   {
+    "unit_no": "F-17",
+    "unit_type": "",
+    "status": "Vacant"
+   },
+   {
+    "unit_no": "F-18",
+    "unit_type": "",
+    "status": "Vacant"
+   },
+   {
+    "unit_no": "F-O&1",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-O&2",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-O&3",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-O&4",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-O&5",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-O&6",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-O&7",
+    "unit_type": "",
+    "status": "Occupied"
+   }
+  ]
+ },
+ {
+  "building_name": "TWR-35",
+  "status": "Active",
+  "area_name": "Twar",
+  "company": null,
+  "landlord": {
+   "supplier_name": "AL ADEKHAR REAL ESTATE L.L.C"
+  },
+  "units": [
+   {
+    "unit_no": "F-01",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-02",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-03",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-04",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-05",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-06",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-07",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-08",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-09",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-10",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-11",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-12",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-13",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-14",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-15",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-16",
+    "unit_type": "",
+    "status": "Occupied"
+   }
+  ]
+ },
+ {
+  "building_name": "TWR-37",
+  "status": "Active",
+  "area_name": "Twar",
+  "company": null,
+  "landlord": {
+   "supplier_name": "AL ADEKHAR REAL ESTATE L.L.C"
+  },
+  "units": [
+   {
+    "unit_no": "F-01",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-02",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-03",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-04",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-05",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-06",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-07",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-08",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-09",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-10",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-11",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-12",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-13",
+    "unit_type": "",
+    "status": "Occupied"
+   }
+  ]
+ },
+ {
+  "building_name": "TWR-39",
+  "status": "Active",
+  "area_name": "Twar",
+  "company": null,
+  "landlord": {
+   "supplier_name": "AL ADEKHAR REAL ESTATE L.L.C"
+  },
+  "units": [
+   {
+    "unit_no": "F-01",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-02",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-03",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-04",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-05",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-06",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-07",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-08",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-09",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-10",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-11",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-12",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-13",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-14",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-15",
+    "unit_type": "",
+    "status": "Occupied"
+   }
+  ]
+ },
+ {
+  "building_name": "TWR-45",
+  "status": "Active",
+  "area_name": "Twar",
+  "company": null,
+  "landlord": {
+   "supplier_name": "AL ADEKHAR REAL ESTATE L.L.C"
+  },
+  "units": [
+   {
+    "unit_no": "F-01",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-02",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-03",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-04",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-05",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-06",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-07",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-08",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-09",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-10",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-11",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-12",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-13",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-14",
+    "unit_type": "",
+    "status": "Occupied"
+   }
+  ]
+ },
+ {
+  "building_name": "TWR-58",
+  "status": "Active",
+  "area_name": "Twar",
+  "company": null,
+  "landlord": {
+   "supplier_name": "AL ADEKHAR REAL ESTATE L.L.C"
+  },
+  "units": [
+   {
+    "unit_no": "F-01",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-02",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-03",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-04",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-05",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-06",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-07",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-08",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-09",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-10",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-11",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-12",
+    "unit_type": "",
+    "status": "Occupied"
+   }
+  ]
+ },
+ {
+  "building_name": "UG-169",
+  "status": "Active",
+  "area_name": "Umm Ghuwailina",
+  "company": null,
+  "landlord": {
+   "supplier_name": "(not identified)"
+  },
+  "units": [
+   {
+    "unit_no": "F-01&FB",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-01&FF",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-02&SF",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "G-01&B",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "G-01&GF",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "G-02&B",
+    "unit_type": "Studio",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "G-03&B",
+    "unit_type": "Studio",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "G-04&B",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "G-05&B",
+    "unit_type": "",
+    "status": "Occupied"
+   }
+  ]
+ },
+ {
+  "building_name": "UG-180",
+  "status": "Active",
+  "area_name": "Umm Ghuwailina",
+  "company": null,
+  "landlord": {
+   "supplier_name": "(not identified)"
+  },
+  "units": [
+   {
+    "unit_no": "F-01&3",
+    "unit_type": "",
+    "status": "Vacant"
+   },
+   {
+    "unit_no": "F-01&FB",
+    "unit_type": "",
+    "status": "Vacant"
+   },
+   {
+    "unit_no": "F-01&FF",
+    "unit_type": "",
+    "status": "Vacant"
+   },
+   {
+    "unit_no": "F-01&S",
+    "unit_type": "",
+    "status": "Vacant"
+   },
+   {
+    "unit_no": "F-02&SF",
+    "unit_type": "",
+    "status": "Vacant"
+   },
+   {
+    "unit_no": "F-02&T",
+    "unit_type": "",
+    "status": "Vacant"
+   },
+   {
+    "unit_no": "G-01&B",
+    "unit_type": "",
+    "status": "Vacant"
+   },
+   {
+    "unit_no": "G-01&F",
+    "unit_type": "",
+    "status": "Vacant"
+   },
+   {
+    "unit_no": "G-01&G",
+    "unit_type": "",
+    "status": "Vacant"
+   },
+   {
+    "unit_no": "G-01&GF",
+    "unit_type": "",
+    "status": "Vacant"
+   },
+   {
+    "unit_no": "G-02&B",
+    "unit_type": "Studio",
+    "status": "Vacant"
+   },
+   {
+    "unit_no": "G-02&G",
+    "unit_type": "",
+    "status": "Vacant"
+   },
+   {
+    "unit_no": "G-03&B",
+    "unit_type": "Studio",
+    "status": "Vacant"
+   },
+   {
+    "unit_no": "G-04&B",
+    "unit_type": "",
+    "status": "Vacant"
+   },
+   {
+    "unit_no": "G-05&B",
+    "unit_type": "",
+    "status": "Vacant"
+   }
+  ]
+ },
+ {
+  "building_name": "UG-20",
+  "status": "Active",
+  "area_name": "Umm Ghuwailina",
+  "company": null,
+  "landlord": {
+   "supplier_name": "(not identified)"
+  },
+  "units": [
+   {
+    "unit_no": "F-01",
+    "unit_type": "2BR",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-02",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-03",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-04",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-05",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-06",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-07",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-08",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-09",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-10",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-11",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-12",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-13",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-14",
+    "unit_type": "",
+    "status": "Occupied"
+   },
+   {
+    "unit_no": "F-15",
+    "unit_type": "3BR",
+    "status": "Occupied"
+   }
+  ]
+ }
+]

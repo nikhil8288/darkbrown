@@ -46,7 +46,12 @@ NAME_MAP = os.path.join(os.path.dirname(__file__), "arrears_name_map.csv")
 TAG_PREFIX = "SEED-ARREARS"
 TAG_RE = re.compile(r"\[(%s-\d{3})\]" % TAG_PREFIX)
 
-EXPECTED_TOTAL = 216519.00
+# Reset 28-Aug-2026 for the rebuilt cutover pack. The previous figure came
+# from a July extraction keyed on the older TWAR unit convention (R-nn),
+# which orphaned 17 of 65 unit keys against the current unit master. This
+# is the Net Rent Due at 31-Jul-26 control from REVENUE_WORKING, and the
+# guard below still aborts run() if the CSV drifts from it.
+EXPECTED_TOTAL = 124202.00
 
 
 def _tag(i):

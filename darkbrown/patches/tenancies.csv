@@ -1,0 +1,267 @@
+tenant_name,tenant_id,building,unit_no,unit,start_date,end_date,monthly_rent,security_deposit,payment_mode,payment_frequency,cheques_held,status,notice_days,auto_renew,qid_number,qid_expiry,passport_no,mobile_no,notes
+MOHAMED ASEMAT ELHAEJABOBEKER,,AK-12,F-01,,2025-11-01,2026-11-01,5000,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+ABDULQANI ABDULHALIM,,AK-12,F-02,,2025-11-01,2026-11-01,5700,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+Hamed Hraiz,,AK-12,G-01,,2025-11-01,2026-11-01,5000,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+MOHAMMED SAEED ABDUL AZEEZ,,AK-12,G-01A,,2026-03-01,2027-03-01,3000,3000,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+Amani Guesmi,,AK-12,G-01B,,2025-11-01,2026-11-01,3200,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+Mohaned Hassan Ahmed Magboul,,AK-12,O-01,,2025-11-01,2026-11-01,2000,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+Hasan Asaad,,AK-12,P-01,,2025-11-01,2026-11-01,2500,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+HALIM TITOUAMANE,,DAJ-21,F-01,,2026-06-01,2027-06-01,4200,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+Madjededine Soltani,,DAJ-21,F-02,,2025-11-01,2026-11-01,4500,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+Nissar Chathoth,,DAJ-21,F-04,,2025-11-01,2026-11-01,3800,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+Kalubowilage Harshi Fernando,,DAJ-21,F-05,,2025-11-01,2026-11-01,4000,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+MOHAMMED SHAFI,,DAJ-21,F-06,,2026-06-01,2027-06-01,3100,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+Kalubowilage Harshi Fernando,,DAJ-21,F-08,,2025-11-01,2026-11-01,4000,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+ROSHAN SHA,,DAJ-21,F-09,,2026-07-01,2027-07-01,1000,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+Khaled Behzad Y M Behzad,,DAJ-21,F-10,,2025-11-01,2026-11-01,4000,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+Ahmed Abdulla Md Foiyaz Ali,,DAJ-21,F-12,,2025-11-01,2026-11-01,3400,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+KELTON GERS,,DAJ-21,F-13,,2026-06-01,2027-06-01,4200,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+KALUBOWILAGE HARSHI FERNANDO,,DAJ-21,F-14,,2026-03-01,2027-03-01,4000,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+Fahad Ambalathveettil Ahammed,,DAJ-21,F-16,,2025-10-01,2026-10-01,4200,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+Lal Mia Mabul Sikdar,,DAJ-21,F-18,,2025-11-01,2026-11-01,3600,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+Shamnadh Ponnakkatt Bavakutty,,DAJ-21,F-19,,2025-09-01,2026-09-01,4000,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+KALUBOWILAGE HARSHI FERNANDO,,DAJ-21,F-20,,2025-10-01,2026-10-01,4200,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+THASMEER/ SHAMNADH PONNAKKATT BAVAKUTTY,,DAJ-21,F-22,,2026-05-01,2027-05-01,4200,1000,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+THASMEER/ SHAMNADH PONNAKKATT BAVAKUTTY,,DAJ-21,F-23,,2026-05-01,2027-05-01,4200,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+JABIR THAZHE THERCHILOTH KULANGARA,,DAJ-21,F-24,,2025-11-01,2026-11-01,3600,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+VIGNESH MAHALINGA,,DAJ-21,F-25,,2025-09-01,2026-09-01,4200,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+GO FRESH CAFÉ,,DAJ-21,F-26,,2025-09-01,2026-09-01,4200,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+SHANIJ CHEMBAYIL,,DAJ-21,F-28,,2025-11-01,2026-11-01,3900,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+THASMEER/ SHAMNADH PONNAKKATT BAVAKUTTY,,DAJ-21,F-29,,2026-05-01,2027-05-01,4200,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+Shamnadh Ponnakkatt Bavakutty,,DAJ-21,F-31,,2025-11-01,2026-11-01,4000,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+NOUFAL SADATH THIRUTHI PARAMBAN,,DAJ-21,F-32,,2025-09-01,2026-09-01,4200,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+Shamnadh Ponnakkatt Bavakutty,,DAJ-21,F-34,,2025-11-01,2026-11-01,4000,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+PRAKASH KANNAN,,MQ-56,F-01,,2025-11-01,2026-11-01,2100,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+ALI,,MQ-56,F-02,,2026-02-01,2027-02-01,2000,500,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+SYED MUHAMMED SHEERAZ ALI,,MQ-56,F-03,,2025-11-01,2026-11-01,3000,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+SARRA BNT RASHEED HAMMAMI,,MQ-56,G-01,,2026-06-01,2027-06-01,3000,3000,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+MOHAMMED NAISHAN PALLIKKARE,,MQ-56,G-02,,2025-11-01,2026-11-01,3000,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+ASSARAFF OLAT,,MQ-56,G-03,,2025-11-01,2026-11-01,2000,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+MITRAN DA DHABA RESTAURANT,,MQ-56,O-02,,2026-05-01,2027-05-01,1300,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+Shamnadh Ponnakkatt Bavakutty,,MR-130,F-01,,2025-11-01,2026-11-01,5000,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+Shamnadh Ponnakkatt Bavakutty,,MR-130,F-02,,2025-11-01,2026-11-01,5000,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+Rodel Micelo,,MR-130,F-03,,2025-11-01,2026-11-01,4300,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+MD SHAMEEM,,MR-130,F-04,,2026-06-01,2027-06-01,5000,5000,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+SHAMNADH PONNAKKATT BAVAKUTTY,,MR-130,F-05,,2026-06-01,2027-06-01,5000,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+Karen Ibarrola,,MR-130,F-06,,2025-11-01,2026-11-01,5800,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+SHAMNADH PONNAKKATT BAVAKUTTY,,MR-130,F-07,,2026-03-01,2027-03-01,5000,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+SHAMNADH PONNAKKATT BAVAKUTTY,,MR-130,F-08,,2026-06-01,2027-06-01,5000,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+MD SHAMEEM,,MR-130,F-09,,2026-06-01,2027-06-01,5000,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+SHAMNADH PONNAKKATT BAVAKUTTY,,MR-130,F-10,,2026-03-01,2027-03-01,5000,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+Farooq Mia,,MT-21,VILLA,,2025-11-01,2026-11-01,28000,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+SHAMNADH PONNAKKATT BAVAKUTTY,,OG-48,F-01,,2026-01-01,2027-01-01,3500,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+SHAMNADH PONNAKKATT BAVAKUTTY,,OG-48,F-02,,2026-01-01,2027-01-01,3500,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+Shamnadh Ponnakkatt Bavakutty,,OG-48,F-03,,2025-11-01,2026-11-01,3600,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+Shamnadh Ponnakkatt Bavakutty,,OG-48,F-04,,2025-11-01,2026-11-01,3600,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+Shamnadh Ponnakkatt Bavakutty,,OG-48,F-05,,2025-11-01,2026-11-01,3600,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+SHAMNADH PONNAKKATT BAVAKUTTY,,OG-48,F-06,,2026-01-01,2027-01-01,3600,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+SHAMNADH PONNAKKATT BAVAKUTTY,,OG-48,F-07,,2026-01-01,2027-01-01,3300,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+Shamnadh Ponnakkatt Bavakutty,,OG-48,F-08,,2025-11-01,2026-11-01,3400,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+Suheer Mukri,,OG-48,F-09,,2025-11-01,2026-11-01,3600,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+Shamnadh Ponnakkatt Bavakutty,,OG-48,F-10,,2025-11-01,2026-11-01,3500,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+Shamnadh Ponnakkatt Bavakutty,,OG-48,F-11,,2025-11-01,2026-11-01,3600,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+Shamnadh Ponnakkatt Bavakutty,,OG-48,F-12,,2025-11-01,2026-11-01,3600,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+Shamnadh Ponnakkatt Bavakutty,,OG-48,F-13,,2025-11-01,2026-11-01,3600,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+Shamnadh Ponnakkatt Bavakutty,,OG-48,F-14,,2025-11-01,2026-11-01,3500,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+SHAMNADH PONNAKKATT BAVAKUTTY,,OG-48,F-15,,2026-01-01,2027-01-01,3500,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+Bhogilal Nartamdas Karchala,,OG-48,F-16,,2025-11-01,2026-11-01,3500,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+SHAMNADH PONNAKKATT BAVAKUTTY,,OG-48,F-17,,2026-01-01,2027-01-01,3500,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+Shamnadh Ponnakkatt Bavakutty,,OG-48,F-18,,2025-11-01,2026-11-01,3600,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+Hena Muhammad,,TV-20,F-01,,2025-09-01,2026-09-01,3500,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+MUHAMMED RAMEES PANTHALAM KUZHIYIL,,TV-20,F-02,,2026-01-01,2027-01-01,2800,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+HASHIM AHMED,,TV-20,F-03,,2026-05-01,2027-05-01,2000,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+MOFAR MOHAMMED KERANDAKATH KOYA,,TV-20,G-01,,2026-07-01,2027-07-01,4500,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+MOHAMMED MISHAR MOHAMMED NAUFER,,TV-20,G-02,,2026-07-01,2027-07-01,3400,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+MITRAN DA DHABA RESTAURANT,,TV-20,O-01,,2026-05-01,2027-05-01,1800,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+MUHAMMED AJSAL KODUVAPIDIKKAL,,TV-20,O-02,,2025-12-01,2026-12-01,1500,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+MOYINKUTTY VATTACHAN KANDY,,TV-20,O-03,,2026-07-01,2027-07-01,1400,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+LIJO ROSA,,TV-20,P-01,,2026-01-01,2027-01-01,1700,1700,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+MOHAMMED AAMIR MOHAMMED,,TV-27,F-01,,2026-02-01,2027-02-01,3600,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+MECHAEL AGUILAR,,TV-27,F-02,,2026-02-01,2027-02-01,4600,2300,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+MAHMOUD HASSAN MOHAMED ELBARDWEEL,,TV-27,F-03,,2026-02-01,2027-02-01,4500,1000,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+ABUBAKAR KHAN,,TV-27,F-04,,2026-02-01,2027-02-01,3600,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+SAIF UR REHAMN MUHAMMAD KHAN,,TV-27,G-01,,2026-02-01,2027-02-01,5300,6800,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+MOHAMMED NIRFAN MOHAMMED HUSSAIN,,TV-27,G-02,,2026-02-01,2027-02-01,5500,2750,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+KHALIL ILIAS BOUTHKHIL,,TV-27,G-03,,2026-05-01,2027-05-01,1750,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+SARAF & FAMILY,,TV-27,G-04,,2026-05-01,2027-05-01,3500,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+SHERWIN,,TV-27,G-05,,2026-05-01,2027-05-01,2400,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+SHIVPRAKASH MOTILAL SONI,,TV-27,G-06,,2026-06-01,2027-06-01,3200,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+STAFF - KAINATH,,TV-66,F-04,,2026-01-01,2027-01-01,2500,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+Rosevera Githabo,,TV-66,F-05,,2025-09-01,2026-09-01,2900,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+Hashem Maen Al Troudi,,TV-66,F-06,,2025-09-01,2026-09-01,2000,2000,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+Jose Henry JR Raytana Mina,,TV-66,G-01,,2025-10-01,2026-10-01,2500,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+Nesreen Ennaba,,TV-66,G-02,,2025-09-01,2026-09-01,2750,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+Nesreen Ennaba,,TV-66,G-03,,2025-09-01,2026-09-01,2750,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+Savad Cholayil Azeez,,TV-66,O-01,,2025-09-01,2026-09-01,2300,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+Alex Gabitano Abonitalla,,TV-66,P-01,,2025-10-01,2026-10-01,2000,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+Omar Jalal,,TV-68,F-04,,2025-10-01,2026-10-01,2700,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+MOHAMED SELIM MOHAMMED ELMESSA,,TV-68,F-05,,2026-07-01,2027-07-01,1000,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+Ahmed Mithaf,,TV-68,F-06,,2025-09-01,2026-09-01,1800,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+YASIR ADAM,,TV-68,G-02,,2025-09-01,2026-09-01,3000,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+TERACORE CLEANING & CONTRACTING,,TV-68,G-03,,2026-05-01,2027-05-01,2600,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+Arlene,,TV-68,O-01,,2025-11-01,2026-11-01,2350,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+Ismail Chellali,,TV-68,P-01,,2025-10-01,2026-10-01,1650,1650,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+KEDAR NATH CHHIMAL,,TWR-12,F-01,,2026-05-01,2027-05-01,1550,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+RAHATUJJAMAN,,TWR-12,F-02,,2026-05-01,2027-05-01,1400,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+ABY THOMAS,,TWR-12,F-03,,2026-03-01,2027-03-01,1900,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+RANJITH KUMAR VADIVEL,,TWR-12,F-04,,2026-05-01,2027-05-01,1350,1550,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+CHESTER VINET MONTILLA YELO,,TWR-12,F-05,,2026-05-01,2027-05-01,2000,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+BRIAN GAMBAN CABUHAT,,TWR-12,F-06,,2026-05-01,2027-05-01,1600,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+MOHMD IRSHAD RAVINDRANATH,,TWR-12,F-07,,2026-05-01,2027-05-01,2000,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+LAKAMAL SAMAN ATHUKORALAGE,,TWR-12,F-08,,2026-05-01,2027-05-01,2500,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+DANNY II MAGLUNOB,,TWR-12,F-09,,2026-05-01,2027-05-01,1100,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+MOHAMMED ARSLAN,,TWR-12,F-10,,2026-06-01,2027-06-01,2200,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+NESTOR TAFALLA PANGANIBAN,,TWR-12,F-11,,2026-05-01,2027-05-01,1200,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+AISHASOFIAMARIE ARCIGA,,TWR-12,F-12,,2026-05-01,2027-05-01,2000,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+HAREESH HARIDAS CHELAPPAN,,TWR-12,F-13,,2026-05-01,2027-05-01,2400,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+IVYIBREIO MALIBIRAN,,TWR-12,F-14,,2026-05-01,2027-05-01,1500,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+SOKRITI KUMAIR,,TWR-12,F-15,,2026-07-01,2027-07-01,1200,600,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+NABIL ESSADDOUG,,TWR-16,F-01,,2026-06-01,2027-06-01,1600,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+SETHURAMAN GOPAL,,TWR-16,F-02,,2026-05-01,2027-05-01,1350,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+ROLLY BALDOS LASTROLLO,,TWR-16,F-03,,2026-05-01,2027-05-01,1500,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+ARNEL BADIABLE DIONEDA,,TWR-16,F-04,,2026-05-01,2027-05-01,1400,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+JOANN MARIE MARCOS VALEZ,,TWR-16,F-05,,2026-04-01,2027-04-01,2400,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+MARY JOY TEJERO SUNOT,,TWR-16,F-06,,2026-05-01,2027-05-01,1850,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+ANTONIEOYTTE GEM TRUJILLO,,TWR-16,F-07,,2026-05-01,2027-05-01,1850,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+SUNEE PIMPOCHA,,TWR-16,F-08,,2026-05-01,2027-05-01,2300,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+SHEILA MARIE MAGANA VICTO,,TWR-16,F-09,,2026-05-01,2027-05-01,1200,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+NOOHU SHAREEF AMEEN SHA,,TWR-16,F-10,,2026-05-01,2027-05-01,2500,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+JOENALYN SUPERAL UGAPAY,,TWR-16,F-11,,2026-05-01,2027-05-01,1100,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+SHERYL BALLESTROS AQUINO,,TWR-16,F-12,,2026-05-01,2027-05-01,2300,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+FEROZ ALI MOHAMED IRFAN,,TWR-16,F-13,,2026-05-01,2027-05-01,2400,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+SHAGIL DEVASIA,,TWR-16,F-14,,2026-05-01,2027-05-01,1400,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+DALAKANKANAMAGA DALAKA,,TWR-16,F-15,,2026-04-01,2027-04-01,1300,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+MARGERET ANN,,TWR-17,F-01,,2026-05-01,2027-05-01,1750,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+CHRYSLYN DANYCO,,TWR-17,F-02&1,,2026-07-01,2027-07-01,500,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+AISHASOFIAMARIE ARCIGA,,TWR-17,F-03,,2026-05-01,2027-05-01,1500,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+UMESH KEDIGEMANE,,TWR-17,F-04,,2026-05-01,2027-05-01,2300,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+SHAMMY JOSEPH,,TWR-17,F-05,,2026-05-01,2027-05-01,2000,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+NABIN KARKI,,TWR-17,F-06,,2026-05-01,2027-05-01,2000,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+VICTOR PUJANTE,,TWR-17,F-07,,2026-05-01,2027-05-01,2800,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+ROSMAMMA VARGHEESE,,TWR-17,F-08,,2026-05-01,2027-05-01,2700,300,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+JESALIE JOI TORRES,,TWR-17,F-09,,2026-05-01,2027-05-01,2300,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+MISS SIRIPORN TANAREE,,TWR-17,F-10,,2026-05-01,2027-05-01,2700,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+ALEX CAMERINO,,TWR-17,F-11,,2026-05-01,2027-05-01,1200,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+THANISH AFRIDHI,,TWR-17,F-12,,2026-05-01,2027-05-01,1400,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+MAGELLIAN CABAYES DULAY,,TWR-19,F-01,,2026-05-01,2027-05-01,1700,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+ANNABEL BERMEJO,,TWR-19,F-02&1,,2026-05-01,2027-05-01,1000,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+NIKKA IRRA FABREGAS,,TWR-19,F-02&2,,2026-05-01,2027-05-01,1000,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+MELLANIE GALINO ISLAM,,TWR-19,F-03,,2026-05-01,2027-05-01,1500,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+MOHMD AJMAL POOPARA,,TWR-19,F-04,,2026-05-01,2027-05-01,2000,2000,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+SANNY CARMELO VARGAS,,TWR-19,F-05,,2026-05-01,2027-05-01,2000,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+VICKTORIA MIAHKA,,TWR-19,F-06,,2026-07-01,2027-07-01,2600,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+ROVINA GONZALEZ,,TWR-19,F-07,,2026-05-01,2027-05-01,2800,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+CORAZON GALSIM IGLESIAS,,TWR-19,F-08,,2026-07-01,2027-07-01,2700,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+IRENE JOY BALADO,,TWR-19,F-09,,2026-05-01,2027-05-01,2200,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+ROLLY DILAG ARAGON,,TWR-19,F-10,,2026-05-01,2027-05-01,2000,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+VENIDA ZAILAH PLIC,,TWR-19,F-11,,2026-05-01,2027-05-01,1600,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+RIZALYN RIVERA CABABARO,,TWR-19,F-12,,2026-05-01,2027-05-01,1650,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+ZAKARIA,,TWR-20,F-01,,2026-05-01,2027-05-01,1500,750,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+ETCEL KANOY NAVARRO,,TWR-20,F-02,,2026-05-01,2027-05-01,1600,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+JENIFER PINPIN GULION,,TWR-20,F-03&1,,2026-05-01,2027-05-01,1100,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+JENEPER VALENDEZ PLENAGO,,TWR-20,F-03&2,,2026-05-01,2027-05-01,950,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+GUNEL KHALILZADE,,TWR-20,F-04,,2026-05-01,2027-05-01,2200,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+ROSE ANN QUILAPIO,,TWR-20,F-05,,2026-06-01,2027-06-01,2350,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+JULYSA,,TWR-20,F-06,,2026-07-01,2027-07-01,2100,2100,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+ANGEL KAREN CUYNO BASTIDA,,TWR-20,F-07,,2026-05-01,2027-05-01,2250,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+RAQUEL SOLO GALLARDO,,TWR-20,F-08,,2026-05-01,2027-05-01,2500,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+NEHA SAINI,,TWR-20,F-09,,2026-05-01,2027-05-01,1900,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+PATRICK RUEL DEL ROSARIO M,,TWR-20,F-10,,2026-05-01,2027-05-01,2500,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+CATHERINE TUISA ENCARNACI,,TWR-20,F-O&1,,2026-05-01,2027-05-01,1100,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+KATHERINE CALPITO SABADO,,TWR-20,F-O&2,,2026-05-01,2027-05-01,1300,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+YASIR,,TWR-20,F-O&3,,2026-05-01,2027-05-01,1000,500,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+TARA,,TWR-20,F-O&4,,2026-05-01,2027-05-01,1200,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+SAGAR KHATIWADA,,TWR-20,F-O&5,,2026-05-01,2027-05-01,1100,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+HENZON CHAN SIONG,,TWR-20,F-O&6,,2026-05-01,2027-05-01,1000,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+MARLO ESPINO JIMENEZ,,TWR-20,F-O&7,,2026-05-01,2027-05-01,1900,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+NIKKI VALMADRID PALLONES,,TWR-35,F-01,,2026-05-01,2027-05-01,1900,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+ROEL SAJOL CAGAMPANG,,TWR-35,F-02,,2026-05-01,2027-05-01,1600,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+JASTINE MARGERETTE EXTRA,,TWR-35,F-03,,2026-05-01,2027-05-01,2100,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+EVA MARIE ALEJO BUMANGLAG,,TWR-35,F-04,,2026-05-01,2027-05-01,1950,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+ZAYED MOHAMED AL AMAY,,TWR-35,F-05,,2026-05-01,2027-05-01,2550,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+ANNADURAI SWAMY NATHAN,,TWR-35,F-06,,2026-05-01,2027-05-01,2400,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+WADIE GHALI,,TWR-35,F-07,,2026-07-01,2027-07-01,2200,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+MABRUK B A TOUATI,,TWR-35,F-08,,2026-05-01,2027-05-01,2050,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+JEROME ALVSREZ CONTRERAS,,TWR-35,F-09,,2026-05-01,2027-05-01,2350,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+JOHN IRVIN HORNIDO LUAYON,,TWR-35,F-10,,2026-05-01,2027-05-01,1700,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+MARLA RAMOS GABEL,,TWR-35,F-11,,2026-05-01,2027-05-01,1500,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+JANETTE DIWA LEANO,,TWR-35,F-12,,2026-05-01,2027-05-01,1700,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+CHRISTINE TINE GRACE BAREJA,,TWR-35,F-13,,2026-05-01,2027-05-01,1300,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+SANTH BAHADUR B.K,,TWR-35,F-14,,2026-06-01,2027-06-01,1250,1575,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+ROSELYN LOREZO DADOR,,TWR-35,F-15,,2026-05-01,2027-05-01,1000,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+LOVELY,,TWR-35,F-16,,2026-07-01,2027-07-01,1200,1200,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+FARAH LIZA MUSA FAIZ,,TWR-37,F-01,,2026-05-01,2027-05-01,1700,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+SARA BAKBACHI,,TWR-37,F-02,,2026-03-01,2027-03-01,1150,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+SHERMAHAL SUHAIL ARRAJI,,TWR-37,F-03,,2026-05-01,2027-05-01,1200,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+CHINYERE ADANMA NINADOZ,,TWR-37,F-04,,2026-05-01,2027-05-01,2200,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+JEZZA MARIE BARRETTO FORTUNO,,TWR-37,F-05,,2026-05-01,2027-05-01,2000,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+SABIN TAMANG,,TWR-37,F-06,,2026-05-01,2027-05-01,2100,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+SONNY QUIZONEANOSA,,TWR-37,F-07,,2026-05-01,2027-05-01,2500,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+MUNIR DASID JALIS,,TWR-37,F-08,,2026-05-01,2027-05-01,2500,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+ABDULKHALID MAGUMPARA,,TWR-37,F-09,,2026-05-01,2027-05-01,2100,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+MICHAEL GEORGE SALES,,TWR-37,F-10,,2026-05-01,2027-05-01,2800,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+SHEILA MARIE DUEY MAGO,,TWR-37,F-11,,2026-05-01,2027-05-01,1650,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+JENNIELYN BREGONIA ABELO,,TWR-37,F-12,,2026-05-01,2027-05-01,1250,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+BRIAN MALIGAYA AFABLE,,TWR-37,F-13,,2026-05-01,2027-05-01,1400,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+VAISHAK NETTAR RAMAKRISHANAN,,TWR-39,F-01,,2026-05-01,2027-05-01,1900,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+ANGELO ANGKON,,TWR-39,F-02,,2026-05-01,2027-05-01,1500,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+MARILYN VALENDEZ PLENAGO,,TWR-39,F-03,,2026-05-01,2027-05-01,1700,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+SUBAIR THIRUVANEMMAL AMMAD,,TWR-39,F-04,,2026-06-01,2027-06-01,1450,1400,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+LEKAMAL,,TWR-39,F-05,,2026-06-01,2027-06-01,2150,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+MARY ANGIE CALLOPE,,TWR-39,F-06,,2026-05-01,2027-05-01,1700,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+CHIOGOZIE,,TWR-39,F-07,,2026-03-01,2027-03-01,2000,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+PANDARATHIL KUNHI MOHAMD,,TWR-39,F-08,,2026-05-01,2027-05-01,2300,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+MARIAFE CASTILLO VIDAL,,TWR-39,F-09,,2026-05-01,2027-05-01,1300,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+FLORDEILZA BACALSO FLORDELIZA,,TWR-39,F-10,,2026-07-01,2027-07-01,2100,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+ELISABETH DMOCER USARAGA,,TWR-39,F-11,,2026-05-01,2027-05-01,1150,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+LONAR MANLUTAC MENDOZA,,TWR-39,F-12,,2026-05-01,2027-05-01,2400,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+SANDUN KANCHANA ALAWAT,,TWR-39,F-13,,2026-05-01,2027-05-01,2500,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+SUPANEE SRIPROM,,TWR-39,F-14,,2026-05-01,2027-05-01,1300,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+EVA MARIE MALLARI NONESA,,TWR-39,F-15,,2026-04-01,2027-04-01,1550,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+ROSE ANN LAJARA,,TWR-45,F-01,,2026-05-01,2027-05-01,1700,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+RIADH HADEJI,,TWR-45,F-02,,2026-05-01,2027-05-01,1350,1350,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+BINDU SAPKOTA,,TWR-45,F-03,,2026-04-01,2027-04-01,1750,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+SUJU LAMA DIMDUNG,,TWR-45,F-04,,2026-06-01,2027-06-01,1300,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+JAN HARRIS HAIDI,,TWR-45,F-05,,2026-05-01,2027-05-01,1900,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+RAJIV BAHADUR THAPA,,TWR-45,F-06,,2026-05-01,2027-05-01,1800,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+JANETTE PAGUYAN,,TWR-45,F-07,,2026-05-01,2027-05-01,1800,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+XENIA JORDAN,,TWR-45,F-08,,2026-05-01,2027-05-01,2000,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+STELLA MARIE DU,,TWR-45,F-09,,2026-05-01,2027-05-01,1400,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+TOUSIF ALAM KHAN,,TWR-45,F-10,,2026-05-01,2027-05-01,2900,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+GERARD FOJAS,,TWR-45,F-11,,2026-05-01,2027-05-01,2150,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+REVELYN URETA NISPEROS,,TWR-45,F-12,,2026-05-01,2027-05-01,2400,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+MANOJ ANANTHA KRISHNAN,,TWR-45,F-13,,2026-05-01,2027-05-01,1500,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+LIEZEL LABOR CABALHIN,,TWR-45,F-14,,2026-05-01,2027-05-01,1600,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+MARY JEAN PIARO CRUZ HILAR,,TWR-58,F-01,,2026-05-01,2027-05-01,1800,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+ABCDE JAN ROSARIO VENTURA,,TWR-58,F-02,,2026-05-01,2027-05-01,1800,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+RALPHOLIVER MANALAC ENGL,,TWR-58,F-03,,2026-05-01,2027-05-01,1450,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+PAUL MBAZIIRA,,TWR-58,F-04,,2026-05-01,2027-05-01,2400,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+WIMAL SUDANTHA RODRIGO,,TWR-58,F-05,,2026-05-01,2027-05-01,1700,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+MOHMD ILHANUL THUSHATH,,TWR-58,F-06,,2026-05-01,2027-05-01,2500,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+RIED,,TWR-58,F-07,,2026-05-01,2027-05-01,2500,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+GRETCHEN LAGRIMAS,,TWR-58,F-08,,2026-05-01,2027-05-01,2300,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+SAIFULLAH MUHAMMADU,,TWR-58,F-09,,2026-05-01,2027-05-01,2450,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+HERSHEY,,TWR-58,F-10,,2026-07-01,2027-07-01,2500,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+XYZA ARMENTA DELA CRUZ,,TWR-58,F-11,,2026-05-01,2027-05-01,1600,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+CRYSLYN DANUCO JATICO/NESTLE BRIONES YAP,,TWR-58,F-12,,2026-07-01,2027-07-01,1500,1500,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+HAZRATH ALI NAWAB,,UG-169,F-01&FB,,2026-02-01,2027-02-01,7000,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+NAIM HUSSAIN IQBAL HUSSAIN,,UG-169,F-01&FF,,2026-02-01,2027-02-01,6800,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+NASRATH HUSSAIN,,UG-169,F-02&SF,,2026-02-01,2027-02-01,6800,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+RIZWAN AHMAD SHAH ZAMAN,,UG-169,G-01&B,,2026-02-01,2027-02-01,1900,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+ZIA UL HAQ FAZAL HAQ,,UG-169,G-01&GF,,2026-02-01,2027-02-01,6800,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+OMAR,,UG-169,G-02&B,,2026-02-01,2027-02-01,1200,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+FAZAL SUBHAN,,UG-169,G-04&B,,2026-03-01,2027-03-01,1900,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+SONAB GUL KAMIN GUL,,UG-169,G-05&B,,2026-02-01,2027-02-01,1900,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+KUSAL RAKITHA MANAMENDRA PATABENDIGE,,UG-20,F-01,,2026-02-01,2027-02-01,3700,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+LOTA MYRA,,UG-20,F-02,,2026-02-01,2027-02-01,3500,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+JONATHAN BRIAN SSENYONDO,,UG-20,F-03,,2026-02-01,2027-02-01,5000,500,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+SHAMNADH PONNAKKATT BAVAKUTTY,,UG-20,F-04,,2026-03-01,2027-03-01,3600,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+RASHID RAFI,,UG-20,F-05,,2026-06-01,2027-06-01,3500,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+KHALIL BENROMDHANE,,UG-20,F-06,,2026-02-01,2027-02-01,5300,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+MOHD SAMI,,UG-20,F-08,,2026-04-01,2027-04-01,3600,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+BILEL MAGHRAOUI,,UG-20,F-09,,2026-04-01,2027-04-01,5300,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+THIRUPATHI HOSPITALITY SERVICES,,UG-20,F-11,,2026-05-01,2027-05-01,3500,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+SHEENA MAE MENDOZA KIMILAT,,UG-20,F-12,,2026-07-01,2027-07-01,5200,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+MUHAMMED NAEEM MUHAMMAD MANSHA,,UG-20,F-13,,2026-06-01,2027-06-01,3500,2000,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+MUHAMMED NAEEM MUHAMMAD MANSHA,,UG-20,F-14,,2026-06-01,2027-06-01,3500,1000,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
+REHAN AFTAB AFTAB AHMAD KHAN,,UG-20,F-15,,2026-02-01,2027-02-01,5250,0,Cheque,Monthly,0,Active,,0,,,,,Cutover load 31-Jul-2026. Expiry is a placeholder pending the signed agreement.
