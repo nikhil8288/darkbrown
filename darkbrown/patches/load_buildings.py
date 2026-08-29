@@ -37,7 +37,7 @@ def dry_run():
             continue
         make += 1
         units += len(b["units"])
-        sup = b["landlord"]["supplier_name"]
+        sup = b["landlord"].get("name") or "(none)"
         known = frappe.db.exists("Supplier", {"supplier_name": sup})
         print(f"  CREATE {b['building_name']:10s} {len(b['units']):3d} units  "
               f"landlord {'found' if known else 'NEW'}: {sup[:40]}")

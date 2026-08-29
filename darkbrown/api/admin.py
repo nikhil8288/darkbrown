@@ -18,7 +18,10 @@ from frappe import _
 
 LOG_KEY = "darkbrown:demo:log"
 STATE_KEY = "darkbrown:demo:state"
-ACTIONS = ("purge", "seed", "verify", "rebuild")
+ACTIONS = ("purge", "seed", "verify", "rebuild",
+           # The cutover load, so it can be run from the Data screen rather
+           # than a bench prompt. Read-only except for cutover_load.
+           "diagnose", "cutover_dry", "cutover_load")
 
 
 # ------------------------------------------------------------------ guarding
@@ -130,6 +133,11 @@ def execute(action, confirm=None, wide=0, user=None):
                 run_mod.verify()
             elif action == "rebuild":
                 run_mod.rebuild(confirm=confirm, wide=bool(wide))
+            elif action in ("diagnose", "cutover_dry", "cutover_load"):
+                from darkbrown.api import cutover
+                {"diagnose": cutover.diagnose,
+                 "cutover_dry": cutover.run_dry,
+                 "cutover_load": cutover.run_load}[action]()
         _append("\n\nDone.\n")
         _finish("done")
     except Exception:
