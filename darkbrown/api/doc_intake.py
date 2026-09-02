@@ -206,78 +206,195 @@ def _parse_json(text):
 # Writing results back to Document Register
 # ---------------------------------------------------------------------------
 
+#: The model's document_type vocabulary and the Document Register's Select
+#: options are two different lists, written at different times. Four of the
+#: nine labels the model can return are not options on the field, and writing
+#: one of them is a validation error rather than a bad classification. The
+#: translation happens here, once, on the way in.
+REG_TYPE = {
+	"Head Lease": "Head Lease",
+	"Owner Contract": "Head Lease",          # the same paper, seen from our side
+	"Tenant Agreement": "Tenancy Agreement",
+	"Tenancy Agreement": "Tenancy Agreement",
+	"QID / National ID": "QID",
+	"QID": "QID",
+	"Passport": "Passport",
+	"Commercial Registration": "Commercial Registration",
+	"Cheque Batch": "Cheque Batch",
+	"Utility / Other": "Utility Bill",
+	"Utility Bill": "Utility Bill",
+	"Bank Statement": "Bank Statement",
+	"Maintenance Invoice": "Maintenance Invoice",
+	"Other": "Other",
+	"Unknown": "Unknown",
+}
+
+
+def _reg_type(raw):
+	"""Model label -> a value the Select will actually accept."""
+	return REG_TYPE.get((raw or "").strip(), "Unknown")
+
+
+#: Everything the extractor produces that the V2 Document Register has no
+#: column for. It is kept in `extracted_json` and put back on the in-memory
+#: doc by _rehydrate(), so code written against the old flat schema still
+#: reads the right values without the doctype growing fifty columns.
+FLAT_FIELDS = (
+	"party_name", "party_name_ar", "id_number", "nationality", "cr_number",
+	"counterparty_name", "counterparty_id", "contract_ref_no", "building_no",
+	"zone", "street", "area_name", "unit_no", "electricity_no", "water_no",
+	"monthly_rent", "annual_rent", "security_deposit", "start_date",
+	"end_date", "cheques_per_year", "building_name", "floors", "total_units",
+	"detected_type", "extraction_notes",
+)
+
+
+def _setf(reg, fieldname, value):
+	"""Write only if the doctype actually has the column.
+
+	Assigning an unknown fieldname on a Frappe doc is silent — it sets a
+	Python attribute that never reaches the database — so a whole extraction
+	could appear to save and persist nothing. This makes the distinction
+	explicit: real fields are written, the rest are the caller's problem.
+	"""
+	if value is None or value == "":
+		return False
+	if not reg.meta.has_field(fieldname):
+		return False
+	reg.set(fieldname, value)
+	return True
+
+
+def _rehydrate(reg):
+	"""Put the flat extraction values back on a freshly loaded register doc.
+
+	`extracted_json` is the record; these attributes are a convenience view of
+	it. Call this before any code that reads reg.party_name, reg.cheques and
+	the rest.
+	"""
+	try:
+		data = json.loads(reg.extracted_json) if reg.extracted_json else {}
+	except Exception:
+		data = {}
+	flat = dict(data.get("contract") or {})
+	flat.update({k: v for k, v in (data.get("id_document") or {}).items()
+	             if v is not None})
+	for f in FLAT_FIELDS:
+		if getattr(reg, f, None) in (None, ""):
+			setattr(reg, f, flat.get(f))
+	if not getattr(reg, "detected_type", None):
+		reg.detected_type = data.get("document_type")
+	drawer = data.get("drawer") or {}
+	if drawer.get("name") and not getattr(reg, "party_name", None):
+		reg.party_name = drawer.get("name")
+	if not getattr(reg, "cheques", None):
+		reg.cheques = [frappe._dict(c) for c in (data.get("cheques") or [])]
+	stmt = data.get("statement") or {}
+	if stmt and not getattr(reg, "statement_lines", None):
+		reg.statement_bank = stmt.get("bank")
+		reg.statement_account_no = stmt.get("account_no")
+		reg.opening_balance = stmt.get("opening_balance")
+		reg.closing_balance = stmt.get("closing_balance")
+		reg.statement_lines = [frappe._dict(l) for l in (stmt.get("lines") or [])]
+	return reg
+
+
 def _apply_extraction(reg, result):
-	"""Populate a Document Register doc from the parsed extraction dict."""
-	dtype = result.get("document_type") or "Unknown"
-	reg.document_type = dtype
-	reg.detected_type = dtype
-	reg.extraction_confidence = result.get("overall_confidence")
-	reg.raw_json = json.dumps(result, indent=2, ensure_ascii=False)
+	"""Populate a Document Register doc from the parsed extraction dict.
+
+	The register keeps the whole reading in `extracted_json`. Only the handful
+	of things the doctype has real columns for are also written flat, and each
+	of those is guarded, because a field the doctype does not have absorbs the
+	value silently and loses it.
+	"""
+	raw_type = result.get("document_type") or "Unknown"
+	reg.document_type = _reg_type(raw_type)
+	reg.detected_type = raw_type          # in-memory only; the model's own word
+	reg.extraction_confidence = flt(result.get("overall_confidence") or 0)
+
+	# The record of what was read. Everything else on this doc is a view of it.
+	reg.extracted_json = json.dumps(result, indent=2, ensure_ascii=False)
+	_setf(reg, "raw_json", reg.extracted_json)   # only if an older site has it
+
 	notes = result.get("notes") or []
 	reg.extraction_notes = "\n".join(str(n) for n in notes) if notes else None
+	_setf(reg, "extraction_notes", reg.extraction_notes)
 
-	# Contract-style fields (id_document block reuses the same flat fields)
-	contract = result.get("contract") or result.get("id_document") or {}
+	# Contract-style fields. The id_document block reuses the same flat names.
+	contract = dict(result.get("contract") or {})
+	for k, v in (result.get("id_document") or {}).items():
+		if v is not None and contract.get(k) is None:
+			contract[k] = v
+
 	if contract:
-		mapping = [
-			"party_name", "party_name_ar", "id_number", "nationality",
-			"cr_number", "counterparty_name", "counterparty_id",
-			"contract_ref_no", "building_no", "zone", "street", "area_name",
-			"unit_no", "electricity_no", "water_no", "monthly_rent",
-			"security_deposit", "start_date", "end_date", "cheques_per_year",
-		]
-		for f in mapping:
+		for f in FLAT_FIELDS:
 			if contract.get(f) is not None:
-				reg.set(f, contract.get(f))
-		# id_document extras land in flat fields too
-		if contract.get("expiry_date") and not reg.end_date:
-			reg.end_date = contract.get("expiry_date")
+				setattr(reg, f, contract.get(f))
+				_setf(reg, f, contract.get(f))
+
+		# What the V2 register does have columns for.
+		_setf(reg, "document_no", contract.get("id_number")
+		      or contract.get("cr_number") or contract.get("contract_ref_no"))
+		_setf(reg, "issue_date", contract.get("start_date"))
+		_setf(reg, "expiry_date", contract.get("end_date")
+		      or contract.get("expiry_date"))
+		_setf(reg, "unit", None)      # a Link; matched on review, never guessed
 
 	# Cheque batches: the drawer (account holder) is the party
 	drawer = result.get("drawer") or {}
-	if drawer.get("name") and not reg.party_name:
+	if drawer.get("name") and not getattr(reg, "party_name", None):
 		reg.party_name = drawer.get("name")
-	if drawer.get("name_ar") and not reg.party_name_ar:
+	if drawer.get("name_ar") and not getattr(reg, "party_name_ar", None):
 		reg.party_name_ar = drawer.get("name_ar")
 
-	# Cheque rows
-	reg.set("cheques", [])
-	for chq in (result.get("cheques") or []):
-		reg.append("cheques", {
-			"direction": chq.get("direction") or "Incoming (from Tenant)",
-			"cheque_type": chq.get("cheque_type") or "Rent",
-			"cheque_number": chq.get("cheque_number"),
-			"cheque_date": chq.get("cheque_date"),
-			"amount": chq.get("amount"),
-			"amount_in_words": chq.get("amount_in_words"),
-			"payee": chq.get("payee"),
-			"party_account_no": chq.get("party_account_no"),
-			"bank_name": chq.get("bank_name"),
-			"branch": chq.get("branch"),
-			"row_confidence": chq.get("confidence"),
-			"row_notes": chq.get("notes"),
-		})
+	# Cheque rows. Kept in the JSON always; written to the child table only
+	# where that table exists.
+	cheques = result.get("cheques") or []
+	reg.cheques = [frappe._dict(c) for c in cheques]
+	if cheques and reg.meta.has_field("cheques"):
+		reg.set("cheques", [])
+		for chq in cheques:
+			reg.append("cheques", {
+				"direction": chq.get("direction") or "Incoming (from Tenant)",
+				"cheque_type": chq.get("cheque_type") or "Rent",
+				"cheque_number": chq.get("cheque_number"),
+				"cheque_date": chq.get("cheque_date"),
+				"amount": chq.get("amount"),
+				"amount_in_words": chq.get("amount_in_words"),
+				"payee": chq.get("payee"),
+				"party_account_no": chq.get("party_account_no"),
+				"bank_name": chq.get("bank_name"),
+				"branch": chq.get("branch"),
+				"row_confidence": chq.get("confidence"),
+				"row_notes": chq.get("notes"),
+			})
 
-	# Bank statement (guarded: fields arrive with the Phase-3 migrate)
+	# Bank statement, same rule.
 	stmt = result.get("statement") or {}
-	if stmt and reg.meta.has_field("statement_lines"):
+	if stmt:
 		reg.statement_bank = stmt.get("bank")
 		reg.statement_account_no = stmt.get("account_no")
-		reg.statement_from = stmt.get("period_from")
-		reg.statement_to = stmt.get("period_to")
 		reg.opening_balance = stmt.get("opening_balance")
 		reg.closing_balance = stmt.get("closing_balance")
-		reg.set("statement_lines", [])
-		for ln in (stmt.get("lines") or []):
-			reg.append("statement_lines", {
-				"txn_date": ln.get("date"),
-				"description": ln.get("description"),
-				"ref_no": ln.get("ref_no"),
-				"debit": ln.get("debit"),
-				"credit": ln.get("credit"),
-				"balance": ln.get("balance"),
-				"line_status": "Unmatched",
-			})
+		reg.statement_lines = [frappe._dict(l) for l in (stmt.get("lines") or [])]
+		if reg.meta.has_field("statement_lines"):
+			_setf(reg, "statement_bank", stmt.get("bank"))
+			_setf(reg, "statement_account_no", stmt.get("account_no"))
+			_setf(reg, "statement_from", stmt.get("period_from"))
+			_setf(reg, "statement_to", stmt.get("period_to"))
+			_setf(reg, "opening_balance", stmt.get("opening_balance"))
+			_setf(reg, "closing_balance", stmt.get("closing_balance"))
+			reg.set("statement_lines", [])
+			for ln in (stmt.get("lines") or []):
+				reg.append("statement_lines", {
+					"txn_date": ln.get("date"),
+					"description": ln.get("description"),
+					"ref_no": ln.get("ref_no"),
+					"debit": ln.get("debit"),
+					"credit": ln.get("credit"),
+					"balance": ln.get("balance"),
+					"line_status": "Unmatched",
+				})
 
 
 # ---------------------------------------------------------------------------
@@ -318,6 +435,10 @@ def create_intake(file_url):
 	reg = frappe.new_doc("Document Register")
 	reg.source_file = file_url
 	reg.status = "Draft"
+	# document_type is mandatory and carries a default, but the default is not
+	# reaching this path — five files in a row failed insert on it. Set it.
+	# The real classification lands in _apply_extraction a moment later.
+	reg.document_type = "Unknown"
 	reg.insert()
 	return reg.name
 
@@ -392,7 +513,7 @@ def reject_document(docname, reason=None):
 def get_document(docname):
 	"""Fetch one register record for the review UI."""
 	guard(MD, DOC, ACC)
-	reg = frappe.get_doc("Document Register", docname)
+	reg = _rehydrate(frappe.get_doc("Document Register", docname))
 	if not reg.has_permission("read"):
 		frappe.throw(_("Not permitted"), frappe.PermissionError)
 	return reg.as_dict()
@@ -419,7 +540,7 @@ def save_edits(docname, updates):
 	"""Apply reviewer edits. `updates` is a JSON dict of flat fields, plus an
 	optional 'cheques' list that replaces the child rows wholesale."""
 	guard(MD, DOC)
-	reg = frappe.get_doc("Document Register", docname)
+	reg = _rehydrate(frappe.get_doc("Document Register", docname))
 	if not reg.has_permission("write"):
 		frappe.throw(_("Not permitted"), frappe.PermissionError)
 
@@ -465,7 +586,7 @@ def save_edits(docname, updates):
 def validate_id(docname):
 	"""Run the two-check identity validation for the review UI."""
 	guard(MD, DOC)
-	reg = frappe.get_doc("Document Register", docname)
+	reg = _rehydrate(frappe.get_doc("Document Register", docname))
 	if not reg.has_permission("read"):
 		frappe.throw(_("Not permitted"), frappe.PermissionError)
 	is_qid = reg.document_type != "Passport"
@@ -625,7 +746,7 @@ def confirm_and_push(docname):
 	"""Reviewer confirmation: archive the document, link identity docs to the
 	matched party, push confirmed cheques. Status -> Pushed."""
 	guard(MD, DOC)
-	reg = frappe.get_doc("Document Register", docname)
+	reg = _rehydrate(frappe.get_doc("Document Register", docname))
 	if not reg.has_permission("write"):
 		frappe.throw(_("Not permitted"), frappe.PermissionError)
 	if reg.status not in ("Needs Review", "Confirmed"):
@@ -880,7 +1001,7 @@ def match_statement(docname):
 	exact cheque-number hit (strong), else amount+direction within a small
 	date window (weak). Suggestions are saved onto the lines."""
 	guard(MD, DOC, ACC)
-	reg = frappe.get_doc("Document Register", docname)
+	reg = _rehydrate(frappe.get_doc("Document Register", docname))
 	if not reg.has_permission("write"):
 		frappe.throw(_("Not permitted"), frappe.PermissionError)
 	if not reg.meta.has_field("statement_lines"):

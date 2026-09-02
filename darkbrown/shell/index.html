@@ -4817,9 +4817,10 @@ function exPanel(){
   const bad=(x.docs||[]).filter(d=>d.error);
   return `
    ${(x.docs||[]).length?`<div class="tw"><table><tr><th>File</th><th>Read as</th><th class="r">Confidence</th><th>Pages</th></tr>
-     ${x.docs.map(d=>`<tr><td>${esc(d.file)}</td>
-       <td>${d.error?`<span style="color:var(--red)">could not read \u2014 ${esc(d.error)}</span>`:esc(d.type)}</td>
-       <td class="r num">${d.error?'\u2014':Math.round((d.conf||0)*100)+'%'}</td>
+     ${x.docs.map(d=>d.error
+       ? `<tr><td>${esc(d.file)}</td><td colspan="3" style="white-space:normal;color:var(--red)">could not read \u2014 ${esc(d.error)}</td></tr>`
+       : `<tr><td>${esc(d.file)}</td><td>${esc(d.type)}</td>
+       <td class="r num">${Math.round((d.conf||0)*100)+'%'}</td>
        <td class="fh">${d.pages||'\u2014'}</td></tr>`).join('')}</table></div>`:''}
    ${ks.length?`<div class="tw"><table><tr><th>Field</th><th>Read</th><th>From</th><th class="r">Confidence</th><th>Status</th></tr>${rows}</table></div>`
      :`<div class="note" style="border-left-color:var(--amber)"><b>No fields came back.</b>
