@@ -38,11 +38,17 @@ from darkbrown.api.party_documents import append_party_document
 from darkbrown.guards import guard, ACC, DOC, MD
 
 ANTHROPIC_URL = "https://api.anthropic.com/v1/messages"
+
+
+class _PdfRefused(Exception):
+	"""The API would not accept a PDF as a document block."""
 ANTHROPIC_VERSION = "2023-06-01"
 DEFAULT_MODEL = "claude-haiku-4-5-20251001"
 ESCALATION_MODEL = "claude-sonnet-5"
 RENDER_DPI = 150
-MAX_PAGES = 15  # safety cap; a huge PDF should be split before intake
+MAX_PAGES = 15        # rasterised pages, fallback path only
+MAX_PDF_PAGES = 100   # the API's own limit on a native PDF
+MAX_PDF_BYTES = 30 * 1024 * 1024
 
 # Register document_type -> Party Document document_type
 PARTY_DOC_TYPE_MAP = {
@@ -51,6 +57,7 @@ PARTY_DOC_TYPE_MAP = {
 	"Tenant Agreement": "Tenant Contract",
 	"Head Lease": "Head Lease",
 	"Owner Contract": "Owner Contract",
+	"Title Deed": "Title Deed",
 	"Cheque Batch": "Cheque Batch",
 	"Utility / Other": "Utility / Other",
 }
@@ -101,51 +108,98 @@ def _get_model(escalate=False):
 # PDF / image rendering
 # ---------------------------------------------------------------------------
 
-def _file_to_page_images(file_url):
-	"""Return a list of (media_type, base64_data) for each page/image of the
-	source file. PDFs are rasterised page-by-page; images are passed through."""
+def _pdf_page_count(content):
+	"""Page count without a renderer. `pypdf` ships with Frappe."""
+	try:
+		import io
+		from pypdf import PdfReader
+		return len(PdfReader(io.BytesIO(content)).pages)
+	except Exception:
+		try:
+			import io
+			from PyPDF2 import PdfReader
+			return len(PdfReader(io.BytesIO(content)).pages)
+		except Exception:
+			return None
+
+
+def _rasterise_pdf(content):
+	"""Fallback path: render each page to PNG with PyMuPDF.
+
+	Only reached if the API refuses the PDF itself. PyMuPDF is a native
+	dependency and is not installed on every bench, so its absence is a
+	message about this file, not a traceback.
+	"""
+	try:
+		import fitz  # PyMuPDF
+	except ImportError:
+		frappe.throw(_(
+			"This PDF could not be sent whole and cannot be rasterised on this "
+			"bench: PyMuPDF is not installed. Run `bench pip install PyMuPDF` "
+			"and restart, or upload the pages as images."
+		))
+	pdf = fitz.open(stream=content, filetype="pdf")
+	out = []
+	for i in range(min(pdf.page_count, MAX_PAGES)):
+		png = pdf[i].get_pixmap(dpi=RENDER_DPI).tobytes("png")
+		out.append({"type": "image", "source": {
+			"type": "base64", "media_type": "image/png",
+			"data": base64.standard_b64encode(png).decode()}})
+	pdf.close()
+	return out
+
+
+def _file_to_blocks(file_url):
+	"""Return (content_blocks, page_count) for the source file.
+
+	PDFs go to the API as PDFs. The model reads a native PDF's own text layer
+	rather than a picture of it, which is both more accurate and cheaper than
+	rasterising, and it removes PyMuPDF from the required path — that missing
+	native module is what stopped every PDF here from being read at all.
+	Images are passed through as before.
+	"""
 	file_doc = frappe.get_doc("File", {"file_url": file_url})
 	content = file_doc.get_content()  # bytes
 	fname = (file_doc.file_name or "").lower()
 
-	images = []
-
 	if fname.endswith(".pdf"):
-		import fitz  # PyMuPDF
+		pages = _pdf_page_count(content)
+		if pages and pages > MAX_PDF_PAGES:
+			frappe.throw(_("{0} is {1} pages. Split it before intake — the "
+			               "limit is {2}.").format(file_doc.file_name, pages,
+			                                       MAX_PDF_PAGES))
+		if len(content) > MAX_PDF_BYTES:
+			frappe.throw(_("{0} is larger than {1} MB. Split it before intake."
+			               ).format(file_doc.file_name,
+			                        MAX_PDF_BYTES // (1024 * 1024)))
+		return [{"type": "document", "source": {
+			"type": "base64", "media_type": "application/pdf",
+			"data": base64.standard_b64encode(content).decode()}}], pages
 
-		pdf = fitz.open(stream=content, filetype="pdf")
-		page_total = min(pdf.page_count, MAX_PAGES)
-		for i in range(page_total):
-			pix = pdf[i].get_pixmap(dpi=RENDER_DPI)
-			png = pix.tobytes("png")
-			images.append(("image/png", base64.standard_b64encode(png).decode()))
-		pdf.close()
-	else:
-		# jpg / png / etc. -> send as-is
-		media = "image/png"
-		if fname.endswith((".jpg", ".jpeg")):
-			media = "image/jpeg"
-		images.append((media, base64.standard_b64encode(content).decode()))
-
-	if not images:
-		frappe.throw(_("Could not render any pages from the uploaded file."))
-	return images
+	media = "image/png"
+	if fname.endswith((".jpg", ".jpeg")):
+		media = "image/jpeg"
+	elif fname.endswith(".gif"):
+		media = "image/gif"
+	elif fname.endswith(".webp"):
+		media = "image/webp"
+	elif not fname.endswith(".png"):
+		frappe.throw(_("{0} is not a PDF or an image the reader accepts."
+		               ).format(file_doc.file_name or file_url))
+	return [{"type": "image", "source": {
+		"type": "base64", "media_type": media,
+		"data": base64.standard_b64encode(content).decode()}}], 1
 
 
 # ---------------------------------------------------------------------------
 # Anthropic call
 # ---------------------------------------------------------------------------
 
-def _call_claude(images, model):
-	"""Send the page images to Claude and return the parsed JSON dict."""
+def _call_claude(blocks, model):
+	"""Send the prepared content blocks to Claude and return the parsed JSON."""
 	import requests
 
-	content = []
-	for media_type, data in images:
-		content.append({
-			"type": "image",
-			"source": {"type": "base64", "media_type": media_type, "data": data},
-		})
+	content = list(blocks)
 	content.append({"type": "text", "text": USER_INSTRUCTION})
 
 	payload = {
@@ -161,7 +215,13 @@ def _call_claude(images, model):
 		"content-type": "application/json",
 	}
 
-	resp = requests.post(ANTHROPIC_URL, headers=headers, json=payload, timeout=120)
+	resp = requests.post(ANTHROPIC_URL, headers=headers, json=payload, timeout=180)
+	if resp.status_code in (400, 413) and any(
+			b.get("type") == "document" for b in blocks):
+		# Model or account cannot take a PDF directly. The caller rasterises.
+		frappe.log_error(title="Doc Intake: PDF refused, falling back",
+		                 message=resp.text[:2000])
+		raise _PdfRefused(resp.text[:400])
 	if resp.status_code != 200:
 		# Surface a clean error; do not leak the key or full payload
 		frappe.log_error(
@@ -220,6 +280,7 @@ REG_TYPE = {
 	"QID": "QID",
 	"Passport": "Passport",
 	"Commercial Registration": "Commercial Registration",
+	"Title Deed": "Title Deed",
 	"Cheque Batch": "Cheque Batch",
 	"Utility / Other": "Utility Bill",
 	"Utility Bill": "Utility Bill",
@@ -458,10 +519,18 @@ def extract_document(docname, escalate=0):
 	reg.db_set("status", "Extracting", commit=True)
 
 	try:
-		images = _file_to_page_images(reg.source_file)
-		reg.page_count = len(images)
+		blocks, pages = _file_to_blocks(reg.source_file)
 		model = _get_model(escalate=int(escalate or 0))
-		result = _call_claude(images, model)
+		try:
+			result = _call_claude(blocks, model)
+		except _PdfRefused:
+			# The model would not take the PDF whole. Fall back to pictures of
+			# the pages, which is what this used to do for every PDF.
+			file_doc = frappe.get_doc("File", {"file_url": reg.source_file})
+			blocks = _rasterise_pdf(file_doc.get_content())
+			pages = len(blocks)
+			result = _call_claude(blocks, model)
+		reg.page_count = pages or 1
 
 		_apply_extraction(reg, result)
 		reg.extractor_model = model
@@ -1233,6 +1302,25 @@ def _fold_building(data, src, fields, notes):
 				("Zone " + str(c["zone"])) if c.get("zone") else None,
 			) if x
 		)
+		if addr:
+			_put(fields, "addr", addr, oc, src)
+
+	# A title deed proves who owns the building and where it is. It carries no
+	# rent and no term, so it fills the owner and the address and stops there.
+	if c and dt == "Title Deed":
+		_put(fields, "ll", c.get("party_name"), oc, src)
+		_put(fields, "area", c.get("area_name"), oc, src)
+		if c.get("cr_number"):
+			_put(fields, "lltype", "Company", oc, src)
+			_put(fields, "llid", c.get("cr_number"), oc, src)
+		elif c.get("id_number"):
+			_put(fields, "lltype", "Individual", oc, src)
+			_put(fields, "llid", c.get("id_number"), oc, src)
+		addr = " ".join(str(x) for x in (
+			("Building " + str(c["building_no"])) if c.get("building_no") else None,
+			("Street " + str(c["street"])) if c.get("street") else None,
+			("Zone " + str(c["zone"])) if c.get("zone") else None,
+		) if x)
 		if addr:
 			_put(fields, "addr", addr, oc, src)
 

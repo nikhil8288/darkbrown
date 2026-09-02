@@ -3,7 +3,10 @@ name = "darkbrown"
 version = "2.0.0"
 description = "DarkBrown Real Estate — V2 property management platform"
 requires-python = ">=3.10"
-dependencies = []
+# PyMuPDF is only the fallback rasteriser for PDFs the API will not take
+# whole. Document intake works without it; it is declared so a bench that
+# does need it has it.
+dependencies = ["PyMuPDF>=1.24"]
 
 [build-system]
 requires = ["flit_core >=3.4,<4"]

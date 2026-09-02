@@ -46,6 +46,9 @@ QID number (11 digits), full name (English and Arabic), nationality, date of bir
 expiry date. The QID number is the most important field - read it digit by digit.
 - "Passport": a passport bio page. Extract passport number, full name, nationality, \
 date of birth, and expiry date.
+- "Title Deed": a Qatari sanad mulki / ownership deed, or a municipality \
+attestation of ownership. Extract the owner as party_name, the deed or attestation \
+number as contract_ref_no, and the building number, zone and street.
 - "Utility / Other": Kahramaa bills, municipality letters, or anything that does not fit \
 the above. Extract electricity_no / water_no if visible, and any party name/address.
 - "Bank Statement": a bank account statement with a transaction table. Extract the bank \
@@ -62,7 +65,7 @@ DarkBrown is the LESSOR (collecting rent from a tenant) it is a Tenant Agreement
 OUTPUT SCHEMA (include only the blocks relevant to the detected type):
 
 {
-  "document_type": "Cheque Batch" | "Head Lease" | "Tenant Agreement" | "Owner Contract" | "QID / National ID" | "Passport" | "Utility / Other" | "Bank Statement" | "Unknown",
+  "document_type": "Cheque Batch" | "Head Lease" | "Tenant Agreement" | "Owner Contract" | "Title Deed" | "QID / National ID" | "Passport" | "Utility / Other" | "Bank Statement" | "Unknown",
   "overall_confidence": 0.0-1.0,
   "notes": ["..."],
 
@@ -88,7 +91,7 @@ OUTPUT SCHEMA (include only the blocks relevant to the detected type):
     }
   ],
 
-  // ONLY for contract/agreement types:
+  // ONLY for contract/agreement/deed types:
   "contract": {
     "party_name": "string or null",            // the counterparty (owner or tenant), English
     "party_name_ar": "string or null",          // counterparty name in Arabic

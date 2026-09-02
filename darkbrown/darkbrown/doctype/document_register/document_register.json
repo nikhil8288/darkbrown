@@ -57,7 +57,7 @@
    "fieldname": "document_type",
    "fieldtype": "Select",
    "label": "Document Type",
-   "options": "Unknown\nHead Lease\nTenancy Agreement\nQID\nPassport\nCommercial Registration\nCheque Batch\nUtility Bill\nMaintenance Invoice\nBank Statement\nOther",
+   "options": "Unknown\nHead Lease\nTenancy Agreement\nQID\nPassport\nCommercial Registration\nTitle Deed\nCheque Batch\nUtility Bill\nMaintenance Invoice\nBank Statement\nOther",
    "default": "Unknown",
    "reqd": 1,
    "in_list_view": 1,
