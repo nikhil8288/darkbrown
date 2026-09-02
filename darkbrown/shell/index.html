@@ -2668,7 +2668,7 @@ window.openForm=(key,ctx)=>{
   FKEY=key;
   if(window.DB_LIVE&&BLOCKED[key]){blockedForm(key);return;}
   FSTEP=0; FDATA=Object.assign({},FRM.init?FRM.init(ctx):{}); FDATA.__ctx=ctx;
-  window.FFILES={}; FRESUMED=false;
+  window.FFILES={}; FRESUMED=false; window.FEXTRACT=null;
   /* Work that was interrupted comes back instead of being retyped. A draft
      raised against one record is not offered on another, so a form opened with
      a context starts clean. */
@@ -2688,7 +2688,7 @@ window.startFresh=()=>{
   delete window.FDRAFT[FKEY];
   const ctx=FDATA.__ctx; FRESUMED=false;
   FDATA=Object.assign({},FRM.init?FRM.init(ctx):{}); FDATA.__ctx=ctx;
-  window.FFILES={};
+  window.FFILES={}; window.FEXTRACT=null;
   drawForm(); formBaseline();
 };
 
@@ -4729,13 +4729,128 @@ ROUTES.account=code=>{
    which had been read off anything, because no file had been uploaded either.
    Real extraction runs at /doc-intake against a real model; this step does
    not pretend to be it. */
-function docStep(label,hint,note){
-  return {n:'Documents',body:d=>`
-   <p class="pp">Attach the paperwork now and it is filed against the record when you save it. Nothing is read
-     off the document here — the values go in by hand on the steps that follow.</p>
+/* Extraction state for the Documents step. Cleared with the form, so a second
+   wizard never shows the first one's reading. `undefined` means Read has not
+   been pressed; an object with an empty `fields` means it ran and found
+   nothing, which is a different thing and says so on screen. */
+window.FEXTRACT=null;
+
+/* A value the model was unsure of is offered but not silently accepted: it
+   goes into the field and is listed as needing a look. The threshold comes
+   back from the server so it is tunable there rather than here. */
+async function dbExtract(kind){
+  collect();
+  const files=(window.FFILES&&FFILES.doc)||[];
+  const btn=document.getElementById('exbtn');
+  const box=document.getElementById('exbox');
+  if(!files.length){
+    if(box){box.style.display='block';
+      box.className='note';box.textContent='Choose the documents first, then read them.'}
+    return;
+  }
+  if(btn){btn.disabled=true;btn.textContent='Reading\u2026'}
+  if(box){box.style.display='block';box.className='note';
+    box.textContent='Uploading '+files.length+' file'+(files.length===1?'':'s')+
+      ' and reading '+(files.length===1?'it':'them')+'. A long lease takes a moment.'}
+  try{
+    /* The extractor works on a File record, so the bytes have to be on the
+       server before anything can be read off them. These go up as private
+       files and become Document Register entries in their own right — the
+       wizard is not a side door around the register. */
+    const urls=[];
+    for(const f of files){
+      const fd=new FormData();
+      fd.append('file',f,f.name); fd.append('is_private','1'); fd.append('folder','Home');
+      const r=await fetch('/api/method/upload_file',
+        {method:'POST',headers:{'X-Frappe-CSRF-Token':window.DB_CSRF||''},body:fd});
+      const j=await r.json().catch(()=>({}));
+      if(!r.ok) throw new Error(((j.exception||'')+'').split('\n')[0]||('upload rejected \u2014 HTTP '+r.status));
+      urls.push(j.message&&j.message.file_url);
+    }
+    const out=await dbCall('doc_intake.extract_for_wizard',
+      {file_urls:JSON.stringify(urls),kind:kind||'building'});
+    FEXTRACT=out||{fields:{},docs:[],notes:[]};
+    /* Fill only what is still empty. Anything already typed by hand outranks
+       anything read off a scan — the person is looking at the paper too. */
+    const f=FEXTRACT.fields||{};
+    FEXTRACT.applied=[]; FEXTRACT.skipped=[];
+    Object.keys(f).forEach(k=>{
+      const cur=FDATA[k];
+      if(cur!==undefined&&cur!==null&&String(cur).trim()!==''&&String(cur)!==String(f[k].value)){
+        FEXTRACT.skipped.push(k); return;
+      }
+      FDATA[k]=f[k].value; FEXTRACT.applied.push(k);
+    });
+    if(FDATA.area) rememberArea&&rememberArea(FDATA.area);
+  }catch(e){
+    FEXTRACT={error:(e&&e.message)||'Could not read the documents.',fields:{},docs:[],notes:[]};
+  }
+  drawForm();
+}
+window.dbExtract=dbExtract;
+
+/* Labels for the fields the reading can fill, so the review table names them
+   the way the steps below name them. A key absent from here is still applied;
+   it is just shown by its key. */
+const EXLBL={name:'Building name',area:'Area',floors:'Floors',units:'Number of units',
+  addr:'Address',ll:'Landlord',llid:'CR / QID number',lltype:'Landlord type',
+  annual:'Annual head-lease value',depll:'Deposit paid to landlord',
+  start:'Lease start',end:'Lease end',first:'First payment date',
+  nchq:'Instalments per year',chqfrom:'First cheque number'};
+
+function exPanel(){
+  const x=window.FEXTRACT;
+  if(!x) return '';
+  if(x.error) return `<div class="note" style="border-left-color:var(--red)"><b>Nothing was read.</b> ${esc(x.error)}
+    <br>The steps below still work \u2014 type the values in and the files are filed on save as before.</div>`;
+  const f=x.fields||{}, ks=Object.keys(f);
+  const rows=ks.map(k=>{
+    const r=f[k], pc=Math.round((r.conf||0)*100);
+    const col=r.confirm?'var(--amber)':'var(--em)';
+    const skipped=(x.skipped||[]).indexOf(k)>=0;
+    return `<tr><td>${esc(EXLBL[k]||k)}</td>
+      <td>${esc(String(r.value))}${r.note?`<br><span class="fh">${esc(r.note)}</span>`:''}</td>
+      <td class="fh">${esc(r.source||'')}</td>
+      <td class="r num" style="color:${col}">${pc}%</td>
+      <td>${skipped?chip('kept yours','n'):(r.confirm?chip('check it','a'):chip('filled','g'))}</td></tr>`}).join('');
+  const low=ks.filter(k=>f[k].confirm).length;
+  const bad=(x.docs||[]).filter(d=>d.error);
+  return `
+   ${(x.docs||[]).length?`<div class="tw"><table><tr><th>File</th><th>Read as</th><th class="r">Confidence</th><th>Pages</th></tr>
+     ${x.docs.map(d=>`<tr><td>${esc(d.file)}</td>
+       <td>${d.error?`<span style="color:var(--red)">could not read \u2014 ${esc(d.error)}</span>`:esc(d.type)}</td>
+       <td class="r num">${d.error?'\u2014':Math.round((d.conf||0)*100)+'%'}</td>
+       <td class="fh">${d.pages||'\u2014'}</td></tr>`).join('')}</table></div>`:''}
+   ${ks.length?`<div class="tw"><table><tr><th>Field</th><th>Read</th><th>From</th><th class="r">Confidence</th><th>Status</th></tr>${rows}</table></div>`
+     :`<div class="note" style="border-left-color:var(--amber)"><b>No fields came back.</b>
+       ${bad.length?'The files could not be read.':'The documents were read but nothing in them matched a field on this form.'}
+       Fill the steps below by hand.</div>`}
+   ${low?`<div class="note" style="border-left-color:var(--amber)"><b>${low} value${low===1?'':'s'} the model was unsure of.</b>
+     ${low===1?'It is':'They are'} in the fields already \u2014 check ${low===1?'it':'them'} against the paper before you save.</div>`:''}
+   ${(x.notes||[]).length?`<div class="note">${x.notes.map(esc).join('<br>')}</div>`:''}
+   ${(x.applied||[]).length?`<div class="note" style="border-left-color:var(--em)">
+     ${x.applied.length} field${x.applied.length===1?'':'s'} filled in on the steps below. Everything stays editable.</div>`:''}`;
+}
+
+/* The Documents step. With a `kind` it reads the paperwork and fills the rest
+   of the wizard; without one it only attaches, which is what the tenant and
+   cheque wizards still do because no field map has been written for them. */
+function docStep(label,hint,note,kind){
+  return {n:'Documents',body:d=>{
+   const n=((window.FFILES&&FFILES.doc)||[]).length;
+   return `
+   <p class="pp">${kind
+     ?'Attach the paperwork and press Read. The landlord, the rent, the term and the payment schedule are read off it and filled into the steps below, where you check them against the paper before saving.'
+     :'Attach the paperwork now and it is filed against the record when you save it. Nothing is read off the document here \u2014 the values go in by hand on the steps that follow.'}</p>
    <div class="fg">${fld({k:'doc',l:label,t:'file',multi:1,
      hint:hint||'PDF, JPG or PNG \u00b7 several at once'},d.doc)}</div>
-   <div class="note">${note||'No document to hand? Continue without it \u2014 you can attach it to the record afterwards.'}</div>`};
+   ${kind?`<div style="display:flex;gap:12px;align-items:center;margin:12px 0">
+      <button type="button" class="btn pri" id="exbtn" onclick="dbExtract('${kind}')"${n?'':' disabled'}>
+        ${window.FEXTRACT?'Read again':'Read the documents'}</button>
+      <span class="fh">${n?n+' file'+(n===1?'':'s')+' ready':'choose the files first'}</span></div>
+     <div id="exbox" style="display:none"></div>
+     ${exPanel()}`:''}
+   <div class="note">${note||'No document to hand? Continue without it \u2014 you can attach it to the record afterwards.'}</div>`}};
 }
 
 /* ---------------- Areas ----------------
@@ -4781,7 +4896,8 @@ FORMS['onboard-building']={t:'Onboard a building',s:'Workflow 2A · property, la
  init:()=>{WZU=[];return{pay:'Quarterly cheque',nchq:'4',lltype:'Company'}},
  steps:[
   docStep('Head-lease agreement','the signed head-lease, and the landlord\u2019s papers if you have them',
-    'Attach the signed head-lease. It is filed against the building on save, so the lease and the record stay together.'),
+    'Attach the signed head-lease. It is filed against the building on save, so the lease and the record stay together.',
+    'building'),
   {n:'Property',body:d=>`<div class="fg">
     ${fld({k:'name',l:'Building name',t:'txt',p:'Al Sadd Tower 2',req:1,full:1},d.name)}
     ${fld({k:'area',l:'Area',t:'combo',o:areaList,req:1,p:'Al Sadd',

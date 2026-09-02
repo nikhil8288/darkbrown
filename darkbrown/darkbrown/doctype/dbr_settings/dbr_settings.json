@@ -40,7 +40,9 @@
   "cb_wall_2",
   "wall_loss_amber",
   "wall_loss_red",
-  "wall_loss_share_red"
+  "wall_loss_share_red",
+  "sec_intake",
+  "anthropic_api_key"
  ],
  "fields": [
   {
@@ -252,6 +254,17 @@
    "label": "Red If Losses Exceed (% of Spread)",
    "default": "5",
    "description": "One badly bleeding building is worse than three barely negative ones. Either test can turn it red."
+  },
+  {
+   "fieldname": "sec_intake",
+   "fieldtype": "Section Break",
+   "label": "Document reading"
+  },
+  {
+   "fieldname": "anthropic_api_key",
+   "fieldtype": "Password",
+   "label": "Anthropic API key",
+   "description": "Used by document intake to read scanned leases, IDs and cheques. Stored encrypted and never sent to the browser. site_config.json takes precedence over this field if both are set."
   }
  ],
  "index_web_pages_for_search": 0,

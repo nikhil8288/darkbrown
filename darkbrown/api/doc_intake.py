@@ -999,3 +999,216 @@ def ignore_statement_line(docname, line_name, note=None):
 	reg.save()
 	frappe.db.commit()
 	return {"doc": reg.as_dict()}
+
+
+# ---------------------------------------------------------------------------
+# Wizard extraction
+#
+# The onboarding wizards hold their files client-side and upload them on save.
+# That is the right order for filing, but it means nothing can be read off the
+# paperwork before the form is filled in — which is exactly what the Documents
+# step at the top of each wizard is for.
+#
+# extract_for_wizard() takes the files the user has just chosen, runs each one
+# through the same extractor the intake queue uses, and folds the results into
+# one flat map of wizard field keys. A head lease fills the property and the
+# lease; the landlord's QID or CR fills the landlord; a cheque register fills
+# the first cheque number. Every value carries its confidence and the file it
+# came from, so the screen can show the user what it read and where.
+#
+# Nothing here writes a Building. The wizard's own submit still does that,
+# against values a human has looked at.
+# ---------------------------------------------------------------------------
+
+#: Below this, a value is offered but marked as needing confirmation rather
+#: than accepted. Matches the review threshold used by the intake queue.
+WIZARD_CONFIRM_BELOW = 0.75
+
+#: Instalment counts the Payment step's select actually offers. Anything else
+#: is surfaced as a note instead of being forced into the field.
+_NCHQ_ALLOWED = {1, 2, 4, 12}
+
+
+def _num(v):
+	try:
+		if v is None or v == "":
+			return None
+		return flt(v)
+	except Exception:
+		return None
+
+
+def _put(fields, key, value, conf, src, note=None):
+	"""First non-empty value wins, unless a later one is more confident.
+
+	Five files can each carry the landlord's name. Taking the highest
+	confidence rather than the first file in the list means a clean QID card
+	beats a smudged signature block.
+	"""
+	if value is None or value == "":
+		return
+	prev = fields.get(key)
+	if prev and flt(prev.get("conf") or 0) >= flt(conf or 0):
+		return
+	fields[key] = {
+		"value": value,
+		"conf": round(flt(conf or 0), 2),
+		"source": src,
+		"confirm": flt(conf or 0) < WIZARD_CONFIRM_BELOW,
+		"note": note,
+	}
+
+
+def _fold_building(data, src, fields, notes):
+	"""Map one extracted document onto onboard-building's field keys."""
+	dt = (data.get("document_type") or "").strip()
+	oc = flt(data.get("overall_confidence") or 0)
+
+	c = data.get("contract") or {}
+	if c and dt in ("Head Lease", "Owner Contract"):
+		_put(fields, "name", c.get("building_name"), oc, src)
+		_put(fields, "area", c.get("area_name"), oc, src)
+		_put(fields, "floors", _num(c.get("floors")), oc, src)
+		_put(fields, "units", _num(c.get("total_units")), oc, src)
+
+		# The wizard works in annual money. Prefer what the document states.
+		annual = _num(c.get("annual_rent"))
+		monthly = _num(c.get("monthly_rent"))
+		if annual:
+			_put(fields, "annual", annual, oc, src)
+		elif monthly:
+			_put(fields, "annual", monthly * 12, oc, src,
+			     "the lease states %s a month; multiplied by 12" % monthly)
+
+		_put(fields, "depll", _num(c.get("security_deposit")), oc, src)
+		_put(fields, "start", c.get("start_date"), oc, src)
+		_put(fields, "end", c.get("end_date"), oc, src)
+		_put(fields, "first", c.get("start_date"), oc, src)
+
+		n = _num(c.get("cheques_per_year"))
+		if n:
+			n = int(n)
+			if n in _NCHQ_ALLOWED:
+				_put(fields, "nchq", str(n), oc, src)
+			else:
+				notes.append(
+					"%s states %d payments a year. The Payment step offers 1, 2, 4 "
+					"or 12, so it has been left for you to set." % (src, n)
+				)
+
+		# Landlord, from the lease itself
+		if c.get("cr_number"):
+			_put(fields, "lltype", "Company", oc, src)
+			_put(fields, "llid", c.get("cr_number"), oc, src)
+		elif c.get("id_number"):
+			_put(fields, "lltype", "Individual", oc, src)
+			_put(fields, "llid", c.get("id_number"), oc, src)
+		_put(fields, "ll", c.get("party_name"), oc, src)
+
+		addr = " ".join(
+			str(x) for x in (
+				("Building " + str(c["building_no"])) if c.get("building_no") else None,
+				("Street " + str(c["street"])) if c.get("street") else None,
+				("Zone " + str(c["zone"])) if c.get("zone") else None,
+			) if x
+		)
+		if addr:
+			_put(fields, "addr", addr, oc, src)
+
+	# A QID card or CR certificate identifies the landlord and nothing else.
+	idd = data.get("id_document") or {}
+	if idd and dt in ("QID / National ID", "Passport", "Utility / Other"):
+		_put(fields, "ll", idd.get("party_name"), oc, src)
+		if idd.get("id_number"):
+			_put(fields, "llid", idd.get("id_number"), oc, src)
+			_put(fields, "lltype", "Individual", oc, src)
+
+	# A cheque register gives the first cheque number and the bank.
+	chqs = data.get("cheques") or []
+	if chqs and dt == "Cheque Batch":
+		out = [q for q in chqs if "Landlord" in (q.get("direction") or "")] or chqs
+		numbered = [q for q in out if (q.get("cheque_number") or "").strip()]
+		numbered.sort(key=lambda q: str(q.get("cheque_date") or ""))
+		if numbered:
+			first = numbered[0]
+			_put(fields, "chqfrom", str(first.get("cheque_number")).strip(),
+			     flt(first.get("confidence") or oc), src)
+		notes.append("%s carries %d cheque%s. They are logged from the Cheques "
+		             "screen, not from here." % (src, len(out), "" if len(out) == 1 else "s"))
+
+	drawer = data.get("drawer") or {}
+	if drawer.get("name") and dt == "Cheque Batch":
+		notes.append("%s is drawn by %s." % (src, drawer.get("name")))
+
+
+_WIZARD_FOLD = {
+	"building": _fold_building,
+}
+
+
+@frappe.whitelist()
+def extract_for_wizard(file_urls, kind="building", escalate=0):
+	"""Read a set of just-uploaded files and return wizard field values.
+
+	`file_urls` is a JSON list or a comma-separated string of File URLs that
+	the client has already uploaded. Each is run through the normal extractor,
+	so each also lands in the Document Register and is reviewable later — the
+	wizard is not a side channel that skips the register.
+
+	Returns:
+	  fields  {wizard_key: {value, conf, source, confirm, note}}
+	  docs    one row per file: name, type, confidence, register id, error
+	  notes   things worth telling the user that are not field values
+	"""
+	guard(MD, DOC)
+
+	fold = _WIZARD_FOLD.get(kind)
+	if not fold:
+		frappe.throw(_("Unknown wizard: {0}").format(kind))
+
+	if isinstance(file_urls, str):
+		try:
+			file_urls = json.loads(file_urls)
+		except Exception:
+			file_urls = [u.strip() for u in file_urls.split(",") if u.strip()]
+	file_urls = [u for u in (file_urls or []) if u]
+	if not file_urls:
+		frappe.throw(_("No files to read."))
+	if len(file_urls) > 12:
+		frappe.throw(_("Twelve files at a time is the limit. Split the batch."))
+
+	# Fail on the key before spending anything, and say so plainly.
+	_get_api_key()
+
+	fields, docs, notes = {}, [], []
+	for url in file_urls:
+		label = url.rsplit("/", 1)[-1]
+		try:
+			res = extract_from_upload(url, escalate=escalate)
+			# A second click on Read must not spend a second time. The
+			# duplicate check returns the register entry that already holds
+			# this file's content; its extraction is reused as-is.
+			if res.get("duplicate"):
+				res = frappe.get_doc("Document Register",
+				                     res["duplicate"]).as_dict()
+				if not res.get("extracted_json"):
+					res = extract_document(res["name"], escalate=escalate)
+			raw = res.get("extracted_json")
+			data = json.loads(raw) if isinstance(raw, str) else (raw or {})
+			fold(data, label, fields, notes)
+			docs.append({
+				"file": label,
+				"register": res.get("name"),
+				"type": data.get("document_type") or res.get("document_type") or "Unknown",
+				"conf": round(flt(data.get("overall_confidence") or 0), 2),
+				"pages": res.get("page_count"),
+			})
+			for n in (data.get("notes") or [])[:3]:
+				notes.append("%s: %s" % (label, n))
+		except Exception as e:
+			frappe.log_error(frappe.get_traceback(), "extract_for_wizard")
+			docs.append({"file": label, "type": "—", "conf": 0,
+			             "error": str(e).split("\n")[0][:200]})
+
+	return {"fields": fields, "docs": docs, "notes": notes,
+	        "threshold": WIZARD_CONFIRM_BELOW}

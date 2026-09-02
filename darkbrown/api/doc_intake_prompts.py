@@ -105,6 +105,10 @@ OUTPUT SCHEMA (include only the blocks relevant to the detected type):
     "unit_no": "string or null",
     "electricity_no": "string or null",
     "water_no": "string or null",
+    "building_name": "string or null",          // the building's own name as written on the lease, not its municipality number
+    "floors": number or null,                   // number of floors in the building, if the lease states it
+    "total_units": number or null,              // number of units/apartments covered by the lease, if stated
+    "annual_rent": number or null,              // yearly rent as written. Extract whichever of annual/monthly the document actually states; do not compute the other
     "monthly_rent": number or null,
     "security_deposit": number or null,
     "start_date": "YYYY-MM-DD or null",
