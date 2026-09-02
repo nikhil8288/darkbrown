@@ -1,6 +1,6 @@
-# Onboarding extraction — round 3
+# Onboarding extraction — round 4: the lease is the base
 
-Supersedes `darkbrown_wizard_ocr_r2.zip`. Unzip over the repo root, commit,
+Supersedes `darkbrown_wizard_ocr_r3.zip`. Unzip over the repo root, commit,
 push, then:
 
     bench --site erp.darkbrown.qa migrate
@@ -8,31 +8,40 @@ push, then:
     bench clear-cache
     bench restart
 
-No pip install is needed. `bench pip install PyMuPDF` is optional — see below.
+## Why nothing filled
 
-## What was broken this round
+`_fold_building()` only read a contract block when the classifier had labelled
+the file "Head Lease" or "Owner Contract". Anything else — and the classifier
+had already proved it can be wrong, calling a sanad mulki a tenant agreement —
+had its entire contract block thrown away unread. The rent, the term and the
+dates were extracted correctly and then discarded on the label.
 
-`No module named 'fitz'`. Every PDF was being rasterised page-by-page with
-PyMuPDF before being sent, and PyMuPDF is a native dependency that was dropped
-from `pyproject.toml` in the V1 cleanup. The JPEG went straight through as an
-image, which is why one file worked and four did not.
+The fold no longer gates on the label. A document carrying rent, dates or a
+cheque count IS a lease, whatever it was called, and it says so on screen when
+it overrides a classification.
 
-PDFs now go to the API as PDFs. The model reads a native PDF's own text layer
-instead of a 150 DPI picture of it — more accurate on typed leases, cheaper,
-and no native module on the required path. Limits are the API's own: 100 pages
-and 30 MB, both refused with a clear message before any spend.
+## Precedence
 
-PyMuPDF is kept as a fallback for a PDF the API will not take whole, and is
-now declared in `pyproject.toml` so the next deploy has it. Without it that
-fallback says what to install rather than raising ImportError.
+Documents are now ranked, and the rank wins before confidence does:
 
-## Also in this round
+1. **Lease / rental agreement** — the base. The only document that states the
+   rent, the term, the deposit and the payment schedule.
+2. **Title deed, commercial registration** — owner and address only.
+3. **QID, passport, utility, cheques** — the party's name and number.
 
-`SANAD MULKI.jpeg` came back as "Tenant Agreement" at 45% because neither the
-prompt nor the Document Register had a title deed in its vocabulary, so the
-model picked the nearest wrong thing. "Title Deed" is now a document type in
-both. A deed fills the owner, the area and the address on the wizard, and
-never touches rent or term, because it does not carry them.
+A 99% read of a QID card no longer overwrites the landlord's name as the lease
+writes it. Where two documents disagree, the winner is shown with the losing
+value and the file it came from underneath it, rather than the disagreement
+being silently resolved.
+
+## On screen
+
+- The file used as the base is marked.
+- Each file shows how many fields it contributed; one that gave nothing says so.
+- The lease's own gaps are named — "does not state the floors, number of units"
+  — so it is clear what is left to type rather than looking like a failure.
+- With no lease in the batch, the panel says to attach one rather than
+  reporting that nothing matched.
 
 ## Still to do
 

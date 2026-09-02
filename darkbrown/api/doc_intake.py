@@ -1219,6 +1219,13 @@ WIZARD_CONFIRM_BELOW = 0.75
 _NCHQ_ALLOWED = {1, 2, 4, 12}
 
 
+def _n(v):
+	try:
+		return ('{:,.0f}').format(float(v))
+	except Exception:
+		return str(v)
+
+
 def _num(v):
 	try:
 		if v is None or v == "":
@@ -1228,120 +1235,175 @@ def _num(v):
 		return None
 
 
-def _put(fields, key, value, conf, src, note=None):
-	"""First non-empty value wins, unless a later one is more confident.
+#: Which kind of paper a fact came off, in order of authority. The lease is
+#: the base: it is the only document that states the rent, the term and the
+#: payment schedule, and where it disagrees with a QID card or a deed about a
+#: name or an address, the lease is the one being signed. Confidence only
+#: breaks ties inside a tier — a crisp 95% read of an ID card does not get to
+#: overwrite the party as the lease names it.
+TIER_LEASE, TIER_DEED, TIER_ID = 3, 2, 1
+TIER_NAME = {TIER_LEASE: "lease", TIER_DEED: "deed", TIER_ID: "identity document"}
 
-	Five files can each carry the landlord's name. Taking the highest
-	confidence rather than the first file in the list means a clean QID card
-	beats a smudged signature block.
+LEASE_TYPES = {"Head Lease", "Owner Contract", "Tenant Agreement",
+               "Tenancy Agreement", "Rental Agreement"}
+DEED_TYPES = {"Title Deed", "Commercial Registration"}
+
+#: A contract block carrying any of these is a lease whatever it was labelled.
+LEASE_MARKERS = ("monthly_rent", "annual_rent", "start_date", "end_date",
+                 "cheques_per_year", "security_deposit")
+
+
+def _doc_tier(dt, data):
+	"""Rank a document by what it actually contains, not only by its label.
+
+	The classifier is the weakest link in the chain — a sanad mulki came back
+	as a tenant agreement — so a document that carries rent and dates is
+	treated as a lease even if it was called something else. Gating on the
+	label alone threw away fully-populated contract blocks.
+	"""
+	c = data.get("contract") or {}
+	if dt in LEASE_TYPES or any(c.get(k) for k in LEASE_MARKERS):
+		return TIER_LEASE
+	if dt in DEED_TYPES:
+		return TIER_DEED
+	return TIER_ID
+
+
+def _put(fields, key, value, conf, src, tier=TIER_ID, note=None):
+	"""Record a value unless something more authoritative is already there.
+
+	Tier wins outright. Inside a tier, the more confident read wins. A value
+	that loses is not thrown away — it is stamped on the winner as `beaten`,
+	because two documents disagreeing about a landlord's name is exactly the
+	thing a person should look at before saving.
 	"""
 	if value is None or value == "":
 		return
 	prev = fields.get(key)
-	if prev and flt(prev.get("conf") or 0) >= flt(conf or 0):
-		return
+	if prev:
+		prev_tier = prev.get("tier", TIER_ID)
+		loses = (prev_tier > tier) or (
+			prev_tier == tier and flt(prev.get("conf") or 0) >= flt(conf or 0))
+		if loses:
+			if str(prev.get("value")) != str(value) and not prev.get("beaten"):
+				prev["beaten"] = value
+				prev["beaten_source"] = src
+			return
 	fields[key] = {
 		"value": value,
 		"conf": round(flt(conf or 0), 2),
 		"source": src,
+		"tier": tier,
+		"from": TIER_NAME.get(tier, ""),
 		"confirm": flt(conf or 0) < WIZARD_CONFIRM_BELOW,
 		"note": note,
 	}
+	if prev and str(prev.get("value")) != str(value):
+		fields[key]["beaten"] = prev.get("value")
+		fields[key]["beaten_source"] = prev.get("source")
 
 
 def _fold_building(data, src, fields, notes):
 	"""Map one extracted document onto onboard-building's field keys."""
 	dt = (data.get("document_type") or "").strip()
 	oc = flt(data.get("overall_confidence") or 0)
+	tier = _doc_tier(dt, data)
 
 	c = data.get("contract") or {}
-	if c and dt in ("Head Lease", "Owner Contract"):
-		_put(fields, "name", c.get("building_name"), oc, src)
-		_put(fields, "area", c.get("area_name"), oc, src)
-		_put(fields, "floors", _num(c.get("floors")), oc, src)
-		_put(fields, "units", _num(c.get("total_units")), oc, src)
+	idd = data.get("id_document") or {}
+	# The id_document block reuses the same flat names; a lease that came back
+	# under that key is still a lease.
+	if not c and idd and tier == TIER_LEASE:
+		c = idd
+
+	def _party(block, t):
+		"""Owner or counterparty, and the number that identifies them."""
+		if block.get("cr_number"):
+			_put(fields, "lltype", "Company", oc, src, t)
+			_put(fields, "llid", block.get("cr_number"), oc, src, t)
+		elif block.get("id_number"):
+			_put(fields, "lltype", "Individual", oc, src, t)
+			_put(fields, "llid", block.get("id_number"), oc, src, t)
+		_put(fields, "ll", block.get("party_name"), oc, src, t)
+
+	def _address(block, t):
+		parts = (
+			("Building " + str(block["building_no"])) if block.get("building_no") else None,
+			("Street " + str(block["street"])) if block.get("street") else None,
+			("Zone " + str(block["zone"])) if block.get("zone") else None,
+		)
+		addr = " ".join(str(x) for x in parts if x)
+		if addr:
+			_put(fields, "addr", addr, oc, src, t)
+
+	if c and tier == TIER_LEASE:
+		# The lease is the base. Everything the wizard needs except the unit
+		# numbers is on this one document.
+		if dt not in LEASE_TYPES:
+			notes.append("%s was read as \u201c%s\u201d but carries rent and dates, "
+			             "so it has been treated as the lease." % (src, dt or "Unknown"))
+		_put(fields, "name", c.get("building_name"), oc, src, tier)
+		_put(fields, "area", c.get("area_name"), oc, src, tier)
+		_put(fields, "floors", _num(c.get("floors")), oc, src, tier)
+		_put(fields, "units", _num(c.get("total_units")), oc, src, tier)
+		_address(c, tier)
+		_party(c, tier)
 
 		# The wizard works in annual money. Prefer what the document states.
 		annual = _num(c.get("annual_rent"))
 		monthly = _num(c.get("monthly_rent"))
 		if annual:
-			_put(fields, "annual", annual, oc, src)
+			_put(fields, "annual", annual, oc, src, tier)
 		elif monthly:
-			_put(fields, "annual", monthly * 12, oc, src,
-			     "the lease states %s a month; multiplied by 12" % monthly)
+			_put(fields, "annual", monthly * 12, oc, src, tier,
+			     "the lease states %s a month; multiplied by 12" % _n(monthly))
 
-		_put(fields, "depll", _num(c.get("security_deposit")), oc, src)
-		_put(fields, "start", c.get("start_date"), oc, src)
-		_put(fields, "end", c.get("end_date"), oc, src)
-		_put(fields, "first", c.get("start_date"), oc, src)
+		_put(fields, "depll", _num(c.get("security_deposit")), oc, src, tier)
+		_put(fields, "start", c.get("start_date"), oc, src, tier)
+		_put(fields, "end", c.get("end_date"), oc, src, tier)
+		_put(fields, "first", c.get("start_date"), oc, src, tier)
 
 		n = _num(c.get("cheques_per_year"))
 		if n:
 			n = int(n)
 			if n in _NCHQ_ALLOWED:
-				_put(fields, "nchq", str(n), oc, src)
+				_put(fields, "nchq", str(n), oc, src, tier)
 			else:
 				notes.append(
 					"%s states %d payments a year. The Payment step offers 1, 2, 4 "
 					"or 12, so it has been left for you to set." % (src, n)
 				)
+		# What the lease did not say, so it is clear what is left to type.
+		missing = [l for k, l in (("building_name", "building name"),
+		                          ("area_name", "area"), ("floors", "floors"),
+		                          ("total_units", "number of units"))
+		           if not c.get(k)]
+		if missing:
+			notes.append("%s does not state the %s." % (src, ", ".join(missing)))
 
-		# Landlord, from the lease itself
-		if c.get("cr_number"):
-			_put(fields, "lltype", "Company", oc, src)
-			_put(fields, "llid", c.get("cr_number"), oc, src)
-		elif c.get("id_number"):
-			_put(fields, "lltype", "Individual", oc, src)
-			_put(fields, "llid", c.get("id_number"), oc, src)
-		_put(fields, "ll", c.get("party_name"), oc, src)
+	elif c and tier == TIER_DEED:
+		# A deed proves who owns the building and where it is. No rent, no term.
+		_party(c, tier)
+		_put(fields, "area", c.get("area_name"), oc, src, tier)
+		_address(c, tier)
 
-		addr = " ".join(
-			str(x) for x in (
-				("Building " + str(c["building_no"])) if c.get("building_no") else None,
-				("Street " + str(c["street"])) if c.get("street") else None,
-				("Zone " + str(c["zone"])) if c.get("zone") else None,
-			) if x
-		)
-		if addr:
-			_put(fields, "addr", addr, oc, src)
-
-	# A title deed proves who owns the building and where it is. It carries no
-	# rent and no term, so it fills the owner and the address and stops there.
-	if c and dt == "Title Deed":
-		_put(fields, "ll", c.get("party_name"), oc, src)
-		_put(fields, "area", c.get("area_name"), oc, src)
-		if c.get("cr_number"):
-			_put(fields, "lltype", "Company", oc, src)
-			_put(fields, "llid", c.get("cr_number"), oc, src)
-		elif c.get("id_number"):
-			_put(fields, "lltype", "Individual", oc, src)
-			_put(fields, "llid", c.get("id_number"), oc, src)
-		addr = " ".join(str(x) for x in (
-			("Building " + str(c["building_no"])) if c.get("building_no") else None,
-			("Street " + str(c["street"])) if c.get("street") else None,
-			("Zone " + str(c["zone"])) if c.get("zone") else None,
-		) if x)
-		if addr:
-			_put(fields, "addr", addr, oc, src)
-
-	# A QID card or CR certificate identifies the landlord and nothing else.
-	idd = data.get("id_document") or {}
-	if idd and dt in ("QID / National ID", "Passport", "Utility / Other"):
-		_put(fields, "ll", idd.get("party_name"), oc, src)
+	elif idd:
+		# An ID card names a person and nothing else about the property.
+		_put(fields, "ll", idd.get("party_name"), oc, src, TIER_ID)
 		if idd.get("id_number"):
-			_put(fields, "llid", idd.get("id_number"), oc, src)
-			_put(fields, "lltype", "Individual", oc, src)
+			_put(fields, "llid", idd.get("id_number"), oc, src, TIER_ID)
+			_put(fields, "lltype", "Individual", oc, src, TIER_ID)
 
-	# A cheque register gives the first cheque number and the bank.
+	# A cheque register gives the first cheque number.
 	chqs = data.get("cheques") or []
-	if chqs and dt == "Cheque Batch":
+	if chqs:
 		out = [q for q in chqs if "Landlord" in (q.get("direction") or "")] or chqs
-		numbered = [q for q in out if (q.get("cheque_number") or "").strip()]
+		numbered = [q for q in out if str(q.get("cheque_number") or "").strip()]
 		numbered.sort(key=lambda q: str(q.get("cheque_date") or ""))
 		if numbered:
 			first = numbered[0]
 			_put(fields, "chqfrom", str(first.get("cheque_number")).strip(),
-			     flt(first.get("confidence") or oc), src)
+			     flt(first.get("confidence") or oc), src, TIER_ID)
 		notes.append("%s carries %d cheque%s. They are logged from the Cheques "
 		             "screen, not from here." % (src, len(out), "" if len(out) == 1 else "s"))
 
@@ -1404,14 +1466,24 @@ def extract_for_wizard(file_urls, kind="building", escalate=0):
 					res = extract_document(res["name"], escalate=escalate)
 			raw = res.get("extracted_json")
 			data = json.loads(raw) if isinstance(raw, str) else (raw or {})
+			before = len(fields)
 			fold(data, label, fields, notes)
+			gained = len(fields) - before
 			docs.append({
 				"file": label,
 				"register": res.get("name"),
 				"type": data.get("document_type") or res.get("document_type") or "Unknown",
 				"conf": round(flt(data.get("overall_confidence") or 0), 2),
 				"pages": res.get("page_count"),
+				"tier": TIER_NAME.get(_doc_tier(
+					(data.get("document_type") or "").strip(), data), ""),
+				"filled": gained,
 			})
+			# A file that was read cleanly and still gave nothing is worth
+			# saying out loud, otherwise an empty form looks like a failure.
+			if gained == 0:
+				notes.append("%s was read but had nothing this form asks for."
+				             % label)
 			for n in (data.get("notes") or [])[:3]:
 				notes.append("%s: %s" % (label, n))
 		except Exception as e:
@@ -1419,5 +1491,12 @@ def extract_for_wizard(file_urls, kind="building", escalate=0):
 			docs.append({"file": label, "type": "—", "conf": 0,
 			             "error": str(e).split("\n")[0][:200]})
 
-	return {"fields": fields, "docs": docs, "notes": notes,
+	base = next((d["file"] for d in docs if d.get("tier") == "lease"), None)
+	if base:
+		notes.insert(0, "%s is being used as the base. Where another document "
+		                "disagrees with it, the lease wins." % base)
+	elif fields:
+		notes.insert(0, "No lease was found in this batch, so the rent, the "
+		                "term and the payment schedule are still to be typed in.")
+	return {"fields": fields, "docs": docs, "notes": notes, "base": base,
 	        "threshold": WIZARD_CONFIRM_BELOW}

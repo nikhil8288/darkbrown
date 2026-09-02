@@ -4808,24 +4808,29 @@ function exPanel(){
     const r=f[k], pc=Math.round((r.conf||0)*100);
     const col=r.confirm?'var(--amber)':'var(--em)';
     const skipped=(x.skipped||[]).indexOf(k)>=0;
+    /* Where two documents said different things, both are shown. The one that
+       lost is not hidden \u2014 a lease and a QID spelling a name differently is
+       something to look at, not something to bury. */
+    const clash=r.beaten?`<br><span class="fh">the ${esc(r.from||'other document')} says this;
+      another said ${esc(String(r.beaten))}</span>`:'';
     return `<tr><td>${esc(EXLBL[k]||k)}</td>
-      <td>${esc(String(r.value))}${r.note?`<br><span class="fh">${esc(r.note)}</span>`:''}</td>
-      <td class="fh">${esc(r.source||'')}</td>
+      <td style="white-space:normal">${esc(String(r.value))}${r.note?`<br><span class="fh">${esc(r.note)}</span>`:''}${clash}</td>
+      <td class="fh" style="white-space:normal">${esc(r.source||'')}</td>
       <td class="r num" style="color:${col}">${pc}%</td>
       <td>${skipped?chip('kept yours','n'):(r.confirm?chip('check it','a'):chip('filled','g'))}</td></tr>`}).join('');
   const low=ks.filter(k=>f[k].confirm).length;
   const bad=(x.docs||[]).filter(d=>d.error);
   return `
-   ${(x.docs||[]).length?`<div class="tw"><table><tr><th>File</th><th>Read as</th><th class="r">Confidence</th><th>Pages</th></tr>
+   ${(x.docs||[]).length?`<div class="tw"><table><tr><th>File</th><th>Read as</th><th class="r">Confidence</th><th>Used</th></tr>
      ${x.docs.map(d=>d.error
        ? `<tr><td>${esc(d.file)}</td><td colspan="3" style="white-space:normal;color:var(--red)">could not read \u2014 ${esc(d.error)}</td></tr>`
-       : `<tr><td>${esc(d.file)}</td><td>${esc(d.type)}</td>
+       : `<tr><td>${esc(d.file)}${d.file===x.base?' '+chip('base','g'):''}</td><td>${esc(d.type)}</td>
        <td class="r num">${Math.round((d.conf||0)*100)+'%'}</td>
-       <td class="fh">${d.pages||'\u2014'}</td></tr>`).join('')}</table></div>`:''}
-   ${ks.length?`<div class="tw"><table><tr><th>Field</th><th>Read</th><th>From</th><th class="r">Confidence</th><th>Status</th></tr>${rows}</table></div>`
+       <td class="fh">${d.filled===0?'nothing used':(d.filled||0)+' field'+(d.filled===1?'':'s')}</td></tr>`).join('')}</table></div>`:''}
+   ${ks.length?`<div class="tw"><table><tr><th>Field</th><th>Read</th><th>From which file</th><th class="r">Confidence</th><th>Status</th></tr>${rows}</table></div>`
      :`<div class="note" style="border-left-color:var(--amber)"><b>No fields came back.</b>
-       ${bad.length?'The files could not be read.':'The documents were read but nothing in them matched a field on this form.'}
-       Fill the steps below by hand.</div>`}
+       ${bad.length?'The files could not be read.':'The documents were read, but none of them is a lease. The rent, the term and the payment schedule only come off the lease or rental agreement \u2014 attach that one and read again.'}
+       </div>`}
    ${low?`<div class="note" style="border-left-color:var(--amber)"><b>${low} value${low===1?'':'s'} the model was unsure of.</b>
      ${low===1?'It is':'They are'} in the fields already \u2014 check ${low===1?'it':'them'} against the paper before you save.</div>`:''}
    ${(x.notes||[]).length?`<div class="note">${x.notes.map(esc).join('<br>')}</div>`:''}
