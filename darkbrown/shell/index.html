@@ -4770,17 +4770,14 @@ async function dbExtract(kind){
     const out=await dbCall('doc_intake.extract_for_wizard',
       {file_urls:JSON.stringify(urls),kind:kind||'building'});
     FEXTRACT=out||{fields:{},docs:[],notes:[]};
-    /* Fill only what is still empty. Anything already typed by hand outranks
-       anything read off a scan — the person is looking at the paper too. */
-    const f=FEXTRACT.fields||{};
-    FEXTRACT.applied=[]; FEXTRACT.skipped=[];
-    Object.keys(f).forEach(k=>{
-      const cur=FDATA[k];
-      if(cur!==undefined&&cur!==null&&String(cur).trim()!==''&&String(cur)!==String(f[k].value)){
-        FEXTRACT.skipped.push(k); return;
-      }
-      FDATA[k]=f[k].value; FEXTRACT.applied.push(k);
-    });
+    /* The document wins. Every value read is written over whatever is in
+       the field, including the wizard's own defaults — which is what was
+       stopping the lease dates and the instalment count from landing: the
+       form ships with 2026-08-01 and four cheques already in the boxes, and
+       a filled box was being treated as a considered answer.
+       If a reading is wrong it is corrected by hand on the steps below.
+       That is the only thing that overrules the paper. */
+    FEXTRACT.applied=exApply(FEXTRACT.fields||{});
     if(FDATA.area) rememberArea&&rememberArea(FDATA.area);
   }catch(e){
     FEXTRACT={error:(e&&e.message)||'Could not read the documents.',fields:{},docs:[],notes:[]};
@@ -4788,6 +4785,16 @@ async function dbExtract(kind){
   drawForm();
 }
 window.dbExtract=dbExtract;
+
+/* Writing the reading into the form. Separate from the network call so the
+   rule is one function and can be tested: every field read is written,
+   full stop. The wizard's defaults are not answers. */
+function exApply(fields){
+  const ks=Object.keys(fields||{});
+  ks.forEach(k=>{FDATA[k]=fields[k].value});
+  return ks;
+}
+window.exApply=exApply;
 
 /* Labels for the fields the reading can fill, so the review table names them
    the way the steps below name them. A key absent from here is still applied;
@@ -4807,17 +4814,16 @@ function exPanel(){
   const rows=ks.map(k=>{
     const r=f[k], pc=Math.round((r.conf||0)*100);
     const col=r.confirm?'var(--amber)':'var(--em)';
-    const skipped=(x.skipped||[]).indexOf(k)>=0;
     /* Where two documents said different things, both are shown. The one that
        lost is not hidden \u2014 a lease and a QID spelling a name differently is
        something to look at, not something to bury. */
-    const clash=r.beaten?`<br><span class="fh">the ${esc(r.from||'other document')} says this;
-      another said ${esc(String(r.beaten))}</span>`:'';
+    const clash=r.beaten?`<br><span class="fh">${esc(r.beaten_source||'another file')} read this as
+      \u201c${esc(String(r.beaten))}\u201d</span>`:'';
     return `<tr><td>${esc(EXLBL[k]||k)}</td>
       <td style="white-space:normal">${esc(String(r.value))}${r.note?`<br><span class="fh">${esc(r.note)}</span>`:''}${clash}</td>
       <td class="fh" style="white-space:normal">${esc(r.source||'')}</td>
       <td class="r num" style="color:${col}">${pc}%</td>
-      <td>${skipped?chip('kept yours','n'):(r.confirm?chip('check it','a'):chip('filled','g'))}</td></tr>`}).join('');
+      <td>${r.confirm?chip('check it','a'):chip('filled','g')}</td></tr>`}).join('');
   const low=ks.filter(k=>f[k].confirm).length;
   const bad=(x.docs||[]).filter(d=>d.error);
   return `
@@ -4835,7 +4841,8 @@ function exPanel(){
      ${low===1?'It is':'They are'} in the fields already \u2014 check ${low===1?'it':'them'} against the paper before you save.</div>`:''}
    ${(x.notes||[]).length?`<div class="note">${x.notes.map(esc).join('<br>')}</div>`:''}
    ${(x.applied||[]).length?`<div class="note" style="border-left-color:var(--em)">
-     ${x.applied.length} field${x.applied.length===1?'':'s'} filled in on the steps below. Everything stays editable.</div>`:''}`;
+     ${x.applied.length} field${x.applied.length===1?'':'s'} written to the steps below, over whatever was in them.
+     Everything stays editable — correct it there if a reading is wrong.</div>`:''}`;
 }
 
 /* The Documents step. With a `kind` it reads the paperwork and fills the rest

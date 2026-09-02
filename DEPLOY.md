@@ -1,6 +1,6 @@
-# Onboarding extraction — round 4: the lease is the base
+# Onboarding extraction — round 5: the document overwrites
 
-Supersedes `darkbrown_wizard_ocr_r3.zip`. Unzip over the repo root, commit,
+Supersedes `darkbrown_wizard_ocr_r4.zip`. Unzip over the repo root, commit,
 push, then:
 
     bench --site erp.darkbrown.qa migrate
@@ -8,43 +8,33 @@ push, then:
     bench clear-cache
     bench restart
 
-## Why nothing filled
+## The change
 
-`_fold_building()` only read a contract block when the classifier had labelled
-the file "Head Lease" or "Owner Contract". Anything else — and the classifier
-had already proved it can be wrong, calling a sanad mulki a tenant agreement —
-had its entire contract block thrown away unread. The rent, the term and the
-dates were extracted correctly and then discarded on the label.
+Reading a document now writes every value it found into the form, over
+whatever was already there. "Kept yours" is gone.
 
-The fold no longer gates on the label. A document carrying rent, dates or a
-cheque count IS a lease, whatever it was called, and it says so on screen when
-it overrides a classification.
+The old rule protected anything already in a field. That was wrong, because
+the wizard ships with values in the fields: `2026-08-01` on the dates, four
+instalments, Company as the landlord type. Those are placeholders, not
+answers, and they were beating the lease. That is why the term, the first
+payment date and the instalment count all read "kept yours" against a 95%
+lease that stated 12 payments and a June start.
 
-## Precedence
+The rule is one function now, `exApply()`, so it is a single place to look:
+every field read is written. Correcting a bad reading is done by hand on the
+steps below, and that is the only thing that overrules the paper.
 
-Documents are now ranked, and the rank wins before confidence does:
+## Also
 
-1. **Lease / rental agreement** — the base. The only document that states the
-   rent, the term, the deposit and the payment schedule.
-2. **Title deed, commercial registration** — owner and address only.
-3. **QID, passport, utility, cheques** — the party's name and number.
-
-A 99% read of a QID card no longer overwrites the landlord's name as the lease
-writes it. Where two documents disagree, the winner is shown with the losing
-value and the file it came from underneath it, rather than the disagreement
-being silently resolved.
-
-## On screen
-
-- The file used as the base is marked.
-- Each file shows how many fields it contributed; one that gave nothing says so.
-- The lease's own gaps are named — "does not state the floors, number of units"
-  — so it is clear what is left to type rather than looking like a failure.
-- With no lease in the batch, the panel says to attach one rather than
-  reporting that nothing matched.
+- Where two documents disagreed, the losing value is still shown under the
+  winner, and now names the file it came from rather than saying
+  "another said".
+- The prompt no longer lets a district be copied into the building name.
+  `DOHA JADEED` landing in both Building name and Area is that: the lease
+  names a district and no building, and the model filled both. It will now
+  leave the building name empty for you to type.
 
 ## Still to do
 
-- The intake queue screen and `confirm_and_push()` have not been run against
-  V2 end to end.
+- The intake queue screen and `confirm_and_push()` are not verified against V2.
 - Tenant and cheque wizards still only attach; no field map is written.
