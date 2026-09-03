@@ -1,6 +1,6 @@
-# Onboarding extraction — round 5: the document overwrites
+# Onboarding extraction — round 6: all four wizards
 
-Supersedes `darkbrown_wizard_ocr_r4.zip`. Unzip over the repo root, commit,
+Supersedes `darkbrown_wizard_ocr_r5.zip`. Unzip over the repo root, commit,
 push, then:
 
     bench --site erp.darkbrown.qa migrate
@@ -8,33 +8,47 @@ push, then:
     bench clear-cache
     bench restart
 
-## The change
+## Reading now runs in four places
 
-Reading a document now writes every value it found into the form, over
-whatever was already there. "Kept yours" is gone.
+| Wizard | Base document | What comes off it |
+|---|---|---|
+| Onboard a building | head lease / owner contract | landlord, rent, term, schedule, address |
+| **Add unit** (new) | tenancy agreement, handover, Kahramaa bill | unit number, type, floor, rooms, sqm, meter, asking rent |
+| **Add tenant** | tenancy agreement + QID | tenant, QID and expiry, rent, term, deposit, cheques, building and unit |
+| **Log a cheque** | cheque or batch scan | number, amount, date, bank, direction |
 
-The old rule protected anything already in a field. That was wrong, because
-the wizard ships with values in the fields: `2026-08-01` on the dates, four
-instalments, Company as the landlord type. Those are placeholders, not
-answers, and they were beating the lease. That is why the term, the first
-payment date and the instalment count all read "kept yours" against a 95%
-lease that stated 12 payments and a June start.
+`add-unit` had no Documents step at all. It has one now, first, before the
+Unit step.
 
-The rule is one function now, `exApply()`, so it is a single place to look:
-every field read is written. Correcting a bad reading is done by hand on the
-steps below, and that is the only thing that overrules the paper.
+Everything from round 5 applies to all four: the document overwrites the form,
+the lease outranks an ID card, and a losing reading is shown rather than
+dropped.
 
-## Also
+## Selects are never written blind
 
-- Where two documents disagreed, the losing value is still shown under the
-  winner, and now names the file it came from rather than saying
-  "another said".
-- The prompt no longer lets a district be copied into the building name.
-  `DOHA JADEED` landing in both Building name and Area is that: the lease
-  names a district and no building, and the model filled both. It will now
-  leave the building name empty for you to type.
+Free text in a select produces a control that looks filled and saves empty.
+Every select-bound field is now matched against the real option list before it
+is written, and reported if it does not match:
+
+- `2 BHK` becomes `2BR`; `fully-furnished` becomes `Fully Furnished`;
+  `Qatar National Bank` becomes `QNB`.
+- `Duplex Maisonette` is not a unit type, so it is named and left for you.
+- A 6-month term is not rounded up to 12. Six payments a year is not forced
+  into a frequency that does not exist.
+- Drawer and payee are bound to live tenants and landlords, so a name off a
+  cheque is reported rather than written. The number, amount, date and bank
+  are filled.
+
+## Judgement worth knowing about
+
+- A **head lease will not set a unit's asking rent** — it prices the whole
+  building. It says so instead of dividing.
+- **Add tenant matches the building and unit against existing records.** No
+  match means no write and a note naming what the document said, never a new
+  building invented from a scan.
+- **Log a cheque takes only the earliest cheque** from a batch scan and says
+  how many others were on it. A whole book belongs on the Cheques screen.
 
 ## Still to do
 
 - The intake queue screen and `confirm_and_push()` are not verified against V2.
-- Tenant and cheque wizards still only attach; no field map is written.

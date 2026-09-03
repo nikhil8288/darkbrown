@@ -1412,8 +1412,286 @@ def _fold_building(data, src, fields, notes):
 		notes.append("%s is drawn by %s." % (src, drawer.get("name")))
 
 
+
+# --- choices and live matching ---------------------------------------------
+#
+# Several wizard fields are selects. Writing free text into one produces a
+# control with no valid selection, which looks filled and saves as empty, so
+# a value that does not match an option is reported rather than written.
+# The lists mirror the shell; the unit ones also mirror the doctype.
+
+_CHOICES = {
+	"unit_type": ["Studio", "1BR", "2BR", "3BR", "4BR", "Penthouse", "Villa",
+	              "Shop", "Office", "Warehouse", "Labour Accommodation"],
+	"furnishing": ["Unfurnished", "Semi Furnished", "Fully Furnished"],
+	"status": ["Not Ready", "Vacant", "Reserved", "Under Maintenance"],
+	"type": ["Individual", "Corporate"],
+	"freq": ["Monthly", "Quarterly", "Half Yearly", "Annual"],
+	"months": ["12", "24", "36"],
+	"bank": ["QNB", "Doha Bank", "CBQ", "Masraf Al Rayan", "QIB", "Ahli Bank"],
+	"method": ["Post-dated cheques", "Bank transfer", "Cash", "Mixed"],
+	"depmethod": ["Bank transfer", "Cheque", "Cash"],
+	"dir": ["Received from a tenant", "Received from another party",
+	        "Issued to a landlord", "Issued to a supplier",
+	        "Replacement for a returned cheque"],
+	"purpose": ["Head-lease rent", "Deposit to landlord", "Maintenance",
+	            "Utilities", "Other"],
+}
+
+#: Common ways a document writes something the select spells differently.
+_CHOICE_ALIASES = {
+	"unit_type": {"studio": "Studio", "1 bhk": "1BR", "1bhk": "1BR",
+	              "one bedroom": "1BR", "2 bhk": "2BR", "2bhk": "2BR",
+	              "two bedroom": "2BR", "3 bhk": "3BR", "3bhk": "3BR",
+	              "three bedroom": "3BR", "4 bhk": "4BR", "apartment": None,
+	              "flat": None},
+	"furnishing": {"furnished": "Fully Furnished", "fully-furnished": "Fully Furnished",
+	               "semi-furnished": "Semi Furnished", "unfurnished": "Unfurnished"},
+	"bank": {"qatar national bank": "QNB", "commercial bank": "CBQ",
+	         "commercial bank of qatar": "CBQ", "qatar islamic bank": "QIB",
+	         "al rayan": "Masraf Al Rayan", "doha bank": "Doha Bank"},
+}
+
+
+def _choice(key, value):
+	"""Return the matching option, or None if the document's word is not one."""
+	if value in (None, ""):
+		return None
+	opts = _CHOICES.get(key)
+	if not opts:
+		return value
+	v = str(value).strip()
+	for o in opts:
+		if v.lower() == o.lower():
+			return o
+	alias = _CHOICE_ALIASES.get(key, {}).get(v.lower())
+	if alias:
+		return alias
+	return None
+
+
+def _put_choice(fields, notes, key, value, conf, src, tier, label):
+	if value in (None, ""):
+		return
+	hit = _choice(key, value)
+	if hit:
+		_put(fields, key, hit, conf, src, tier)
+	else:
+		notes.append("%s gives the %s as \u201c%s\u201d, which is not one of the "
+		             "options. Set it by hand." % (src, label, value))
+
+
+def _match_building(name, area=None):
+	"""Find an existing Building by name, then by area. Never invents one."""
+	for val in (name, area):
+		if not val:
+			continue
+		hit = frappe.db.get_value("Building", {"building_name": val}, "name")
+		if hit:
+			return hit
+		rows = frappe.get_all("Building", filters={"building_name": ("like", "%%%s%%" % val)},
+		                      pluck="name", limit=2)
+		if len(rows) == 1:
+			return rows[0]
+	return None
+
+
+def _match_unit(building, unit_no):
+	if not (building and unit_no):
+		return None
+	return frappe.db.get_value("Unit", {"building": building,
+	                                    "unit_no": str(unit_no).strip()}, "name")
+
+
+def _months_between(start, end):
+	"""Term length, only when it lands on one of the offered options."""
+	try:
+		a, b = getdate(start), getdate(end)
+	except Exception:
+		return None
+	m = (b.year - a.year) * 12 + (b.month - a.month)
+	if b.day >= a.day - 1:
+		m += 1
+	for opt in (12, 24, 36):
+		if abs(m - opt) <= 1:
+			return str(opt)
+	return None
+
+
+def _fold_unit(data, src, fields, notes):
+	"""Map one document onto add-unit's field keys.
+
+	A tenancy agreement or a head lease describes the unit it covers, so the
+	same paper that onboards a building also fills in a single unit.
+	"""
+	dt = (data.get("document_type") or "").strip()
+	oc = flt(data.get("overall_confidence") or 0)
+	tier = _doc_tier(dt, data)
+	c = data.get("contract") or {}
+	idd = data.get("id_document") or {}
+	if not c and idd:
+		c = idd
+	if not c:
+		return
+
+	_put(fields, "unit_no", c.get("unit_no"), oc, src, tier)
+	_put(fields, "floor", c.get("floor"), oc, src, tier)
+	_put(fields, "bedrooms", _num(c.get("bedrooms")), oc, src, tier)
+	_put(fields, "bathrooms", _num(c.get("bathrooms")), oc, src, tier)
+	_put(fields, "area_sqm", _num(c.get("area_sqm")), oc, src, tier)
+	_put(fields, "kahramaa_meter_no", c.get("electricity_no"), oc, src, tier)
+	_put_choice(fields, notes, "unit_type", c.get("unit_type"), oc, src, tier, "unit type")
+	_put_choice(fields, notes, "furnishing", c.get("furnishing"), oc, src, tier, "furnishing")
+
+	# A tenancy agreement states the rent actually agreed; a head lease does
+	# not price a single unit, so its rent is not an asking rent.
+	if dt in ("Tenant Agreement", "Tenancy Agreement", "Rental Agreement"):
+		monthly = _num(c.get("monthly_rent")) or (
+			(_num(c.get("annual_rent")) or 0) / 12 or None)
+		if monthly:
+			_put(fields, "asking_rent", round(monthly, 2), oc, src, tier)
+	elif _num(c.get("monthly_rent")) or _num(c.get("annual_rent")):
+		notes.append("%s prices the whole building, not this unit, so the "
+		             "asking rent is left for you to set." % src)
+
+	if not c.get("unit_no"):
+		notes.append("%s does not give a unit number." % src)
+
+
+def _fold_tenant(data, src, fields, notes):
+	"""Map one document onto add-tenant's field keys."""
+	dt = (data.get("document_type") or "").strip()
+	oc = flt(data.get("overall_confidence") or 0)
+	tier = _doc_tier(dt, data)
+	c = data.get("contract") or {}
+	idd = data.get("id_document") or {}
+
+	if c and tier == TIER_LEASE:
+		if dt not in LEASE_TYPES:
+			notes.append("%s was read as \u201c%s\u201d but carries rent and dates, "
+			             "so it has been treated as the agreement." % (src, dt or "Unknown"))
+		_put(fields, "name", c.get("party_name"), oc, src, tier)
+		if c.get("cr_number"):
+			_put(fields, "type", "Corporate", oc, src, tier)
+			_put(fields, "qid", c.get("cr_number"), oc, src, tier)
+		elif c.get("id_number"):
+			_put(fields, "type", "Individual", oc, src, tier)
+			_put(fields, "qid", c.get("id_number"), oc, src, tier)
+		_put(fields, "phone", c.get("phone"), oc, src, tier)
+		_put(fields, "email", c.get("email"), oc, src, tier)
+
+		monthly = _num(c.get("monthly_rent")) or (
+			(_num(c.get("annual_rent")) or 0) / 12 or None)
+		if monthly:
+			_put(fields, "rent", round(monthly, 2), oc, src, tier)
+		_put(fields, "dep", _num(c.get("security_deposit")), oc, src, tier)
+		_put(fields, "start", c.get("start_date"), oc, src, tier)
+
+		term = _months_between(c.get("start_date"), c.get("end_date"))
+		if term:
+			_put(fields, "months", term, oc, src, tier)
+		elif c.get("start_date") and c.get("end_date"):
+			notes.append("%s runs %s to %s, which is not 12, 24 or 36 months. "
+			             "Set the term by hand." % (src, c["start_date"], c["end_date"]))
+
+		n = _num(c.get("cheques_per_year"))
+		freq = {1: "Annual", 2: "Half Yearly", 4: "Quarterly", 12: "Monthly"}.get(
+			int(n) if n else 0)
+		if freq:
+			_put(fields, "freq", freq, oc, src, tier)
+		elif n:
+			notes.append("%s states %d payments a year, which is not one of the "
+			             "frequencies offered." % (src, int(n)))
+
+		# Match the unit against what is already in the system.
+		b = _match_building(c.get("building_name"), c.get("area_name"))
+		if b:
+			_put(fields, "building", b, oc, src, tier)
+			u = _match_unit(b, c.get("unit_no"))
+			if u:
+				_put(fields, "unit", u, oc, src, tier)
+			elif c.get("unit_no"):
+				notes.append("%s names unit %s, which is not on %s yet. Add the "
+				             "unit first, or pick another." % (src, c["unit_no"], b))
+		elif c.get("building_name") or c.get("area_name"):
+			notes.append("%s names \u201c%s\u201d, which does not match a building on "
+			             "record. Pick it by hand." % (
+				             src, c.get("building_name") or c.get("area_name")))
+
+	if idd:
+		# The QID card is the authority on the expiry date and nothing else.
+		_put(fields, "qidexp", idd.get("expiry_date"), oc, src, TIER_ID)
+		_put(fields, "name", idd.get("party_name"), oc, src, TIER_ID)
+		if idd.get("id_number"):
+			_put(fields, "qid", idd.get("id_number"), oc, src, TIER_ID)
+			_put(fields, "type", "Individual", oc, src, TIER_ID)
+		_put(fields, "phone", idd.get("phone"), oc, src, TIER_ID)
+		_put(fields, "email", idd.get("email"), oc, src, TIER_ID)
+
+	chqs = data.get("cheques") or []
+	inc = [q for q in chqs if "Tenant" in (q.get("direction") or "")] or chqs
+	numbered = [q for q in inc if str(q.get("cheque_number") or "").strip()]
+	if numbered:
+		numbered.sort(key=lambda q: str(q.get("cheque_date") or ""))
+		_put(fields, "chqfrom", str(numbered[0].get("cheque_number")).strip(),
+		     flt(numbered[0].get("confidence") or oc), src, TIER_ID)
+		_put(fields, "method", "Post-dated cheques", oc, src, TIER_ID)
+		_put_choice(fields, notes, "bank", numbered[0].get("bank_name"),
+		            oc, src, TIER_ID, "bank")
+
+
+def _fold_cheque(data, src, fields, notes):
+	"""Map one document onto log-cheque's field keys.
+
+	log-cheque records one cheque. A scan of a whole book is read, but only
+	the earliest cheque is offered — the rest are named so it is clear the
+	batch belongs on the Cheques screen, not in this form.
+	"""
+	oc = flt(data.get("overall_confidence") or 0)
+	chqs = data.get("cheques") or []
+	if not chqs:
+		notes.append("%s has no cheque on it." % src)
+		return
+
+	rows = [q for q in chqs if str(q.get("cheque_number") or "").strip()]
+	if not rows:
+		notes.append("%s was read but no cheque number came off it." % src)
+		return
+	rows.sort(key=lambda q: str(q.get("cheque_date") or ""))
+	q = rows[0]
+	conf = flt(q.get("confidence") or oc)
+
+	_put(fields, "no", str(q.get("cheque_number")).strip(), conf, src, TIER_LEASE)
+	_put(fields, "amt", _num(q.get("amount")), conf, src, TIER_LEASE)
+	_put(fields, "mat", q.get("cheque_date"), conf, src, TIER_LEASE)
+	_put_choice(fields, notes, "bank", q.get("bank_name"), conf, src, TIER_LEASE, "bank")
+
+	direction = (q.get("direction") or "")
+	if "Tenant" in direction:
+		_put(fields, "dir", "Received from a tenant", conf, src, TIER_LEASE)
+	elif "Landlord" in direction:
+		_put(fields, "dir", "Issued to a landlord", conf, src, TIER_LEASE)
+		_put_choice(fields, notes, "purpose", q.get("cheque_type"), conf, src,
+		            TIER_LEASE, "purpose")
+
+	# The drawer and payee are selects bound to live tenants and landlords, so
+	# a name off a cheque is reported rather than written into a control that
+	# would show as chosen and save as nothing.
+	who = q.get("payee") or (data.get("drawer") or {}).get("name")
+	if who:
+		notes.append("%s names %s. Pick them in the Drawer or Payee list."
+		             % (src, who))
+	if len(rows) > 1:
+		notes.append("%s carries %d cheques. Only the earliest is offered here "
+		             "\u2014 a whole book is logged from the Cheques screen."
+		             % (src, len(rows)))
+
+
 _WIZARD_FOLD = {
 	"building": _fold_building,
+	"unit": _fold_unit,
+	"tenant": _fold_tenant,
+	"cheque": _fold_cheque,
 }
 
 
@@ -1492,11 +1770,13 @@ def extract_for_wizard(file_urls, kind="building", escalate=0):
 			             "error": str(e).split("\n")[0][:200]})
 
 	base = next((d["file"] for d in docs if d.get("tier") == "lease"), None)
-	if base:
+	if base and kind != "cheque":
 		notes.insert(0, "%s is being used as the base. Where another document "
 		                "disagrees with it, the lease wins." % base)
-	elif fields:
-		notes.insert(0, "No lease was found in this batch, so the rent, the "
-		                "term and the payment schedule are still to be typed in.")
+	elif not base and kind in ("building", "tenant") and any(
+			not d.get("error") for d in docs):
+		notes.insert(0, "No lease or agreement was found in this batch, so the "
+		                "rent, the term and the payment schedule are still to "
+		                "be typed in.")
 	return {"fields": fields, "docs": docs, "notes": notes, "base": base,
 	        "threshold": WIZARD_CONFIRM_BELOW}

@@ -105,7 +105,15 @@ OUTPUT SCHEMA (include only the blocks relevant to the detected type):
     "zone": "string or null",
     "street": "string or null",
     "area_name": "string or null",              // the Doha district only (Al Sadd, Najma, Doha Jadeed). Never the building's own name. If the document states one name and it is ambiguous, put it in area_name and leave building_name null
-    "unit_no": "string or null",
+    "unit_no": "string or null",                // flat/unit number as written on the door or the contract
+    "unit_type": "string or null",              // one of exactly: Studio, 1BR, 2BR, 3BR, 4BR, Penthouse, Villa, Shop, Office, Warehouse, Labour Accommodation. Infer from a bedroom count if the contract gives one and no type
+    "floor": "string or null",
+    "bedrooms": number or null,
+    "bathrooms": number or null,
+    "area_sqm": number or null,                 // floor area in square metres, converted if the contract states square feet
+    "furnishing": "string or null",             // one of exactly: Unfurnished, Semi Furnished, Fully Furnished
+    "phone": "string or null",                  // the counterparty's mobile, as written
+    "email": "string or null",
     "electricity_no": "string or null",
     "water_no": "string or null",
     "building_name": "string or null",          // the building's own name as written on the lease, not its municipality number. If the lease only names a district and no building, leave this null rather than repeating the district
@@ -126,6 +134,8 @@ OUTPUT SCHEMA (include only the blocks relevant to the detected type):
     "id_number": "string or null",      // QID or passport number, read digit by digit
     "nationality": "string or null",
     "expiry_date": "YYYY-MM-DD or null",
+    "phone": "string or null",
+    "email": "string or null",
     "electricity_no": "string or null", // Utility docs only
     "water_no": "string or null"        // Utility docs only
   },

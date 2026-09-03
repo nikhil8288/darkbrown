@@ -3419,7 +3419,12 @@ const FORMS={
    accepts "1BR", so every save it collected would have been rejected. */
 'add-unit':{t:'Add unit',s:'One unit, added to a building already onboarded',cta:'Create unit',
  init:c=>({b:(c&&c.b)||'',bn:(c&&c.bn)||''}),
- steps:[{n:'Unit',fields:[
+ steps:[
+  docStep('Unit paperwork \u2014 tenancy agreement, handover or Kahramaa bill',
+   'whatever describes this unit',
+   'A tenancy agreement describes the unit it covers, so the same paper that lets a tenant in also fills this form. A head lease prices the whole building and will not set an asking rent.',
+   'unit'),
+  {n:'Unit',fields:[
    {k:'unit_no',l:'Unit number',t:'txt',p:'404',req:1},
    {k:'unit_type',l:'Type',t:'sel',o:['Studio','1BR','2BR','3BR','4BR','Penthouse','Villa','Shop','Office','Warehouse','Labour Accommodation'],req:1},
    {k:'floor',l:'Floor',t:'txt',p:'4',req:1},
@@ -4796,10 +4801,26 @@ function exApply(fields){
 }
 window.exApply=exApply;
 
+/* What each wizard says it will take off the paperwork. */
+const EXINTRO={
+  building:'The landlord, the rent, the term and the payment schedule',
+  unit:'The unit number, its type, size and meter',
+  tenant:'The tenant, their QID, the rent, the term and the cheques',
+  cheque:'The number, the amount and the date'};
+
 /* Labels for the fields the reading can fill, so the review table names them
    the way the steps below name them. A key absent from here is still applied;
    it is just shown by its key. */
 const EXLBL={name:'Building name',area:'Area',floors:'Floors',units:'Number of units',
+  /* add-unit */ unit_no:'Unit number',unit_type:'Type',floor:'Floor',bedrooms:'Bedrooms',
+  bathrooms:'Bathrooms',area_sqm:'Area (sqm)',asking_rent:'Asking rent',
+  furnishing:'Furnishing',status:'Status',kahramaa_meter_no:'Kahramaa meter number',
+  /* add-tenant */ qid:'QID / CR number',qidexp:'QID expiry',phone:'Mobile',email:'Email',
+  type:'Tenant type',building:'Building',unit:'Unit',rent:'Monthly rent',freq:'Payment frequency',
+  months:'Term (months)',dep:'Security deposit',method:'Payment method',bank:'Bank',
+  depmethod:'Deposit received by',
+  /* log-cheque */ dir:'What this cheque is',no:'Cheque number',amt:'Amount',
+  mat:'Date on the cheque',purpose:'For',
   addr:'Address',ll:'Landlord',llid:'CR / QID number',lltype:'Landlord type',
   annual:'Annual head-lease value',depll:'Deposit paid to landlord',
   start:'Lease start',end:'Lease end',first:'First payment date',
@@ -4853,7 +4874,7 @@ function docStep(label,hint,note,kind){
    const n=((window.FFILES&&FFILES.doc)||[]).length;
    return `
    <p class="pp">${kind
-     ?'Attach the paperwork and press Read. The landlord, the rent, the term and the payment schedule are read off it and filled into the steps below, where you check them against the paper before saving.'
+     ?'Attach the paperwork and press Read. '+(EXINTRO[kind]||'')+' is read off it and written into the steps below, over whatever is in them. Check it against the paper before saving.'
      :'Attach the paperwork now and it is filed against the record when you save it. Nothing is read off the document here \u2014 the values go in by hand on the steps that follow.'}</p>
    <div class="fg">${fld({k:'doc',l:label,t:'file',multi:1,
      hint:hint||'PDF, JPG or PNG \u00b7 several at once'},d.doc)}</div>
@@ -5003,7 +5024,8 @@ FORMS['add-tenant']={t:'Add tenant',s:'Workflow 2B · tenancy onboarding',cta:'C
  init:()=>({type:'Individual',freq:'Quarterly'}),
  steps:[
   docStep('Tenant documents \u2014 QID and signed contract','both together, several files at once',
-   'The QID copy and the signed contract are what let this tenancy activate without going to approval. Attaching them here files them against the agreement.'),
+   'The QID copy and the signed contract are what let this tenancy activate without going to approval. Attaching them here files them against the agreement.',
+   'tenant'),
   {n:'Tenant',body:d=>`<div class="fg">
     ${fld({k:'type',l:'Tenant type',t:'sel',o:['Individual','Corporate'],req:1},d.type)}
     ${fld({k:'name',l:'Full name / company',t:'txt',p:'Noora Al-Kaabi',req:1,full:1},d.name)}
@@ -7419,7 +7441,8 @@ FORMS['log-cheque']={t:'Log a cheque',s:'Money in or money out · the register i
  init:ctx=>({dir:(ctx&&ctx.dir)||'Received from a tenant',bank:'QNB',loc:'Office safe',adv:'14'}),
  steps:[
   docStep('Cheque image or batch scan','photograph the face of the cheque',
-   'The image is evidence of what was banked. Number, amount and date go in by hand on the steps that follow \u2014 those are the fields the ledger pays against, and they are not worth guessing at.'),
+   'The image is evidence of what was banked. The number, amount and date are read off it and filled in below \u2014 check them against the cheque before logging, because these are the fields the ledger pays against.',
+   'cheque'),
   {n:'What kind',body:d=>`<p class="pp">A cheque is a cheque. What differs is which way the money moves, who the other party is,
     and what happens on the due date.</p>
    <div class="fg">${fld({k:'dir',l:'What is this cheque',t:'sel',req:1,live:1,
