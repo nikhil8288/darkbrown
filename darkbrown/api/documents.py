@@ -409,18 +409,40 @@ def preview(document):
 # Documentation to validate a reading that was never made.
 
 
+#: Values the register stores but the manual filing form must not offer.
+#:
+#: `Cheque Batch` is written by intake, where one scan legitimately holds
+#: several cheques and `_push_cheques` turns them into Cheque records. Somebody
+#: filing paperwork by hand is holding one cheque and should say which kind it
+#: is, so the form offers Security, Advance and Rent Cheque instead. The value
+#: stays in the Select because the intake pipeline is keyed on it.
+#:
+#: `Unknown` is what the extractor writes when it could not tell. A person
+#: choosing it by hand would be recording that they did not look.
+FORM_HIDDEN = ("Cheque Batch", "Unknown")
+
+
 def _file_types():
-    """The register's own type list, read off the meta rather than repeated
-    here. A type added to the DocType appears on the form without a code
-    change, and a type removed cannot be written by this path."""
+    """Everything the register can hold, read off the meta rather than
+    repeated here. This is the validation list: a value intake wrote must
+    still be accepted on its way back out."""
     field = frappe.get_meta("Document Register").get_field("document_type")
     return [o for o in (field.options or "").split("\n") if o]
+
+
+def _form_types():
+    """What the manual filing form offers, which is not the same list.
+
+    Other leads, because most of what arrives this way is not one of the named
+    kinds and a list that opens on Building Agreement invites a wrong one."""
+    rest = [o for o in _file_types() if o not in FORM_HIDDEN and o != "Other"]
+    return ["Other"] + rest
 
 
 @frappe.whitelist()
 def file_types():
     guard(MD, GM, ACC, DOC)
-    return _file_types()
+    return _form_types()
 
 
 @frappe.whitelist()
@@ -466,7 +488,8 @@ def save_files(payload):
         frappe.throw(_("A file is filed against a building or a unit. This "
                        "one named neither."))
 
-    known = _file_types()
+    # The manual path may only write what the manual form offers.
+    known = _form_types()
     created, kinds = [], []
     for url, kind in pairs:
         kind = (kind or "Other").strip()
@@ -571,5 +594,5 @@ def files(building=None, unit=None):
         "rows": rows,
         "total": len(rows),
         "on_units": sum(1 for r in rows if r["on"] != "Building"),
-        "types": _file_types(),
+        "types": _form_types(),
     }

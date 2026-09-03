@@ -137,7 +137,7 @@ def _notify_gm(doc, missing):
             "doctype": "Notification Log",
             "for_user": user,
             "type": "Alert",
-            "document_type": "Tenancy Agreement",
+            "document_type": "Tenant Agreement",
             "document_name": doc.name,
             "subject": subject,
             "email_content": body,

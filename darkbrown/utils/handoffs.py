@@ -141,7 +141,7 @@ def grace_period_alerts():
                     "for_user": user,
                     "type": "Alert",
                     "subject": subject,
-                    "document_type": "Head Lease",
+                    "document_type": "Building Agreement",
                     "document_name": lc.name,
                 }).insert(ignore_permissions=True)
 

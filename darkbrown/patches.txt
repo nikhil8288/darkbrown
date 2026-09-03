@@ -19,6 +19,7 @@ darkbrown.patches.full_number_cards
 # Data-shape migration, then the fixup that depends on it having run.
 darkbrown.patches.migrate_building_documents
 darkbrown.patches.fix_workspace_cards
+darkbrown.patches.rename_document_types
 
 # ---------------------------------------------------------------------------
 # DELIBERATELY NOT REGISTERED

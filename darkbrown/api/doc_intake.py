@@ -54,13 +54,21 @@ MAX_PDF_BYTES = 30 * 1024 * 1024
 PARTY_DOC_TYPE_MAP = {
 	"QID / National ID": "QID / National ID",
 	"Passport": "Passport",
-	"Tenant Agreement": "Tenant Contract",
-	"Head Lease": "Head Lease",
+	"Building Agreement": "Head Lease",
 	"Owner Contract": "Owner Contract",
 	"Title Deed": "Title Deed",
 	"Cheque Batch": "Cheque Batch",
 	"Utility / Other": "Utility / Other",
 }
+# NOTE, and it is not a new fault: this map is keyed on values the register
+# does not store. `_reg_type` normalises every model label onto the Select
+# before anything is saved, so "QID / National ID" and "Utility / Other" have
+# never matched a saved register row and the Party Document row for a QID has
+# never been written from here. "Tenant Agreement" was in the same position and
+# has been left out deliberately rather than renamed in: the register used to
+# store "Tenancy Agreement", the key said "Tenant Agreement", and they never
+# met. After the rename they would, so adding it back is a behaviour change,
+# not a rename, and it is Nikhil's call — see DEPLOY_document_types.md.
 
 # Candidate fieldnames on Cheque (created via Desk UI, so mapped
 # defensively at runtime). First existing candidate wins.
@@ -272,10 +280,11 @@ def _parse_json(text):
 #: one of them is a validation error rather than a bad classification. The
 #: translation happens here, once, on the way in.
 REG_TYPE = {
-	"Head Lease": "Head Lease",
-	"Owner Contract": "Head Lease",          # the same paper, seen from our side
-	"Tenant Agreement": "Tenancy Agreement",
-	"Tenancy Agreement": "Tenancy Agreement",
+	"Head Lease": "Building Agreement",
+	"Owner Contract": "Building Agreement",  # the same paper, seen from our side
+	"Building Agreement": "Building Agreement",
+	"Tenant Agreement": "Tenant Agreement",
+	"Tenancy Agreement": "Tenant Agreement",
 	"QID / National ID": "QID",
 	"QID": "QID",
 	"Passport": "Passport",
@@ -937,7 +946,13 @@ def confirm_and_push(docname):
 		_push_cheques(reg, refs, party_type=party_type, party=party)
 
 	# 4b) Agreements: cross-check the scan against the live agreement (Phase 4)
-	if reg.document_type in ("Tenant Agreement", "Head Lease", "Owner Contract"):
+	# "Head Lease" is now stored as "Building Agreement". The other two entries
+	# in the old tuple never matched a saved row - the register stored
+	# "Tenancy Agreement", and "Owner Contract" is normalised away by
+	# `_reg_type` - so this gate has only ever admitted head leases. It still
+	# admits exactly those, because widening it here would switch on a
+	# cross-check that has never run, off the back of a rename.
+	if reg.document_type == "Building Agreement":
 		_diff_agreement(reg, party_type, party, refs, warnings)
 
 	# 4c) Bank statement: report reconciliation state (lines are applied

@@ -198,10 +198,45 @@ check("files() refuses to answer without a building or a unit", t_no_record_name
 
 def t_types_from_meta():
     reset()
-    opts = [o for o in S.SCHEMA['Document Register']['document_type'][1].split('\n') if o]
-    assert documents.file_types() == opts, "the type list is not the register's own"
-    assert 'Other' in opts
-check("the type list is read off the DocType, not repeated in code", t_types_from_meta)
+    stored = [o for o in S.SCHEMA['Document Register']['document_type'][1].split('\n') if o]
+    form = documents.file_types()
+    assert form[0] == 'Other', form[:1]
+    assert set(form) == set(stored) - set(documents.FORM_HIDDEN), \
+        sorted(set(form) ^ (set(stored) - set(documents.FORM_HIDDEN)))
+check("the form list is the register's own list minus what only intake writes",
+      t_types_from_meta)
+
+
+def t_renamed_vocabulary():
+    reset()
+    form = documents.file_types()
+    for gone in ('Head Lease', 'Tenancy Agreement'):
+        assert gone not in form, "%s is still offered" % gone
+    for want in ('Building Agreement', 'Tenant Agreement', 'Security Cheque',
+                 'Advance Cheque', 'Rent Cheque'):
+        assert want in form, "%s is not offered" % want
+check("the renamed and added kinds are what the form offers", t_renamed_vocabulary)
+
+
+def t_intake_only_kinds_refused_from_the_form():
+    reset()
+    documents.save_files(json.dumps({
+        'items': [{'file': '/f/a.pdf', 'type': 'Cheque Batch'},
+                  {'file': '/f/b.pdf', 'type': 'Unknown'}],
+        'building': 'AK-12'}))
+    got = [d['document_type'] for d in rows()]
+    assert got == ['Other', 'Other'], got
+check("a value only intake may write cannot be filed by hand", t_intake_only_kinds_refused_from_the_form)
+
+
+def t_stored_list_keeps_cheque_batch():
+    reset()
+    stored = documents._file_types()
+    assert 'Cheque Batch' in stored, \
+        "intake is keyed on Cheque Batch and the Select no longer holds it"
+    assert 'Head Lease' not in stored and 'Tenancy Agreement' not in stored
+check("Cheque Batch stays in the stored vocabulary because intake is keyed on it",
+      t_stored_list_keeps_cheque_batch)
 
 
 def t_type_per_file():
@@ -209,13 +244,13 @@ def t_type_per_file():
     r = documents.save_files(json.dumps({
         'items': [{'file': '/f/deed.pdf', 'type': 'Title Deed'},
                   {'file': '/f/qid.pdf', 'type': 'QID'},
-                  {'file': '/f/chq.pdf', 'type': 'Cheque Batch'}],
+                  {'file': '/f/chq.pdf', 'type': 'Security Cheque'}],
         'building': 'AK-12'}))
     got = {d['source_file']: d['document_type'] for d in rows()}
     assert got == {'/f/deed.pdf': 'Title Deed', '/f/qid.pdf': 'QID',
-                   '/f/chq.pdf': 'Cheque Batch'}, got
+                   '/f/chq.pdf': 'Security Cheque'}, got
     assert r['summary'] == '3 types', r['summary']
-    assert r['kinds'] == ['Title Deed', 'QID', 'Cheque Batch'], r['kinds']
+    assert r['kinds'] == ['Title Deed', 'QID', 'Security Cheque'], r['kinds']
 check("one drop of three kinds files as three kinds, in the order it was given",
       t_type_per_file)
 
@@ -259,6 +294,43 @@ def t_empty_items():
         except S.ValidationError:
             pass
 check("items carrying a type but no file are refused", t_empty_items)
+
+
+def t_no_retired_spelling_left():
+    """The rename is only done when nothing still writes the old value.
+
+    Grepping is the point: a missed writer does not fail a unit test, it
+    quietly files one document a month under a value the Select no longer
+    holds. Workflow and Workspace records also carry a `document_type`, but
+    theirs names a DocType - those are excluded by name, not by luck."""
+    import re
+    # Excluded, each for its own reason and none of them "it was noisy":
+    #   create_role_workspaces / create_collections_workflow / seed
+    #       their document_type names a DocType, not a register value
+    #   rename_document_types  it exists to name the old value
+    #   doc_intake_prompts     the model's own label vocabulary, which
+    #                          `_reg_type` maps onto the Select. The prompt
+    #                          says "Head Lease" because that is what the
+    #                          paper is called, and the map turns it into
+    #                          Building Agreement before anything is saved.
+    EXCLUDE = {'create_role_workspaces.py', 'create_collections_workflow.py',
+               'seed.py', 'rename_document_types.py', 'files_api.py',
+               'doc_intake_prompts.py'}
+    bad = []
+    for root, _dirs, files in os.walk(REPO):
+        if 'node_modules' in root or '/.git' in root:
+            continue
+        for fn in files:
+            if not fn.endswith(('.py', '.html', '.js')) or fn in EXCLUDE:
+                continue
+            path = os.path.join(root, fn)
+            for i, line in enumerate(open(path, errors='ignore'), 1):
+                if re.search(r'document_type.{0,40}"(Head Lease|Tenancy Agreement)"', line) \
+                   or re.search(r"document_type.{0,40}'(Head Lease|Tenancy Agreement)'", line):
+                    bad.append("%s:%d" % (os.path.relpath(path, REPO), i))
+    assert not bad, "the retired spelling is still written at: %s" % bad
+check("nothing outside the rename patch still writes Head Lease or Tenancy Agreement",
+      t_no_retired_spelling_left)
 
 
 print()

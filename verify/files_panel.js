@@ -32,9 +32,9 @@ const FILES_OK = {rows:[
   {id:'DOC-2026-0002',f:'ta-f-01.pdf',ty:'Tenancy Agreement',st:'Validated',on:'AK-12-F-01',
    when:'2026-08-30',by:'Aisha R.',size:'800.0 KB',url:'/files/ta.pdf',src:'Register'}],
   total:2, on_units:1,
-  types:['Unknown','Head Lease','Tenancy Agreement','QID','Passport',
-         'Commercial Registration','Title Deed','Cheque Batch','Utility Bill',
-         'Maintenance Invoice','Bank Statement','Other']};
+  types:['Other','Building Agreement','Tenant Agreement','QID','Passport',
+         'Commercial Registration','Title Deed','Security Cheque','Advance Cheque',
+         'Rent Cheque','Utility Bill','Maintenance Invoice','Bank Statement']};
 
 /* A dom whose files call is answered the way this case wants it answered. */
 function boot(role, mode) {
@@ -265,7 +265,9 @@ await (async () => {
     const opts = [...win.document.querySelectorAll('[data-k="k0"] option')]
       .map(o => o.textContent);
     if (opts[0] !== 'Other') throw new Error('first option is ' + opts[0]);
-    if (opts.length !== 12) throw new Error(opts.length + ' options, wanted 12');
+    if (opts.length !== 13) throw new Error(opts.length + ' options, wanted 13');
+    for (const gone of ['Head Lease', 'Tenancy Agreement', 'Cheque Batch'])
+      if (opts.includes(gone)) throw new Error(gone + ' is still offered');
   });
 
   t('drop of five: each answer is kept against its own file', () => {
@@ -292,7 +294,7 @@ await (async () => {
     win.drawForm();
     win.document.querySelector('[data-k="k0"]').value = 'Title Deed';
     win.document.querySelector('[data-k="k1"]').value = 'QID';
-    win.document.querySelector('[data-k="k2"]').value = 'Cheque Batch';
+    win.document.querySelector('[data-k="k2"]').value = 'Security Cheque';
     win.collect();
     win.dropFileAt(1);                       // the QID goes
     const rows = win.document.querySelectorAll('.flr');
@@ -301,7 +303,7 @@ await (async () => {
     if (JSON.stringify(names) !== JSON.stringify(['doc-0.pdf', 'doc-2.pdf']))
       throw new Error(JSON.stringify(names));
     const v = i => win.document.querySelector('[data-k="k' + i + '"]').value;
-    if (v(0) !== 'Title Deed' || v(1) !== 'Cheque Batch')
+    if (v(0) !== 'Title Deed' || v(1) !== 'Security Cheque')
       throw new Error('answers did not follow their files: ' + v(0) + ', ' + v(1));
     if (win.document.querySelector('[data-k="k2"]'))
       throw new Error('a row was left behind for a removed file');

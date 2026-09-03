@@ -1137,9 +1137,10 @@ window.filesCard=filesCard;
 /* The register's own type list, as the server sent it with the last panel it
    answered. The fallback is the same list; it is here so the form still opens
    before any panel has loaded, not as a second source of truth. */
-const FILE_KINDS_FALLBACK=['Other','Title Deed','Head Lease','Tenancy Agreement',
- 'QID','Passport','Commercial Registration','Utility Bill','Maintenance Invoice',
- 'Bank Statement','Cheque Batch','Unknown'];
+const FILE_KINDS_FALLBACK=['Other','Building Agreement','Tenant Agreement',
+ 'QID','Passport','Commercial Registration','Title Deed','Security Cheque',
+ 'Advance Cheque','Rent Cheque','Utility Bill','Maintenance Invoice',
+ 'Bank Statement'];
 function fileKinds(){
   const hit=Object.keys(window.DB_LAZY||{}).filter(k=>k.indexOf('files:')===0)
     .map(k=>DB_LAZY[k]).find(c=>c&&c.state==='ok'&&c.data&&(c.data.types||[]).length);
@@ -8108,8 +8109,8 @@ const W_OUT={'No answer':'No Answer','Promised payment':'Promised','Disputed':'D
 const W_RETURN={'Insufficient funds':'Insufficient Funds','Signature mismatch':'Signature Mismatch',
  'Account closed':'Account Closed','Post-dated':'Post Dated','Stop payment':'Stop Payment',
  'Amount in words differs':'Other','Stale \u2014 over six months':'Other','Technical \u2014 endorsement':'Technical'};
-const W_DOCTYPE={'Auto-detect':'Unknown','Cheque batch':'Cheque Batch','Tenant contract':'Tenancy Agreement',
- 'Landlord contract':'Head Lease','QID':'QID','Passport':'Passport','Utility invoice':'Utility Bill'};
+const W_DOCTYPE={'Auto-detect':'Unknown','Cheque batch':'Cheque Batch','Tenant contract':'Tenant Agreement',
+ 'Landlord contract':'Building Agreement','QID':'QID','Passport':'Passport','Utility invoice':'Utility Bill'};
 
 const WIRE={
 
