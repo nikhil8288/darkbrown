@@ -213,9 +213,22 @@ def _match(row, filters):
         elif rv != v: return False
     return True
 
+def _match_or(row, or_filters):
+    """Frappe's or_filters: any one key matching is enough. The stub used to
+    drop them into **kw, which meant a query scoped with or_filters came back
+    unscoped and any test of that scoping passed for the wrong reason."""
+    if not or_filters:
+        return True
+    if isinstance(or_filters, list):
+        return any(_match(row, {f[0]: f[1:] if len(f) > 2 else f[1]})
+                   for f in or_filters)
+    return any(_match(row, {k: v}) for k, v in or_filters.items())
+
+
 def _get_all(dt, filters=None, fields=None, pluck=None, limit=None,
-             order_by=None, as_dict=True, **kw):
-    rows = [r for r in DB.get(dt, []) if _match(r, filters)]
+             order_by=None, as_dict=True, or_filters=None, **kw):
+    rows = [r for r in DB.get(dt, [])
+            if _match(r, filters) and _match_or(r, or_filters)]
     if limit: rows = rows[:limit]
     if pluck: return [r.get(pluck) for r in rows]
     out = []

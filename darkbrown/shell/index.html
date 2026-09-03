@@ -1072,6 +1072,74 @@ function lazyPage(title,sub,c){
 }
 window.lazyPage=lazyPage;
 
+/* ---------- files on a record ----------
+   The second way documents get in. Intake rasterises, reads and queues for
+   review, which is right for a QID and heavy for a floor plan. This one
+   uploads the file against the Building or the Unit and files a register row
+   saying what it is — no extraction, nothing to review.
+
+   The panel is the same on both screens, so it is written once. It fetches
+   per record and holds it until a write invalidates the cache, and the three
+   states stay distinct for the usual reason: loading is not empty, and a
+   call that raised is not a record with no paperwork. */
+/* ROLEV is declared further down and is in scope by the time anything
+   renders. It is read live rather than captured, so the MD's role cycler
+   changes this panel with everything else. */
+const FILEROLE=()=>['MD','GM','ACC','DOC'].includes(
+  typeof ROLEV==='undefined'?'MD':ROLEV);
+function filesCard(scope,id,label){
+  const btn=`<button class="btn" style="margin-left:auto" onclick='openForm("add-files",${
+    JSON.stringify({scope,id,label}).replace(/'/g,"&#39;")})'>Add files</button>`;
+  if(!FILEROLE()) return `<div class="card"><h3>Files</h3>${
+    empty('Files are visible to Documentation, Accounts and management.')}</div>`;
+  if(!window.DB_LIVE) return `<div class="card"><h3>Files ${btn}</h3>${
+    empty('No server \u2014 files are read from the register when this is live.')}</div>`;
+  const c=lazy('files:'+scope+':'+id,'documents.files',
+    scope==='unit'?{unit:id}:{building:id});
+  if(c.state==='load') return `<div class="card"><h3>Files ${btn}</h3>${
+    empty('Reading what is on file\u2026')}</div>`;
+  if(c.state!=='ok') return `<div class="card"><h3>Files ${btn}</h3>
+    <div class="unwired"><span class="uw-tag">SERVER ERROR</span>
+     <p>${esc(c.msg||'The server did not answer.')}</p></div></div>`;
+  const rows=(c.data&&c.data.rows)||[];
+  const cols=[{h:'File',v:d=>d.f},{h:'Type',v:d=>chip(d.ty,'n')}];
+  if(scope!=='unit') cols.push({h:'Filed against',v:d=>d.on});
+  cols.push({h:'Added',r:1,v:d=>fdate(d.when)},{h:'By',v:d=>d.by},
+    {h:'Size',r:1,mono:1,v:d=>d.size},{h:'Status',v:d=>chip(d.st,stChip(d.st))});
+  return `<div class="card"><h3>Files
+    <span class="plabel">${rows.length} on file${
+      scope!=='unit'&&c.data.on_units?' \u00b7 '+c.data.on_units+' against a unit':''}</span>
+    ${btn}</h3>
+   ${rows.length?tbl(cols,rows.map(d=>({...d,__id:d.id})),
+     {id:'fl_'+scope,click:'openFileDoc',foot:[rows.length+' file'+(rows.length===1?'':'s'),
+      'click any row to open it']})
+    :empty('Nothing is on file here yet. Add files puts a document against this '
+      +(scope==='unit'?'unit':'building')+' without sending it for extraction.')}</div>`;
+}
+window.filesCard=filesCard;
+/* The register's own type list, as the server sent it with the last panel it
+   answered. The fallback is the same list; it is here so the form still opens
+   before any panel has loaded, not as a second source of truth. */
+const FILE_KINDS_FALLBACK=['Other','Title Deed','Head Lease','Tenancy Agreement',
+ 'QID','Passport','Commercial Registration','Utility Bill','Maintenance Invoice',
+ 'Bank Statement','Cheque Batch','Unknown'];
+function fileKinds(){
+  const hit=Object.keys(window.DB_LAZY||{}).filter(k=>k.indexOf('files:')===0)
+    .map(k=>DB_LAZY[k]).find(c=>c&&c.state==='ok'&&c.data&&(c.data.types||[]).length);
+  if(!hit) return FILE_KINDS_FALLBACK;
+  /* Other first, because most of what comes in this way is not one of the
+     named kinds and a list that opens on Head Lease invites a wrong one. */
+  const list=hit.data.types.slice();
+  return ['Other'].concat(list.filter(t=>t!=='Other'));
+}
+window.fileKinds=fileKinds;
+/* Frappe serves the file and runs its own permission check on the way out.
+   That is the check that should decide this. */
+window.openFileDoc=id=>dbCall('documents.preview',{document:id})
+  .then(r=>{if(r&&r.url)window.open(r.url,'_blank','noopener');
+            else toast('No file is attached to '+id)})
+  .catch(e=>toast(e.message));
+
 /* Wraps an action so failures surface as a toast rather than silence. */
 window.dbDo = async (fn, okMsg) => {
   try{ const out = await fn(); await dbRefresh(); if(okMsg) toast(okMsg); return out; }
@@ -3003,9 +3071,12 @@ async function submitLive(w){
   if(btn){btn.disabled=true;btn.textContent='Saving\u2026'}
   if(err)err.style.display='none';
   try{
-    /* the register keeps the URL on the record, so that upload runs first */
+    /* the register keeps the URL on the record, so that upload runs first.
+       The record it hangs on may already exist — a file added to a building
+       is attached to that building — so a pre-upload form may name a target
+       the same way an after-save one does. */
     if(w.pre){
-      const up=await uploadFiles(null);
+      const up=await uploadFiles(w.ptarget?w.ptarget(FDATA):null);
       if(up){FDATA.__urls=up.urls;FDATA.__url=up.urls[0];}
     }
     const out=w.calls?await w.calls(FDATA):await dbCall(w.m,w.a(FDATA));
@@ -3212,6 +3283,29 @@ const FORMS={
      you the confidence on every field before anything is written.</div>`}}],
  submit:()=>({title:'Nothing was saved',msg:'This form needs the server',
    detail:'Opened without a live connection \u2014 the file was not uploaded'})},
+
+/* The other way in. Intake reads a document and asks somebody to confirm what
+   it read; this one just puts the file where it belongs. There is no
+   extraction step and therefore no review step, because nothing was claimed
+   about the contents that anyone has to check. */
+'add-files':{t:'Add files',s:'Filed against the record \u00b7 no extraction',cta:'Save the files',
+ init:ctx=>({scope:(ctx&&ctx.scope)||'building',on:(ctx&&ctx.label)||(ctx&&ctx.id)||'',
+   kind:'Other'}),
+ steps:[{n:'Files',body:d=>{
+   const f=(window.FFILES&&FFILES.file)||[];
+   const where=(d.__ctx&&d.__ctx.scope)==='unit'?'unit':'building';
+   return `<p class="pp">These are stored and filed against this ${where}, and nothing is read off them.
+     For a document whose <b>contents</b> matter \u2014 a QID number, a lease rent, an expiry \u2014
+     use <a href="/doc-intake" target="_blank">Document intake</a>, which extracts and asks for confirmation.</p>
+   <div class="fg">${fld({k:'on',l:where==='unit'?'Unit':'Building',t:'ro'},d.on)}
+    ${fld({k:'kind',l:'What are these',t:'sel',o:fileKinds(),req:1},d.kind)}
+    ${fld({k:'file',l:'Files',t:'file',multi:1,req:1,
+      hint:'PDF, JPG or PNG \u00b7 several at once \u00b7 max 10 MB each'},d.file)}</div>
+   ${f.length?`<div class="note">${f.length} file${f.length===1?'':'s'} \u2014 ${fSize(f)} \u2014
+     filed against <b>${d.on}</b> as <b>${d.kind}</b>.</div>`:''}`},
+   fields:[{k:'kind',req:1},{k:'file',req:1}]}],
+ submit:()=>({title:'Nothing was saved',msg:'This form needs the server',
+   detail:'Opened without a live connection \u2014 the files were not uploaded'})},
 
 'deposit-batch':{t:'Mark the batch banked',s:'The slip went in · cheques presented, cash receipted',
  cta:'Confirm it was banked',
@@ -3577,8 +3671,16 @@ ROUTES.buildings=()=>page('Buildings',`${BUILDINGS.length} buildings · ${UNITS.
 /* ---------- Landlords, now with everything the wizard captured ---------- */
 window.openB=id=>go('#/building/'+id);
 
+/* The tenancy a unit is actually living under. A unit can carry more than one
+   non-terminated agreement — a renewal signed before the old one expires is
+   the ordinary case — so a live one wins over an expired one rather than
+   whichever came back first. */
+const uAgr=u=>AGR.find(a=>a.u===u&&(a.st==='Active'||a.st==='Expiring'))
+  ||AGR.find(a=>a.u===u&&a.st!=='Expired')||AGR.find(a=>a.u===u)||null;
+window.uAgr=uAgr;
+
 ROUTES.building=id=>{const b=id?B(id):BUILDINGS[0]; if(!b) return notFound('Building','#/buildings'); const us=UNITS.filter(u=>u.b===b.id);
- const js=JOBS.filter(j=>j.b===b.id); const ags=AGR.filter(a=>a.b===b.id);
+ const js=JOBS.filter(j=>j.b===b.id);
  return crumb([['Buildings','#/buildings'],[b.n,'']])+page(b.n,
   `${b.id} · ${b.area} · ${b.floors} floors · head-lease from ${b.ll}`,
   /* Handover is offered while the building is still onboarding. Once it is
@@ -3598,16 +3700,18 @@ ROUTES.building=id=>{const b=id?B(id):BUILDINGS[0]; if(!b) return notFound('Buil
   `<div class="grid2">
    <div class="card"><h3>Units</h3>${tbl([
     {h:'Unit',v:u=>u.id},{h:'Type',v:u=>u.type},{h:'Floor',r:1,mono:1,v:u=>u.floor},
+    /* The tenant and the expiry used to be readable here only from the
+       agreements table underneath, which the files panel replaced. They are
+       facts about the door, so they belong on the door's row. */
+    {h:'Tenant',v:u=>{const a=uAgr(u.id);return a?a.tn:'\u2014'}},
+    {h:'Ends',r:1,v:u=>{const a=uAgr(u.id);return a?a.end:'\u2014'}},
     {h:'Rent',r:1,mono:1,v:u=>n0(u.rent)},{h:'Status',v:u=>chip(u.st,stChip(u.st))}],
     us.map(u=>({...u,__id:u.id})),{id:'bu',click:'openU'})}</div>
    <div class="card"><h3>Open maintenance</h3>${js.length?tbl([
     {h:'Job',v:j=>j.id},{h:'Category',v:j=>j.cat},{h:'Priority',v:j=>chip(j.pr,j.pr==='Emergency'?'r':'n')},
     {h:'Cost',r:1,mono:1,v:j=>n0(j.cost)},{h:'Status',v:j=>chip(j.st,stChip(j.st))}],
     js.map(j=>({...j,__id:j.id})),{id:'bj',click:'openJ'}):empty('No open jobs')}</div></div>
-   <div class="card"><h3>Agreements in this building</h3>${ags.length?tbl([
-    {h:'Ref',v:a=>a.id},{h:'Tenant',v:a=>a.tn},{h:'Unit',v:a=>a.u},{h:'Rent',r:1,mono:1,v:a=>n0(a.rent)},
-    {h:'Ends',r:1,v:a=>a.end},{h:'Status',v:a=>chip(a.st,stChip(a.st))},{h:'Renewal',v:a=>chip(a.ren,stChip(a.ren))}],
-    ags.map(a=>({...a,__id:a.id})),{id:'ba',click:'openA'}):empty('No agreements')}</div>`)};
+   ${filesCard('building',b.id,b.n)}`)};
 
 /* ---------------- Units ---------------- */
 ROUTES.units=()=>page('Units',`${UNITS.length} units across ${BUILDINGS.length} buildings`,'',
@@ -3623,20 +3727,33 @@ ROUTES.units=()=>page('Units',`${UNITS.length} units across ${BUILDINGS.length} 
   UNITS.map(u=>({...u,__id:u.id})),{id:'ul',click:'openU',foot:[UNITS.length+' units','sorted by building — click any header']})}</div>`);
 window.openU=id=>go('#/unit/'+id);
 
-ROUTES.unit=id=>{const u=id?U(id):UNITS[0]; if(!u) return notFound('Unit','#/units'); const ag=AGR.find(a=>a.u===u.id);
+ROUTES.unit=id=>{const u=id?U(id):UNITS[0]; if(!u) return notFound('Unit','#/units'); const ag=uAgr(u.id);
  return crumb([['Units','#/units'],[u.bn,'#/building/'+u.b],[u.id,'']])+page(u.id,
   `${u.type} · floor ${u.floor} · ${u.sqm} sqm · ${u.bn}`,
   fbtn('Log maintenance','raise-job',{bn:u.bn,u:u.id})+(u.st==='Occupied'?fbtn('Start move-out','start-moveout',{unit:u.id}):fbtn('Create agreement','new-agreement',{unit:u.id}))
    /* Readiness had no way out: a unit created Not Ready stayed Not Ready. */
-   +(u.st==='Occupied'?'':fbtn('Change status','set-unit-status',{unit:u.id,st:u.st})),
-  stat([['Status',chip(u.st,stChip(u.st))],['Tenant rent',n0(u.rent)],['Landlord cost',n0(u.llRent)],
-   ['Monthly spread','+'+n0((u.rent-u.llRent)),'','g'],['Void days',u.vd||'—','',u.vd>30?'r':'']])+
+   +(u.st==='Occupied'?'':fbtn('Change status','set-unit-status',{unit:u.id,st:u.st}))
+   +(ag?`<button class="btn" onclick="go('#/agreement/${ag.id}')">Open agreement</button>`:''),
+  /* The tenancy used to live in a card below, which the files panel replaced.
+     Who is in the door, from when, until when and on what terms are the first
+     questions asked of a unit, so they read as facts about the unit rather
+     than as a panel about a document. An occupied unit with no agreement on
+     file says so — it does not print a dash and leave you to notice. */
+  stat([['Status',chip(u.st,stChip(u.st))],
+   ['Tenant',ag?ag.tn:(u.st==='Occupied'?'not on file':'—'),'',
+    (!ag&&u.st==='Occupied')?'a':''],
+   ['Tenant rent',n0(u.rent)],['Landlord cost',n0(u.llRent)],
+   ['Monthly spread','+'+n0((u.rent-u.llRent)),'','g'],
+   ['Agreement',ag?ag.id:'—'],['Started',ag?ag.start:'—'],
+   ['Ends',ag?ag.end:'—','',ag&&ag.endD<90?'a':''],
+   ['Deposit held',ag?n0(ag.dep):'—'],['Payment',ag?ag.freq+' · '+ag.mode:'—'],
+   ['Void days',u.vd||'—','',u.vd>30?'r':'']])+
+  (u.st==='Occupied'&&!ag?`<div class="note" style="border-left-color:var(--amber)">
+    <b>This unit is occupied with no agreement on file.</b> Nothing bills against
+    it and it contributes nothing to the building's revenue until the tenancy is
+    recorded.</div>`:'')+
   `<div class="grid2">
-   <div class="card"><h3>Current agreement</h3>${ag?`<div class="kv">
-    ${[['Reference',ag.id],['Tenant',ag.tn],['Rent',n0(ag.rent)+' / month'],['Payment',ag.freq],
-      ['Deposit held',n0(ag.dep)],['Start',ag.start],['End',ag.end],['Status',chip(ag.st,stChip(ag.st))]]
-     .map(r=>`<div><span>${r[0]}</span><b>${r[1]}</b></div>`).join('')}</div>
-    <button class="btn" style="margin-top:9px" onclick="go('#/agreement/${ag.id}')">Open agreement</button>`:empty('No active agreement — unit is '+u.st.toLowerCase())}</div>
+   ${filesCard('unit',u.id,u.id)}
    <div class="card"><h3>Unit history</h3><div class="list">
     ${[['Move-in inspection completed',dplus(-320)],['Agreement signed',dplus(-330)],
        ['AC service — planned',dplus(-120)],['Rent revised at renewal',dplus(-60)]]
@@ -8301,7 +8418,33 @@ const WIRE={
    status:'Needs Review',pages:1}}),
  ok:r=>({title:'Filed',msg:'Document '+r.document+' registered',
    detail:'It is waiting for review \u2014 nothing reads it as true until confirmed',
-   goto:'#/vault'})}
+   goto:'#/vault'})},
+
+/* Files go up first and against the record itself, so the bytes are attached
+   to the building or the unit in Frappe as well as being on the register.
+   The register row is what makes them findable from the screen and the
+   vault; the attachment is what makes them survive somebody deleting the
+   row. Neither is written until the upload has actually returned a URL. */
+'add-files':{
+ pre:1,
+ ptarget:d=>{const c=d.__ctx||{};
+   return c.id?{doctype:c.scope==='unit'?'Unit':'Building',docname:c.id}:null},
+ guard:d=>{
+   const c=d.__ctx||{};
+   if(!c.id) return 'Open a building or a unit first \u2014 a file is filed against '
+     +'one of them, and this was opened without either.';
+   return ((window.FFILES&&FFILES.file)||[]).length?null
+     :'Choose a file first \u2014 there is nothing to save otherwise.'},
+ m:'documents.save_files',
+ a:d=>({payload:{files:d.__urls||[],type:d.kind,
+   building:(d.__ctx&&d.__ctx.scope)==='unit'?null:(d.__ctx&&d.__ctx.id),
+   unit:(d.__ctx&&d.__ctx.scope)==='unit'?(d.__ctx&&d.__ctx.id):null}}),
+ ok:(r,d)=>({title:'Filed',
+   msg:r.filed+' file'+(r.filed===1?'':'s')+' saved against '+
+     ((d.__ctx&&d.__ctx.label)||r.unit||r.building),
+   detail:'Filed as '+r.type+' \u00b7 nothing was extracted, so nothing is waiting '
+     +'on a review',
+   goto:(d.__ctx&&d.__ctx.scope)==='unit'?'#/unit/'+r.unit:'#/building/'+r.building})}
 };
 
 /* Forms with no server behind them. Each says what is missing, and refuses to

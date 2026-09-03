@@ -390,3 +390,171 @@ def preview(document):
                 frappe.throw(_("No file is attached to that record."))
             return {"url": url, "doctype": doctype, "name": document}
     frappe.throw(_("That document is not on the register."))
+
+
+# --------------------------------------------------- files on a record
+#
+# The second way in. Intake exists for documents that have to be *read* — a
+# QID whose number and expiry matter, a lease whose rent matters — and it
+# costs a rasterise, an OCR pass and a human review before anything is on
+# file. Most paperwork is not like that. A landlord's bank letter, a floor
+# plan, a signed acknowledgement: nobody needs a field read off it, somebody
+# needs to be able to find it against the building or the door it belongs to.
+#
+# So this path uploads the file, files it against the Building or the Unit,
+# and stops. No extractor is named, no confidence is recorded, and no review
+# queue is joined, because there is no extracted claim to review — a person
+# said what this is and put it where it goes. That is why the register row is
+# written Confirmed rather than Needs Review: Needs Review would ask
+# Documentation to validate a reading that was never made.
+
+
+def _file_types():
+    """The register's own type list, read off the meta rather than repeated
+    here. A type added to the DocType appears on the form without a code
+    change, and a type removed cannot be written by this path."""
+    field = frappe.get_meta("Document Register").get_field("document_type")
+    return [o for o in (field.options or "").split("\n") if o]
+
+
+@frappe.whitelist()
+def file_types():
+    guard(MD, GM, ACC, DOC)
+    return _file_types()
+
+
+@frappe.whitelist()
+def save_files(payload):
+    """File already-uploaded files against a building or a unit.
+
+    The upload itself happened before this call, against the Building or Unit
+    record, so the bytes are already attached where they belong. What this
+    adds is the register row that makes them findable from the vault and from
+    the screen for that record.
+    """
+    guard(MD, GM, ACC, DOC)
+    data = frappe.parse_json(payload) or {}
+
+    urls = [u for u in (data.get("files") or []) if u]
+    if not urls:
+        frappe.throw(_("No file was uploaded, so there is nothing to file."))
+
+    building = (data.get("building") or "").strip() or None
+    unit = (data.get("unit") or "").strip() or None
+
+    if unit:
+        if not frappe.db.exists("Unit", unit):
+            frappe.throw(_("No unit called {0}.").format(unit))
+        # A unit file is a building file too. Deriving the building here is
+        # what lets the building screen show everything filed under its doors
+        # without the caller having to send both.
+        building = frappe.db.get_value("Unit", unit, "building") or building
+    elif building:
+        if not frappe.db.exists("Building", building):
+            frappe.throw(_("No building called {0}.").format(building))
+    else:
+        frappe.throw(_("A file is filed against a building or a unit. This "
+                       "one named neither."))
+
+    kind = (data.get("type") or "Other").strip()
+    if kind not in _file_types():
+        kind = "Other"
+
+    created = []
+    for url in urls:
+        doc = frappe.get_doc({
+            "doctype": "Document Register",
+            "source_file": url,
+            "document_type": kind,
+            "status": "Confirmed",
+            "building": building,
+            "unit": unit,
+            "page_count": 0,
+            "issue_date": data.get("issue_date") or None,
+            "expiry_date": data.get("expiry_date") or None,
+        })
+        doc.flags.ignore_mandatory = True
+        doc.insert(ignore_permissions=True)
+        created.append(doc.name)
+
+    return {"filed": len(created), "documents": created,
+            "building": building, "unit": unit, "type": kind}
+
+
+def _file_row(name, url, kind, status, on, when, by, src):
+    return {
+        "id": name,
+        "f": (url or "").split("/")[-1] or "—",
+        "ty": kind or "Unknown",
+        "st": status,
+        "on": on,
+        "when": str(when)[:10] if when else "",
+        "by": _short(by),
+        "size": _size(url),
+        "url": url or "",
+        "src": src,
+    }
+
+
+@frappe.whitelist()
+def files(building=None, unit=None):
+    """Everything on file against one building, or one unit.
+
+    Asked for a building this includes the files filed against its units, and
+    says which door each one came from. A tenancy contract filed on unit 302
+    is a document about that building, and somebody looking at the building
+    for it should not have to know which unit it went to first.
+    """
+    guard(MD, GM, ACC, DOC)
+    building = (building or "").strip() or None
+    unit = (unit or "").strip() or None
+    if not (building or unit):
+        frappe.throw(_("Which building or unit?"))
+
+    if unit:
+        or_filters = {"unit": unit}
+    else:
+        units = frappe.get_all("Unit", filters={"building": building},
+                               pluck="name")
+        or_filters = {"building": building}
+        if units:
+            or_filters["unit"] = ["in", units]
+
+    reg = frappe.get_all(
+        "Document Register", or_filters=or_filters,
+        fields=["name", "source_file", "document_type", "status", "building",
+                "unit", "owner", "modified"],
+        order_by="modified desc", limit=VAULT_LIMIT)
+
+    arch = frappe.get_all(
+        "Document Archive", or_filters=or_filters,
+        fields=["name", "file", "document_type", "building", "unit",
+                "archived_on", "archived_by", "source_register", "owner",
+                "modified"],
+        order_by="modified desc", limit=VAULT_LIMIT)
+
+    # The archive copy of a register row is the same document twice. The
+    # archive wins, exactly as it does in the vault.
+    archived_from = {a.source_register for a in arch if a.source_register}
+
+    rows = []
+    for d in reg:
+        if d.name in archived_from:
+            continue
+        rows.append(_file_row(
+            d.name, d.source_file, d.document_type,
+            VAULT_STATE.get(d.status, d.status or "Needs review"),
+            d.unit or "Building", d.modified, d.owner, "Register"))
+    for a in arch:
+        rows.append(_file_row(
+            a.name, a.file, a.document_type, "Validated",
+            a.unit or "Building", a.archived_on or a.modified,
+            a.archived_by or a.owner, "Archive"))
+
+    rows.sort(key=lambda r: r["when"], reverse=True)
+    return {
+        "rows": rows,
+        "total": len(rows),
+        "on_units": sum(1 for r in rows if r["on"] != "Building"),
+        "types": _file_types(),
+    }
