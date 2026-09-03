@@ -23,7 +23,7 @@ needed and `bench migrate` has nothing to apply. It is in the sequence because
 
 | endpoint | does |
 |---|---|
-| `save_files(payload)` | Files already-uploaded URLs against a Building or a Unit. One `Document Register` row per file, status `Confirmed`, no extractor and no confidence recorded. |
+| `save_files(payload)` | Files already-uploaded URLs against a Building or a Unit, **each with its own type**. One `Document Register` row per file, status `Confirmed`, no extractor and no confidence recorded. Takes `items:[{file,type}]`; the older `files:[...] + type` shape still works. |
 | `files(building=None, unit=None)` | Everything on file for one record. Asked for a building it includes the files filed against its units and says which door each came from. |
 | `file_types()` | The register's own `document_type` list, read off the DocType meta. |
 
@@ -45,6 +45,10 @@ screen show everything filed under its doors without the caller sending both.
 type added there appears on the form with no code change, and a type removed
 cannot be written by this path.
 
+**The type is per file, not per drop.** A drag is rarely one kind of thing — a
+deed, two cheques and a QID arrive together — so one type for the batch would
+have filed most of them wrong.
+
 ### `darkbrown/shell/index.html`
 
 - `filesCard(scope, id, label)` — one panel, used by both screens, lazy-fetched
@@ -62,7 +66,14 @@ cannot be written by this path.
   beside the existing status, rents and spread. *Open agreement* is now a header
   button. A unit that is Occupied with no agreement on file gets an amber tile
   and a note rather than a row of dashes.
-- `add-files` form and its `WIRE` entry.
+- `add-files` form and its `WIRE` entry. The file picker comes first; the kind
+  is asked **after** the files are chosen, one row per file, each with its own
+  select, its own remove control and a *Same as the first* shortcut for the
+  case where the drop really is homogeneous. The answers live in keys `k0..kn`
+  which line up by position with `FFILES.file`, which is the order
+  `uploadFiles` sends them in. Removing a file shifts those keys down with it
+  rather than leaving a hole — a hole would file the wrong type against the
+  wrong document, which is worse than losing the answer.
 - One core change: `submitLive` now honours `w.ptarget` on a `pre:1` form, so
   the files upload **attached to the Building or Unit record itself** before the
   register row is written — the bytes hang on the record in Frappe as well as
@@ -71,9 +82,14 @@ cannot be written by this path.
 
 ### `verify/`
 
-- `files_api.py` — 10 checks on the two endpoints against the real DocType JSON.
-- `files_panel.js` — 20 checks on the two screens: each panel state, the scoping
-  of the call, the replaced panels being gone, the role gate, and the form.
+- `files_api.py` — 15 checks on the two endpoints against the real DocType JSON,
+  including a three-kind drop filing as three kinds in the order given.
+- `files_panel.js` — 26 checks on the two screens: each panel state, the scoping
+  of the call, the replaced panels being gone, the role gate, and the form —
+  including a five-file drop, per-file answers surviving a redraw, and a removal
+  in the middle carrying the remaining answers with it. Its
+  `unhandledRejection` handler now prints rather than swallows; the original
+  silently ate a real failure in the async test body.
 - `stub_frappe.py` — `get_all` now honours `or_filters`. It used to swallow them
   into `**kw`, which meant a query scoped by `or_filters` came back unscoped and
   any test of that scoping would have passed for the wrong reason.
@@ -82,9 +98,9 @@ cannot be written by this path.
 
     python3 -m compileall darkbrown          # clean
     python3 verify/harness.py                # 32 passed, 1 failed *
-    python3 verify/files_api.py              # 10 passed, 0 failed
+    python3 verify/files_api.py              # 15 passed, 0 failed
     node verify/routes.js                    # 25 combinations, 1,650 renders, 0 failed
-    node verify/files_panel.js               # 20 passed, 0 failed
+    node verify/files_panel.js               # 26 passed, 0 failed
 
 \* `only System Manager can delete a financial record` fails identically on a
 clean clone of `main` — it is a stub limitation in the harness, not a

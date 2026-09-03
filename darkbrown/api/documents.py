@@ -431,12 +431,22 @@ def save_files(payload):
     record, so the bytes are already attached where they belong. What this
     adds is the register row that makes them findable from the vault and from
     the screen for that record.
+
+    Each file carries its own type. A drag is rarely one kind of thing — a
+    deed, two cheques and a QID arrive in one drop — and one type for the
+    batch would have filed four of them wrong. `items` is the current shape;
+    `files` with a single `type` is still accepted for a caller that really
+    does have a homogeneous batch.
     """
     guard(MD, GM, ACC, DOC)
     data = frappe.parse_json(payload) or {}
 
-    urls = [u for u in (data.get("files") or []) if u]
-    if not urls:
+    items = data.get("items") or []
+    if items:
+        pairs = [(i.get("file"), i.get("type")) for i in items if i.get("file")]
+    else:
+        pairs = [(u, data.get("type")) for u in (data.get("files") or []) if u]
+    if not pairs:
         frappe.throw(_("No file was uploaded, so there is nothing to file."))
 
     building = (data.get("building") or "").strip() or None
@@ -456,12 +466,12 @@ def save_files(payload):
         frappe.throw(_("A file is filed against a building or a unit. This "
                        "one named neither."))
 
-    kind = (data.get("type") or "Other").strip()
-    if kind not in _file_types():
-        kind = "Other"
-
-    created = []
-    for url in urls:
+    known = _file_types()
+    created, kinds = [], []
+    for url, kind in pairs:
+        kind = (kind or "Other").strip()
+        if kind not in known:
+            kind = "Other"
         doc = frappe.get_doc({
             "doctype": "Document Register",
             "source_file": url,
@@ -476,9 +486,14 @@ def save_files(payload):
         doc.flags.ignore_mandatory = True
         doc.insert(ignore_permissions=True)
         created.append(doc.name)
+        kinds.append(kind)
 
-    return {"filed": len(created), "documents": created,
-            "building": building, "unit": unit, "type": kind}
+    distinct = sorted(set(kinds))
+    summary = (distinct[0] if len(distinct) == 1
+               else "%d types" % len(distinct))
+
+    return {"filed": len(created), "documents": created, "kinds": kinds,
+            "summary": summary, "building": building, "unit": unit}
 
 
 def _file_row(name, url, kind, status, on, when, by, src):

@@ -283,6 +283,23 @@ input.fin{position:absolute;width:0;height:0;opacity:0;pointer-events:none}
 .drop b{font-weight:500;color:var(--ink);font-size:12.5px}
 .drop .dh{font-size:10.5px;color:var(--mut);margin-top:3px}
 .drop .dp{margin-top:7px;font-size:11px}
+/* One row per chosen file, so the kind is answered per document rather than
+   once for a drop that may hold four different things. */
+.flist{margin-top:12px;border:1px solid var(--line2);border-radius:10px;background:var(--bg2);padding:10px 12px}
+.flh{display:flex;align-items:center;gap:9px;padding-bottom:8px;border-bottom:1px solid var(--line)}
+.flh b{font:600 10.5px 'Montserrat';letter-spacing:.09em;text-transform:uppercase;color:var(--db3)}
+.flh span{font-size:10.5px;color:var(--mut);font-family:var(--mono)}
+.flh .btn{margin-left:auto;padding:3px 9px;font-size:9.5px}
+.flr{display:flex;align-items:center;gap:9px;padding:7px 0;border-bottom:1px solid var(--line)}
+.flr:last-child{border-bottom:none;padding-bottom:0}
+.fln{flex:1 1 auto;min-width:0;font:400 12px var(--mono);color:var(--ink);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.flr select{flex:0 0 190px;font:400 12px 'Montserrat';color:var(--ink);background:var(--bg1);
+  border:1px solid var(--line2);border-radius:7px;padding:6px 9px;outline:none}
+.flr select:focus{border-color:var(--em);box-shadow:0 0 0 3px rgba(46,107,87,.12)}
+.fxr{flex:none;background:none;border:none;color:var(--mut);cursor:pointer;font-size:12px;padding:2px 4px}
+.fxr:hover{color:var(--red)}
+@media(max-width:560px){.flr{flex-wrap:wrap}.fln{flex:1 1 100%}.flr select{flex:1 1 auto}}
 .note{background:var(--bg1);border-left:2px solid var(--gold);border-radius:0;padding:9px 12px;
   font-size:11.5px;color:var(--body);margin-top:11px}
 .okbox{display:flex;gap:12px;align-items:flex-start;background:var(--tealbg);border:1px solid rgba(46,107,87,.28);
@@ -2660,6 +2677,35 @@ window.fileChosen=(k,inp)=>takeFiles(k,inp.files);
 window.fileDropped=(e,k,zone)=>{e.preventDefault();zone.classList.remove('over');
   takeFiles(k,e.dataTransfer&&e.dataTransfer.files)};
 window.clearFile=k=>{collect();delete FFILES[k];FDATA[k]='';drawForm()};
+/* Dropping five files in one go is the ordinary case, and they are rarely all
+   the same thing — a deed, two cheques and a QID arrive in one drag. So the
+   kind is asked per file, in keys k0..kn that line up with FFILES.file by
+   position, which is also the order uploadFiles sends them in.
+
+   Removing one has to shift those keys down with it. Leaving a hole would
+   file the wrong type against the wrong document, which is worse than losing
+   the answer, so the list is rebuilt rather than patched. */
+window.dropFileAt=i=>{
+  collect();
+  const f=(window.FFILES&&FFILES.file)||[];
+  if(!f[i]) return;
+  const kinds=f.map((x,j)=>FDATA['k'+j]||'Other');
+  f.splice(i,1); kinds.splice(i,1);
+  f.forEach((x,j)=>{FDATA['k'+j]=kinds[j]});
+  delete FDATA['k'+f.length];
+  if(!f.length){delete FFILES.file;FDATA.file=''}
+  else FDATA.file=f.map(x=>x.name).join(', ');
+  drawForm();
+};
+/* Five pages of the same lease is also ordinary. This is the shortcut, and it
+   copies the first answer rather than inventing one. */
+window.setKindsAll=()=>{
+  collect();
+  const f=(window.FFILES&&FFILES.file)||[];
+  const first=FDATA.k0||'Other';
+  f.forEach((x,j)=>{FDATA['k'+j]=first});
+  drawForm();
+};
 /* kept so anything still calling it opens the picker instead of inventing a file */
 window.pickFile=k=>{const e=document.getElementById('f_'+k+'_i');if(e)e.click()};
 /* The unit list is the vacant units of the building that was chosen, and
@@ -3289,21 +3335,31 @@ const FORMS={
    extraction step and therefore no review step, because nothing was claimed
    about the contents that anyone has to check. */
 'add-files':{t:'Add files',s:'Filed against the record \u00b7 no extraction',cta:'Save the files',
- init:ctx=>({scope:(ctx&&ctx.scope)||'building',on:(ctx&&ctx.label)||(ctx&&ctx.id)||'',
-   kind:'Other'}),
+ init:ctx=>({scope:(ctx&&ctx.scope)||'building',on:(ctx&&ctx.label)||(ctx&&ctx.id)||''}),
  steps:[{n:'Files',body:d=>{
    const f=(window.FFILES&&FFILES.file)||[];
    const where=(d.__ctx&&d.__ctx.scope)==='unit'?'unit':'building';
+   /* The kind is asked after the files, not before, because a drag is rarely
+      one kind of thing. Asking first would have made every file in the drop
+      whatever the first one happened to be. */
    return `<p class="pp">These are stored and filed against this ${where}, and nothing is read off them.
      For a document whose <b>contents</b> matter \u2014 a QID number, a lease rent, an expiry \u2014
      use <a href="/doc-intake" target="_blank">Document intake</a>, which extracts and asks for confirmation.</p>
    <div class="fg">${fld({k:'on',l:where==='unit'?'Unit':'Building',t:'ro'},d.on)}
-    ${fld({k:'kind',l:'What are these',t:'sel',o:fileKinds(),req:1},d.kind)}
     ${fld({k:'file',l:'Files',t:'file',multi:1,req:1,
-      hint:'PDF, JPG or PNG \u00b7 several at once \u00b7 max 10 MB each'},d.file)}</div>
-   ${f.length?`<div class="note">${f.length} file${f.length===1?'':'s'} \u2014 ${fSize(f)} \u2014
-     filed against <b>${d.on}</b> as <b>${d.kind}</b>.</div>`:''}`},
-   fields:[{k:'kind',req:1},{k:'file',req:1}]}],
+      hint:'PDF, JPG or PNG \u00b7 drag several at once \u00b7 max 10 MB each'},d.file)}</div>
+   ${f.length?`<div class="flist">
+     <div class="flh"><b>What is each one?</b>
+      <span>${f.length} file${f.length===1?'':'s'} \u00b7 ${fSize(f)}</span>
+      ${f.length>1?`<button type="button" class="btn" onclick="setKindsAll()">Same as the first</button>`:''}</div>
+     ${f.map((x,i)=>`<div class="flr">
+       <span class="fln" title="${escA(x.name)}">${esc(x.name)}</span>
+       <select data-k="k${i}">${fileKinds().map(o=>
+         `<option ${o===(d['k'+i]||'Other')?'selected':''}>${o}</option>`).join('')}</select>
+       <button type="button" class="fxr" onclick="dropFileAt(${i})" aria-label="Remove ${escA(x.name)}">\u2715</button>
+      </div>`).join('')}
+     </div>`:''}`},
+   fields:[{k:'file',req:1}]}],
  submit:()=>({title:'Nothing was saved',msg:'This form needs the server',
    detail:'Opened without a live connection \u2014 the files were not uploaded'})},
 
@@ -8436,13 +8492,18 @@ const WIRE={
    return ((window.FFILES&&FFILES.file)||[]).length?null
      :'Choose a file first \u2014 there is nothing to save otherwise.'},
  m:'documents.save_files',
- a:d=>({payload:{files:d.__urls||[],type:d.kind,
+ /* __urls come back from uploadFiles in the order FFILES.file holds them,
+    which is the order the rows were drawn in, so k0..kn line up by position.
+    Pairing them here rather than server-side keeps the answer next to the
+    file the person was looking at when they gave it. */
+ a:d=>({payload:{
+   items:(d.__urls||[]).map((u,i)=>({file:u,type:d['k'+i]||'Other'})),
    building:(d.__ctx&&d.__ctx.scope)==='unit'?null:(d.__ctx&&d.__ctx.id),
    unit:(d.__ctx&&d.__ctx.scope)==='unit'?(d.__ctx&&d.__ctx.id):null}}),
  ok:(r,d)=>({title:'Filed',
    msg:r.filed+' file'+(r.filed===1?'':'s')+' saved against '+
      ((d.__ctx&&d.__ctx.label)||r.unit||r.building),
-   detail:'Filed as '+r.type+' \u00b7 nothing was extracted, so nothing is waiting '
+   detail:'Filed as '+r.summary+' \u00b7 nothing was extracted, so nothing is waiting '
      +'on a review',
    goto:(d.__ctx&&d.__ctx.scope)==='unit'?'#/unit/'+r.unit:'#/building/'+r.building})}
 };

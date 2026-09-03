@@ -6,7 +6,7 @@
    so the states are chosen rather than waited for. */
 const fs = require('fs');
 const { JSDOM, VirtualConsole } = require('jsdom');
-process.on('unhandledRejection', () => {});
+process.on('unhandledRejection', e => { console.log('UNHANDLED', e && e.stack ? e.stack.split('\n').slice(0,3).join(' / ') : e); });
 const html = fs.readFileSync(__dirname + '/../darkbrown/shell/index.html', 'utf8');
 
 const KEYS = ['buildings','units','cases','jobs','moveouts','tenants','agreements','invoices',
@@ -187,13 +187,13 @@ await (async () => {
   t('form: opens against the building it was opened from', () => {
     has(m, 'Add files');
     has(m, 'AK-12');
-    has(m, 'Title Deed', 'the type list');
     has(m, 'Choose a file');
   });
-  t('form: the type list came from the server, Other first', () => {
-    const opts = [...win.document.querySelectorAll('#f_kind option')].map(o => o.textContent);
-    if (opts[0] !== 'Other') throw new Error('first option is ' + opts[0]);
-    if (opts.length !== 12) throw new Error(opts.length + ' options, wanted 12');
+  t('form: no type is asked for before there is a file to ask about', () => {
+    if (win.document.querySelector('.flist'))
+      throw new Error('the per-file list drew with no files chosen');
+    if (/What is each one/.test(m))
+      throw new Error('asked what the files are before any were chosen');
   });
   t('form: refuses to save with no file chosen', () => {
     win.formNext();
@@ -233,6 +233,88 @@ await (async () => {
       throw new Error('the unit branch is not in the wire entry');
     has(src, "m:'documents.save_files'");
     has(src, 'ptarget', 'the pre-upload attachment target');
+  });
+})();
+
+// ------------------------------------------------- one type per file, after the drop
+const FAKE = n => Array.from({length:n}, (_, i) =>
+  ({name: 'doc-' + i + '.pdf', size: 200000 + i}));
+
+await (async () => {
+  const {win} = boot('MD', 'ok');
+  await draw(win, '#/building/AK-12');
+  win.openForm('add-files', {scope:'building', id:'AK-12', label:'AK-12'});
+  /* FDATA is module-scoped, so the form is driven the way a person drives it:
+     files into FFILES, then the DOM, then collect(). */
+  win.FFILES = {file: FAKE(5)};
+  win.drawForm();
+
+  t('drop of five: one row and one select per file', () => {
+    const rows = win.document.querySelectorAll('.flr');
+    if (rows.length !== 5) throw new Error(rows.length + ' rows, wanted 5');
+    for (let i = 0; i < 5; i++) {
+      const sel = win.document.querySelector('[data-k="k' + i + '"]');
+      if (!sel) throw new Error('no select for file ' + i);
+      if (sel.value !== 'Other') throw new Error('file ' + i + ' defaults to ' + sel.value);
+    }
+    if (win.document.querySelector('[data-k="k5"]'))
+      throw new Error('a select drew for a file that is not there');
+  });
+
+  t('drop of five: the type list is the server\'s, Other first', () => {
+    const opts = [...win.document.querySelectorAll('[data-k="k0"] option')]
+      .map(o => o.textContent);
+    if (opts[0] !== 'Other') throw new Error('first option is ' + opts[0]);
+    if (opts.length !== 12) throw new Error(opts.length + ' options, wanted 12');
+  });
+
+  t('drop of five: each answer is kept against its own file', () => {
+    win.document.querySelector('[data-k="k0"]').value = 'Title Deed';
+    win.document.querySelector('[data-k="k3"]').value = 'QID';
+    win.collect();
+    win.drawForm();
+    const v = i => win.document.querySelector('[data-k="k' + i + '"]').value;
+    const got = [v(0), v(1), v(2), v(3), v(4)];
+    const want = ['Title Deed', 'Other', 'Other', 'QID', 'Other'];
+    if (JSON.stringify(got) !== JSON.stringify(want))
+      throw new Error(JSON.stringify(got));
+  });
+
+  t('drop of five: same-as-the-first copies, it does not invent', () => {
+    win.setKindsAll();
+    const vals = [...win.document.querySelectorAll('.flr select')].map(s => s.value);
+    if (vals.some(v => v !== 'Title Deed')) throw new Error(JSON.stringify(vals));
+  });
+
+  t('removing one shifts the answers down with it', () => {
+    // rebuild a mixed set: 0 deed, 1 QID, 2 cheque
+    win.FFILES = {file: FAKE(3)};
+    win.drawForm();
+    win.document.querySelector('[data-k="k0"]').value = 'Title Deed';
+    win.document.querySelector('[data-k="k1"]').value = 'QID';
+    win.document.querySelector('[data-k="k2"]').value = 'Cheque Batch';
+    win.collect();
+    win.dropFileAt(1);                       // the QID goes
+    const rows = win.document.querySelectorAll('.flr');
+    if (rows.length !== 2) throw new Error(rows.length + ' rows left, wanted 2');
+    const names = [...win.document.querySelectorAll('.fln')].map(n => n.textContent);
+    if (JSON.stringify(names) !== JSON.stringify(['doc-0.pdf', 'doc-2.pdf']))
+      throw new Error(JSON.stringify(names));
+    const v = i => win.document.querySelector('[data-k="k' + i + '"]').value;
+    if (v(0) !== 'Title Deed' || v(1) !== 'Cheque Batch')
+      throw new Error('answers did not follow their files: ' + v(0) + ', ' + v(1));
+    if (win.document.querySelector('[data-k="k2"]'))
+      throw new Error('a row was left behind for a removed file');
+  });
+
+  t('removing the last one puts the form back to needing a file', () => {
+    win.dropFileAt(0); win.dropFileAt(0);
+    if (win.document.querySelector('.flist'))
+      throw new Error('the list is still drawn with no files');
+    win.formNext();
+    const err = win.document.getElementById('ferr');
+    if (!/Files<\/a> is empty/.test(err.innerHTML))
+      throw new Error('did not ask for a file: ' + err.innerHTML);
   });
 })();
 

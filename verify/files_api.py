@@ -67,8 +67,9 @@ print("=" * 72)
 def t_building():
     reset()
     r = documents.save_files(json.dumps({
-        'files': ['/private/files/a.pdf', '/private/files/b.pdf'],
-        'type': 'Title Deed', 'building': 'AK-12'}))
+        'items': [{'file': '/private/files/a.pdf', 'type': 'Title Deed'},
+                  {'file': '/private/files/b.pdf', 'type': 'Title Deed'}],
+        'building': 'AK-12'}))
     assert r['filed'] == 2, r
     assert len(rows()) == 2, rows()
     for d in rows():
@@ -109,7 +110,8 @@ check("a unit sent with the wrong building files under the unit's own building",
 def t_unknown_type():
     reset()
     documents.save_files(json.dumps({
-        'files': ['/private/files/a.pdf'], 'type': 'Landlord bank letter',
+        'items': [{'file': '/private/files/a.pdf',
+                   'type': 'Landlord bank letter'}],
         'building': 'AK-12'}))
     d = rows()[0]
     opts = [o for o in S.SCHEMA['Document Register']['document_type'][1].split('\n') if o]
@@ -200,6 +202,63 @@ def t_types_from_meta():
     assert documents.file_types() == opts, "the type list is not the register's own"
     assert 'Other' in opts
 check("the type list is read off the DocType, not repeated in code", t_types_from_meta)
+
+
+def t_type_per_file():
+    reset()
+    r = documents.save_files(json.dumps({
+        'items': [{'file': '/f/deed.pdf', 'type': 'Title Deed'},
+                  {'file': '/f/qid.pdf', 'type': 'QID'},
+                  {'file': '/f/chq.pdf', 'type': 'Cheque Batch'}],
+        'building': 'AK-12'}))
+    got = {d['source_file']: d['document_type'] for d in rows()}
+    assert got == {'/f/deed.pdf': 'Title Deed', '/f/qid.pdf': 'QID',
+                   '/f/chq.pdf': 'Cheque Batch'}, got
+    assert r['summary'] == '3 types', r['summary']
+    assert r['kinds'] == ['Title Deed', 'QID', 'Cheque Batch'], r['kinds']
+check("one drop of three kinds files as three kinds, in the order it was given",
+      t_type_per_file)
+
+
+def t_summary_when_all_one():
+    reset()
+    r = documents.save_files(json.dumps({
+        'items': [{'file': '/f/a.pdf', 'type': 'QID'},
+                  {'file': '/f/b.pdf', 'type': 'QID'}],
+        'unit': 'AK-12-F-01'}))
+    assert r['summary'] == 'QID', r['summary']
+check("a batch that really is one kind is named, not counted", t_summary_when_all_one)
+
+
+def t_legacy_shape():
+    reset()
+    r = documents.save_files(json.dumps({
+        'files': ['/f/a.pdf', '/f/b.pdf'], 'type': 'Title Deed',
+        'building': 'AK-12'}))
+    assert r['filed'] == 2 and r['summary'] == 'Title Deed', r
+    assert all(d['document_type'] == 'Title Deed' for d in rows()), rows()
+check("the older files + one type shape is still honoured", t_legacy_shape)
+
+
+def t_item_with_no_type():
+    reset()
+    documents.save_files(json.dumps({
+        'items': [{'file': '/f/a.pdf'}], 'building': 'AK-12'}))
+    assert rows()[0]['document_type'] == 'Other', rows()[0]
+check("an item that names no type falls to Other rather than to empty",
+      t_item_with_no_type)
+
+
+def t_empty_items():
+    reset()
+    for payload in ({'items': [], 'building': 'AK-12'},
+                    {'items': [{'type': 'QID'}], 'building': 'AK-12'}):
+        try:
+            documents.save_files(json.dumps(payload))
+            assert False, "accepted items with no file in them"
+        except S.ValidationError:
+            pass
+check("items carrying a type but no file are refused", t_empty_items)
 
 
 print()
