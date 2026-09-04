@@ -1,8 +1,84 @@
-# AK-12 clean rebuild — revision 10
+# AK-12 clean rebuild — revision 11
 
 Empty the site, load one building with its 8 units, 9 tenants (7 current,
 2 former), 11 agreements and nine months of real invoices and receipts, then
 prove the result. One module runs it all: `darkbrown/patches/ak12_rebuild.py`.
+
+---
+
+## Where the load got to — half of it
+
+The wipe worked and the rent side loaded correctly. The head-lease side did
+not, so the ledger has income and no cost:
+
+| Screen | Reads | Should read | |
+|---|---|---|---|
+| Journals | 138 | 156 | 9 purchase invoices + 9 landlord payments missing |
+| Trial balance | 3 accounts, 512,200 | 5 accounts, 836,200 | no Landlord Rent, no Creditors |
+| P&L (Jan–Sep 26) | income 196,800, expenses 0, **margin 100%** | income 196,800, expenses 126,000, net 70,800, margin 36% | |
+| Balance sheet | assets 256,400, bank 255,800 | assets 94,400, bank 93,800 | bank overstated by the 162,000 never paid out |
+| Cash flow | opening 59,600, closing 255,800 | opening 23,600, closing 93,800 | |
+
+Everything that *is* there is right. Debtors 256,400 charged against 255,800
+received leaves exactly the 600 Amani Guesmi owes; Rental Income 256,400 ties
+to the workbook; the balance sheet balances and the cash flow reconciles on
+their own arithmetic. The P&L reads 196,800 rather than 256,400 only because
+its default window opens on 01 Jan 26 and the history starts in Nov 2025 — the
+missing 59,600 is Nov and Dec, and it is sitting correctly in the cash flow's
+opening balance. Set the window to 01 Nov 25 to see the whole thing.
+
+### Why the cost side is missing
+
+The loader got as far as creating its expense account and then failed on the
+first Purchase Invoice. That is visible on your own screens: the Position panel
+counts 29 expense accounts where it counted 28 before, and 5 income accounts
+where it counted 4 — "Head Lease Rent" and "Rental Income" were both created.
+The traceback would have printed at the end of the load and scrolled past.
+
+Revision 11 adds a preflight to `load_ak12_headlease`. It checks everything a
+Purchase Invoice insert needs *before* building one — a Payable account, a
+Bank or Cash account, the "Landlord Rent" item actually being flagged as a
+purchase item, the head lease and its landlord existing, the building's cost
+centre, and a fiscal year covering every accrual date — and names whatever is
+missing instead of throwing. If the insert still fails, it now prints the
+supplier, company, posting date, credit account, expense account, item, cost
+centre and amount it tried to post, then stops.
+
+Run this and send me the output — it is read-only and takes a second:
+
+```
+bench --site erp.darkbrown.qa execute darkbrown.patches.load_ak12_headlease.dry_run
+```
+
+If the preflight is clean, then:
+
+```
+bench --site erp.darkbrown.qa execute darkbrown.patches.load_ak12_headlease.run
+```
+
+That posts only the missing 9 invoices and 9 payments. The rent side is already
+correct and is not touched.
+
+### Two things wrong in the shell, unrelated to the data
+
+**The General Ledger screen is stuck at 26 July 2026.** `shell/index.html` line
+691 has `const TODAY = new Date('2026-07-26')`, a prototype constant used in 32
+places. That is why the GL screen's trial balance says "as at 26 Jul 26" while
+the proper Trial Balance screen says "As at 05 Sept 26". Today it makes no
+difference, because the history ends 05 Jul 26 — but from August onward the GL
+screen will silently exclude everything after 26 July while the Trial Balance
+screen includes it, and the two will disagree. It needs to come from the server
+rather than a literal. I have not changed it in this pack: 32 call sites,
+several of them prototype screens that assume that date, so it wants its own
+verified pass rather than being bundled with a data fix.
+
+**"undefined to undefined · undefined accounts on the chart"** at the foot of
+the General Ledger and Journal Entries screens. `booksNote()` reads `from`,
+`to` and `accounts` off `window.BOOKS`; `api.accounting.books` does return all
+three, so the payload the shell is holding is not the one that endpoint
+returns. Cosmetic, but it is a symptom worth chasing.
+
+Say the word on either and I will fix them properly, with the route sweep.
 
 ---
 
@@ -326,7 +402,7 @@ nothing and looks like a load that ran.
 
 That is the failure this pack is built around. `check` reads the files
 actually on the server and refuses to say READY unless each one is the
-revision-10 copy. If `check` does not print `REVISION 10` and `READY`, the
+revision-11 copy. If `check` does not print `REVISION 11` and `READY`, the
 deploy did not land and nothing else is worth trying.
 
 **Second cause, once the first is fixed:** the site was never actually empty.
@@ -339,7 +415,7 @@ doctypes the purge does not list (Historical Monthly PL and seven others).
 
 ## Deploy
 
-1. Unzip `ak12_rebuild_r10.zip` over the **repo root** — the folder that
+1. Unzip `ak12_rebuild_r11.zip` over the **repo root** — the folder that
    contains `darkbrown/` and `setup.py`. Everything lands under
    `darkbrown/patches/` and `darkbrown/api/`. Nothing to delete.
 2. GitHub Desktop must show **exactly these 11 changes** — 3 new, 8 modified:

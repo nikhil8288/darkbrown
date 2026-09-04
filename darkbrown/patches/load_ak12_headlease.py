@@ -79,6 +79,78 @@ def _head_lease(building):
     return hl[0].name, hl[0].landlord
 
 
+def _preflight():
+    """Everything a Purchase Invoice insert needs, checked before one is built.
+
+    The rent side loaded and this side did not, which left a P&L with income
+    and no cost - a 100% margin on a business whose whole point is the spread.
+    The loader had already created its expense account before it failed, so the
+    failure was at the insert, and the traceback scrolled past in a deploy log.
+    Naming the missing piece up front is worth more than a stack trace.
+    """
+    out = []
+    company = L.company()
+    if not company:
+        return [("company", "DBR Settings has no default_company")]
+
+    if not frappe.db.get_value("Account", {"account_type": "Payable",
+                                           "company": company,
+                                           "is_group": 0}, "name"):
+        out.append(("payable account",
+                    "no Account on %s typed Payable - a Purchase Invoice has "
+                    "nowhere to credit" % company))
+    if not L.cash_account(company):
+        out.append(("bank/cash account",
+                    "no Account typed Bank or Cash - the landlord payment has "
+                    "nowhere to pay from"))
+
+    item = frappe.db.get_value("Item", "Landlord Rent",
+                               ["is_purchase_item", "has_variants",
+                                "disabled"], as_dict=True)
+    if item:
+        if not item.is_purchase_item:
+            out.append(("item Landlord Rent",
+                        "exists but is_purchase_item is 0 - ERPNext refuses it "
+                        "on a Purchase Invoice. Tick 'Is Purchase Item'."))
+        if item.disabled:
+            out.append(("item Landlord Rent", "is disabled"))
+
+    for r in _rows():
+        if not frappe.db.exists("Building", r["building"]):
+            continue
+        hl = frappe.get_all("Head Lease", filters={"building": r["building"]},
+                            fields=["name", "landlord"], limit=1)
+        if not hl:
+            out.append(("head lease", "%s has none" % r["building"]))
+        elif not hl[0].landlord:
+            out.append(("head lease", "%s has no landlord" % hl[0].name))
+        elif not frappe.db.exists("Supplier", hl[0].landlord):
+            out.append(("landlord", "Supplier %r does not exist"
+                        % hl[0].landlord))
+        if not L.cost_center(r["building"]):
+            out.append(("cost centre",
+                        "Building %s has no cost_center - the hook that writes "
+                        "it did not run" % r["building"]))
+        break
+
+    dates = sorted({r["accrued_on"] for r in _rows()}
+                   | {r["paid_on"] for r in _rows() if (r.get("paid_on") or "").strip()})
+    fys = frappe.get_all("Fiscal Year", fields=["year_start_date",
+                                                "year_end_date"])
+    for d in dates:
+        if not any(str(f.year_start_date) <= d <= str(f.year_end_date)
+                   for f in fys):
+            out.append(("fiscal year", "nothing covers %s" % d))
+            break
+
+    if frappe.db.get_value("Company", company, "enable_perpetual_inventory"):
+        out.append(("perpetual inventory",
+                    "enabled on %s - a stock item on the invoice would need a "
+                    "warehouse. The line uses a service item, so this is a "
+                    "warning rather than a blocker." % company))
+    return out
+
+
 def _checks(rows):
     problems = []
     accrued = 0.0
@@ -107,11 +179,18 @@ def dry_run():
     inv_seen, pay_seen = _existing()
     paid = sum(flt(r["paid_amount"]) for r in rows if (r.get("paid_on") or "").strip())
     assumed = sum(1 for r in rows if "ASSUMED" in (r.get("remarks") or ""))
+    pre = _preflight()
     print("=" * 76)
     print("DRY RUN - nothing created")
     print("=" * 76)
     print("  rows %d | PROBLEMS %d | invoices on site %d | payments on site %d"
           % (len(rows), len(problems), len(inv_seen), len(pay_seen)))
+    if pre:
+        print("\n  PREFLIGHT - these will stop the insert:")
+        for what, why in pre:
+            print("    %-20s %s" % (what, why))
+    else:
+        print("  preflight: everything the insert needs is present")
     for r in rows:
         print("  %-6s %s  accrue %10.2f on %s   pay %10.2f on %s  %s"
               % (r["building"], r["period"][:7], flt(r["amount"]),
@@ -132,13 +211,14 @@ def dry_run():
     for i, why in problems:
         print("  L%-4d %s" % (i + 2, why))
     return {"rows": len(rows), "problems": len(problems), "accrued": accrued,
-            "paid": paid, "ok": ok}
+            "paid": paid, "ok": ok and not pre, "preflight": pre}
 
 
 def run():
     rows = _rows()
     problems, accrued, ok = _checks(rows)
-    if problems or not ok:
+    pre = _preflight()
+    if problems or not ok or pre:
         print("ABORTING: dry_run is not clean. Nothing was created.")
         dry_run()
         return {"invoices": 0, "payments": 0, "aborted": True}
@@ -194,8 +274,26 @@ def run():
             })
             pi.flags.ignore_mandatory = True
             pi.flags.ignore_permissions = True
-            pi.insert(ignore_permissions=True)
-            pi.submit()
+            try:
+                pi.insert(ignore_permissions=True)
+                pi.submit()
+            except Exception:
+                import traceback
+                print("\n  FAILED on the %s invoice. What it tried to post:"
+                      % r["period"][:7])
+                print("    supplier        %s" % landlord)
+                print("    company         %s" % company)
+                print("    posting date    %s" % on)
+                print("    credit to       %s" % payable)
+                print("    expense account %s" % expense)
+                print("    item            %s" % item)
+                print("    cost centre     %s" % cc)
+                print("    amount          %s" % format(amount, ",.2f"))
+                print("\n" + traceback.format_exc())
+                print("  Nothing further was attempted. %d invoices and %d "
+                      "payments were created before this." % (made_inv, made_pay))
+                return {"invoices": made_inv, "payments": made_pay,
+                        "aborted": True, "failed_on": r["period"][:7]}
             pi_name = pi.name
             made_inv += 1
 
