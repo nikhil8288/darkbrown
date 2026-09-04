@@ -1,0 +1,82 @@
+[
+ {
+  "building_name": "AK-12",
+  "status": "Active",
+  "area_name": "Ain Khalid",
+  "landlord": {
+   "name": "AL MADAR REAL ESTATE W.L.L",
+   "type": "Company"
+  },
+  "units": [
+   {
+    "unit_no": "F-01",
+    "unit_type": "3BR",
+    "status": "Vacant",
+    "bedrooms": 3,
+    "asking_rent": 5000,
+    "furnishing": "Unfurnished"
+   },
+   {
+    "unit_no": "F-02",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 5700,
+    "furnishing": "Unfurnished"
+   },
+   {
+    "unit_no": "G-01",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 5000,
+    "furnishing": "Unfurnished"
+   },
+   {
+    "unit_no": "G-01A",
+    "unit_type": "1BR",
+    "status": "Vacant",
+    "bedrooms": 1,
+    "asking_rent": 3000,
+    "furnishing": "Unfurnished"
+   },
+   {
+    "unit_no": "G-01B",
+    "unit_type": "1BR",
+    "status": "Vacant",
+    "bedrooms": 1,
+    "asking_rent": 3200,
+    "furnishing": "Unfurnished"
+   },
+   {
+    "unit_no": "O-01",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 2000,
+    "furnishing": "Unfurnished"
+   },
+   {
+    "unit_no": "P-01",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 2500,
+    "furnishing": "Unfurnished"
+   },
+   {
+    "unit_no": "P-02",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 3000,
+    "furnishing": "Unfurnished"
+   }
+  ],
+  "head_lease": {
+   "annual_rent": 216000.0,
+   "start_date": "2025-11-01",
+   "end_date": "2026-11-30",
+   "payment_frequency": "Monthly"
+  },
+  "zone_no": "56",
+  "street_no": "224",
+  "building_no": "12",
+  "kahramaa_account_no": "1024870"
+ }
+]
