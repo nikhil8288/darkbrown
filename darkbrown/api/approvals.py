@@ -17,6 +17,17 @@ from frappe.utils import flt, today
 
 RESERVED = {"Deposit release", "Emergency maint."}
 
+#: The record each queue category actually lives on. The queue shows a
+#: category and an id; the decision has to be written against the doctype that
+#: holds it, and so does the note.
+KIND_DOCTYPE = {
+    "Amendment": "Agreement Amendment",
+    "Tenancy activation": "Tenancy Agreement",
+    "Emergency maint.": "Maintenance Request",
+    "Deposit release": "Security Deposit",
+    "Invoice run": "Invoice Run",
+}
+
 
 def _is_md():
     return bool({"Managing Director", "System Manager"} & set(frappe.get_roles()))
@@ -65,7 +76,24 @@ def decide(kind, reference, decision, note=None):
             _("Approvals are for the General Manager or above."),
             frappe.PermissionError)
 
-    return handler(reference, decision, note)
+    result = handler(reference, decision, note)
+
+    # The form calls this note "permanent in the audit trail" and makes it
+    # mandatory. It was not permanent: only three of the five handlers kept it,
+    # and only on rejection - an approved amendment, deposit release or invoice
+    # run discarded the reason entirely. Recording it here rather than in each
+    # handler means every category keeps it, and keeps it the same way.
+    from darkbrown.api import notes
+    if note:
+        notes.record(
+            KIND_DOCTYPE[kind], reference,
+            "{0}: {1}".format(
+                "Approved" if decision == "approve" else "Rejected", note))
+
+    if isinstance(result, dict):
+        result.setdefault("doctype", KIND_DOCTYPE[kind])
+        result.setdefault("kind", kind)
+    return result
 
 
 def _amendment(reference, decision, note):

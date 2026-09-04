@@ -3649,7 +3649,12 @@ ROUTES.mywork=()=>{
  const pend=APPR.filter(a=>a.st==='Pending');
  const over=pend.filter(a=>a.age>48).length;
  const oldest=pend.length?Math.max.apply(null,pend.map(a=>a.age)):0;
- const wired=!live||((window.DB_SEED&&DB_SEED.approvals||[]).length>0);
+ /* The queue arrives in the boot payload and `_failed` names anything that
+    raised. Read is read: a queue that came back with nothing in it means
+    nothing is waiting, and saying "not read" to that was the screen calling a
+    good day a broken one. */
+ const failed=(window.DB_SEED&&DB_SEED._failed)||[];
+ const wired=!live||(!!(window.DB_SEED&&DB_SEED.approvals)&&failed.indexOf('approvals')<0);
 
  const tiles=live
   ?(wired
@@ -3703,6 +3708,13 @@ ROUTES.mywork=()=>{
    <div class="card"><h3>Flagged for my attention</h3>${flagged}</div></div>`);
 };
 window.openAppr=id=>go('#/approval/'+id);
+/* Queue category -> the doctype the record actually lives on. Mirrors
+   approvals.KIND_DOCTYPE on the server; the note has to be written against
+   the record, not against the category. */
+const APPR_DT={'Amendment':'Agreement Amendment','Tenancy activation':'Tenancy Agreement',
+ 'Emergency maint.':'Maintenance Request','Deposit release':'Security Deposit',
+ 'Invoice run':'Invoice Run'};
+window.APPR_DT=APPR_DT;
 
 /* ---------------- Buildings ---------------- */
 ROUTES.buildings=()=>page('Buildings',`${BUILDINGS.length} buildings · ${UNITS.length} units · sublease portfolio`,'',
@@ -4487,7 +4499,10 @@ ROUTES.closing=()=>{
 ROUTES.approvals=()=>page('Approvals','Reserved MD categories cannot be delegated','',
  stat([['Pending',APPR.filter(a=>a.st==='Pending').length,'','a'],
   ['Over 48h',APPR.filter(a=>a.st==='Pending'&&a.age>48).length,'','r'],
-  ['Reserved to MD',APPR.filter(a=>a.res).length],['Approved this month',2,'','g']])+
+  ['Reserved to MD',APPR.filter(a=>a.res).length],
+  /* The queue only carries what is still pending, so a decided-this-month
+     count cannot be computed from it. It used to read a hardcoded 2. */
+  ['Decided',APPR.filter(a=>a.st!=='Pending').length,'in this queue']])+
  `<div class="card">${tbl([
   {h:'Ref',v:a=>a.id},{h:'Type',v:a=>a.ty},{h:'Detail',v:a=>a.ref},{h:'Amount',r:1,mono:1,v:a=>money(a.amt)},
   {h:'Age',r:1,v:a=>a.st==='Pending'?chip(a.age+'h',a.age>48?'r':'a'):'—'},
@@ -4549,33 +4564,79 @@ function addJrn(ty,desc,ref,lines,by){
     tot:lines.reduce((a,l)=>a+(l[1]||0),0)};
   JRN.unshift(j); return j;
 }
-function noteThread(ref){
-  const list=window.DB_LIVE?[]:(NOTES[ref]||[]);
-  /* NOTES is a hardcoded map keyed by prototype record ids, and saveNote()
-     only ever wrote into it. On a live site the composer accepted a note,
-     said "Note added", and lost it on the next render. There is no server
-     endpoint for notes, so when live the thread says so rather than
-     collecting something it cannot keep. */
-  const add=window.DB_LIVE
-   ?uw('Notes are not stored. No doctype or endpoint exists for the decision trail yet, '+
-       'so nothing typed here would survive a refresh.')
-   :`<div class="ntadd"><textarea id="ntbox" rows="2" placeholder="Add a note for the MD and GM — reasoning, conditions, or context"></textarea>
-     <div class="ntrow">
-       <select id="ntrole"><option>MD</option><option>GM</option><option>Accounts</option><option>Documentation</option><option>Collections</option></select>
-       <button class="btn pri" onclick="saveNote('${ref}')">Add note</button></div></div>`;
+/* The decision trail. Live it is Frappe Comments on the record itself, so
+   what is written here is the same trail the Desk timeline shows; in the
+   prototype it stays the hardcoded NOTES map.
+
+   `dt` is the doctype the notes hang on. A screen that cannot name one - the
+   prototype ledger, say - gets the honest panel rather than a composer that
+   would throw on submit. */
+function noteThread(ref, dt, name){
+  if(!window.DB_LIVE){
+    const list=NOTES[ref]||[];
+    return noteCard(list, list.length,
+      `<div class="ntadd"><textarea id="ntbox" rows="2" placeholder="Add a note for the MD and GM \u2014 reasoning, conditions, or context"></textarea>
+       <div class="ntrow">
+         <select id="ntrole"><option>MD</option><option>GM</option><option>Accounts</option><option>Documentation</option><option>Collections</option></select>
+         <button class="btn pri" onclick="saveNote('${ref}')">Add note</button></div></div>`);
+  }
+  if(!dt) return noteCard([],0,
+    uw('This screen has no record behind it to hang a note on, so the thread is '+
+       'not offered here.'));
+  name=name||ref;
+  const key='notes:'+dt+':'+name;
+  const c=lazy(key,'notes.thread',{doctype:dt,name:name});
+  if(c.state==='load') return noteCard([],null,empty('Reading the trail\u2026'));
+  if(c.state!=='ok') return noteCard([],null,
+    `<div class="unwired"><span class="uw-tag">SERVER ERROR</span>
+     <p>${esc(c.msg||'The notes could not be read.')}</p></div>`);
+  const list=(c.data&&c.data.notes)||[];
+  /* No role picker: the role is whatever the session holds, resolved on the
+     server. Nobody signs their own note as the Managing Director. */
+  const add=`<div class="ntadd">
+    <textarea id="ntbox" rows="2" maxlength="5000"
+      placeholder="Add a note \u2014 reasoning, conditions, or context"></textarea>
+    <div class="ntrow"><span class="m">Signed as ${esc(roleInfo(ROLEV)[0])}</span>
+      <button class="btn pri" id="ntsave"
+        onclick="postNote('${esc(dt)}','${esc(name)}','${esc(key)}')">Add note</button></div></div>`;
+  return noteCard(list, list.length, add);
+}
+
+function noteCard(list, count, add){
   return `<div class="card"><h3>Notes &amp; decision trail
-     <span class="plabel">${list.length} note${list.length===1?'':'s'} · visible to MD and GM</span></h3>
+     <span class="plabel">${count===null?'\u2014':count+' note'+(count===1?'':'s')} \u00b7 kept on the record</span></h3>
    ${list.length?`<div class="nts">${list.map(n=>`<div class="nt">
-     <div class="nh"><span class="av2">${n.by.split(' ').map(x=>x[0]).join('').slice(0,2)}</span>
-       <b>${n.by}</b><span class="chip n">${n.role}</span><span class="m">${n.when}</span></div>
-     <p>${n.t}</p></div>`).join('')}</div>`:(window.DB_LIVE?'':empty('No notes yet — add the first one below.'))}
+     <div class="nh"><span class="av2">${esc(String(n.by||'?').split(' ').map(x=>x[0]).join('').slice(0,2))}</span>
+       <b>${esc(n.by)}</b><span class="chip n">${esc(n.role||'')}</span>
+       <span class="m" title="${esc(n.when||'')}">${esc(n.ago||n.when||'')}</span></div>
+     <p>${esc(n.t||'')}</p></div>`).join('')}</div>`
+    :(count===0?empty('No notes yet \u2014 add the first one below.'):'')}
    ${add}</div>`;
 }
+
 window.saveNote=ref=>{
   const box=document.getElementById('ntbox'), role=document.getElementById('ntrole').value;
   const t=(box.value||'').trim(); if(!t){box.focus();return}
   addNote(ref, role==='MD'?'Managing Director':role==='GM'?'General Manager':role, role, t);
   toast('Note added'); router();
+};
+
+/* Writes, then drops just this thread from the cache rather than reloading
+   the whole boot payload - the rest of the screen has not changed. The button
+   is disabled while it is in flight so a double click files it twice. */
+window.postNote=(dt,name,key)=>{
+  const box=document.getElementById('ntbox');
+  const t=((box&&box.value)||'').trim();
+  if(!t){if(box)box.focus();return}
+  const btn=document.getElementById('ntsave');
+  if(btn){btn.disabled=true;btn.textContent='Saving\u2026'}
+  dbCall('notes.add',{doctype:dt,name:name,text:t}).then(()=>{
+    if(window.DB_LAZY) delete DB_LAZY[key];
+    toast('Note added'); router();
+  }).catch(e=>{
+    if(btn){btn.disabled=false;btn.textContent='Add note'}
+    toast(e.message||'The note was not saved');
+  });
 };
 
 /* ---------- expanded vault ---------- */
@@ -4792,12 +4853,17 @@ ROUTES.approval=id=>{const a=id?AP(id):APPR[0]; if(!a) return notFound('Approval
    <button class="btn" onclick="openForm('approve-decision',{dec:'Request more information',ref:'${a.id}'})">Request info</button>`:chip(a.st,'g'),
   stat([['Type',a.ty],['Amount',money(a.amt)],['Age',a.age+'h','',a.age>48?'r':''],
    ['Reserved',a.res?'MD only':'Delegable'],['Status',chip(a.st,stChip(a.st))],['Notes',(NOTES[a.id]||[]).length]])+
-  `<div class="card"><h3>Approval chain — workflow 2E</h3>${steps(['Requested','Documentation','GM review','MD decision'],3)}</div>
-  <div class="card"><h3>Rationale supplied</h3><p class="pp">${a.why}</p></div>
-  ${noteThread(a.id)}
-  <div class="card"><h3>Supporting records</h3><div class="list">
-   ${[['Source record',a.ref],['Linked documents','3 validated'],['Prior approvals','none']]
-    .map(r=>`<div class="it"><span class="dot n"></span><span class="t">${r[0]}</span><span class="m">${r[1]}</span></div>`).join('')}</div></div>`)};
+  `<div class="card"><h3>Approval chain</h3>${steps(['Requested','Awaiting decision','Decided'],
+    a.st==='Pending'?2:3)}
+   <p class="pp">${a.res?'Reserved to the Managing Director \u2014 this one cannot be delegated, '
+     +'and the check is on the server rather than in this screen.'
+     :'Decidable by the General Manager or above.'}</p></div>
+  <div class="card"><h3>Rationale supplied</h3><p class="pp">${esc(a.why||'\u2014')}</p></div>
+  ${noteThread(a.id, APPR_DT[a.ty], a.id)}
+  <div class="card"><h3>Source record</h3><div class="list">
+   ${[['Category',a.ty],['Record',APPR_DT[a.ty]?APPR_DT[a.ty]+' \u00b7 '+a.id:a.id],
+      ['Detail',a.ref]]
+    .map(r=>`<div class="it"><span class="dot n"></span><span class="t">${r[0]}</span><span class="m">${esc(String(r[1]))}</span></div>`).join('')}</div></div>`)};
 
 /* ---------- Case with notes ---------- */
 ROUTES.case=id=>{const c=id?CS(id):CASES[0]; if(!c) return notFound('Collection case','#/cases');
@@ -4809,7 +4875,7 @@ ROUTES.case=id=>{const c=id?CS(id):CASES[0]; if(!c) return notFound('Collection 
    ['Promise to pay',c.promise],['Owner',c.owner],['Notes',(NOTES[c.id]||[]).length]])+
   `<div class="card"><h3>Case progression</h3>${steps(stgs,Math.max(cur,1))}
    ${c.stage==='Promise broken'?'<div class="warn">Promise broken — case reopened automatically and surfaced in the MD exceptions feed.</div>':''}</div>
-  ${noteThread(c.id)}
+  ${noteThread(c.id, 'Collection Case', c.id)}
   <div class="card"><h3>Activity log</h3><div class="list">
    ${[['Case opened automatically — invoice 30 days overdue',dplus(-c.age)],
       ['Reminder sent by '+c.owner,dplus(-c.age+6)],
