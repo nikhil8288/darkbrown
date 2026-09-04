@@ -46,15 +46,11 @@ NAME_MAP = os.path.join(os.path.dirname(__file__), "arrears_name_map.csv")
 TAG_PREFIX = "SEED-ARREARS"
 TAG_RE = re.compile(r"\[(%s-\d{3})\]" % TAG_PREFIX)
 
-# Reset 28-Aug-2026 for the rebuilt cutover pack. The previous figure came
-# from a July extraction keyed on the older TWAR unit convention (R-nn),
-# which orphaned 17 of 65 unit keys against the current unit master. This
-# is the Net Rent Due at 31-Jul-26 control from REVENUE_WORKING, and the
-# guard below still aborts run() if the CSV drifts from it.
-# AK-12 only. This constant is the control total for whatever is currently in
-# opening_arrears.csv, and run() aborts on a mismatch. Raise it every time a
-# building is added to the file.
-EXPECTED_TOTAL = 600.00
+# AK-12 is loaded with its full receipt history by load_ak12_history, so
+# arrears fall out of the ledger on their own and nothing is seeded here.
+# Seeding as well would double them. The CSV ships with a header and no
+# rows; this stays 0.00 until a building is onboarded without its history.
+EXPECTED_TOTAL = 0.00
 
 
 def _tag(i):
@@ -88,7 +84,7 @@ def _name_map():
     if not os.path.exists(NAME_MAP):
         return {}
     out = {}
-    with open(NAME_MAP) as f:
+    with open(NAME_MAP, encoding="utf-8-sig") as f:
         for row in csv.DictReader(f):
             src = _norm(row.get("tenant_name"))
             dest = (row.get("customer") or "").strip()
@@ -142,7 +138,7 @@ def _resolve_accounts():
 # ---------------------------------------------------------------- rows
 
 def _load_rows():
-    with open(CSV) as f:
+    with open(CSV, encoding="utf-8-sig") as f:
         return list(csv.DictReader(f))
 
 

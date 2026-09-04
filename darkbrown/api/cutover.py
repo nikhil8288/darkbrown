@@ -28,7 +28,8 @@ PATCHES = frappe.get_app_path("darkbrown", "patches") if hasattr(
         os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "patches")
 
 FILES = ["tenancies.csv", "opening_arrears.csv", "buildings_payload.json",
-         "customers.json", "load_buildings.py", "load_customers.py",
+         "customers.json", "ak12_history.csv", "load_buildings.py",
+         "load_customers.py", "load_ak12_history.py", "ak12_rebuild.py",
          "tenancy_name_map.csv", "arrears_name_map.csv"]
 
 #: Order matters and is not negotiable. Tenancies resolve against Customers and
@@ -36,13 +37,17 @@ FILES = ["tenancies.csv", "opening_arrears.csv", "buildings_payload.json",
 #: Building. Each entry is (label, dotted module, needs).
 STEPS = [
     ("Tenants", "darkbrown.patches.load_customers",
-     "432 Customer records"),
+     "9 Customers - 7 current AK-12 tenants, 2 former"),
     ("Buildings and units", "darkbrown.patches.load_buildings",
-     "23 buildings, 305 units, 23 head leases"),
+     "1 building, 8 units, 1 head lease"),
     ("Tenancies", "darkbrown.patches.import_tenancies",
-     "266 tenancy agreements"),
+     "11 agreements - 7 live, 4 historical"),
     ("Opening arrears", "darkbrown.patches.seed_opening_arrears",
-     "56 rows, 124,202.00"),
+     "nothing - AK-12 carries its receipt history instead"),
+    # Last: it posts against the Customers, so they must exist first. This is
+    # what gives a tenant page a payment history rather than a bare balance.
+    ("Payment history", "darkbrown.patches.load_ak12_history",
+     "69 invoices, 69 receipts; 256,400.00 charged, 255,800.00 collected"),
 ]
 
 BAR = "-" * 72
@@ -74,8 +79,11 @@ def diagnose():
         if os.path.exists(p):
             extra = ""
             if f.endswith(".csv"):
-                with open(p, encoding="utf-8") as fh:
-                    extra = "  %d lines" % sum(1 for _ in fh)
+                with open(p, "rb") as fh:
+                    raw = fh.read()
+                extra = "  %d lines" % raw.count(b"\n")
+                if raw.startswith(b"\xef\xbb\xbf"):
+                    extra += "  !! BYTE-ORDER MARK - the loaders strip it, but this file was written by Excel"
             print("    present  %-26s %8d bytes%s"
                   % (f, os.path.getsize(p), extra))
         else:

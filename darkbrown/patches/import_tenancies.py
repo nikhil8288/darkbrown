@@ -149,7 +149,7 @@ def _name_map():
     if not os.path.exists(NAME_MAP):
         return {}
     out = {}
-    with open(NAME_MAP) as f:
+    with open(NAME_MAP, encoding="utf-8-sig") as f:
         for row in csv.DictReader(f):
             k = _norm(row.get("tenant_name"))
             v = (row.get("customer") or "").strip()
@@ -218,7 +218,7 @@ def _rows(path=None):
     path = path or CSV
     if not os.path.exists(path):
         frappe.throw("%s not found. Run template() and build it first." % path)
-    with open(path) as f:
+    with open(path, encoding="utf-8-sig") as f:
         return list(csv.DictReader(f))
 
 
@@ -226,7 +226,7 @@ def _charge_rows():
     if not os.path.exists(CHARGES_CSV):
         return {}
     out = collections.defaultdict(list)
-    with open(CHARGES_CSV) as f:
+    with open(CHARGES_CSV, encoding="utf-8-sig") as f:
         for r in csv.DictReader(f):
             key = ((r.get("building") or "").strip(),
                    (r.get("unit_no") or "").strip(),

@@ -94,10 +94,17 @@ def run():
         return {"created": 0, "skipped": 0, "failed": [], "aborted": True}
 
     idx = _index()
-    made, skipped, failed = 0, 0, []
+    made, skipped, flagged, failed = 0, 0, 0, []
     for n in names:
         if _norm(n) in idx:
             skipped += 1
+            # An existing Customer is still a tenant. Skipping it left the
+            # flag off, and the Tenants screen filters on that flag, so the
+            # tenant was invisible even though the record was fine.
+            for cust in idx[_norm(n)]:
+                if not frappe.db.get_value("Customer", cust, "db_is_tenant"):
+                    frappe.db.set_value("Customer", cust, "db_is_tenant", 1)
+                    flagged += 1
             continue
         try:
             doc = frappe.get_doc({
@@ -117,7 +124,8 @@ def run():
     frappe.db.commit()
 
     print(f"\n  customer group used: {group}")
-    print(f"  created {made}, skipped {skipped}, failed {len(failed)}")
+    print(f"  created {made}, skipped {skipped} "
+          f"({flagged} had the tenant flag switched on), failed {len(failed)}")
     if failed:
         # One full traceback beats fifty truncated ones. If the first name
         # failed, the rest failed for the same reason.
@@ -129,5 +137,5 @@ def run():
             print(f"\n  and {len(failed) - 1} more, almost certainly the same cause:")
             for n, err in failed[1:]:
                 print(f"    {n}: {str(err).splitlines()[0][:120]}")
-    return {"created": made, "skipped": skipped,
+    return {"created": made, "skipped": skipped, "flagged": flagged,
             "failed": [(n, str(e)[:200]) for n, e in failed]}

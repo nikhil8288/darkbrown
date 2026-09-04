@@ -1,4 +1,1 @@
-﻿source,property_code,unit,tenant_name,amount,due_date,remarks
-CUTOVER_NET_RENT_DUE,AK-12,G-01B,AMANI GUESMI,200.00,2026-05-05,"Net rent due at 31-Jul-2026 (rent 3200, received 3000)"
-CUTOVER_NET_RENT_DUE,AK-12,G-01B,AMANI GUESMI,200.00,2026-06-05,"Net rent due at 31-Jul-2026 (rent 3200, received 3000)"
-CUTOVER_NET_RENT_DUE,AK-12,G-01B,AMANI GUESMI,200.00,2026-07-05,"Net rent due at 31-Jul-2026 (rent 3200, received 3000)"
+source,property_code,unit,tenant_name,amount,due_date,remarks
