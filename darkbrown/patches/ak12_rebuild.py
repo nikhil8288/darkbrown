@@ -82,7 +82,7 @@ import traceback
 import frappe
 from frappe.utils import getdate
 
-REVISION = 8
+REVISION = 9
 CONFIRM = "REMOVE ALL DARKBROWN DATA"
 HERE = os.path.dirname(os.path.abspath(__file__))
 
@@ -90,7 +90,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 #: version. A file that exists but is the old copy is the failure mode that
 #: cost three attempts, so existence alone is not enough.
 DEPLOYED = [
-    ("ak12_rebuild.py",       "REVISION = 8"),
+    ("ak12_rebuild.py",       "REVISION = 9"),
+    ("wipe_ledger.py",        "direct table delete"),
     ("ak12_doctor.py",        "AK-12 DOCTOR"),
     ("load_ak12_history.py",  "income_account(company)"),
     ("load_ak12_headlease.py", "AK12-HL-INV"),
@@ -489,6 +490,11 @@ def reset(confirm=None):
                      format(float(r.cr or 0), ",.2f")))
 
     if any(left.values()):
+        print("\n  Nothing on the document layer can shift what is left. Use")
+        print("  the direct table delete instead - it needs no deploy:")
+        print("      bench --site erp.darkbrown.qa console")
+        print("  then paste darkbrown/patches/WIPE_CONSOLE.txt, or run")
+        print("      ...darkbrown.patches.wipe_ledger.run")
         print("\n  Something refused to delete. The reason is printed per record")
         print("  above - usually a submitted voucher that could not be cancelled.")
         print("  Fix that record in the desk and run reset again; it is safe to")

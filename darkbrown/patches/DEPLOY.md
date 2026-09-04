@@ -1,4 +1,4 @@
-# AK-12 clean rebuild — revision 8
+# AK-12 clean rebuild — revision 9
 
 Empty the site, load one building with its 8 units, 9 tenants (7 current,
 2 former), 11 agreements and nine months of real invoices and receipts, then
@@ -6,7 +6,65 @@ prove the result. One module runs it all: `darkbrown/patches/ak12_rebuild.py`.
 
 ---
 
-## What revision 8 fixes — read this first
+## Do this first — it needs no deploy
+
+Three rounds of fixing the purge have all failed the same way, and the reason
+is that they were all fixes to the same wrong idea: that a document can be
+removed by asking ERPNext to remove it. It cannot, once it is orphaned.
+Cancelling a Purchase Invoice re-reads its supplier to build the GL reversal.
+An earlier purge deleted that supplier. So cancel raises, the purge catches
+the exception and moves on, and the invoice stays. Better catching does not
+help. Neither does another deploy — and the deploy has been the least
+reliable link in this whole chain.
+
+So: **stop asking ERPNext.** Delete the rows.
+
+```
+bench --site erp.darkbrown.qa console
+```
+
+Paste the whole of `darkbrown/patches/WIPE_CONSOLE.txt`. It uses no DarkBrown
+code, so it works whether or not any of my previous packs ever reached the
+server. `frappe.db.delete` issues a DELETE against the table: nothing is
+validated, no link is re-read, no controller runs. An orphan is just a row.
+
+It prints what it will remove, removes it, then re-counts. The last line must
+read:
+
+```
+  GL Entry rows remaining: 0
+```
+
+Then load, which does need the pack on the server:
+
+```
+bench --site erp.darkbrown.qa execute darkbrown.patches.ak12_rebuild.check
+bench --site erp.darkbrown.qa execute darkbrown.patches.ak12_rebuild.load
+```
+
+`check` will tell you plainly whether the files are there. If it says `OLD` or
+`MISSING`, the deploy is the problem and always was — but the ledger will
+already be clean by then, which is the part that has been stuck.
+
+If you'd rather not paste into a console, the same code ships as a module:
+`bench --site erp.darkbrown.qa execute darkbrown.patches.wipe_ledger.run`
+(and `.preview` first, which changes nothing). That route does need the deploy.
+
+**What survives:** Company, chart of accounts, cost centres, fiscal years,
+items, users, roles, DBR Settings, Document Requirements, Staff Members.
+Transactions do not survive, and Customers and Suppliers go only if they carry
+the DarkBrown tenant/landlord flag. This is the right tool only because the
+site is a cutover site with nothing worth preserving — everything it should
+hold is in the CSVs beside it. Do not reach for it on a live ledger.
+
+Verified against a reproduction of your exact site — 8 purchase invoices,
+182,000, supplier already deleted so nothing will cancel. The pasted file
+takes the GL to zero, and the load then produces income 256,400, cost 162,000,
+net 94,400, balance sheet balanced, cash flow reconciled.
+
+---
+
+## What revision 8 fixed
 
 You purged and 182,000 stayed on the books: eight landlord purchase invoices,
 Landlord Rent 182,000 Dr, Creditors 182,000 Cr, on a site with no buildings and
@@ -201,7 +259,7 @@ nothing and looks like a load that ran.
 
 That is the failure this pack is built around. `check` reads the files
 actually on the server and refuses to say READY unless each one is the
-revision-8 copy. If `check` does not print `REVISION 8` and `READY`, the
+revision-9 copy. If `check` does not print `REVISION 9` and `READY`, the
 deploy did not land and nothing else is worth trying.
 
 **Second cause, once the first is fixed:** the site was never actually empty.
@@ -214,12 +272,14 @@ doctypes the purge does not list (Historical Monthly PL and seven others).
 
 ## Deploy
 
-1. Unzip `ak12_rebuild_r8.zip` over the **repo root** — the folder that
+1. Unzip `ak12_rebuild_r9.zip` over the **repo root** — the folder that
    contains `darkbrown/` and `setup.py`. Everything lands under
    `darkbrown/patches/` and `darkbrown/api/`. Nothing to delete.
 2. GitHub Desktop must show **exactly these 11 changes** — 3 new, 8 modified:
 
    ```
+   new       darkbrown/patches/wipe_ledger.py
+   new       darkbrown/patches/WIPE_CONSOLE.txt
    new       darkbrown/patches/ak12_doctor.py
    modified  darkbrown/patches/ak12_rebuild.py
    modified  darkbrown/patches/DEPLOY.md
