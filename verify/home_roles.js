@@ -86,7 +86,7 @@ function draw(win, hash) {
 }
 
 // ------------------------------------------------------------------ landing
-for (const [role, want] of [['MD','MD Command Centre'],['GM','General Manager · home'],
+for (const [role, want] of [['MD','MD Command Centre'],['GM','GM Command Centre'],
                             ['ACC','Accounts · home'],['DOC','Documentation · home'],
                             ['MNT','Maintenance · home']]) {
   const {win, errors} = boot(role);
@@ -103,12 +103,18 @@ for (const [role, want] of [['MD','MD Command Centre'],['GM','General Manager ·
 (() => {
   const {win} = boot('GM');
   const h = draw(win, '#/home');
-  t('GM home: approvals split, reserved counted but not offered', () => {
-    has(h, 'RUN-001', 'the GM-decidable approval');
-    has(h, 'reserved to the');
-    has(h, 'Waiting on me');
+  t('GM reads the same Home as the MD, not a second one', () => {
+    has(h, 'Awaiting me');
+    has(h, 'Flagged for my attention');
+    has(h, 'the same view, without the reserved decisions');
   });
-  t('GM home: occupancy, expiry and escalation are all present', () => {
+  t('GM: the reserved queue is named as the MD\'s, not as theirs', () => {
+    has(h, 'Reserved to the MD');
+    hasnt(h, 'Reserved to me', 'a GM told the reserved queue is theirs');
+    has(h, 'RUN-001', 'the approval a GM can actually clear');
+    has(h, 'will not clear from here');
+  });
+  t('the operations panels are on the shared Home, and the GM sees them', () => {
     has(h, 'AK-12-F-02', 'the vacant unit');
     has(h, 'bleed');
     has(h, 'TA-0001', 'the tenancy expiring inside 90 days');
@@ -116,6 +122,33 @@ for (const [role, want] of [['MD','MD Command Centre'],['GM','General Manager ·
     has(h, 'QID not captured');
     has(h, 'CASE-1', 'the broken promise');
     hasnt(h, 'CASE-2', 'a case that is not escalating');
+  });
+  t('GM: reserved items are not counted into what awaits them', () => {
+    // one reserved, one not, of two pending
+    const tiles = win.document.querySelectorAll('.st .v, .stat .v, .tile .v');
+    if (!/>1</.test(h)) throw new Error('the awaiting count did not drop to 1');
+  });
+})();
+
+(() => {
+  const {win} = boot('MD');
+  t('the Command Centre is still the MD\'s when the MD reads it', () => {
+    draw(win, '#/dash');
+    if (win.document.getElementById('ptop').textContent !== 'MD Command Centre')
+      throw new Error(win.document.getElementById('ptop').textContent);
+  });
+  const h = draw(win, '#/home');
+  t('MD is unchanged: reserved is theirs and is counted in', () => {
+    has(h, 'Reserved to me');
+    has(h, 'reserved approvals cannot be delegated');
+    has(h, 'SD-001', 'the reserved approval on the MD\'s own list');
+    hasnt(h, 'will not clear from here');
+  });
+  t('the MD sees the same operations panels the GM does', () => {
+    has(h, 'Vacant units and the bleed');
+    has(h, 'Expiring within 90 days');
+    has(h, 'Tenancies pending activation');
+    has(h, 'Collections escalating');
   });
 })();
 
@@ -186,7 +219,7 @@ for (const [role, want] of [['MD','MD Command Centre'],['GM','General Manager ·
 })();
 
 // ------------------------------------------------------------------ policy
-const DENIED = {GM:['dash'], ACC:['dash','approvals','maint'],
+const DENIED = {ACC:['dash','approvals','maint'],
                 DOC:['dash','cheques','recon','trial'],
                 MNT:['dash','cheques','coa','cases','agreements']};
 for (const [role, routes] of Object.entries(DENIED)) {
@@ -218,11 +251,33 @@ for (const [role, routes] of Object.entries(DENIED)) {
 })();
 
 (() => {
-  const {win} = boot('GM');
+  const {win} = boot('ACC');
   t('an unknown hash lands on the home, not on a refused Command Centre', () => {
     const h = draw(win, '#/nosuchroute');
     hasnt(h, 'cannot open this area');
-    has(h, 'Waiting on me');
+    has(h, 'Cheques due this week');
+  });
+})();
+
+(() => {
+  const {win} = boot('GM');
+  t('the Command Centre is named for the GM reading it', () => {
+    draw(win, '#/dash');
+    if (win.document.getElementById('ptop').textContent !== 'GM Command Centre')
+      throw new Error(win.document.getElementById('ptop').textContent);
+    const nv = [...win.document.querySelectorAll('.nv')].find(n => n.dataset.r === 'dash');
+    if (nv.textContent !== 'GM Command Centre')
+      throw new Error('sidebar still reads ' + nv.textContent);
+  });
+  t('GM can open the Command Centre and it is in the sidebar', () => {
+    const h = draw(win, '#/dash');
+    hasnt(h, 'cannot open this area');
+    const nv = [...win.document.querySelectorAll('.nv')].find(n => n.dataset.r === 'dash');
+    if (!nv || nv.style.display === 'none') throw new Error('hidden from the GM sidebar');
+  });
+  t('GM still cannot reach the owner-only tools', () => {
+    for (const r of ['admin', 'data'])
+      has(draw(win, '#/' + r), 'cannot open this area', r + ' was open to the GM');
   });
 })();
 

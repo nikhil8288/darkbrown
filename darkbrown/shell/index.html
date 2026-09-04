@@ -1274,7 +1274,7 @@ function router(){
   if(fc) fc.textContent = window.DB_LIVE
     ? `${BUILDINGS.length} buildings · ${UNITS.length} units · live data`
     : `V2 prototype — dummy data · ${BUILDINGS.length} buildings · ${UNITS.length} units`;
-  el('#ptop').textContent=({dash:'MD Command Centre',home:HOME_TITLE(),mywork:HOME_TITLE(),buildings:'Buildings',building:'Building',
+  el('#ptop').textContent=({dash:DASH_TITLE(),home:HOME_TITLE(),mywork:HOME_TITLE(),buildings:'Buildings',building:'Building',
    units:'Units',unit:'Unit',tenants:'Tenants',tenant:'Tenant',landlords:'Landlords',landlord:'Landlord',
    agreements:'Agreements',agreement:'Agreement',cases:'Collection cases',case:'Collection case',
    moveout:'Move-out',maint:'Maintenance',job:'Maintenance job',utilities:'Utilities',intake:'Document intake',
@@ -3680,8 +3680,15 @@ function panel(title, keys, body, note){
       : body()}${note&&!missing.length?`<p class="pp">${note}</p>`:''}</div>`;
 }
 
+/* MD and GM read the same Command Centre. It is still named for the person in
+   front of it - a General Manager working all day under a heading that says MD
+   is being told, every screen, that this is somebody else's. */
+const DASH_TITLE=()=>((typeof ROLEV!=='undefined'&&ROLEV==='GM')
+  ?'GM Command Centre':'MD Command Centre');
+window.DASH_TITLE=DASH_TITLE;
+
 const HOME_TITLE=()=>(typeof ROLEV==='undefined'?'Home'
-  :ROLEV==='MD'?'My work':roleInfo(ROLEV)[0]+' \u00b7 home');
+  :(ROLEV==='MD'||ROLEV==='GM')?'My work':roleInfo(ROLEV)[0]+' \u00b7 home');
 
 /* Shared bits the role panels lean on. */
 const homeAppr=()=>APPR.filter(a=>a.st==='Pending');
@@ -3695,7 +3702,11 @@ const apprTbl=rows=>rows.length?tbl(
 
 ROUTES.home=()=>{
   const role=(typeof ROLEV==='undefined'?'MD':ROLEV);
-  const build=({MD:homeMD,GM:homeGM,ACC:homeACC,DOC:homeDOC,MNT:homeMNT}[role])||homeMD;
+  /* GM reads the MD's Home, not a second one. Where the two genuinely differ
+     is authority, not information, so the screen is shared and the couple of
+     places that would misstate a GM's standing are the only things that turn
+     on the role. */
+  const build=({MD:homeMD,GM:homeMD,ACC:homeACC,DOC:homeDOC,MNT:homeMNT}[role])||homeMD;
   const h=build();
   return page(HOME_TITLE(), h.sub, h.act||'', stat(h.tiles)+h.body);
 };
@@ -3712,15 +3723,25 @@ function homeMD(){
    'portfolio/headleases':'#/buildings','maintenance/aging':'#/maint',
    'finance/pdc':'#/cheques'};
   const attGo=r=>ATTGO[r]||(String(r||'').indexOf('portfolio/units')===0?'#/units':'');
+  /* The one thing a GM must not be told is that the reserved queue is
+     theirs. They can see it - it is on the Approvals screen either way - but
+     the tile has to name whose it is, or a General Manager reads "Reserved to
+     me" and waits on a decision that is not theirs to make. */
+  const md=(typeof ROLEV==='undefined'||ROLEV==='MD');
+  const res=pend.filter(a=>a.res);
   return {
-    sub:'Managing Director \u00b7 reserved approvals cannot be delegated',
-    tiles:[['Awaiting me',paySent('approvals')?pend.length:'\u2014',
+    sub:md?'Managing Director \u00b7 reserved approvals cannot be delegated'
+          :'General Manager \u00b7 the same view, without the reserved decisions',
+    tiles:[['Awaiting me',paySent('approvals')?(md?pend.length:pend.length-res.length):'\u2014',
              paySent('approvals')?(over?over+' over 48h':'none over 48h'):'queue not read',over?'r':''],
-           ['Reserved to me',paySent('approvals')?pend.filter(a=>a.res).length:'\u2014','MD only'],
+           [md?'Reserved to me':'Reserved to the MD',
+             paySent('approvals')?res.length:'\u2014','MD only'],
            ['Oldest waiting',paySent('approvals')?(pend.length?homeOldest(pend)+'h':'\u2014'):'\u2014','',
              homeOldest(pend)>48?'r':'']],
     body:`<div class="grid2">
-     ${panel('Approvals waiting on me','approvals',()=>apprTbl(pend))}
+     ${panel('Approvals waiting on me','approvals',()=>apprTbl(md?pend:pend.filter(a=>!a.res))
+       +(!md&&res.length?`<p class="pp">${res.length} further item${res.length===1?' is':'s are'}
+         reserved to the Managing Director and will not clear from here.</p>`:''))}
      ${panel('Flagged for my attention','attention',()=>att.length
        ?`<div class="list">${att.map(a=>{const to=attGo(a[4]);
           const dot=a[1]==='high'?'r':a[1]==='warn'?'a':'g';
@@ -3728,13 +3749,16 @@ function homeMD(){
             <span class="dot ${dot}"></span><span class="t">${esc(a[3]||'')}</span>
             ${to?`<span class="mini">${esc(a[5]||'Open')}</span>`:''}</div>`}).join('')}</div>`
        :empty('Nothing is flagged for your attention'))}
-    </div>`};
+    </div>
+    ${homeOps()}`};
 }
 
-/* ---- GM: the operations picture ---- */
-function homeGM(){
-  const pend=homeAppr();
-  const mine=pend.filter(a=>!a.res), theirs=pend.filter(a=>a.res);
+/* The operations picture. It sits under the approvals on the shared Home
+   rather than on a screen of its own, because these are the same four
+   questions the Managing Director and the General Manager both open the
+   morning with: what is not let, what is about to end, what has not been
+   activated, and who has stopped paying. */
+function homeOps(){
   const routed=AGR.filter(a=>a.st==='Pending');
   const vacant=UNITS.filter(u=>u.st!=='Occupied');
   const bleed=vacant.reduce((t,u)=>t+(u.llRent||0),0);
@@ -3743,52 +3767,40 @@ function homeGM(){
                  .filter(a=>(a.endD||999)<=90).sort((x,y)=>(x.endD||0)-(y.endD||0));
   const hot=CASES.filter(c=>c.stage==='Promise broken'||c.stage==='Legal notice'
                             ||c.stage==='Escalated');
-  return {
-   sub:'General Manager \u00b7 approvals, occupancy and the expiry runway',
-   tiles:[['Waiting on me',paySent('approvals')?mine.length:'\u2014',
-            theirs.length?theirs.length+' reserved to MD':'',mine.length?'a':''],
-          ['Pending activation',paySent('agreements')?routed.length:'\u2014','paperwork short',
-            routed.length?'a':''],
-          ['Vacant units',paySent('units')?vacant.length:'\u2014',
-            paySent('units')?n0(bleed)+'/mo bleed':'',vacant.length?'r':''],
-          ['Expiring \u2264 90d',paySent('agreements')?expTA.length:'\u2014','tenancies',
-            expTA.length?'a':''],
-          ['Cases escalating',paySent('cases')?hot.length:'\u2014','',hot.length?'r':'']],
-   body:`<div class="grid2">
-    ${panel('Waiting on me','approvals',()=>apprTbl(mine)+(theirs.length
-      ?`<p class="pp">${theirs.length} further item${theirs.length===1?' is':'s are'} reserved to the
-        Managing Director and will not clear from here.</p>`:''))}
-    ${panel('Tenancies pending activation','agreements',()=>routed.length?tbl(
-      [{h:'Ref',v:a=>a.id},{h:'Tenant',v:a=>a.tn},{h:'Unit',v:a=>a.u},
-       {h:'Rent',r:1,mono:1,v:a=>n0(a.rent)},{h:'Missing',v:a=>esc(a.missing||'\u2014')}],
-      routed.map(a=>({...a,__id:a.id})),{id:'hgr',click:'openA'})
-      :empty('Nothing is waiting on paperwork'))}
-   </div>
-   <div class="grid2">
-    ${panel('Expiring within 90 days',['agreements'],()=>expTA.length?tbl(
-      [{h:'Ref',v:a=>a.id},{h:'Tenant',v:a=>a.tn},{h:'Unit',v:a=>a.u},
-       {h:'Ends',r:1,v:a=>a.end},
-       {h:'Days',r:1,mono:1,v:a=>chip(a.endD,(a.endD||0)<30?'r':'a')},
-       {h:'Renewal',v:a=>chip(a.ren||'\u2014',stChip(a.ren))}],
-      expTA.slice(0,15).map(a=>({...a,__id:a.id})),{id:'hge',click:'openA'})
-      :empty('No tenancy ends inside 90 days'),
-      expHL.length?expHL.length+' head lease'+(expHL.length===1?'':'s')+
-        ' also end within the window \u2014 a sublease that outlives its head lease is the one to catch.':'')}
+  return `<div class="grid2">
     ${panel('Vacant units and the bleed','units',()=>vacant.length?tbl(
       [{h:'Unit',v:u=>u.id},{h:'Building',v:u=>u.bn},{h:'Type',v:u=>u.type},
        {h:'Head-lease cost',r:1,mono:1,v:u=>n0(u.llRent)},
        {h:'Void days',r:1,v:u=>chip(u.vd||0,(u.vd||0)>30?'r':'a')}],
-      vacant.slice(0,15).map(u=>({...u,__id:u.id})),{id:'hgv',click:'openU'})
+      vacant.slice(0,15).map(u=>({...u,__id:u.id})),{id:'hov',click:'openU'})
       :empty('Every unit is occupied'),
-      vacant.length?'Costing '+n0(bleed)+' a month in head-lease rent against no sublease income.':'')}
+      vacant.length?'Costing '+n0(bleed)+' a month in head-lease rent against no sublease income.'
+        +(vacant.length>15?' Showing 15 of '+vacant.length+'.':''):'')}
+    ${panel('Expiring within 90 days','agreements',()=>expTA.length?tbl(
+      [{h:'Ref',v:a=>a.id},{h:'Tenant',v:a=>a.tn},{h:'Unit',v:a=>a.u},
+       {h:'Ends',r:1,v:a=>a.end},
+       {h:'Days',r:1,mono:1,v:a=>chip(a.endD,(a.endD||0)<30?'r':'a')},
+       {h:'Renewal',v:a=>chip(a.ren||'\u2014',stChip(a.ren))}],
+      expTA.slice(0,15).map(a=>({...a,__id:a.id})),{id:'hoe',click:'openA'})
+      :empty('No tenancy ends inside 90 days'),
+      expHL.length?expHL.length+' head lease'+(expHL.length===1?'':'s')+
+        ' also end within the window \u2014 a sublease that outlives its head lease is the one to catch.':'')}
    </div>
-   ${panel('Collections escalating','cases',()=>hot.length?tbl(
-     [{h:'Case',v:c=>c.id},{h:'Tenant',v:c=>c.tn},
-      {h:'Amount',r:1,mono:1,v:c=>n0(c.amt)},
-      {h:'Stage',v:c=>chip(c.stage,stChip(c.stage))},
-      {h:'Age',r:1,v:c=>(c.age||0)+'d'},{h:'Owner',v:c=>c.owner}],
-     hot.map(c=>({...c,__id:c.id})),{id:'hgc',click:'openCase'})
-     :empty('No case has broken a promise or gone to legal'))}`};
+   <div class="grid2">
+    ${panel('Tenancies pending activation','agreements',()=>routed.length?tbl(
+      [{h:'Ref',v:a=>a.id},{h:'Tenant',v:a=>a.tn},{h:'Unit',v:a=>a.u},
+       {h:'Rent',r:1,mono:1,v:a=>n0(a.rent)},{h:'Missing',v:a=>esc(a.missing||'\u2014')}],
+      routed.map(a=>({...a,__id:a.id})),{id:'hor',click:'openA'})
+      :empty('Nothing is waiting on paperwork'),
+      routed.length?'Short of its pack, so it routed here instead of self-activating.':'')}
+    ${panel('Collections escalating','cases',()=>hot.length?tbl(
+      [{h:'Case',v:c=>c.id},{h:'Tenant',v:c=>c.tn},
+       {h:'Amount',r:1,mono:1,v:c=>n0(c.amt)},
+       {h:'Stage',v:c=>chip(c.stage,stChip(c.stage))},
+       {h:'Age',r:1,v:c=>(c.age||0)+'d'},{h:'Owner',v:c=>c.owner}],
+      hot.map(c=>({...c,__id:c.id})),{id:'hoc',click:'openCase'})
+      :empty('No case has broken a promise or gone to legal'))}
+   </div>`;
 }
 
 /* ---- Accounts: the money day ---- */
@@ -6310,8 +6322,10 @@ window.cycleRole=()=>{const o=Object.keys(ROLES);
    are unchanged. Hiding a door that does not open is a courtesy; it is not a
    permission. */
 const ROLE_DENY={
-  /* The General Manager runs everything except the owner's own tools. */
-  GM:['dash','admin','data'],
+  /* The General Manager runs everything except the owner's own tools. The
+     Command Centre is deliberately not on this list: MD and GM read the same
+     dashboard. */
+  GM:['admin','data'],
   /* Accounts is the money and the books. Not the portfolio's shape, not the
      approval bench - ACC can raise an invoice run, it cannot approve one. */
   ACC:['dash','admin','data','approvals','approval','maint','job','utilities'],
@@ -6328,20 +6342,29 @@ const ROLE_DENY={
        'landlords','landlord','agreements','agreement','intake','reports']};
 
 function roleCan(r){
-  if(RESTRICTED.includes(r))return ROLEV==='MD'||ROLEV==='GM';
-  if(PLANONLY.includes(r))return ROLEV==='MD'||ROLEV==='GM';
-  if(BOOKS.includes(r))return ROLEV==='MD'||ROLEV==='GM'||ROLEV==='ACC';
   /* Home is the one screen nobody can be shut out of - it is where a role
      that cannot open the route it asked for gets sent. */
   if(r==='home'||r==='mywork')return true;
-  return (ROLE_DENY[ROLEV]||[]).indexOf(r)<0;}
+  /* Named denial first. The category rules below are broad allows, and a
+     broad allow was beating a specific denial: `data` is on RESTRICTED,
+     which admits MD and GM, so the General Manager kept the purge screen
+     even though ROLE_DENY named it and admin.py refuses anyone but the
+     Managing Director. A rule that says "not this one" has to win. */
+  if((ROLE_DENY[ROLEV]||[]).indexOf(r)>=0)return false;
+  if(RESTRICTED.includes(r))return ROLEV==='MD'||ROLEV==='GM';
+  if(PLANONLY.includes(r))return ROLEV==='MD'||ROLEV==='GM';
+  if(BOOKS.includes(r))return ROLEV==='MD'||ROLEV==='GM'||ROLEV==='ACC';
+  return true;}
 window.roleCan=roleCan;
 
-/* Where a role starts. The MD keeps the Command Centre; everyone else lands
-   on the reading of Home built for them. */
-const ROLE_HOME=r=>r==='MD'?'#/dash':'#/home';
+/* Where a role starts. The Managing Director and the General Manager share
+   the Command Centre; the other three land on the reading of Home built for
+   them. */
+const ROLE_HOME=r=>(r==='MD'||r==='GM')?'#/dash':'#/home';
 window.ROLE_HOME=ROLE_HOME;
 function applyRole(){
+  const d=document.querySelector('.nv[data-r="dash"]');
+  if(d)d.textContent=DASH_TITLE();
   const u=document.getElementById('userbox');
   if(u)u.innerHTML=`<div class="av">${ROLEV==='ACC'?'AC':ROLEV==='DOC'?'DO':ROLEV}</div>
     <div>${roleInfo(ROLEV)[0]}<small>${roleInfo(ROLEV)[1]}</small></div>`;
