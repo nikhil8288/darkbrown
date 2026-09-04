@@ -67,3 +67,47 @@ before reloading.
 - **For Anoop:** G-01A rent dropped 3400 → 3000 on the tenant change in Mar-2026;
   confirm that was agreed. Advances sat on G-01A (3000, Apr–Jun) and P-01 (2500,
   Apr–May).
+
+---
+
+# Revision 2 — why the first load came back empty
+
+Buildings and units loaded. **Zero Customers were created**, so the tenancy step
+had nothing to match and refused all seven agreements, and the arrears step never
+ran. The data was fine; `load_customers.py` was broken.
+
+It filed every Customer under the Customer Group **"All Customer Groups"** and the
+Territory **"All Territories"**. Both are root nodes of their trees — group nodes,
+not leaves — and ERPNext refuses to file a party against one. It also omitted
+`ignore_mandatory`.
+
+The step then reported a count and swallowed the error, so it looked like it had
+run. The Tenants screen filters `Customer` on `db_is_tenant`, so with no Customers
+it returned an empty list — which is the screen you sent.
+
+`load_customers.py` in this zip is rewritten to do exactly what
+`darkbrown.api.agreements._tenant()` does: resolve a real leaf group (Commercial,
+else any `is_group = 0`), skip Territory and let ERPNext default it, and set
+`ignore_mandatory`. It also prints the first failure in full instead of a
+truncated line, so the next bad step is visible where it happens.
+
+Reproduced against a stubbed site: old loader 0 created / 7 failed, new loader
+7 created / 0 failed, all with `db_is_tenant = 1`.
+
+## What to do now
+
+The 8 units already exist and are correct, so leave them. Only the tenants and
+tenancies need to run.
+
+1. Unzip over the repo root, commit, deploy.
+2. `#/data` → **Dry run**. Buildings will report 1 already present and skipped.
+   Tenants should report 7 to create. Tenancies should report 7 rows with zero
+   unmatched.
+3. **Load for real.**
+
+Expected after: 7 tenants, 7 tenancies, 7 of 8 units Occupied, P-02 Void,
+arrears 600.00.
+
+If the dry run says the site has no non-group Customer Group, create one called
+Commercial in the desk first — the loader now aborts loudly on that instead of
+failing seven times in silence.
