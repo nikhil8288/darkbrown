@@ -82,7 +82,7 @@ import traceback
 import frappe
 from frappe.utils import getdate
 
-REVISION = 9
+REVISION = 10
 CONFIRM = "REMOVE ALL DARKBROWN DATA"
 HERE = os.path.dirname(os.path.abspath(__file__))
 
@@ -90,7 +90,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 #: version. A file that exists but is the old copy is the failure mode that
 #: cost three attempts, so existence alone is not enough.
 DEPLOYED = [
-    ("ak12_rebuild.py",       "REVISION = 9"),
+    ("ak12_rebuild.py",       "REVISION = 10"),
+    ("wipe_ledger_once.py",   "no buildings"),
     ("wipe_ledger.py",        "direct table delete"),
     ("ak12_doctor.py",        "AK-12 DOCTOR"),
     ("load_ak12_history.py",  "income_account(company)"),

@@ -21,6 +21,14 @@ darkbrown.patches.migrate_building_documents
 darkbrown.patches.fix_workspace_cards
 darkbrown.patches.rename_document_types
 
+# One-shot: clears the stale cutover ledger that no purge could shift, because
+# its vouchers are orphaned and will not cancel. Guarded twice - it refuses if
+# the site has any Building record, and refuses if the AK-12 pack's own rent
+# invoices are posted - so it can never fire on a loaded or live ledger, Patch
+# Log or no Patch Log. Safe to leave registered; safe to delete once AK-12 is
+# loaded and you would rather it were not in the tree at all.
+darkbrown.patches.wipe_ledger_once
+
 # ---------------------------------------------------------------------------
 # DELIBERATELY NOT REGISTERED
 #

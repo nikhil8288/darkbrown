@@ -1,4 +1,4 @@
-# AK-12 clean rebuild — revision 9
+# AK-12 clean rebuild — revision 10
 
 Empty the site, load one building with its 8 units, 9 tenants (7 current,
 2 former), 11 agreements and nine months of real invoices and receipts, then
@@ -6,7 +6,74 @@ prove the result. One module runs it all: `darkbrown/patches/ak12_rebuild.py`.
 
 ---
 
-## Do this first — it needs no deploy
+## Do this first
+
+Purging from inside the ERP will never work, however many times the repo is
+updated. That button goes through ERPNext's document layer, and these eight
+invoices are orphaned — their supplier was deleted by an earlier purge, so
+cancelling them raises an exception and every purge catches it and moves on.
+Deploying new code does not change what that button does.
+
+The wipe has to run outside the document layer. There are two ways, and the
+first needs no command line:
+
+### Route 1 — deploy, and it clears itself (recommended)
+
+Unzip this pack, commit, push, then update the site in Frappe Cloud exactly
+the way you already have been. Frappe runs `bench migrate` as part of that,
+and `darkbrown.patches.wipe_ledger_once` is now registered in `patches.txt`,
+so it runs automatically during the deploy and clears the ledger by direct
+table delete. In the deploy log you will see:
+
+```
+  [wipe_ledger_once] no buildings, 16 GL rows: clearing the stale cutover ledger.
+  removed       8  Purchase Invoice
+  removed      16  GL Entry
+  GL Entry rows remaining: 0
+  [wipe_ledger_once] done - the ledger is empty.
+```
+
+Then load, from the Data screen (Load for real) or the bench.
+
+It is guarded twice, so it cannot ever hurt you later: it refuses if the site
+has **any** Building record, and refuses if the pack's own rent invoices are
+posted. The moment AK-12 loads, Building becomes 1 and the patch is inert
+forever — verified, including with the Patch Log ignored. Frappe also records
+it so it does not run twice in the first place.
+
+### Route 2 — if you have a shell
+
+```
+bench --site erp.darkbrown.qa execute darkbrown.patches.wipe_ledger.preview
+bench --site erp.darkbrown.qa execute darkbrown.patches.wipe_ledger.run
+```
+
+`preview` changes nothing. Or paste `WIPE_CONSOLE.txt` into
+`bench --site erp.darkbrown.qa console`, which uses no DarkBrown code at all
+and therefore works even if a deploy never landed.
+
+### Why direct deletes
+
+`frappe.db.delete` issues a DELETE against the table. Nothing is validated, no
+link is re-read, no controller runs. An orphan is just a row. That is blunt,
+and it is right only because this is a cutover site with nothing worth
+preserving — everything it should hold is in the CSVs beside this file. Do not
+reuse it after go-live.
+
+**What survives:** Company, chart of accounts, cost centres, fiscal years,
+items, users, roles, DBR Settings, Document Requirements, Staff Members.
+Customers and Suppliers go only if they carry the DarkBrown tenant/landlord
+flag.
+
+Verified against a reproduction of your exact site — 8 purchase invoices,
+182,000, supplier already deleted so nothing will cancel. The patch clears it
+during migrate, a second migrate does nothing, the load then produces income
+256,400, cost 162,000, net 94,400, balance sheet balanced, cash flow
+reconciled, and running the patch again after that refuses.
+
+---
+
+## The console route in detail
 
 Three rounds of fixing the purge have all failed the same way, and the reason
 is that they were all fixes to the same wrong idea: that a document can be
@@ -259,7 +326,7 @@ nothing and looks like a load that ran.
 
 That is the failure this pack is built around. `check` reads the files
 actually on the server and refuses to say READY unless each one is the
-revision-9 copy. If `check` does not print `REVISION 9` and `READY`, the
+revision-10 copy. If `check` does not print `REVISION 10` and `READY`, the
 deploy did not land and nothing else is worth trying.
 
 **Second cause, once the first is fixed:** the site was never actually empty.
@@ -272,12 +339,14 @@ doctypes the purge does not list (Historical Monthly PL and seven others).
 
 ## Deploy
 
-1. Unzip `ak12_rebuild_r9.zip` over the **repo root** — the folder that
+1. Unzip `ak12_rebuild_r10.zip` over the **repo root** — the folder that
    contains `darkbrown/` and `setup.py`. Everything lands under
    `darkbrown/patches/` and `darkbrown/api/`. Nothing to delete.
 2. GitHub Desktop must show **exactly these 11 changes** — 3 new, 8 modified:
 
    ```
+   new       darkbrown/patches/wipe_ledger_once.py
+   modified  darkbrown/patches.txt
    new       darkbrown/patches/wipe_ledger.py
    new       darkbrown/patches/WIPE_CONSOLE.txt
    new       darkbrown/patches/ak12_doctor.py
