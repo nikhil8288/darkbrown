@@ -584,8 +584,8 @@ body.focus main{max-width:none}
   <div class="logo" onclick="go(&#39;#/dash&#39;);closeNav()"><div class="wm">Darkbrown</div><div class="sub">Real Estate</div></div>
   <nav id="nav">
     <div class="grp">Overview</div>
+    <div class="nv" data-r="home">Home</div>
     <div class="nv on" data-r="dash">MD Command Centre</div>
-    <div class="nv" data-r="mywork">My Work</div>
     <div class="grp">Portfolio</div>
     <div class="nv" data-r="buildings">Buildings</div>
     <div class="nv" data-r="units">Units</div>
@@ -1236,13 +1236,19 @@ function routeError(r,e){
      unaffected \u2014 this is one route, not the application.</p></div></div>`);
 }
 function router(){
-  const h=(location.hash||'#/dash').slice(2);
+  /* The empty hash used to mean the MD Command Centre for everybody, which
+     four of the five roles cannot open. It now means whatever that role's
+     home is, and the unknown-route fallback goes there too rather than to a
+     screen the visitor would only be refused. */
+  const dflt=(typeof ROLE_HOME==='function'&&typeof ROLEV!=='undefined')
+    ? ROLE_HOME(ROLEV) : '#/dash';
+  const h=(location.hash||dflt).slice(2);
   const [r,rawId]=h.split('/');
   /* Real docnames contain spaces — "Najma Tower", "Najma Tower-501" — and the
      hash encodes them. Without decoding, every lookup missed and the
      ||first-row fallbacks rendered the wrong record without saying so. */
   const id=rawId?decodeURIComponent(rawId):rawId;
-  const fn=ROUTES[r]||ROUTES.dash;
+  const fn=ROUTES[r]||ROUTES[dflt.slice(2)]||ROUTES.dash;
   document.body.classList.remove('focus');
   let out;
   try{
@@ -1257,15 +1263,18 @@ function router(){
   /* the chrome is drawn after the screen and must not be able to take it
      down with it — a bad badge is a cosmetic fault, not a blank page */
   try{ gateAlerts(); setBadge(); gateNav(); }catch(e){console.error('chrome',e)}
-  try{ if(r==='dash') renderDash(); else if(window.DB_LIVE) gateChrome(); }
+  /* renderDash writes into the Command Centre's own elements. Blocking the
+     route means those were never drawn, so running it anyway threw and
+     replaced the block message with an error page. */
+  try{ if(r==='dash'&&roleCan('dash')) renderDash(); else if(window.DB_LIVE) gateChrome(); }
   catch(e){ console.error('dash',e);
-    if(r==='dash') el('#view').innerHTML=routeError('dash',e); }
+    if(r==='dash'&&roleCan('dash')) el('#view').innerHTML=routeError('dash',e); }
   if(r==='data'&&window.dtResume) setTimeout(window.dtResume,0);
   const fc=el('#footcount');
   if(fc) fc.textContent = window.DB_LIVE
     ? `${BUILDINGS.length} buildings · ${UNITS.length} units · live data`
     : `V2 prototype — dummy data · ${BUILDINGS.length} buildings · ${UNITS.length} units`;
-  el('#ptop').textContent=({dash:'MD Command Centre',mywork:'My Work',buildings:'Buildings',building:'Building',
+  el('#ptop').textContent=({dash:'MD Command Centre',home:HOME_TITLE(),mywork:HOME_TITLE(),buildings:'Buildings',building:'Building',
    units:'Units',unit:'Unit',tenants:'Tenants',tenant:'Tenant',landlords:'Landlords',landlord:'Landlord',
    agreements:'Agreements',agreement:'Agreement',cases:'Collection cases',case:'Collection case',
    moveout:'Move-out',maint:'Maintenance',job:'Maintenance job',utilities:'Utilities',intake:'Document intake',
@@ -3639,74 +3648,306 @@ document.addEventListener('keydown',e=>{
 /* ============ Darkbrown V2 — all views and workflows ============ */
 ROUTES.dash=()=>DASH_TPL;
 
-/* ---------------- My Work ---------------- */
-/* Approvals are read from the server. The exception tiles and the flagged
-   list never were — they are the prototype talking. Beside a real queue that
-   is worse than an empty panel, because nothing on the screen tells you which
-   is which. So when live, they say what they are. */
-ROUTES.mywork=()=>{
- const live=!!window.DB_LIVE;
- const pend=APPR.filter(a=>a.st==='Pending');
- const over=pend.filter(a=>a.age>48).length;
- const oldest=pend.length?Math.max.apply(null,pend.map(a=>a.age)):0;
- /* The queue arrives in the boot payload and `_failed` names anything that
-    raised. Read is read: a queue that came back with nothing in it means
-    nothing is waiting, and saying "not read" to that was the screen calling a
-    good day a broken one. */
- const failed=(window.DB_SEED&&DB_SEED._failed)||[];
- const wired=!live||(!!(window.DB_SEED&&DB_SEED.approvals)&&failed.indexOf('approvals')<0);
+/* ---------------- Home: one screen, five readings ----------------
+   Everyone lands here except the MD, who keeps the Command Centre. The
+   screen is not five screens behind a switch: the chrome, the tiles helper
+   and the "is this panel actually backed by data" rule are shared, and only
+   the panels differ. Adding a role means adding a case, not a route.
 
- const tiles=live
-  ?(wired
-    ?[['Awaiting me',pend.length,over?over+' over 48h':'none over 48h',over?'r':''],
-      ['Reserved category',pend.filter(a=>a.res).length,'MD only'],
-      ['Oldest waiting',pend.length?oldest+'h':'—','',oldest>48?'r':'']]
-    :[['Awaiting me','—','queue not read'],['Reserved category','—','queue not read'],
-      ['Oldest waiting','—','queue not read']])
-  :[['Awaiting me',pend.length,'2 over 48h','r'],
-    ['Reserved category',pend.filter(a=>a.res).length,'MD only'],
-    ['Exceptions today','6','since 07:00','a'],['Next close','Thu 30 Jul','in 4 days']];
+   Every panel obeys the same three-state rule the rest of the app does. A
+   payload key the server never sent is NOT WIRED; a key that came back with
+   nothing in it is empty, and empty is a real answer. `paySent` is the only
+   thing that can tell those apart, so nothing here counts an array without
+   asking it first. */
 
- const queue=wired
-  ?(pend.length?tbl(
-    [{h:'Ref',v:r=>r.id},{h:'Type',v:r=>r.ty},{h:'Detail',v:r=>r.ref},
-     {h:'Amount',r:1,mono:1,v:r=>money(r.amt)},{h:'Age',r:1,v:r=>chip(r.age+'h',r.age>48?'r':'a')}],
-    pend.map(a=>({...a,__id:a.id})),{id:'mw1',click:'openAppr'})
-   :empty('Nothing is waiting on you'))
-  :uw('The approvals queue has not been read. Rather than show you the prototype\'s '+
-      'list next to your own records, it has been withheld.');
+/* Did the boot payload actually carry this, and did it come back clean? An
+   array left at its prototype value is not a count of anything. */
+function paySent(k){
+  if(!window.DB_LIVE) return true;
+  const seed=window.DB_SEED||{};
+  return !!seed[k] && ((seed._failed||[]).indexOf(k)<0);
+}
+window.paySent=paySent;
 
- const att=(window.DB_SEED&&DB_SEED.attention)||[];
- /* [id, severity, icon, message, drill_route, drill_label]. The drill routes
-    are desk paths, not shell hashes, so only the ones that map cleanly get a
-    link; the rest render as text rather than as a button that goes nowhere. */
- const ATTGO={'tenants/arrears':'#/cases','tenants/expiring':'#/agreements',
-  'portfolio/headleases':'#/buildings','maintenance/aging':'#/maint',
-  'finance/pdc':'#/cheques'};
- const attGo=r=>ATTGO[r]||(String(r||'').indexOf('portfolio/units')===0?'#/units':'');
+/* A panel that needs a payload key it did not get says so instead of
+   drawing a convincing empty state over missing data. */
+function panel(title, keys, body, note){
+  const missing=(Array.isArray(keys)?keys:[keys]).filter(k=>!paySent(k));
+  return `<div class="card${missing.length?' is-unwired':''}"><h3>${title}</h3>${
+    missing.length
+      ? uw('The server did not return '+missing.join(' or ')+
+           ', so this panel has nothing to read. It is not empty \u2014 it is unread.')
+      : body()}${note&&!missing.length?`<p class="pp">${note}</p>`:''}</div>`;
+}
 
- const flagged=live
-  ?(att.length
-    ?`<div class="list">${att.map(a=>{
-        const to=attGo(a[4]);
-        const dot=a[1]==='high'?'r':a[1]==='warn'?'a':'g';
-        return `<div class="it${to?' drill':''}"${to?` onclick="go('${to}')"`:''}>
-          <span class="dot ${dot}"></span><span class="t">${esc(a[3]||'')}</span>
-          ${to?`<span class="mini">${esc(a[5]||'Open')}</span>`:''}</div>`;
-      }).join('')}</div>`
-    :empty('Nothing is flagged for your attention'))
-  :`<div class="list">
-   ${['Cheque bounced — Horizon Facilities · QAR 42,500','Promise broken — TN-0142 · QAR 18,000',
-      'Emergency maint over ceiling — B14 chiller · QAR 3,200','Override — Anoop M. batched + reconciled BATCH-0871',
-      'Head-lease B07 ends before 4 subleases'].map(t=>`<div class="it"><span class="dot r"></span><span class="t">${t}</span></div>`).join('')}
-   </div>`;
+const HOME_TITLE=()=>(typeof ROLEV==='undefined'?'Home'
+  :ROLEV==='MD'?'My work':roleInfo(ROLEV)[0]+' \u00b7 home');
 
- return page('My work','Managing Director · reserved approvals cannot be delegated','',
-  stat(tiles)+
-  `<div class="grid2">
-   <div class="card${wired?'':' is-unwired'}"><h3>Approvals waiting on me</h3>${queue}</div>
-   <div class="card"><h3>Flagged for my attention</h3>${flagged}</div></div>`);
+/* Shared bits the role panels lean on. */
+const homeAppr=()=>APPR.filter(a=>a.st==='Pending');
+const homeOldest=l=>l.length?Math.max.apply(null,l.map(x=>x.age||0)):0;
+const apprTbl=rows=>rows.length?tbl(
+  [{h:'Ref',v:r=>r.id},{h:'Type',v:r=>r.ty},{h:'Detail',v:r=>r.ref},
+   {h:'Amount',r:1,mono:1,v:r=>money(r.amt)},
+   {h:'Age',r:1,v:r=>chip((r.age||0)+'h',(r.age||0)>48?'r':'a')}],
+  rows.map(a=>({...a,__id:a.id})),{id:'hq',click:'openAppr'})
+  :empty('Nothing is waiting on you');
+
+ROUTES.home=()=>{
+  const role=(typeof ROLEV==='undefined'?'MD':ROLEV);
+  const build=({MD:homeMD,GM:homeGM,ACC:homeACC,DOC:homeDOC,MNT:homeMNT}[role])||homeMD;
+  const h=build();
+  return page(HOME_TITLE(), h.sub, h.act||'', stat(h.tiles)+h.body);
 };
+/* The old hash still works. Anyone with #/mywork bookmarked, and every
+   in-app link that pointed at it, lands on the same screen rather than on
+   the router's fallback. */
+ROUTES.mywork=()=>ROUTES.home();
+
+/* ---- MD: what it always was, minus the hardcoded prototype counts ---- */
+function homeMD(){
+  const pend=homeAppr(), over=pend.filter(a=>(a.age||0)>48).length;
+  const att=(window.DB_SEED&&DB_SEED.attention)||[];
+  const ATTGO={'tenants/arrears':'#/cases','tenants/expiring':'#/agreements',
+   'portfolio/headleases':'#/buildings','maintenance/aging':'#/maint',
+   'finance/pdc':'#/cheques'};
+  const attGo=r=>ATTGO[r]||(String(r||'').indexOf('portfolio/units')===0?'#/units':'');
+  return {
+    sub:'Managing Director \u00b7 reserved approvals cannot be delegated',
+    tiles:[['Awaiting me',paySent('approvals')?pend.length:'\u2014',
+             paySent('approvals')?(over?over+' over 48h':'none over 48h'):'queue not read',over?'r':''],
+           ['Reserved to me',paySent('approvals')?pend.filter(a=>a.res).length:'\u2014','MD only'],
+           ['Oldest waiting',paySent('approvals')?(pend.length?homeOldest(pend)+'h':'\u2014'):'\u2014','',
+             homeOldest(pend)>48?'r':'']],
+    body:`<div class="grid2">
+     ${panel('Approvals waiting on me','approvals',()=>apprTbl(pend))}
+     ${panel('Flagged for my attention','attention',()=>att.length
+       ?`<div class="list">${att.map(a=>{const to=attGo(a[4]);
+          const dot=a[1]==='high'?'r':a[1]==='warn'?'a':'g';
+          return `<div class="it${to?' drill':''}"${to?` onclick="go('${to}')"`:''}>
+            <span class="dot ${dot}"></span><span class="t">${esc(a[3]||'')}</span>
+            ${to?`<span class="mini">${esc(a[5]||'Open')}</span>`:''}</div>`}).join('')}</div>`
+       :empty('Nothing is flagged for your attention'))}
+    </div>`};
+}
+
+/* ---- GM: the operations picture ---- */
+function homeGM(){
+  const pend=homeAppr();
+  const mine=pend.filter(a=>!a.res), theirs=pend.filter(a=>a.res);
+  const routed=AGR.filter(a=>a.st==='Pending');
+  const vacant=UNITS.filter(u=>u.st!=='Occupied');
+  const bleed=vacant.reduce((t,u)=>t+(u.llRent||0),0);
+  const expHL=BUILDINGS.filter(b=>b.hlEnd&&(b.hlD===undefined||b.hlD<=90));
+  const expTA=AGR.filter(a=>a.st==='Active'||a.st==='Expiring')
+                 .filter(a=>(a.endD||999)<=90).sort((x,y)=>(x.endD||0)-(y.endD||0));
+  const hot=CASES.filter(c=>c.stage==='Promise broken'||c.stage==='Legal notice'
+                            ||c.stage==='Escalated');
+  return {
+   sub:'General Manager \u00b7 approvals, occupancy and the expiry runway',
+   tiles:[['Waiting on me',paySent('approvals')?mine.length:'\u2014',
+            theirs.length?theirs.length+' reserved to MD':'',mine.length?'a':''],
+          ['Pending activation',paySent('agreements')?routed.length:'\u2014','paperwork short',
+            routed.length?'a':''],
+          ['Vacant units',paySent('units')?vacant.length:'\u2014',
+            paySent('units')?n0(bleed)+'/mo bleed':'',vacant.length?'r':''],
+          ['Expiring \u2264 90d',paySent('agreements')?expTA.length:'\u2014','tenancies',
+            expTA.length?'a':''],
+          ['Cases escalating',paySent('cases')?hot.length:'\u2014','',hot.length?'r':'']],
+   body:`<div class="grid2">
+    ${panel('Waiting on me','approvals',()=>apprTbl(mine)+(theirs.length
+      ?`<p class="pp">${theirs.length} further item${theirs.length===1?' is':'s are'} reserved to the
+        Managing Director and will not clear from here.</p>`:''))}
+    ${panel('Tenancies pending activation','agreements',()=>routed.length?tbl(
+      [{h:'Ref',v:a=>a.id},{h:'Tenant',v:a=>a.tn},{h:'Unit',v:a=>a.u},
+       {h:'Rent',r:1,mono:1,v:a=>n0(a.rent)},{h:'Missing',v:a=>esc(a.missing||'\u2014')}],
+      routed.map(a=>({...a,__id:a.id})),{id:'hgr',click:'openA'})
+      :empty('Nothing is waiting on paperwork'))}
+   </div>
+   <div class="grid2">
+    ${panel('Expiring within 90 days',['agreements'],()=>expTA.length?tbl(
+      [{h:'Ref',v:a=>a.id},{h:'Tenant',v:a=>a.tn},{h:'Unit',v:a=>a.u},
+       {h:'Ends',r:1,v:a=>a.end},
+       {h:'Days',r:1,mono:1,v:a=>chip(a.endD,(a.endD||0)<30?'r':'a')},
+       {h:'Renewal',v:a=>chip(a.ren||'\u2014',stChip(a.ren))}],
+      expTA.slice(0,15).map(a=>({...a,__id:a.id})),{id:'hge',click:'openA'})
+      :empty('No tenancy ends inside 90 days'),
+      expHL.length?expHL.length+' head lease'+(expHL.length===1?'':'s')+
+        ' also end within the window \u2014 a sublease that outlives its head lease is the one to catch.':'')}
+    ${panel('Vacant units and the bleed','units',()=>vacant.length?tbl(
+      [{h:'Unit',v:u=>u.id},{h:'Building',v:u=>u.bn},{h:'Type',v:u=>u.type},
+       {h:'Head-lease cost',r:1,mono:1,v:u=>n0(u.llRent)},
+       {h:'Void days',r:1,v:u=>chip(u.vd||0,(u.vd||0)>30?'r':'a')}],
+      vacant.slice(0,15).map(u=>({...u,__id:u.id})),{id:'hgv',click:'openU'})
+      :empty('Every unit is occupied'),
+      vacant.length?'Costing '+n0(bleed)+' a month in head-lease rent against no sublease income.':'')}
+   </div>
+   ${panel('Collections escalating','cases',()=>hot.length?tbl(
+     [{h:'Case',v:c=>c.id},{h:'Tenant',v:c=>c.tn},
+      {h:'Amount',r:1,mono:1,v:c=>n0(c.amt)},
+      {h:'Stage',v:c=>chip(c.stage,stChip(c.stage))},
+      {h:'Age',r:1,v:c=>(c.age||0)+'d'},{h:'Owner',v:c=>c.owner}],
+     hot.map(c=>({...c,__id:c.id})),{id:'hgc',click:'openCase'})
+     :empty('No case has broken a promise or gone to legal'))}`};
+}
+
+/* ---- Accounts: the money day ---- */
+function homeACC(){
+  const due=CHQ.filter(c=>c.st==='Received'||c.st==='Deposited'||c.st==='Presented')
+               .filter(c=>(c.matD===undefined)||c.matD<=7)
+               .sort((a,b)=>(a.matD||0)-(b.matD||0));
+  const bad=CHQ.filter(c=>c.st==='Returned');
+  const runs=(window.BILLRUNS||[]).filter(r=>r.st!=='Issued'&&r.st!=='Cancelled');
+  const owed=INV.filter(i=>i.st!=='Paid'&&i.st!=='Cancelled');
+  const arrears=owed.reduce((t,i)=>t+((i.amt||0)-(i.paid||0)),0);
+  const late=owed.filter(i=>(i.dueD||0)<0);
+  return {
+   sub:'Accounts \u00b7 cheques, runs and what is still owed',
+   tiles:[['Cheques due \u2264 7d',paySent('cheques')?due.length:'\u2014','to present or clear',
+            due.length?'a':''],
+          ['Returned',paySent('cheques')?bad.length:'\u2014','need a case',bad.length?'r':''],
+          ['Runs not issued',paySent('billruns')?runs.length:'\u2014','',runs.length?'a':''],
+          ['Owed',paySent('invoices')?n0(arrears):'\u2014',
+            paySent('invoices')?late.length+' past due':'',late.length?'r':''],
+          ['Open invoices',paySent('invoices')?owed.length:'\u2014']],
+   body:`<div class="grid2">
+    ${panel('Cheques due this week','cheques',()=>due.length?tbl(
+      [{h:'Cheque',v:c=>c.no||c.id},{h:'Party',v:c=>c.tn},
+       {h:'Bank',v:c=>c.bank},{h:'Amount',r:1,mono:1,v:c=>n0(c.amt)},
+       {h:'Matures',r:1,v:c=>c.mat},
+       {h:'Status',v:c=>chip(c.st,stChip(c.st))}],
+      due.slice(0,15).map(c=>({...c,__id:c.id})),{id:'hac',click:'openC'})
+      :empty('No cheque matures inside seven days'))}
+    ${panel('Returned cheques','cheques',()=>bad.length?tbl(
+      [{h:'Cheque',v:c=>c.no||c.id},{h:'Party',v:c=>c.tn},
+       {h:'Amount',r:1,mono:1,v:c=>n0(c.amt)},
+       {h:'Reason',v:c=>esc(c.reason||'\u2014')}],
+      bad.map(c=>({...c,__id:c.id})),{id:'hab',click:'openC'})
+      :empty('Nothing has come back'),
+      bad.length?'A return opens a collection case on its own \u2014 check Cases before chasing by hand.':'')}
+   </div>
+   <div class="grid2">
+    ${panel('Invoice runs not issued','billruns',()=>runs.length?tbl(
+      [{h:'Run',v:r=>r.id},{h:'Building',v:r=>r.bn||r.b},{h:'Period',v:r=>r.period},
+       {h:'Total',r:1,mono:1,v:r=>n0(r.total)},
+       {h:'Status',v:r=>chip(r.st,stChip(r.st))}],
+      runs.map(r=>({...r,__id:r.id})),{id:'har',click:'openBR'})
+      :empty('Every run for the period has been issued'))}
+    ${panel('Owed, oldest first','invoices',()=>late.length?tbl(
+      [{h:'Invoice',v:i=>i.id},{h:'Tenant',v:i=>i.tn},
+       {h:'Outstanding',r:1,mono:1,v:i=>n0((i.amt||0)-(i.paid||0))},
+       {h:'Due',r:1,v:i=>i.due},
+       {h:'Overdue',r:1,v:i=>chip(Math.abs(i.dueD||0)+'d',Math.abs(i.dueD||0)>30?'r':'a')}],
+      late.sort((a,b)=>(a.dueD||0)-(b.dueD||0)).slice(0,15).map(i=>({...i,__id:i.id})),
+      {id:'hai',click:'openI'})
+      :empty('Nothing is past due'))}
+   </div>`};
+}
+
+/* ---- Documentation: the queue and the expiry wall ---- */
+function homeDOC(){
+  const review=DOCS.filter(d=>/review/i.test(d.st||''));
+  const short=AGR.filter(a=>a.missing).sort((x,y)=>String(x.tn).localeCompare(String(y.tn)));
+  const today=DOCS.filter(d=>/today/i.test(String(d.when||'')));
+  const low=review.filter(d=>(d.conf||100)<85);
+  return {
+   sub:'Documentation \u00b7 intake, the vault and what is about to expire',
+   act:`<button class="btn" onclick="go('#/intake')">Open intake</button>`,
+   tiles:[['Needs review',paySent('docs')?review.length:'\u2014',
+            paySent('docs')?low.length+' under 85% confidence':'',review.length?'a':''],
+          ['Agreements short',paySent('agreements')?short.length:'\u2014','missing paperwork',
+            short.length?'r':''],
+          ['Filed today',paySent('docs')?today.length:'\u2014'],
+          ['In the vault',paySent('docs')?DOCS.length:'\u2014','read from the register']],
+   body:`${panel('Intake queue','docs',()=>review.length?tbl(
+     [{h:'Document',v:d=>d.f},{h:'Type',v:d=>chip(d.ty,'n')},{h:'Linked to',v:d=>d.link||'\u2014'},
+      {h:'Confidence',r:1,v:d=>d.conf===undefined?'\u2014'
+        :chip(d.conf+'%',d.conf<85?'r':d.conf<95?'a':'g')},
+      {h:'By',v:d=>d.by},{h:'When',v:d=>d.when}],
+     review.map(d=>({...d,__id:d.id})),{id:'hdq',click:'openVDoc'})
+     :empty('The review queue is clear'),
+     low.length?low.length+' of these came back under 85% confidence \u2014 read those against the scan rather than accepting the extraction.':'')}
+   <div class="grid2">
+    ${panel('Agreements missing paperwork','agreements',()=>short.length?tbl(
+      [{h:'Ref',v:a=>a.id},{h:'Tenant',v:a=>a.tn},{h:'Unit',v:a=>a.u},
+       {h:'Status',v:a=>chip(a.st,stChip(a.st))},{h:'Missing',v:a=>esc(a.missing)}],
+      short.slice(0,15).map(a=>({...a,__id:a.id})),{id:'hdm',click:'openA'})
+      :empty('No agreement is short of its pack'),
+      'An agreement short of its pack cannot self-activate \u2014 it routes to the General Manager instead.')}
+    ${panel('Expiring documents','docs',()=>{
+      /* documents.expiring is a live endpoint; the boot payload does not carry
+         it, so it is read here rather than filtered out of DOCS, which has no
+         expiry on it at all. */
+      if(!window.DB_LIVE) return empty('Expiry is read from the register on a live site.');
+      const c=lazy('home:expiring','documents.expiring',{days:60});
+      if(c.state==='load') return empty('Reading the register\u2026');
+      if(c.state!=='ok') return `<div class="unwired"><span class="uw-tag">SERVER ERROR</span>
+        <p>${esc(c.msg||'The register did not answer.')}</p></div>`;
+      const rows=(c.data&&(c.data.rows||c.data.documents||c.data))||[];
+      const list=Array.isArray(rows)?rows:[];
+      return list.length?tbl(
+        [{h:'Document',v:d=>d.f||d.document_type||d.id||'\u2014'},
+         {h:'Holder',v:d=>d.party_name||d.party||d.link||'\u2014'},
+         {h:'Expires',r:1,v:d=>d.expiry_date||d.expiry||'\u2014'},
+         {h:'Days',r:1,mono:1,v:d=>d.days===undefined?'\u2014'
+           :chip(d.days,d.days<0?'r':d.days<30?'a':'')}],
+        list.slice(0,15),{id:'hde'})
+        :empty('Nothing expires inside 60 days');
+    })}
+   </div>`};
+}
+
+/* ---- Maintenance: the jobs ---- */
+function homeMNT(){
+  const open=JOBS.filter(j=>j.st!=='Closed'&&j.st!=='Resolved'&&j.st!=='Cancelled')
+                 .sort((a,b)=>(b.age||0)-(a.age||0));
+  const ceil=open.filter(j=>j.ceil);
+  const emg=open.filter(j=>j.pr==='Emergency');
+  const notReady=UNITS.filter(u=>u.st==='Not Ready');
+  const insp=MOVEOUT.filter(m=>/inspect/i.test(String(m.step||m.status||'')));
+  const byB={};
+  open.forEach(j=>{const k=j.bn||j.b||'\u2014';byB[k]=(byB[k]||0)+1});
+  const bRows=Object.keys(byB).map(k=>({b:k,n:byB[k]})).sort((a,b)=>b.n-a.n);
+  return {
+   sub:'Maintenance \u00b7 open jobs, oldest first',
+   act:`<button class="btn" onclick="openForm('raise-job',{})">Log maintenance</button>`,
+   tiles:[['Open jobs',paySent('jobs')?open.length:'\u2014',
+            paySent('jobs')?homeOldest(open)+'d oldest':'',homeOldest(open)>14?'r':''],
+          ['Emergency',paySent('jobs')?emg.length:'\u2014','',emg.length?'r':''],
+          ['Over ceiling',paySent('jobs')?ceil.length:'\u2014','waiting on the MD',
+            ceil.length?'a':''],
+          ['Units not ready',paySent('units')?notReady.length:'\u2014','',notReady.length?'a':''],
+          ['Move-out inspections',paySent('moveouts')?insp.length:'\u2014']],
+   body:`${panel('Open jobs, oldest first','jobs',()=>open.length?tbl(
+     [{h:'Job',v:j=>j.id},{h:'Building',v:j=>j.bn||j.b},{h:'Unit',v:j=>j.u||'\u2014'},
+      {h:'Issue',v:j=>esc(j.t||j.cat||'\u2014')},
+      {h:'Priority',v:j=>chip(j.pr||'\u2014',stChip(j.pr))},
+      {h:'Age',r:1,v:j=>chip((j.age||0)+'d',(j.age||0)>14?'r':(j.age||0)>7?'a':'')},
+      {h:'Status',v:j=>chip(j.st,stChip(j.st))}],
+     open.slice(0,20).map(j=>({...j,__id:j.id})),{id:'hmj',click:'openJ'})
+     :empty('No job is open'))}
+   <div class="grid2">
+    ${panel('Waiting on an approval','jobs',()=>ceil.length?tbl(
+      [{h:'Job',v:j=>j.id},{h:'Building',v:j=>j.bn||j.b},
+       {h:'Cost',r:1,mono:1,v:j=>n0(j.cost)},
+       {h:'Age',r:1,v:j=>(j.age||0)+'d'}],
+      ceil.map(j=>({...j,__id:j.id})),{id:'hmc',click:'openJ'})
+      :empty('Nothing is over the ceiling'),
+      ceil.length?'Above the emergency ceiling, so it is reserved to the Managing Director \u2014 the General Manager cannot release it.':'')}
+    ${panel('Where the work is','jobs',()=>bRows.length
+      ?`<div class="list">${bRows.slice(0,10).map(r=>
+         `<div class="it"><span class="dot ${r.n>4?'r':r.n>2?'a':'n'}"></span>
+          <span class="t">${esc(r.b)}</span><span class="m">${r.n} open</span></div>`).join('')}</div>`
+      :empty('No open job anywhere'))}
+   </div>
+   ${panel('Units not ready','units',()=>notReady.length?tbl(
+     [{h:'Unit',v:u=>u.id},{h:'Building',v:u=>u.bn},{h:'Type',v:u=>u.type},
+      {h:'Void days',r:1,v:u=>chip(u.vd||0,(u.vd||0)>30?'r':'a')}],
+     notReady.map(u=>({...u,__id:u.id})),{id:'hmu',click:'openU'})
+     :empty('Every unit is either occupied or ready to let'),
+     'A unit stays Not Ready until somebody changes it \u2014 it does not clear when the last job closes.')}`};
+}
+
 window.openAppr=id=>go('#/approval/'+id);
 /* Queue category -> the doctype the record actually lives on. Mirrors
    approvals.KIND_DOCTYPE on the server; the note has to be written against
@@ -6055,13 +6296,51 @@ window.cycleRole=()=>{const o=Object.keys(ROLES);
   if(DB_REAL_ROLE!=='MD'){toast('Your role is set by your login');return}
   ROLEV=o[(Math.max(0,o.indexOf(ROLEV))+1)%o.length];applyRole();
   const cur=(location.hash||'#/dash').slice(2).split('/')[0];
-  if(!roleCan(cur)){go('#/dash')}else{router()}
+  /* Cycling into a role that cannot open the screen you were on lands you on
+     that role's own home rather than on the MD's Command Centre, which is the
+     one screen four of the five cannot open at all. */
+  if(!roleCan(cur)){go(ROLE_HOME(ROLEV))}else{router()}
   toast('Viewing as '+roleInfo(ROLEV)[0])};
+/* Who may open what.
+   
+   Three rules, checked in order, and the last one is the new part: until now
+   every ordinary screen was open to every role, so Maintenance had a Chart of
+   Accounts in its sidebar and Documentation had a Trial Balance. This is a
+   navigation rule and nothing more - the server guards are the authority and
+   are unchanged. Hiding a door that does not open is a courtesy; it is not a
+   permission. */
+const ROLE_DENY={
+  /* The General Manager runs everything except the owner's own tools. */
+  GM:['dash','admin','data'],
+  /* Accounts is the money and the books. Not the portfolio's shape, not the
+     approval bench - ACC can raise an invoice run, it cannot approve one. */
+  ACC:['dash','admin','data','approvals','approval','maint','job','utilities'],
+  /* Documentation is intake, the vault and the paperwork behind an agreement.
+     No money screens at all. */
+  DOC:['dash','admin','data','approvals','approval','invoices','invoice','generate',
+       'billrun','receipts','receipt','amendment','cheques','cheque','batches',
+       'batch','recon','closing','staff','petty','maint','job','utilities'],
+  /* Maintenance is jobs and the condition of a unit. It needs buildings and
+     units to do that and nothing else. */
+  MNT:['dash','admin','data','approvals','approval','invoices','invoice','generate',
+       'billrun','receipts','receipt','amendment','cheques','cheque','batches',
+       'batch','recon','closing','staff','petty','cases','case','tenants','tenant',
+       'landlords','landlord','agreements','agreement','intake','reports']};
+
 function roleCan(r){
   if(RESTRICTED.includes(r))return ROLEV==='MD'||ROLEV==='GM';
   if(PLANONLY.includes(r))return ROLEV==='MD'||ROLEV==='GM';
   if(BOOKS.includes(r))return ROLEV==='MD'||ROLEV==='GM'||ROLEV==='ACC';
-  return true}
+  /* Home is the one screen nobody can be shut out of - it is where a role
+     that cannot open the route it asked for gets sent. */
+  if(r==='home'||r==='mywork')return true;
+  return (ROLE_DENY[ROLEV]||[]).indexOf(r)<0;}
+window.roleCan=roleCan;
+
+/* Where a role starts. The MD keeps the Command Centre; everyone else lands
+   on the reading of Home built for them. */
+const ROLE_HOME=r=>r==='MD'?'#/dash':'#/home';
+window.ROLE_HOME=ROLE_HOME;
 function applyRole(){
   const u=document.getElementById('userbox');
   if(u)u.innerHTML=`<div class="av">${ROLEV==='ACC'?'AC':ROLEV==='DOC'?'DO':ROLEV}</div>
@@ -7039,11 +7318,24 @@ if(!window.DB_LIVE){
 addEventListener('DOMContentLoaded',applyRole);
 applyRole();
 
-function roleBlock(r){return page('Not available to this role',
- roleInfo(ROLEV)[0]+' · '+roleInfo(ROLEV)[1],'',
+function roleBlock(r){
+ /* Why, specifically. The old message explained the owner-balance rule
+    whatever had been blocked, so a maintenance user refused the Trial
+    Balance was told about shareholder accounts. */
+ const why=RESTRICTED.includes(r)
+   ? 'Owner current account balances are restricted to the Managing Director and the General Manager under D73. Accounts can classify a shareholder movement at reconciliation, but never sees the running balance.'
+   : PLANONLY.includes(r)
+   ? 'Planning reads the reverse-planning solver, which is reserved to the Managing Director and the General Manager.'
+   : BOOKS.includes(r)
+   ? 'The books are open to the Managing Director, the General Manager and Accounts.'
+   : r==='dash'
+   ? 'The Command Centre is the Managing Director\'s screen. Your own home carries the part of it that is yours.'
+   : 'This area is not part of what '+roleInfo(ROLEV)[0]+' does. The server would refuse it too \u2014 this screen only saves you the trip.';
+ return page('Not available to this role',
+ roleInfo(ROLEV)[0]+' \u00b7 '+roleInfo(ROLEV)[1],
+ `<button class="btn" onclick="go(ROLE_HOME(ROLEV))">Back to my home</button>`,
  `<div class="note" style="border-left-color:var(--red)"><b>${roleInfo(ROLEV)[0]} cannot open this area.</b>
-   Owner current account balances are restricted to the Managing Director and the General Manager under D73. Accounts can classify a
-   shareholder movement at reconciliation, but never sees the running balance.</div>
+   ${why}</div>
   <div class="card"><h3>Restricted-data matrix</h3>${tbl([
    {h:'Data',v:x=>x[0]},{h:'MD',v:x=>x[1]},{h:'GM',v:x=>x[2]},{h:'Accounts',v:x=>x[3]},{h:'Digital CFO',v:x=>x[4]}],
    [['Shareholder identity','Yes','Yes','Name only, at classification','No'],
