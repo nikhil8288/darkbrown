@@ -51,7 +51,10 @@ TAG_RE = re.compile(r"\[(%s-\d{3})\]" % TAG_PREFIX)
 # which orphaned 17 of 65 unit keys against the current unit master. This
 # is the Net Rent Due at 31-Jul-26 control from REVENUE_WORKING, and the
 # guard below still aborts run() if the CSV drifts from it.
-EXPECTED_TOTAL = 124202.00
+# AK-12 only. This constant is the control total for whatever is currently in
+# opening_arrears.csv, and run() aborts on a mismatch. Raise it every time a
+# building is added to the file.
+EXPECTED_TOTAL = 600.00
 
 
 def _tag(i):
