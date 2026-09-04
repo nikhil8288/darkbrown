@@ -38,7 +38,15 @@ DOCTYPES = [
     "Building",
 ]
 
-LEDGER = ["Payment Entry", "Journal Entry", "Sales Invoice"]
+# Order matters: a Payment Entry pointing at an invoice has to go first, or
+# the invoice cannot be cancelled.
+#
+# Purchase Invoice was missing until now, and the omission was invisible while
+# nothing in the app posted one. It does now (head-lease cost), and a site that
+# had a portfolio-wide landlord run on it kept every one of those invoices
+# through a "successful" purge - leaving the whole landlord expense and the
+# matching Creditors balance on a ledger that reported itself as empty.
+LEDGER = ["Payment Entry", "Journal Entry", "Sales Invoice", "Purchase Invoice"]
 
 
 # ------------------------------------------------------------------- scoping

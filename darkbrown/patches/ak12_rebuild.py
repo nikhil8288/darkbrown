@@ -82,7 +82,7 @@ import traceback
 import frappe
 from frappe.utils import getdate
 
-REVISION = 6
+REVISION = 7
 CONFIRM = "REMOVE ALL DARKBROWN DATA"
 HERE = os.path.dirname(os.path.abspath(__file__))
 
@@ -90,7 +90,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 #: version. A file that exists but is the old copy is the failure mode that
 #: cost three attempts, so existence alone is not enough.
 DEPLOYED = [
-    ("ak12_rebuild.py",       "REVISION = 6"),
+    ("ak12_rebuild.py",       "REVISION = 7"),
+    ("ak12_doctor.py",        "AK-12 DOCTOR"),
     ("load_ak12_history.py",  "income_account(company)"),
     ("load_ak12_headlease.py", "AK12-HL-INV"),
     ("_ledger_common.py",     "Head Lease Rent"),
@@ -144,6 +145,43 @@ STATEMENT_TO = "2026-07-31"
 HISTORY_DATES = ("2025-11-05", "2026-07-05")
 
 BAR = "-" * 72
+
+
+def _ledger_state():
+    """What is on the GL, and whether it is safe to load onto.
+
+    This is the check that was missing. Revision 6 gated on `check`, which
+    reads files and site settings and says nothing about the ledger, so a
+    `load` onto a site still carrying revision-5 opening invoices and a
+    portfolio-wide landlord run did nothing visible and reported success:
+    every rent invoice was skipped as already-present, and the wrong ones
+    stayed. Counting records cannot see that. Counting GL rows can.
+    """
+    live = frappe.db.count("GL Entry", {"is_cancelled": 0})
+
+    opening = untagged_si = 0
+    for d in frappe.get_all("Sales Invoice", filters={"docstatus": 1},
+                            fields=["remarks", "is_opening"], limit=5000):
+        if (d.is_opening or "") == "Yes":
+            opening += 1
+        elif "[AK12-HIST-INV-" not in (d.remarks or ""):
+            untagged_si += 1
+    untagged_pi = sum(
+        1 for d in frappe.get_all("Purchase Invoice", filters={"docstatus": 1},
+                                  fields=["remarks"], limit=5000)
+        if "[AK12-HL-INV-" not in (d.remarks or ""))
+    journals = frappe.db.count("Journal Entry", {"docstatus": 1})
+
+    # A ledger made only of this pack's own vouchers is not a problem: that is
+    # a half-finished load, and re-running is how you finish it. What must
+    # stop a load is a voucher this pack did not write, because the loaders
+    # will skip past it and leave its amount on the statements.
+    foreign = opening + untagged_si + untagged_pi + journals
+    return {"gl_rows": live, "opening_invoices": opening,
+            "untagged_sales_invoices": untagged_si,
+            "untagged_purchase_invoices": untagged_pi,
+            "journal_entries": journals, "foreign": foreign,
+            "empty": live == 0, "clean": foreign == 0}
 
 
 def _h(t):
@@ -357,6 +395,26 @@ def reset(confirm=None):
             continue
         left[dt] = n
         print("    %-26s %5d%s" % (dt, n, "" if not n else "   <-- NOT EMPTY"))
+    st = _ledger_state()
+    print("\n    %-26s %5d%s" % ("GL Entry (live)", st["gl_rows"],
+                                 "" if not st["gl_rows"] else "   <-- NOT EMPTY"))
+    if st["gl_rows"]:
+        left["GL Entry"] = st["gl_rows"]
+        print("\n  The ledger still has entries. That is what matters, more "
+              "than the")
+        print("  record counts above - a leftover voucher puts its whole "
+              "amount on")
+        print("  the P&L. What is left, by account:")
+        for r in frappe.get_all("GL Entry", filters={"is_cancelled": 0},
+                                fields=["account", "voucher_type",
+                                        "count(name) as n",
+                                        "sum(debit) as dr", "sum(credit) as cr"],
+                                group_by="account, voucher_type", limit=200):
+            print("      %-34s %-16s %4d rows  dr %12s cr %12s"
+                  % (str(r.account)[:34], r.voucher_type, r.n,
+                     format(float(r.dr or 0), ",.2f"),
+                     format(float(r.cr or 0), ",.2f")))
+
     if any(left.values()):
         print("\n  Something refused to delete. The reason is printed per record")
         print("  above - usually a submitted voucher that could not be cancelled.")
@@ -381,6 +439,36 @@ def load(_checked=False):
         if not r["ready"]:
             print("\n  LOAD NOT STARTED - check is not clean.")
             return {"aborted": True, "at": "check"}
+
+    st = _ledger_state()
+    if st["clean"] and not st["empty"]:
+        print("\n  This site already carries %d GL entries, all of them from "
+              "this pack." % st["gl_rows"])
+        print("  Treating it as a half-finished load and resuming; every step "
+              "below")
+        print("  skips what it has already created.")
+    if not st["clean"]:
+        _h("LOAD NOT STARTED - this ledger has vouchers the pack did not write")
+        print("    live GL entries                       %6d" % st["gl_rows"])
+        print("    revision-5 opening rent invoices      %6d"
+              % st["opening_invoices"])
+        print("    rent invoices not from this pack      %6d"
+              % st["untagged_sales_invoices"])
+        print("    landlord invoices not from this pack  %6d"
+              % st["untagged_purchase_invoices"])
+        print("    journal entries                       %6d"
+              % st["journal_entries"])
+        print("""
+  Loading onto this would not fix it. Every rent invoice already carries its
+  [AK12-HIST-INV-nnn] tag, so the loader skips all 69 and the wrong ones stay
+  exactly where they are - which is why the last load appeared to do nothing.
+
+  Run the doctor to see what is there:
+      ...ak12_doctor.run
+  then clear it and load in one go:
+      ...ak12_rebuild.rebuild --kwargs "{'confirm': 'REMOVE ALL DARKBROWN DATA'}"
+""")
+        return {"aborted": True, "at": "dirty ledger", "ledger": st}
 
     company = frappe.db.get_single_value("DBR Settings", "default_company")
     fy_state, fy_msg = _fiscal_years(company, create=True)

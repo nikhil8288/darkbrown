@@ -1,4 +1,4 @@
-# AK-12 clean rebuild — revision 6
+# AK-12 clean rebuild — revision 7
 
 Empty the site, load one building with its 8 units, 9 tenants (7 current,
 2 former), 11 agreements and nine months of real invoices and receipts, then
@@ -6,7 +6,71 @@ prove the result. One module runs it all: `darkbrown/patches/ak12_rebuild.py`.
 
 ---
 
-## What revision 6 fixes
+## What revision 7 fixes — read this first
+
+The revision-6 load ran but the site was never reset, so the general ledger is
+three eras stacked on top of each other. Your screenshot is the proof, and the
+figures on it are all explainable:
+
+| What the GL showed | Where it came from |
+|---|---|
+| 256,400 in **Temporary Opening**, income 0 | the 69 **revision-5** rent invoices, still `is_opening = Yes` |
+| **Landlord Rent 401,000**, Creditors 401,000, 17 purchase invoices dated 18-Jul-26, all "No Remarks" | the abandoned **portfolio-wide** landlord run — one invoice per building, from before this pack |
+| 155 journals | 69 + 69 (revision 5) + 17 (legacy). None of revision 6's own vouchers are on there at all |
+
+I reproduced that exact ledger — 913,200 debits, 913,200 credits, every account
+matching — and confirmed two faults, both mine:
+
+**1. `load` did not check the ledger before running.** The loaders are
+idempotent by design: every rent invoice carries `[AK12-HIST-INV-nnn]`, so when
+revision 6 ran onto a site that still had the revision-5 invoices, it found all
+69 tags present and skipped all 69. It reported success and changed nothing.
+`check` looks at files and site settings; it never looked at the GL. `verify`
+would have caught it, but the Data screen button doesn't call `verify`.
+
+Now `load` reads the ledger first and refuses when it finds vouchers this pack
+did not write, naming each kind. So does the Data screen button. A ledger made
+*only* of this pack's own vouchers is treated as a half-finished load and
+resumed instead — a crash partway through is still recoverable.
+
+**2. The purge never covered Purchase Invoice.** `demo/purge.py` swept Payment
+Entry, Journal Entry and Sales Invoice. That omission was invisible while
+nothing in the app posted a purchase invoice — revision 6 made it post them,
+and I did not extend the purge to match. Those 17 legacy landlord invoices
+would have survived a "successful" reset and put their whole 401,000 back on
+the P&L. Fixed, and `reset` now finishes by counting live GL entries and
+refusing to report success while a single one remains.
+
+**Also new: `ak12_doctor.py`.** Read-only, creates and changes nothing. It
+reads every voucher, sorts it into revision 6 / revision 5 / legacy, and says
+in plain terms what is wrong. Run it any time a screen shows a number you don't
+believe, and send me the output rather than a screenshot:
+
+```
+bench --site erp.darkbrown.qa execute darkbrown.patches.ak12_doctor.run
+```
+
+On your current site it will print, among other things:
+
+```
+  1. Temporary Opening holds 256,400.00. That is revision-5 opening invoices;
+     income reads zero until they are gone.
+  2. 69 rent invoices are revision-5 opening entries. Revision 6 will SKIP them
+     (their tag already exists), so loading again fixes nothing.
+  3. 17 landlord invoices totalling 401,000.00 are NOT from this pack.
+  4. There are landlord invoices and no landlord payments.
+```
+
+**One cosmetic thing I did not change.** On the trial balance, Temporary
+Opening shows a credit of 256,400 but the balance column labels it `256,400
+Dr`. The balance is being labelled by the account's natural side rather than
+its actual one, so an asset holding a credit reads backwards. It only shows up
+when something is already wrong, and after this load nothing sits there. Say if
+you want it fixed properly.
+
+---
+
+## What revision 6 fixed
 
 The records were right; the ledger under them was not. General ledger, journal
 entries, trial balance, P&L, balance sheet and cash flow all read wrong, and
@@ -98,7 +162,7 @@ nothing and looks like a load that ran.
 
 That is the failure this pack is built around. `check` reads the files
 actually on the server and refuses to say READY unless each one is the
-revision-6 copy. If `check` does not print `REVISION 6` and `READY`, the
+revision-7 copy. If `check` does not print `REVISION 7` and `READY`, the
 deploy did not land and nothing else is worth trying.
 
 **Second cause, once the first is fixed:** the site was never actually empty.
@@ -111,24 +175,23 @@ doctypes the purge does not list (Historical Monthly PL and seven others).
 
 ## Deploy
 
-1. Unzip `ak12_rebuild_r6.zip` over the **repo root** — the folder that
+1. Unzip `ak12_rebuild_r7.zip` over the **repo root** — the folder that
    contains `darkbrown/` and `setup.py`. Everything lands under
    `darkbrown/patches/` and `darkbrown/api/`. Nothing to delete.
 2. GitHub Desktop must show **exactly these 11 changes** — 3 new, 8 modified:
 
    ```
-   new       darkbrown/patches/load_ak12_headlease.py
-   new       darkbrown/patches/_ledger_common.py
-   new       darkbrown/patches/ak12_headlease.csv
+   new       darkbrown/patches/ak12_doctor.py
    modified  darkbrown/patches/ak12_rebuild.py
-   modified  darkbrown/patches/load_ak12_history.py
    modified  darkbrown/patches/DEPLOY.md
    modified  darkbrown/api/cutover.py
+   modified  darkbrown/demo/purge.py
    ```
 
-   Fewer means the unzip went to the wrong folder. New files are unticked
-   by default in some GitHub Desktop versions — tick all 7. Commit. Push.
-   Deploy.
+   plus the revision-6 files if that deploy never landed — `check` will tell
+   you. Fewer changes than expected means the unzip went to the wrong folder.
+   New files are unticked by default in some GitHub Desktop versions — tick
+   everything. Commit. Push. Deploy.
 3. On the bench:
 
 ```
@@ -147,9 +210,12 @@ That runs check → reset → load → verify and stops at the first thing that
 fails, printing why. The last block must read `ALL OK - AK-12 is loaded.`
 with every line `ok`. Copy the whole output to me if anything else appears.
 
-The four steps also exist separately (`check`, `reset`, `load`, `verify`)
-and every one is safe to repeat: `reset` on an empty site removes nothing,
-`load` on a loaded site creates nothing.
+The four steps also exist separately (`check`, `reset`, `load`, `verify`),
+plus `ak12_doctor.run`. `reset` on an empty site removes nothing. `load` on a
+correctly loaded site creates nothing; on a site with foreign vouchers it now
+refuses and tells you what it found. **Do not run `load` on its own to fix a
+wrong ledger — it cannot. Only `reset` clears one.** That is what went wrong
+this time.
 
 The Data screen (`#/data` → Dry run / Load for real) now includes the
 payment-history step and works on an already-reset site. It cannot reset;
@@ -177,6 +243,13 @@ payable              0.00
 ```
 
 then the statements block above, every line `ok`.
+
+Verified against a reproduction of the broken ledger in your screenshot:
+913,200 on each side, Landlord Rent 401,000, Temporary Opening 256,400, 155
+journals. Against that, revision 7's `load` refuses and names all four
+problems, the Data screen button refuses, `reset` takes the GL to zero
+including the 17 legacy purchase invoices, and the reload produces the
+statements above. A load crashed halfway is separately confirmed to resume.
 
 Verified before packaging by running the shipped modules — the real
 `demo/purge.py`, `load_customers`, `load_buildings`, `import_tenancies`,

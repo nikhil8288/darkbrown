@@ -31,7 +31,7 @@ FILES = ["tenancies.csv", "opening_arrears.csv", "buildings_payload.json",
          "customers.json", "ak12_history.csv", "ak12_headlease.csv",
          "load_buildings.py", "load_customers.py", "load_ak12_history.py",
          "load_ak12_headlease.py", "_ledger_common.py", "ak12_rebuild.py",
-         "tenancy_name_map.csv", "arrears_name_map.csv"]
+         "ak12_doctor.py", "tenancy_name_map.csv", "arrears_name_map.csv"]
 
 #: Order matters and is not negotiable. Tenancies resolve against Customers and
 #: Units, arrears resolve against Customers, and a Unit cannot exist before its
@@ -238,4 +238,29 @@ def run_dry():
 
 
 def run_load():
+    """The Data screen's "Load for real" button.
+
+    It refuses on a site that already has a ledger, for the same reason
+    `ak12_rebuild.load` does: the loaders are idempotent, so on a dirty site
+    they skip everything and report success while the wrong vouchers stay put.
+    This button cannot reset - that stays on the bench, where it needs a typed
+    confirmation phrase - so all it can do here is stop and say so.
+    """
+    from darkbrown.patches.ak12_rebuild import _ledger_state
+
+    st = _ledger_state()
+    if not st["clean"]:
+        return {"aborted": True, "reason": "ledger not empty", "ledger": st,
+                "message": (
+                    "This ledger carries %d vouchers that did not come from "
+                    "this pack: %d revision-5 opening rent invoices, %d other "
+                    "rent invoices, %d landlord invoices, %d journal entries. "
+                    "Loading again would skip everything already created and "
+                    "leave those in place. Clear it from the bench first: "
+                    "ak12_rebuild.rebuild with the confirmation phrase, or run "
+                    "ak12_doctor.run to see exactly what is there."
+                    % (st["foreign"], st["opening_invoices"],
+                       st["untagged_sales_invoices"],
+                       st["untagged_purchase_invoices"],
+                       st["journal_entries"]))}
     return _sequence(True)
