@@ -82,7 +82,7 @@ import traceback
 import frappe
 from frappe.utils import getdate
 
-REVISION = 7
+REVISION = 8
 CONFIRM = "REMOVE ALL DARKBROWN DATA"
 HERE = os.path.dirname(os.path.abspath(__file__))
 
@@ -90,7 +90,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 #: version. A file that exists but is the old copy is the failure mode that
 #: cost three attempts, so existence alone is not enough.
 DEPLOYED = [
-    ("ak12_rebuild.py",       "REVISION = 7"),
+    ("ak12_rebuild.py",       "REVISION = 8"),
     ("ak12_doctor.py",        "AK-12 DOCTOR"),
     ("load_ak12_history.py",  "income_account(company)"),
     ("load_ak12_headlease.py", "AK12-HL-INV"),
@@ -145,6 +145,68 @@ STATEMENT_TO = "2026-07-31"
 HISTORY_DATES = ("2025-11-05", "2026-07-05")
 
 BAR = "-" * 72
+
+
+def _force_drop(doctype, name):
+    """Remove a voucher that will not cancel.
+
+    The normal path is cancel-then-delete, and it is the right one: cancelling
+    reverses the GL properly. It fails on an *orphaned* voucher - one whose
+    supplier, customer or cost centre has already been deleted - because
+    cancel re-reads those links to build the reversal. The purge catches the
+    exception and moves on, which is how eight landlord invoices survived a
+    purge that reported success and left 182,000 of expense on an otherwise
+    empty site.
+
+    So: try the correct path first, and only if it raises, mark the voucher
+    cancelled and delete its ledger rows directly. That is a blunt instrument
+    and it is limited to reset, where the whole ledger is going anyway.
+    """
+    try:
+        doc = frappe.get_doc(doctype, name)
+        if doc.docstatus == 1:
+            doc.flags.ignore_permissions = True
+            doc.flags.ignore_links = True
+            doc.cancel()
+        frappe.delete_doc(doctype, name, force=True, ignore_permissions=True,
+                          ignore_missing=True, delete_permanently=True)
+        frappe.db.commit()
+        return "cancelled"
+    except Exception as first:
+        frappe.db.rollback()
+        try:
+            frappe.db.set_value(doctype, name, "docstatus", 2,
+                                update_modified=False)
+            for dt in ("GL Entry", "Payment Ledger Entry"):
+                if frappe.db.exists("DocType", dt):
+                    frappe.db.delete(dt, {"voucher_type": doctype,
+                                          "voucher_no": name})
+            frappe.delete_doc(doctype, name, force=True,
+                              ignore_permissions=True, ignore_missing=True,
+                              ignore_on_trash=True, delete_permanently=True)
+            frappe.db.commit()
+            print("      forced %s %s (would not cancel: %s)"
+                  % (doctype, name, str(first)[:90]))
+            return "forced"
+        except Exception as second:
+            frappe.db.rollback()
+            print("      ! %s %s survived both attempts: %s"
+                  % (doctype, name, str(second)[:90]))
+            return "stuck"
+
+
+def _orphan_sweep():
+    """Anything still posting to the GL after the purge, removed by force."""
+    seen, out = set(), {"cancelled": 0, "forced": 0, "stuck": 0}
+    for r in frappe.get_all("GL Entry", filters={"is_cancelled": 0},
+                            fields=["voucher_type", "voucher_no"],
+                            group_by="voucher_type, voucher_no", limit=5000):
+        key = (r.voucher_type, r.voucher_no)
+        if key in seen:
+            continue
+        seen.add(key)
+        out[_force_drop(r.voucher_type, r.voucher_no)] += 1
+    return out
 
 
 def _ledger_state():
@@ -396,6 +458,17 @@ def reset(confirm=None):
         left[dt] = n
         print("    %-26s %5d%s" % (dt, n, "" if not n else "   <-- NOT EMPTY"))
     st = _ledger_state()
+    if st["gl_rows"]:
+        _h("reset 4/4  vouchers still posting to the ledger")
+        print("    %d GL entries survived the purge. Almost always these are"
+              % st["gl_rows"])
+        print("    orphans - the party they were written against is already")
+        print("    gone, so they cannot be cancelled the normal way.")
+        swept = _orphan_sweep()
+        print("\n    cancelled %d, forced %d, stuck %d"
+              % (swept["cancelled"], swept["forced"], swept["stuck"]))
+        st = _ledger_state()
+
     print("\n    %-26s %5d%s" % ("GL Entry (live)", st["gl_rows"],
                                  "" if not st["gl_rows"] else "   <-- NOT EMPTY"))
     if st["gl_rows"]:

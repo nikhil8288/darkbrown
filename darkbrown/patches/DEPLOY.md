@@ -1,4 +1,4 @@
-# AK-12 clean rebuild — revision 7
+# AK-12 clean rebuild — revision 8
 
 Empty the site, load one building with its 8 units, 9 tenants (7 current,
 2 former), 11 agreements and nine months of real invoices and receipts, then
@@ -6,7 +6,46 @@ prove the result. One module runs it all: `darkbrown/patches/ak12_rebuild.py`.
 
 ---
 
-## What revision 7 fixes — read this first
+## What revision 8 fixes — read this first
+
+You purged and 182,000 stayed on the books: eight landlord purchase invoices,
+Landlord Rent 182,000 Dr, Creditors 182,000 Cr, on a site with no buildings and
+no units. That is the same bug as revision 7 found, one layer deeper.
+
+Revision 7 added Purchase Invoice to the purge. That was necessary and not
+sufficient, because those eight are now **orphans**: the purge deleted the
+supplier they were written against, and cancelling an invoice re-reads its
+supplier to build the GL reversal. So the cancel throws, the purge catches the
+exception, prints a line, and moves on — leaving the invoice and its ledger
+rows in place. A purge that reports success and leaves 182,000 behind.
+
+`reset` now has a fourth step. After the purge it counts live GL entries, and
+for anything still posting it tries the correct cancel-then-delete path first;
+only if that raises does it mark the voucher cancelled and delete its GL and
+Payment Ledger rows directly. Each forced removal prints the voucher and the
+reason it would not cancel, so nothing disappears quietly. That blunt path
+exists only inside `reset`, where the whole ledger is going anyway.
+
+Then `reset` re-counts and refuses to say "site is empty" unless the count is
+zero. Verified against a reproduction of your exact site: 8 invoices, 182,000,
+supplier already deleted — old purge leaves all 8, revision 8 forces all 8,
+GL to zero, load produces the correct statements.
+
+Your sequence from here is unchanged:
+
+```
+bench --site erp.darkbrown.qa execute darkbrown.patches.ak12_doctor.run
+bench --site erp.darkbrown.qa execute darkbrown.patches.ak12_rebuild.rebuild \
+    --kwargs "{'confirm': 'REMOVE ALL DARKBROWN DATA'}"
+```
+
+Expect to see `cancelled 0, forced 8, stuck 0` in the reset step, then
+`GL Entry (live) 0`. If any line says `stuck`, send it to me — that is a
+voucher that defeated both paths and I would want to see why.
+
+---
+
+## What revision 7 fixed
 
 The revision-6 load ran but the site was never reset, so the general ledger is
 three eras stacked on top of each other. Your screenshot is the proof, and the
@@ -162,7 +201,7 @@ nothing and looks like a load that ran.
 
 That is the failure this pack is built around. `check` reads the files
 actually on the server and refuses to say READY unless each one is the
-revision-7 copy. If `check` does not print `REVISION 7` and `READY`, the
+revision-8 copy. If `check` does not print `REVISION 8` and `READY`, the
 deploy did not land and nothing else is worth trying.
 
 **Second cause, once the first is fixed:** the site was never actually empty.
@@ -175,7 +214,7 @@ doctypes the purge does not list (Historical Monthly PL and seven others).
 
 ## Deploy
 
-1. Unzip `ak12_rebuild_r7.zip` over the **repo root** — the folder that
+1. Unzip `ak12_rebuild_r8.zip` over the **repo root** — the folder that
    contains `darkbrown/` and `setup.py`. Everything lands under
    `darkbrown/patches/` and `darkbrown/api/`. Nothing to delete.
 2. GitHub Desktop must show **exactly these 11 changes** — 3 new, 8 modified:
