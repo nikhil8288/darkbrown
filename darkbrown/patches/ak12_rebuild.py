@@ -12,6 +12,39 @@ or the whole thing in one go:
     bench --site erp.darkbrown.qa execute darkbrown.patches.ak12_rebuild.rebuild \\
         --kwargs "{'confirm': 'REMOVE ALL DARKBROWN DATA'}"
 
+WHAT CHANGED IN REVISION 6 - THE STATEMENTS
+
+Revision 5 loaded the records correctly and the ledger wrongly, so the trial
+balance, P&L, balance sheet and cash flow all read nonsense. Two causes, both
+in the load, not in `api/statements.py` (which was querying the GL honestly -
+there was simply nothing right in the GL to find):
+
+  1. The rent invoices posted as opening entries. `is_opening = "Yes"` parks
+     the debit in Temporary Opening and recognises no income. That was the
+     right call while the manual books still owned these months, but the site
+     has been emptied and AK-12 is now the whole ledger, so there is nothing
+     to double-count against. Result: P&L income 0, a 256,400 credit stuck in
+     Temporary Opening on the trial balance, and a balance sheet that netted
+     itself to nothing. Now they post as real income - item "Rent", Rental
+     Income, the building's cost centre - exactly like the live invoicer.
+
+  2. The head-lease cost was never in the ledger at all, historically or
+     otherwise. Nothing in the application posts it: `Head Lease.payments` is
+     a schedule the cheque screens read, the MD dashboard counts unpaid
+     Purchase Invoices, and no code path anywhere creates one. So the spread,
+     the one number this business turns on, could not appear on any statement.
+     `load_ak12_headlease` posts the nine months as Purchase Invoices against
+     AL MADAR with matching payments.
+
+Together: income 256,400, cost 162,000, spread 94,400. `verify` now runs the
+real `api.statements` endpoints and checks those numbers, plus that the
+balance sheet balances and the cash flow reconciles, rather than only counting
+records.
+
+Going forward the same two accounts are used by `api.finance`'s live invoice
+run, so August onward books itself the same way. The landlord side does not
+yet have a live counterpart - see the note at the end of DEPLOY.md.
+
 WHY `check` EXISTS
 
 Three loads in a row failed the same way, and the cause was never the site:
@@ -49,7 +82,7 @@ import traceback
 import frappe
 from frappe.utils import getdate
 
-REVISION = 5
+REVISION = 6
 CONFIRM = "REMOVE ALL DARKBROWN DATA"
 HERE = os.path.dirname(os.path.abspath(__file__))
 
@@ -57,8 +90,11 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 #: version. A file that exists but is the old copy is the failure mode that
 #: cost three attempts, so existence alone is not enough.
 DEPLOYED = [
-    ("ak12_rebuild.py",       "REVISION = 5"),
-    ("load_ak12_history.py",  "AK12-HIST-INV"),
+    ("ak12_rebuild.py",       "REVISION = 6"),
+    ("load_ak12_history.py",  "income_account(company)"),
+    ("load_ak12_headlease.py", "AK12-HL-INV"),
+    ("_ledger_common.py",     "Head Lease Rent"),
+    ("ak12_headlease.csv",    "Head lease HL AK-12"),
     ("load_customers.py",     "had the tenant flag switched on"),
     ("import_tenancies.py",   'open(path, encoding="utf-8-sig")'),
     ("seed_opening_arrears.py", "EXPECTED_TOTAL = 0.00"),
@@ -78,15 +114,31 @@ EXTRA = [
     "MD Alert Dismissal", "Historical Monthly PL",
 ]
 
-#: What the pack produces. verify() checks each of these.
+#: What the pack produces. verify() checks each of these, records first and
+#: then the statements themselves - the point of the load is that the P&L,
+#: balance sheet and cash flow come out right with nobody adjusting them.
 EXPECT = {
     "Building": 1, "Unit": 8, "Head Lease": 1, "Supplier": 1,
     "Customer": 9, "Tenancy Agreement": 11,
-    "Sales Invoice": 69, "Payment Entry": 69,
+    "Sales Invoice": 69, "Purchase Invoice": 9, "Payment Entry": 78,
     "units_occupied": 7, "units_vacant": 1,
     "tenancies_live": 7, "tenancies_expired": 4,
-    "charged": 256400.00, "collected": 255800.00, "outstanding": 600.00,
+    "charged": 256400.00, "collected": 255800.00, "receivable": 600.00,
+    "accrued": 162000.00, "paid_landlord": 162000.00, "payable": 0.00,
 }
+
+#: The statements, over the whole history window. Income less head-lease cost
+#: is the spread; cash is what came in less what went out; the balance sheet
+#: must balance and the cash flow must reconcile on their own arithmetic.
+EXPECT_STATEMENTS = {
+    "pl_income": 256400.00, "pl_expense": 162000.00, "pl_net": 94400.00,
+    "bs_assets": 94400.00, "bs_difference": 0.00,
+    "cf_closing": 93800.00, "cf_difference": 0.00,
+}
+
+#: The statement window: first month of history to the end of the last.
+STATEMENT_FROM = "2025-11-01"
+STATEMENT_TO = "2026-07-31"
 
 #: The history spans these months; a Fiscal Year must cover each.
 HISTORY_DATES = ("2025-11-05", "2026-07-05")
@@ -322,6 +374,7 @@ def load(_checked=False):
     first failure. Safe to re-run: every loader skips what already exists."""
     from darkbrown.patches import load_customers, load_buildings
     from darkbrown.patches import import_tenancies, load_ak12_history
+    from darkbrown.patches import load_ak12_headlease
 
     if not _checked:
         r = check()
@@ -336,7 +389,7 @@ def load(_checked=False):
         print("\n  LOAD NOT STARTED - fiscal years are not in place.")
         return {"aborted": True, "at": "fiscal year"}
 
-    _h("load 1/4  Customers (9)")
+    _h("load 1/5  Customers (9)")
     try:
         out = load_customers.run()
     except Exception:
@@ -346,7 +399,7 @@ def load(_checked=False):
         print("\n  STOPPED at customers. Nothing after this was attempted.")
         return {"aborted": True, "at": "customers"}
 
-    _h("load 2/4  Building, units, head lease")
+    _h("load 2/5  Building, units, head lease")
     try:
         out = load_buildings.run()
     except Exception:
@@ -356,7 +409,7 @@ def load(_checked=False):
         print("\n  STOPPED at buildings. Nothing after this was attempted.")
         return {"aborted": True, "at": "buildings"}
 
-    _h("load 3/4  Tenancy agreements (11)")
+    _h("load 3/5  Tenancy agreements (11)")
     try:
         d = import_tenancies.dry_run()
         if d.get("problems") or d.get("conflicts"):
@@ -369,7 +422,7 @@ def load(_checked=False):
     if out.get("aborted"):
         return {"aborted": True, "at": "tenancies"}
 
-    _h("load 4/4  Payment history (69 invoices, 69 receipts)")
+    _h("load 4/5  Rent history (69 invoices, 69 receipts)")
     try:
         d = load_ak12_history.dry_run()
         if d.get("problems") or not d.get("ok"):
@@ -381,6 +434,19 @@ def load(_checked=False):
         return {"aborted": True, "at": "history"}
     if out.get("aborted"):
         return {"aborted": True, "at": "history"}
+
+    _h("load 5/5  Head-lease cost (9 purchase invoices, 9 payments)")
+    try:
+        d = load_ak12_headlease.dry_run()
+        if d.get("problems") or not d.get("ok"):
+            print("\n  STOPPED at head lease - dry run is not clean (above).")
+            return {"aborted": True, "at": "head lease"}
+        out = load_ak12_headlease.run()
+    except Exception:
+        print(_tb())
+        return {"aborted": True, "at": "head lease"}
+    if out.get("aborted"):
+        return {"aborted": True, "at": "head lease"}
 
     return verify()
 
@@ -395,6 +461,7 @@ def verify():
                "Tenancy Agreement"):
         got[dt] = _count(dt) or 0
     got["Sales Invoice"] = _count("Sales Invoice", {"docstatus": 1}) or 0
+    got["Purchase Invoice"] = _count("Purchase Invoice", {"docstatus": 1}) or 0
     got["Payment Entry"] = _count("Payment Entry", {"docstatus": 1}) or 0
     got["units_occupied"] = _count("Unit", {"status": "Occupied"}) or 0
     got["units_vacant"] = _count("Unit", {"status": "Vacant"}) or 0
@@ -405,10 +472,19 @@ def verify():
     inv = frappe.get_all("Sales Invoice", filters={"docstatus": 1},
                          fields=["customer", "grand_total", "outstanding_amount"])
     got["charged"] = round(sum(float(i.grand_total or 0) for i in inv), 2)
-    got["outstanding"] = round(sum(float(i.outstanding_amount or 0)
-                                   for i in inv), 2)
+    got["receivable"] = round(sum(float(i.outstanding_amount or 0)
+                                  for i in inv), 2)
+    pin = frappe.get_all("Purchase Invoice", filters={"docstatus": 1},
+                         fields=["grand_total", "outstanding_amount"])
+    got["accrued"] = round(sum(float(i.grand_total or 0) for i in pin), 2)
+    got["payable"] = round(sum(float(i.outstanding_amount or 0)
+                               for i in pin), 2)
     got["collected"] = round(sum(float(p) for p in frappe.get_all(
-        "Payment Entry", filters={"docstatus": 1}, pluck="paid_amount")), 2)
+        "Payment Entry", filters={"docstatus": 1, "payment_type": "Receive"},
+        pluck="paid_amount")), 2)
+    got["paid_landlord"] = round(sum(float(p) for p in frappe.get_all(
+        "Payment Entry", filters={"docstatus": 1, "payment_type": "Pay"},
+        pluck="paid_amount")), 2)
 
     all_ok = True
     for k, want in EXPECT.items():
@@ -423,6 +499,8 @@ def verify():
         else:
             print("    %-20s %12s  expected %12s  %s"
                   % (k, g, want, "ok" if ok else "<-- MISMATCH"))
+
+    all_ok = _statements() and all_ok
 
     print()
     by = {}
@@ -447,6 +525,72 @@ def verify():
     print("\n  " + ("ALL OK - AK-12 is loaded." if all_ok else
                      "MISMATCH - read the lines above; do not go live on this."))
     return {"ok": all_ok, "got": got}
+
+
+def _statements():
+    """Run the real statement endpoints and check the numbers they return.
+
+    This is the part that was wrong. Counting records proves the load ran;
+    only the statements prove the ledger underneath it is right. Called as
+    Administrator, so `guard` lets it through the same way the Finance screens
+    do for an Accounts user.
+    """
+    from darkbrown.api import statements
+
+    _h("statements  %s to %s" % (STATEMENT_FROM, STATEMENT_TO))
+    got = {}
+    try:
+        pl = statements.profit_and_loss(STATEMENT_FROM, STATEMENT_TO)
+        got["pl_income"] = round(float(pl["income"]), 2)
+        got["pl_expense"] = round(float(pl["expense"]), 2)
+        got["pl_net"] = round(float(pl["net"]), 2)
+        bs = statements.balance_sheet(STATEMENT_TO)
+        got["bs_assets"] = round(float(bs["assets"]), 2)
+        got["bs_difference"] = round(float(bs["difference"]), 2)
+        cf = statements.cash_flow(STATEMENT_FROM, STATEMENT_TO)
+        got["cf_closing"] = round(float(cf["closing"]), 2)
+        got["cf_difference"] = round(float(cf["difference"]), 2)
+    except Exception:
+        print(_tb())
+        print("\n    a statement endpoint raised - the ledger is not usable")
+        return False
+
+    ok = True
+    for k, want in EXPECT_STATEMENTS.items():
+        g = got.get(k)
+        hit = g is not None and abs(g - want) < 0.005
+        ok = ok and hit
+        print("    %-16s %14s  expected %14s  %s"
+              % (k, format(g, ",.2f") if g is not None else "-",
+                 format(want, ",.2f"), "ok" if hit else "<-- MISMATCH"))
+
+    print("\n    spread on AK-12 over the window: %s income less %s "
+          "head-lease cost = %s"
+          % (format(got["pl_income"], ",.2f"), format(got["pl_expense"], ",.2f"),
+             format(got["pl_net"], ",.2f")))
+    print("    balance sheet %s | cash flow %s"
+          % ("balances" if bs.get("balanced") else "DOES NOT BALANCE",
+             "reconciles" if cf.get("reconciled") else "DOES NOT RECONCILE"))
+    ok = ok and bool(bs.get("balanced")) and bool(cf.get("reconciled"))
+
+    # Nothing should be sitting in Temporary Opening: revision 5 left the whole
+    # 256,400 there, which is what made every statement read wrong.
+    company = frappe.db.get_single_value("DBR Settings", "default_company")
+    temp = frappe.db.get_value("Account", {"account_name": "Temporary Opening",
+                                           "company": company}, "name")
+    if temp:
+        rows = frappe.get_all("GL Entry",
+                              filters={"account": temp, "is_cancelled": 0},
+                              fields=["sum(debit) as dr", "sum(credit) as cr"])
+        bal = round(float(rows[0].dr or 0) - float(rows[0].cr or 0), 2) \
+            if rows else 0.0
+        hit = abs(bal) < 0.005
+        ok = ok and hit
+        print("    Temporary Opening %s  %s"
+              % (format(bal, ",.2f"),
+                 "ok - empty" if hit else
+                 "<-- money parked here means opening entries got posted"))
+    return ok
 
 
 # ----------------------------------------------------------------- rebuild

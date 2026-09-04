@@ -1,8 +1,81 @@
-# AK-12 clean rebuild — revision 5
+# AK-12 clean rebuild — revision 6
 
 Empty the site, load one building with its 8 units, 9 tenants (7 current,
 2 former), 11 agreements and nine months of real invoices and receipts, then
 prove the result. One module runs it all: `darkbrown/patches/ak12_rebuild.py`.
+
+---
+
+## What revision 6 fixes
+
+The records were right; the ledger under them was not. General ledger, journal
+entries, trial balance, P&L, balance sheet and cash flow all read wrong, and
+none of it was `api/statements.py` — that module queries the GL honestly, there
+was just nothing right in the GL to find. Two causes, both in how revision 5
+loaded:
+
+**1. The rent posted as opening entries.** I set `is_opening = "Yes"` on all 69
+invoices, which parks the debit in Temporary Opening and recognises no income.
+That was the correct call while the manual Excel books still owned Nov-2025 to
+Jul-2026 — posting income twice is worse. But you then emptied the site, so
+AK-12 *is* the whole ledger and there is nothing left to double-count against.
+The result was a P&L reading zero income, 256,400 stranded in Temporary Opening
+on the trial balance, and a balance sheet netting itself to nothing.
+
+Now they post as real income: item `Rent`, account **Rental Income**, the
+building's cost centre, posted on the 1st and due on the 5th — the same shape
+`api.finance` uses for a live invoice run, so August onward books identically.
+
+**2. The head-lease cost was never in the ledger at all.** Not historically,
+not going forward. Nothing in the application posts it: `Head Lease.payments`
+is a schedule the cheque screens read, the MD dashboard counts unpaid Purchase
+Invoices, and no code path anywhere creates one. So the P&L had revenue and no
+cost of sales, and the spread — the only number this business turns on — could
+not appear on any statement. `load_ak12_headlease.py` posts the nine months as
+Purchase Invoices against AL MADAR (account **Head Lease Rent**) with matching
+payments.
+
+Both accounts are created on first run if they don't exist, filed under Direct
+Income and Direct Expenses.
+
+### What the statements read now
+
+```
+TRIAL BALANCE as at 2026-07-31        debit         credit
+  Bank                             255,800.00    162,000.00
+  Debtors                          256,400.00    255,800.00
+  Creditors                        162,000.00    162,000.00
+  Rental Income                            —     256,400.00
+  Head Lease Rent                  162,000.00            —
+                                   836,200.00    836,200.00   balanced
+
+P&L  Nov-2025 → Jul-2026
+  Rental Income                    256,400.00
+  Head Lease Rent                 (162,000.00)
+  Net                               94,400.00    margin 36.8%
+
+BALANCE SHEET as at 2026-07-31
+  Debtors                              600.00
+  Bank                              93,800.00
+  Assets                            94,400.00
+  Equity (unclosed profit)          94,400.00    balanced, difference 0.00
+
+CASH FLOW  opening 0.00 → closing 93,800.00     reconciles
+  Operating   93,800.00   (Debtors 255,800.00, Creditors -162,000.00)
+```
+
+`verify` now runs those real endpoints and checks every figure, including that
+the balance sheet balances, the cash flow reconciles, and Temporary Opening is
+empty. Counting records only proved the load ran; this proves the ledger is
+right.
+
+**One thing to correct before you trust the cash flow.** The workbook has no
+landlord payment history, so `ak12_headlease.csv` assumes each month was paid
+on its accrual date, and says so in every row. The P&L is right either way —
+accrual doesn't care when it was paid — but the cash flow and the payables
+balance are only right once `paid_on`, `paid_amount` and `mode` come from the
+landlord cheque book. Edit that CSV and re-run; rows with `paid_on` left blank
+stay payable.
 
 ---
 
@@ -25,7 +98,7 @@ nothing and looks like a load that ran.
 
 That is the failure this pack is built around. `check` reads the files
 actually on the server and refuses to say READY unless each one is the
-revision-5 copy. If `check` does not print `REVISION 5` and `READY`, the
+revision-6 copy. If `check` does not print `REVISION 6` and `READY`, the
 deploy did not land and nothing else is worth trying.
 
 **Second cause, once the first is fixed:** the site was never actually empty.
@@ -38,27 +111,23 @@ doctypes the purge does not list (Historical Monthly PL and seven others).
 
 ## Deploy
 
-1. Unzip `ak12_rebuild_r5.zip` over the **repo root** — the folder that
+1. Unzip `ak12_rebuild_r6.zip` over the **repo root** — the folder that
    contains `darkbrown/` and `setup.py`. Everything lands under
    `darkbrown/patches/` and `darkbrown/api/`. Nothing to delete.
 2. GitHub Desktop must show **exactly these 11 changes** — 3 new, 8 modified:
 
    ```
-   new       darkbrown/patches/ak12_rebuild.py
-   new       darkbrown/patches/load_ak12_history.py
-   new       darkbrown/patches/ak12_history.csv
-   modified  darkbrown/patches/tenancies.csv
-   modified  darkbrown/patches/customers.json
-   modified  darkbrown/patches/opening_arrears.csv
-   modified  darkbrown/patches/import_tenancies.py
-   modified  darkbrown/patches/load_customers.py
-   modified  darkbrown/patches/seed_opening_arrears.py
+   new       darkbrown/patches/load_ak12_headlease.py
+   new       darkbrown/patches/_ledger_common.py
+   new       darkbrown/patches/ak12_headlease.csv
+   modified  darkbrown/patches/ak12_rebuild.py
+   modified  darkbrown/patches/load_ak12_history.py
    modified  darkbrown/patches/DEPLOY.md
    modified  darkbrown/api/cutover.py
    ```
 
    Fewer means the unzip went to the wrong folder. New files are unticked
-   by default in some GitHub Desktop versions — tick all 11. Commit. Push.
+   by default in some GitHub Desktop versions — tick all 7. Commit. Push.
    Deploy.
 3. On the bench:
 
@@ -96,21 +165,31 @@ Unit                    8       7 Occupied, P-02 Vacant
 Supplier                1       AL MADAR REAL ESTATE W.L.L
 Customer                9       7 current tenants + Paracholakuzhi + Barouni
 Tenancy Agreement      11       7 live, 4 expired (history)
-Sales Invoice          69       Nov-2025 to Jul-2026, opening invoices
-Payment Entry          69
+Sales Invoice          69       rent, Nov-2025 to Jul-2026
+Purchase Invoice        9       head-lease cost, same window
+Payment Entry          78       69 receipts + 9 landlord payments
 charged        256,400.00
 collected      255,800.00
-outstanding        600.00       all Amani Guesmi, G-01B
+receivable         600.00       all Amani Guesmi, G-01B
+accrued        162,000.00
+paid_landlord  162,000.00
+payable              0.00
 ```
+
+then the statements block above, every line `ok`.
 
 Verified before packaging by running the shipped modules — the real
 `demo/purge.py`, `load_customers`, `load_buildings`, `import_tenancies`,
-`load_ak12_history`, the real `TenancyAgreement` controller — against a
+`load_ak12_history`, `load_ak12_headlease`, the real `TenancyAgreement`
+controller, the real `Building` cost-centre hook out of `hooks.py`, and the
+real `api.statements` and `api.accounting` endpoints against a GL the stub
+posts by double entry — against a
 stubbed site carrying your current state (272 Customers, 2 flagged, AK-12
 already loaded, 3 old arrears invoices, 40 Historical PL rows). Reset left
 zero of everything; load produced the table above; a second `load` created
-nothing. The same `check` run against a clone of the repo as it is now
-prints `OLD` on six files and `NOT READY`, which is the point.
+nothing. The same `check` run against your currently deployed revision-5 tree prints
+`OLD` on `load_ak12_history.py`, `MISSING` on the three new files and
+`NOT READY`, which is the point.
 
 ---
 
@@ -161,10 +240,29 @@ Kahramaa electricity only). Say if you want a custom field for it.
 
 ---
 
+## The landlord side has no live counterpart yet
+
+This pack loads the head-lease *history*. Going forward, `api.finance`
+generates the tenant invoices for a month but nothing generates the matching
+landlord Purchase Invoice — so from August the P&L will show rent income and
+no rent cost until that exists. Two ways to close it, your call:
+
+- a monthly job that raises the Purchase Invoice from each active Head Lease,
+  mirroring `build_invoice_run` — the same review-then-issue shape, so Anoop
+  approves the landlord side the way he approves the tenant side; or
+- keep it manual in ERPNext and accept the P&L is only right after someone
+  enters it.
+
+Say which and I'll build it. Until then, the August P&L needs the landlord
+invoice entered by hand or the spread will read 100% margin.
+
+---
+
 ## The next building
 
-Send the same workbook shape. `customers.json`, `buildings_payload.json`,
-`tenancies.csv` and the history CSV are lists — the next building appends
-to them, and `EXPECT` in `ak12_rebuild.py` and the two control totals in
-`load_ak12_history.py` move with it. `check` and `verify` then prove that
-load the same way.
+Send the same workbook shape, plus the head-lease rent and, if you have it,
+the landlord payment dates. `customers.json`, `buildings_payload.json`,
+`tenancies.csv`, `ak12_history.csv` and `ak12_headlease.csv` are all lists —
+the next building appends to them, and `EXPECT`, `EXPECT_STATEMENTS` and the
+control totals in the two loaders move with it. `check` and `verify` then
+prove that load the same way, statements included.

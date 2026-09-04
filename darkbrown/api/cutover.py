@@ -28,8 +28,9 @@ PATCHES = frappe.get_app_path("darkbrown", "patches") if hasattr(
         os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "patches")
 
 FILES = ["tenancies.csv", "opening_arrears.csv", "buildings_payload.json",
-         "customers.json", "ak12_history.csv", "load_buildings.py",
-         "load_customers.py", "load_ak12_history.py", "ak12_rebuild.py",
+         "customers.json", "ak12_history.csv", "ak12_headlease.csv",
+         "load_buildings.py", "load_customers.py", "load_ak12_history.py",
+         "load_ak12_headlease.py", "_ledger_common.py", "ak12_rebuild.py",
          "tenancy_name_map.csv", "arrears_name_map.csv"]
 
 #: Order matters and is not negotiable. Tenancies resolve against Customers and
@@ -44,10 +45,13 @@ STEPS = [
      "11 agreements - 7 live, 4 historical"),
     ("Opening arrears", "darkbrown.patches.seed_opening_arrears",
      "nothing - AK-12 carries its receipt history instead"),
-    # Last: it posts against the Customers, so they must exist first. This is
-    # what gives a tenant page a payment history rather than a bare balance.
-    ("Payment history", "darkbrown.patches.load_ak12_history",
+    # These two post against the Customers and the Head Lease, so they run
+    # last. Together they are what puts income AND cost on the P&L; the rent
+    # side alone gives a statement with revenue and no cost of sales.
+    ("Rent history", "darkbrown.patches.load_ak12_history",
      "69 invoices, 69 receipts; 256,400.00 charged, 255,800.00 collected"),
+    ("Head-lease cost", "darkbrown.patches.load_ak12_headlease",
+     "9 purchase invoices, 9 payments; 162,000.00 accrued"),
 ]
 
 BAR = "-" * 72

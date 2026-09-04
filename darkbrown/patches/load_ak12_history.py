@@ -1,4 +1,5 @@
 """Nine months of rent charged and rent received, per tenant, per unit.
+Revision 6: posts as real income, not opening entries.
 
     bench --site erp.darkbrown.qa execute darkbrown.patches.load_ak12_history.dry_run
     bench --site erp.darkbrown.qa execute darkbrown.patches.load_ak12_history.run
@@ -11,13 +12,16 @@ tenant page show a payment history instead of a blank ledger, and it is what
 makes arrears real: outstanding is what was charged minus what was paid, not a
 number typed into a seed file.
 
-WHY THE INVOICES ARE OPENING INVOICES
+WHY THESE ARE REAL INCOME, NOT OPENING ENTRIES
 
-`is_opening = "Yes"` posts the debit against Temporary Opening rather than a
-revenue account. These months already sit in the manual books (Historical
-Monthly PL); posting them as income again would count the same rent twice. The
-receivable and the receipt are both real, the income is not re-recognised. Same
-treatment `seed_opening_arrears` uses, applied to the whole history.
+Revision 5 posted them with `is_opening = "Yes"`, which parks the debit in
+Temporary Opening and recognises nothing. That was right when the manual
+books still held these months; now the site has been emptied and AK-12 is the
+whole ledger, so there is nothing to double-count against and an opening
+entry just hides the income. The P&L read zero, the balance sheet netted to
+zero, the trial balance showed a 256,400 credit in Temporary Opening. Same
+shape as the live invoicer now: item "Rent", Rental Income, the building's
+cost centre, posted on the 1st of the month, due on the 5th.
 
 HOW "COLLECTED" IS DERIVED
 
@@ -52,6 +56,8 @@ import re
 
 import frappe
 from frappe.utils import flt, getdate
+
+from darkbrown.patches import _ledger_common as L
 
 CSV = os.path.join(os.path.dirname(__file__), "ak12_history.csv")
 
@@ -125,6 +131,11 @@ def _invoice_no(i):
 
 def _receipt_no(i):
     return "%s-%03d" % (RCP_TAG, i + 1)
+
+
+def _posted(month):
+    """Invoiced on the 1st, like the live invoicer (run.period_start)."""
+    return getdate(month).replace(day=1)
 
 
 def _due(month):
@@ -215,7 +226,13 @@ def run():
 
     from darkbrown.api.finance import _receipt
 
-    company, debtor, temp_open = _accounts()
+    company = L.company()
+    debtor = L.receivable(company)
+    income, made_acc = L.income_account(company)
+    item = L.item("Rent", sales=True, purchase=False)
+    cc = L.cost_center("AK-12")
+    print("  income account : %s%s" % (income, "  (created)" if made_acc else ""))
+    print("  cost centre    : %s" % (cc or "!! none on Building AK-12"))
     inv_seen, rcp_seen = _existing()
     made_inv = made_rcp = skip_inv = skip_rcp = 0
 
@@ -238,22 +255,26 @@ def run():
                 si.customer = cust
                 si.company = company
                 si.set_posting_time = 1
-                si.posting_date = due
+                si.posting_date = _posted(r["month"])
                 si.due_date = due
-                si.is_opening = "Yes"
                 si.debit_to = debtor
+                si.cost_center = cc
+                si.custom_billing_period = r["month"][:7]
                 si.remarks = "[%s] | AK12_HISTORY | %s %s | %s | %s" % (
                     inv_no, r["building"], r["unit"], r["month"], r["remarks"])
                 si.append("items", {
-                    "item_name": "Rent %s %s" % (r["unit"], r["month"][:7]),
-                    "description": "Monthly rent, %s %s" % (r["unit"],
-                                                            r["month"][:7]),
+                    "item_code": item,
+                    "item_name": "Rent - %s" % r["unit"],
+                    "description": "Rent for %s, %s" % (r["unit"],
+                                                        r["month"][:7]),
                     "qty": 1,
                     "rate": amount,
-                    "income_account": temp_open,
+                    "income_account": income,
+                    "cost_center": cc,
                 })
+                si.flags.ignore_mandatory = True
                 si.flags.ignore_permissions = True
-                si.insert()
+                si.insert(ignore_permissions=True)
                 si.submit()
                 si_name = si.name
                 made_inv += 1
@@ -276,30 +297,3 @@ def run():
           % (format(rent, ",.2f"), format(coll, ",.2f"),
              format(rent - coll, ",.2f")))
     return {"invoices": made_inv, "receipts": made_rcp, "aborted": False}
-
-
-def _accounts():
-    """Same resolution seed_opening_arrears uses, so both land in one place."""
-    company = (frappe.db.get_single_value("DBR Settings", "default_company")
-               or frappe.defaults.get_global_default("company")
-               or frappe.get_all("Company", limit=1)[0].name)
-    debtor = frappe.db.get_value(
-        "Account", {"account_type": "Receivable", "company": company,
-                    "is_group": 0}, "name")
-    if not debtor:
-        frappe.throw("No receivable Account for company %s." % company)
-    temp_open = frappe.db.get_value(
-        "Account", {"account_name": "Temporary Opening", "company": company},
-        "name")
-    if not temp_open:
-        temp_open = frappe.get_doc({
-            "doctype": "Account",
-            "account_name": "Temporary Opening",
-            "company": company,
-            "parent_account": frappe.db.get_value(
-                "Account", {"root_type": "Asset", "is_group": 1,
-                            "company": company,
-                            "parent_account": ["is", "not set"]}, "name"),
-            "account_type": "Temporary",
-        }).insert(ignore_permissions=True).name
-    return company, debtor, temp_open
