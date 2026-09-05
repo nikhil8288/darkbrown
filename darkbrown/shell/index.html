@@ -1192,8 +1192,7 @@ const UNWIRED={
  targets:'Targets need the solver. Blocked on Q10.',
  pactions:'Planning actions need the solver. Blocked on Q10.',
  risks:'Stress tests, the risk register and the spread of outcomes all read from the solver. Blocked on Q10.',
- cfo:'The Digital CFO needs the governed calculation services behind it before it can answer anything.',
- reports:'Reporting has not been built against live records yet.'};
+ cfo:'The Digital CFO needs the governed calculation services behind it before it can answer anything.'};
 
 /* one panel inside an otherwise live screen */
 function uw(msg){
@@ -4772,19 +4771,130 @@ ROUTES.approvals=()=>page('Approvals','Reserved MD categories cannot be delegate
   APPR.map(a=>({...a,__id:a.id})),{id:'apl',click:'openAppr'})}</div>`);
 
 /* ---------------- Reports ---------------- */
-ROUTES.reports=()=>page('Reports','Standard packs · every report exports to Excel and PDF','',
- `<div class="g3">${[
-  ['Monthly P&L by building','Revenue, head-lease cost, maintenance, utilities, net margin'],
-  ['Arbitrage spread analysis','Per building and per unit spread over 36 months'],
-  ['Arrears ageing','0–30 / 31–60 / 61–90 / 90+ with tenant detail'],
-  ['Cheque register','All PDCs by status, bank and maturity'],
-  ['Occupancy and voids','Occupancy, void days and lost spread'],
-  ['Renewal pipeline','Expiries, renewal status and achieved uplift'],
-  ['Deposit liability','Held, due for release, released'],
-  ['Utility recovery','Billed vs recovered by building'],
-  ['Audit trail','Overrides, approvals and edits by user']]
- .map(r=>`<div class="card rc" onclick="openForm('generate-report','${r[0]}')"><h3>${r[0]}</h3><p class="pp">${r[1]}</p>
-  <div class="foot"><span>Excel · PDF</span><span>→</span></div></div>`).join('')}</div>`);
+/* ---------------- Reports ----------------
+   Nine packs, all read off live records by api.reports. The screen holds the
+   window and the scope; the server holds every definition, so a pack can be
+   corrected without touching this file. Each pack returns the same shape -
+   columns carrying a type, rows keyed by column, an optional totals row and a
+   note - which is why one renderer draws all nine.
+
+   A pack whose source is empty renders its table headings and says why in the
+   note. That is deliberately different from the NOT WIRED card this screen
+   used to show: "no cheques have been recorded yet" is a fact about the
+   business, and it should not look like a fault in the software. */
+const RPT={key:null,from:null,to:null,building:''};
+window.RPT=RPT;
+
+function rptRun(key){
+  RPT.key=key;
+  delete DB_LAZY['rpt:'+key];
+  go('#/reports');
+  router();
+}
+window.rptRun=rptRun;
+
+function rptSet(k,v){
+  RPT[k]=v;
+  if(RPT.key) delete DB_LAZY['rpt:'+RPT.key];
+  router();
+}
+window.rptSet=rptSet;
+
+function rptFmt(v,type){
+  if(v===null||v===undefined||v==='') return '—';
+  if(type==='money')   return n0(v);
+  if(type==='number')  return n0(v);
+  if(type==='percent') return (Math.round(v*10)/10)+'%';
+  return esc(String(v));
+}
+
+/* Excel opens a CSV without complaint and every machine has something that
+   reads one, which beats a generated workbook nobody can regenerate. The BOM
+   is what stops Excel mangling Arabic tenant names. */
+function rptCsv(){
+  const d=(DB_LAZY['rpt:'+RPT.key]||{}).data; if(!d) return;
+  const esc2=v=>'"'+String(v===null||v===undefined?'':v).replace(/"/g,'""')+'"';
+  const lines=[d.columns.map(c=>esc2(c.label)).join(',')];
+  d.rows.forEach(r=>lines.push(d.columns.map(c=>esc2(r[c.key])).join(',')));
+  if(Object.keys(d.totals||{}).length)
+    lines.push(d.columns.map((c,i)=>esc2(i===0?'TOTAL':(d.totals[c.key]!==undefined?d.totals[c.key]:''))).join(','));
+  const blob=new Blob(["\ufeff"+lines.join("\r\n")],{type:'text/csv;charset=utf-8;'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=(d.title||'report').replace(/[^A-Za-z0-9]+/g,'_')+'_'+d.from+'_'+d.to+'.csv';
+  document.body.appendChild(a); a.click(); a.remove();
+}
+window.rptCsv=rptCsv;
+
+ROUTES.reports=()=>{
+  if(!window.DB_LIVE) return page('Reports','Standard packs · every report exports to Excel and PDF','',
+    `<div class="g3">${[
+     ['Monthly P&L by building','Revenue, head-lease cost, maintenance, utilities, net margin'],
+     ['Arbitrage spread analysis','Per building and per unit spread over 36 months'],
+     ['Arrears ageing','0–30 / 31–60 / 61–90 / 90+ with tenant detail'],
+     ['Cheque register','All PDCs by status, bank and maturity'],
+     ['Occupancy and voids','Occupancy, void days and lost spread'],
+     ['Renewal pipeline','Expiries, renewal status and achieved uplift'],
+     ['Deposit liability','Held, due for release, released'],
+     ['Utility recovery','Billed vs recovered by building'],
+     ['Audit trail','Overrides, approvals and edits by user']]
+     .map(r=>`<div class="card rc"><h3>${r[0]}</h3><p class="pp">${r[1]}</p>
+      <div class="foot"><span>Excel · PDF</span><span>→</span></div></div>`).join('')}</div>`);
+
+  const cat=lazy('rpt:catalogue','reports.catalogue');
+  if(cat.state!=='ok') return lazyPage('Reports','Standard packs',cat);
+  if(RPT.from===null){RPT.from=cat.data.default_from;RPT.to=cat.data.default_to;}
+
+  const cards=`<div class="g3">${cat.data.packs.map(p=>`
+    <div class="card rc${RPT.key===p.key?' on':''}" onclick="rptRun('${p.key}')">
+      <h3>${esc(p.title)}</h3><p class="pp">${esc(p.description)}</p>
+      <div class="foot"><span>${esc(p.source)}</span><span>→</span></div></div>`).join('')}</div>`;
+
+  if(!RPT.key) return page('Reports','Nine packs, read off live records','',
+    cards+`<div class="card"><p class="pp">Pick a pack. Every one runs against
+     the records on this site — the window and the building scope are set once
+     the pack is open, and the result exports to CSV or prints.</p></div>`);
+
+  const controls=`<div class="card"><div class="fg">
+    <label class="fl">From<input type="date" value="${RPT.from}"
+      onchange="rptSet('from',this.value)"></label>
+    <label class="fl">To<input type="date" value="${RPT.to}"
+      onchange="rptSet('to',this.value)"></label>
+    <label class="fl">Building<select onchange="rptSet('building',this.value)">
+      <option value="">All buildings</option>
+      ${cat.data.buildings.map(b=>`<option value="${esc(b)}"${RPT.building===b?' selected':''}>${esc(b)}</option>`).join('')}
+    </select></label></div></div>`;
+
+  const c=lazy('rpt:'+RPT.key,'reports.run',
+               {key:RPT.key,frm:RPT.from,to:RPT.to,building:RPT.building});
+  if(c.state!=='ok') return page('Reports','',
+    `<button class="btn" onclick="rptSet('key',null)">All reports</button>`,
+    controls+(c.state==='load'
+      ?`<div class="card"><div class="unwired"><span class="uw-tag">READING</span>
+         <p>Running this pack against your records.</p></div></div>`
+      :`<div class="card"><div class="unwired"><span class="uw-tag">SERVER ERROR</span>
+         <p>${esc(c.msg||'The server did not answer.')}</p></div></div>`));
+
+  const d=c.data;
+  const head=d.columns.map(col=>`<th class="${col.type==='money'||col.type==='number'||col.type==='percent'?'r':''}">${esc(col.label)}</th>`).join('');
+  const body=d.rows.map(r=>`<tr>${d.columns.map(col=>
+      `<td class="${col.type==='money'||col.type==='number'||col.type==='percent'?'r':''}">${rptFmt(r[col.key],col.type)}</td>`).join('')}</tr>`).join('');
+  const tot=Object.keys(d.totals||{}).length
+    ?`<tr class="tot">${d.columns.map((col,i)=>`<td class="${col.type==='money'||col.type==='number'||col.type==='percent'?'r':''}">${
+        i===0?'<b>TOTAL</b>':(d.totals[col.key]!==undefined?'<b>'+rptFmt(d.totals[col.key],col.type)+'</b>':'')}</td>`).join('')}</tr>`
+    :'';
+
+  return page(d.title,
+    `${d.from} to ${d.to}${d.building?' · '+esc(d.building):' · all buildings'} · ${d.count} row${d.count===1?'':'s'}`,
+    `<button class="btn" onclick="rptSet('key',null)">All reports</button>
+     <button class="btn" onclick="rptCsv()">Export CSV</button>
+     <button class="btn" onclick="window.print()">Print</button>`,
+    controls+
+    `<div class="card"><div class="tw"><table id="rpt"><thead><tr>${head}</tr></thead>
+      <tbody>${body||`<tr><td colspan="${d.columns.length}">No rows in this window.</td></tr>`}${tot}</tbody></table></div>
+      ${d.note?`<div class="foot"><span>${esc(d.note)}</span></div>`:''}</div>`+
+    cards);
+};
 
 /* ---------------- Admin ---------------- */
 ROUTES.admin=()=>page('Admin','Users, roles and system rules','',

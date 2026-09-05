@@ -1,4 +1,4 @@
-# AK-12 clean rebuild — revision 13
+# AK-12 clean rebuild — revision 14
 
 Empty the site, load one building with its 8 units, 9 tenants (7 current,
 2 former), 11 agreements and nine months of real invoices and receipts, then
@@ -6,7 +6,65 @@ prove the result. One module runs it all: `darkbrown/patches/ak12_rebuild.py`.
 
 ---
 
-## Revision 13 — the two changes you asked for
+## Revision 14 — Reports, wired
+
+The Reports screen listed nine packs and had nothing behind any of them. Live,
+the whole screen was replaced by the NOT WIRED card. `api/reports.py` is the
+server it was missing.
+
+All nine now run against real records. Each returns the same shape — typed
+columns, rows, an optional totals line and a note — so one renderer draws all
+of them, and a pack can be corrected on the server without touching the shell.
+
+What they read on your site today:
+
+| Pack | Rows | Reads |
+|---|---|---|
+| Monthly P&L by building | 9 | GL by cost centre, month by month: 256,400 income, 162,000 cost, **36.8% margin** |
+| Arbitrage spread analysis | 1 | rent against head-lease cost per building |
+| Arrears ageing | 3 | the 600 Amani Guesmi owes, in the 61-90 and 90+ buckets |
+| Occupancy and voids | 8 | 92.4% occupancy, 187 void days over the history |
+| Renewal pipeline | 4 | expiries in the window with notice dates |
+| Deposit liability | 5 | 19,400 held per the agreements |
+| Cheque register | 0 | no cheques yet — fills from the first live PDC batch |
+| Utility recovery | 0 | no utility bills entered yet |
+| Audit trail | 0 | no post-submission edits yet |
+
+**An empty pack is not a broken pack.** Each says why it is empty in its own
+words. "No cheques have been recorded yet" is a fact about the business; "NOT
+WIRED" was a fact about the software, and the two should never have looked the
+same. Only the first one can appear now.
+
+Every pack takes a From/To window and an optional building scope, exports to
+CSV — BOM-prefixed, so Excel does not mangle Arabic tenant names — and prints.
+
+Three things worth knowing about the definitions:
+
+- **Spread shows posted cost and accrued cost side by side.** Spread and margin
+  use the cost actually posted, so this pack and the P&L can never disagree. A
+  "Not yet posted" column shows the gap — on your site 36,000, being the
+  Aug/Sep head-lease rent that has accrued but has no landlord invoice.
+- **There is no per-unit margin.** Rent is known per unit; head-lease cost is
+  known per building, and apportioning it by unit count, floor area or rent
+  share are all defensible and all give different answers. Inventing one would
+  make every per-unit margin in the portfolio a number nobody decided. The pack
+  reports per building and shows spread per unit as a plain division, labelled
+  as such. When Anoop settles the rule it is a few lines.
+- **Deposit liability falls back to the agreements.** No Security Deposit
+  records exist, so it reads what each contract says is held. That is a
+  contractual figure, not a ledger balance — deposits are not posted by the
+  historical load — and the pack says so.
+
+Verified both ends: the nine packs run against the loaded AK-12 ledger with
+totals tying to the statements, and the screen renders in jsdom against real
+payload shapes — cards, window controls, table, totals row, and the three
+buttons. Two bugs the Python harness alone would have hidden were caught doing
+it: `Tenancy Agreement` has no `unit_no` field, and asking Frappe for an
+unknown column raises rather than returning blank.
+
+---
+
+## Revision 13 — the control account and Lifetime
 
 ### The historical cash no longer touches a real bank account
 
@@ -518,7 +576,7 @@ nothing and looks like a load that ran.
 
 That is the failure this pack is built around. `check` reads the files
 actually on the server and refuses to say READY unless each one is the
-revision-13 copy. If `check` does not print `REVISION 13` and `READY`, the
+revision-14 copy. If `check` does not print `REVISION 14` and `READY`, the
 deploy did not land and nothing else is worth trying.
 
 **Second cause, once the first is fixed:** the site was never actually empty.
@@ -531,7 +589,7 @@ doctypes the purge does not list (Historical Monthly PL and seven others).
 
 ## Deploy
 
-1. Unzip `ak12_rebuild_r13.zip` over the **repo root** — the folder that
+1. Unzip `ak12_rebuild_r14.zip` over the **repo root** — the folder that
    contains `darkbrown/` and `setup.py`. Everything lands under
    `darkbrown/patches/` and `darkbrown/api/`. Nothing to delete.
 2. GitHub Desktop must show **exactly these 11 changes** — 3 new, 8 modified:
