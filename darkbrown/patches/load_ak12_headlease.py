@@ -206,10 +206,6 @@ def _preflight():
     if not company:
         return [("company", "DBR Settings has no default_company")]
 
-    if not L.cash_account(company):
-        out.append(("bank/cash account",
-                    "no Account typed Bank or Cash - the landlord payment has "
-                    "nowhere to pay from"))
 
 
     for r in _rows():
@@ -310,11 +306,14 @@ def run():
     _heal()
     company = L.company()
     payable, _ = L.payable(company)
-    cash = L.cash_account(company)
+    control, made_ctl = L.control_account(company)
     expense, made_acc = L.expense_account(company)
     item = L.item("Landlord Rent", sales=False, purchase=True)
     print("  expense account: %s%s" % (expense, "  (created)" if made_acc else ""))
-    print("  paid from      : %s" % cash)
+    print("  paid from      : %s%s" % (control,
+                                       "  (created)" if made_ctl else ""))
+    print("                   not a bank account - the historical cash side "
+          "is held here")
 
     inv_seen, pay_seen = _existing()
     made_inv = made_pay = skip_inv = skip_pay = 0
@@ -386,7 +385,7 @@ def run():
                 pe.posting_date = getdate(paid_on)
                 pe.party_type = "Supplier"
                 pe.party = landlord
-                pe.paid_from = cash
+                pe.paid_from = control
                 pe.paid_to = payable
                 pe.paid_amount = paid
                 pe.received_amount = paid

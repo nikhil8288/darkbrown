@@ -224,14 +224,17 @@ def run():
               % (format(coll, ",.2f"), format(EXPECTED_COLLECTED, ",.2f")))
         return {"invoices": 0, "receipts": 0, "aborted": True}
 
-    from darkbrown.api.finance import _receipt
-
     company = L.company()
     debtor = L.receivable(company)
     income, made_acc = L.income_account(company)
+    control, made_ctl = L.control_account(company)
     item = L.item("Rent", sales=True, purchase=False)
     cc = L.cost_center("AK-12")
     print("  income account : %s%s" % (income, "  (created)" if made_acc else ""))
+    print("  received into  : %s%s" % (control,
+                                       "  (created)" if made_ctl else ""))
+    print("                   not a bank account - see _ledger_common."
+          "CONTROL_ACCOUNT")
     print("  cost centre    : %s" % (cc or "!! none on Building AK-12"))
     inv_seen, rcp_seen = _existing()
     made_inv = made_rcp = skip_inv = skip_rcp = 0
@@ -283,8 +286,33 @@ def run():
             if rcp_no in rcp_seen:
                 skip_rcp += 1
             else:
-                _receipt(cust, paid, due, mode=r.get("mode") or "Cheque",
-                         reference=rcp_no, invoice=si_name)
+                # Built here rather than through api.finance._receipt, which
+                # resolves the bank account itself. That is right for a live
+                # receipt and wrong for a historical one: this money never
+                # touched a real bank inside the ERP.
+                pe = frappe.new_doc("Payment Entry")
+                pe.payment_type = "Receive"
+                pe.company = company
+                pe.posting_date = due
+                pe.party_type = "Customer"
+                pe.party = cust
+                pe.paid_from = debtor
+                pe.paid_to = control
+                pe.paid_amount = paid
+                pe.received_amount = paid
+                pe.mode_of_payment = r.get("mode") or "Cheque"
+                pe.reference_no = rcp_no
+                pe.reference_date = due
+                if si_name:
+                    pe.append("references", {
+                        "reference_doctype": "Sales Invoice",
+                        "reference_name": si_name,
+                        "allocated_amount": min(paid, amount) or paid,
+                    })
+                pe.flags.ignore_mandatory = True
+                pe.flags.ignore_permissions = True
+                pe.insert(ignore_permissions=True)
+                pe.submit()
                 made_rcp += 1
 
         frappe.db.commit()

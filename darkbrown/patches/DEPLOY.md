@@ -1,4 +1,4 @@
-# AK-12 clean rebuild — revision 12
+# AK-12 clean rebuild — revision 13
 
 Empty the site, load one building with its 8 units, 9 tenants (7 current,
 2 former), 11 agreements and nine months of real invoices and receipts, then
@@ -6,7 +6,72 @@ prove the result. One module runs it all: `darkbrown/patches/ak12_rebuild.py`.
 
 ---
 
-## Revision 12 — everything, in one build
+## Revision 13 — the two changes you asked for
+
+### The historical cash no longer touches a real bank account
+
+None of this money moved through Qatar National Bank or Doha Bank inside the
+ERP. It moved before cutover. So those accounts now open clean, and from
+go-live every line on them is a real, reconcilable movement.
+
+The historical receipts and landlord payments post to a new account,
+**Historical Cutover Control**, created on first use as a plain asset under
+Current Assets. It is deliberately **not** typed Bank or Cash, which keeps it
+out of "Cash at bank", out of bank reconciliation, and out of the cash-flow
+statement — all three should say the same thing, which is that no money has
+moved through a real account yet.
+
+What the ledger reads now:
+
+```
+                                    debit         credit      balance
+Debtors                          256,400.00     255,800.00       600.00
+Rental Income                            —      256,400.00  (256,400.00)
+Head Lease Rent                  162,000.00             —     162,000.00
+Creditors                        162,000.00     162,000.00          0.00
+Historical Cutover Control       255,800.00     162,000.00     93,800.00
+                                 836,200.00     836,200.00
+```
+
+**93,800.00** in the control account is exactly the cash the historical period
+generated: 255,800 collected less 162,000 paid to the landlord. P&L, balance
+sheet and trial balance are unchanged — only the cash side moved.
+
+**The cash flow now reads nil, and that is correct.** No money has moved
+through a bank or cash account inside the ERP. It starts reporting the day you
+open the real accounts. `verify` checks this both ways: the control account
+must hold 93,800, and the real bank and cash accounts must have **zero** GL
+rows. If anything ever posts to a real bank during a historical load, verify
+fails.
+
+**When you are ready to go live**, one journal moves it across:
+
+```
+Dr  Qatar National Bank / Doha Bank    (the real opening balance)
+Cr  Historical Cutover Control                          93,800.00
+```
+
+Split the debit across the real accounts however the money actually sits. The
+control account closes to nil and stays at nil. Tell me when you want that and
+I will build it as a guarded one-shot rather than a hand-keyed journal, so the
+split is recorded and reversible.
+
+### Lifetime on the period bar
+
+`Jul '26 · Jun '26 · Q3 · YTD · **Lifetime**`. Lifetime runs from the month of
+the first posting on the ledger to the current month, capped at ten years so a
+stray back-dated entry cannot make the strip walk hundreds of months on every
+boot.
+
+Its comparison deltas are blank rather than zero or +100%. There is no prior
+period to move against — the window before the first transaction is empty — and
+the strip already follows that rule for void days and declared cash: no
+movement beats a fake one. Verified by rendering the strip in jsdom for both
+`life` and `ytd`.
+
+---
+
+## Revision 12 — three fixes in one build
 
 Three separate faults, all fixed and all verified. Deploy, then run the two
 commands under "Do this first". Nothing else is needed.
@@ -453,7 +518,7 @@ nothing and looks like a load that ran.
 
 That is the failure this pack is built around. `check` reads the files
 actually on the server and refuses to say READY unless each one is the
-revision-12 copy. If `check` does not print `REVISION 12` and `READY`, the
+revision-13 copy. If `check` does not print `REVISION 13` and `READY`, the
 deploy did not land and nothing else is worth trying.
 
 **Second cause, once the first is fixed:** the site was never actually empty.
@@ -466,7 +531,7 @@ doctypes the purge does not list (Historical Monthly PL and seven others).
 
 ## Deploy
 
-1. Unzip `ak12_rebuild_r12.zip` over the **repo root** — the folder that
+1. Unzip `ak12_rebuild_r13.zip` over the **repo root** — the folder that
    contains `darkbrown/` and `setup.py`. Everything lands under
    `darkbrown/patches/` and `darkbrown/api/`. Nothing to delete.
 2. GitHub Desktop must show **exactly these 11 changes** — 3 new, 8 modified:

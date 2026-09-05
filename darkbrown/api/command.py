@@ -195,13 +195,36 @@ def kpis():
             ("jul", [0], _label(0)),
             ("jun", [-1], _label(-1)),
             ("q3", [-2, -1, 0], f"{_label(-2)} – {_label(0)}"),
-            ("ytd", _ytd_months(), "Year to date")):
-        out[key] = _period(months, label)
+            ("ytd", _ytd_months(), "Year to date"),
+            ("life", _lifetime_months(), "Lifetime")):
+        # Lifetime has no prior period to move against - the window before the
+        # first transaction is empty, so every delta would read +100%. Same
+        # rule the void-days and cash deltas already follow: no movement is
+        # better than a fake one.
+        out[key] = _period(months, label, compare=(key != "life"))
     return out
 
 
 def _label(n):
     return f"{getdate(_months(n)):%b '%y}"
+
+
+#: A guard, not a policy. Without it a stray posting dated decades back would
+#: make the strip walk hundreds of months on every boot.
+LIFETIME_CAP = 120
+
+
+def _lifetime_months():
+    """Every month from the first posting on the ledger to this one."""
+    first = frappe.db.get_value("GL Entry", {"is_cancelled": 0},
+                                "posting_date", order_by="posting_date asc")
+    if not first:
+        return [0]
+    start = getdate(first).replace(day=1)
+    now = getdate(today()).replace(day=1)
+    n = (now.year - start.year) * 12 + now.month - start.month
+    n = max(0, min(n, LIFETIME_CAP))
+    return list(range(-n, 1))
 
 
 def _ytd_months():
@@ -211,7 +234,7 @@ def _ytd_months():
     return list(range(-n, 1))
 
 
-def _period(months, label):
+def _period(months, label, compare=True):
     billed = sum(_billed_all(_months(m)) for m in months)
     collected = sum(_collected_all(_months(m)) for m in months)
     # Same rule as the spread tile: a building whose run was never issued
@@ -223,15 +246,18 @@ def _period(months, label):
         held.update(unbilled_buildings(_months(m)))
     cost = sum(_landlord_all(_months(m), exclude=held) for m in months)
 
-    prev = [m - len(months) for m in months]
-    pbilled = sum(_billed_all(_months(m)) for m in prev)
-    pcollected = sum(_collected_all(_months(m)) for m in prev)
-    pheld = {}
-    for m in prev:
-        pheld.update(unbilled_buildings(_months(m)))
-    # the comparison period gets the same treatment, or the movement is
-    # measured between two different definitions
-    pcost = sum(_landlord_all(_months(m), exclude=pheld) for m in prev)
+    if compare:
+        prev = [m - len(months) for m in months]
+        pbilled = sum(_billed_all(_months(m)) for m in prev)
+        pcollected = sum(_collected_all(_months(m)) for m in prev)
+        pheld = {}
+        for m in prev:
+            pheld.update(unbilled_buildings(_months(m)))
+        # the comparison period gets the same treatment, or the movement is
+        # measured between two different definitions
+        pcost = sum(_landlord_all(_months(m), exclude=pheld) for m in prev)
+    else:
+        pbilled = pcollected = pcost = 0.0
 
     spread, pspread = billed - cost, pbilled - pcost
     units = frappe.db.count("Unit")
@@ -239,13 +265,16 @@ def _period(months, label):
 
     return {
         "spread": _k(spread),
-        "spreadP": ((spread - pspread) / pspread * 100) if pspread else 0.0,
+        "spreadP": (((spread - pspread) / pspread * 100) if pspread else 0.0)
+                   if compare else None,
         "margin": (spread / billed * 100) if billed else 0.0,
-        "marginD": ((spread / billed * 100) if billed else 0.0)
-                   - ((pspread / pbilled * 100) if pbilled else 0.0),
+        "marginD": (((spread / billed * 100) if billed else 0.0)
+                    - ((pspread / pbilled * 100) if pbilled else 0.0))
+                   if compare else None,
         "coll": (collected / billed * 100) if billed else 0.0,
-        "collD": ((collected / billed * 100) if billed else 0.0)
-                 - ((pcollected / pbilled * 100) if pbilled else 0.0),
+        "collD": (((collected / billed * 100) if billed else 0.0)
+                  - ((pcollected / pbilled * 100) if pbilled else 0.0))
+                 if compare else None,
         "arr": _k(_arrears_all()),
         "arrD": 0.0,
         "cash": _declared_cash(),     # a declared fact, or None — never the
@@ -257,7 +286,7 @@ def _period(months, label):
                                       # comparison window exists — a fake
                                       # movement is worse than none
         "br": _bounce_rate(90),
-        "brD": 0.0,
+        "brD": 0.0 if compare else None,
         "unm": _unm_count(),          # None until an import has ever run
         "unmA": _unm_aged(),
         "ap": len(_pending_approvals()),

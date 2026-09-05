@@ -11,6 +11,22 @@ import frappe
 INCOME_ACCOUNT = "Rental Income"
 EXPENSE_ACCOUNT = "Head Lease Rent"
 
+#: Where the cash side of the historical load lands, instead of a real bank.
+#:
+#: None of this money moved through Qatar National Bank or Doha Bank inside the
+#: ERP - it moved before cutover, and those accounts have to open clean so that
+#: from go-live every line on them is a real, reconcilable movement. So the
+#: historical receipts debit this control account and the historical landlord
+#: payments credit it, leaving its balance as exactly the cash the historical
+#: period generated. When the real accounts are opened, one journal moves that
+#: balance across and the control account closes to nil.
+#:
+#: It is deliberately NOT typed Bank or Cash. That keeps it out of "Cash at
+#: bank", out of bank reconciliation, and out of the cash-flow statement, all
+#: of which should say the same thing: no money has moved through a real
+#: account yet.
+CONTROL_ACCOUNT = "Historical Cutover Control"
+
 
 def company():
     return (frappe.db.get_single_value("DBR Settings", "default_company")
@@ -55,6 +71,17 @@ def income_account(company_name):
 def expense_account(company_name):
     return _leaf_under("Expense", EXPENSE_ACCOUNT, company_name,
                        ("Direct Expenses", "Expenses"))
+
+
+def control_account(company_name):
+    """The historical cash control account, created on first use."""
+    acc = frappe.db.get_value("Account", {"account_name": CONTROL_ACCOUNT,
+                                          "company": company_name,
+                                          "is_group": 0}, "name")
+    if acc:
+        return acc, False
+    return _leaf_under("Asset", CONTROL_ACCOUNT, company_name,
+                       ("Current Assets", "Application of Funds (Assets)"))
 
 
 def receivable(company_name):

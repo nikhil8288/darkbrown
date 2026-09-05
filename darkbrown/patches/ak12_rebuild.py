@@ -82,7 +82,7 @@ import traceback
 import frappe
 from frappe.utils import getdate
 
-REVISION = 12
+REVISION = 13
 CONFIRM = "REMOVE ALL DARKBROWN DATA"
 HERE = os.path.dirname(os.path.abspath(__file__))
 
@@ -90,13 +90,13 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 #: version. A file that exists but is the old copy is the failure mode that
 #: cost three attempts, so existence alone is not enough.
 DEPLOYED = [
-    ("ak12_rebuild.py",       "REVISION = 12"),
+    ("ak12_rebuild.py",       "REVISION = 13"),
     ("wipe_ledger_once.py",   "no buildings"),
     ("wipe_ledger.py",        "direct table delete"),
     ("ak12_doctor.py",        "AK-12 DOCTOR"),
-    ("load_ak12_history.py",  "income_account(company)"),
+    ("load_ak12_history.py",  "pe.paid_to = control"),
     ("load_ak12_headlease.py", "def _heal"),
-    ("_ledger_common.py",     "def cost_centre_for"),
+    ("_ledger_common.py",     "CONTROL_ACCOUNT"),
     ("ak12_headlease.csv",    "Head lease HL AK-12"),
     ("load_customers.py",     "had the tenant flag switched on"),
     ("import_tenancies.py",   'open(path, encoding="utf-8-sig")'),
@@ -136,7 +136,13 @@ EXPECT = {
 EXPECT_STATEMENTS = {
     "pl_income": 256400.00, "pl_expense": 162000.00, "pl_net": 94400.00,
     "bs_assets": 94400.00, "bs_difference": 0.00,
-    "cf_closing": 93800.00, "cf_difference": 0.00,
+    # Nil, and correctly so: the historical cash side is held in the control
+    # account, which is not a bank or cash account. No money has moved through
+    # a real account inside the ERP, and the cash flow says exactly that. It
+    # starts reporting when the real accounts are opened at go-live.
+    "cf_closing": 0.00, "cf_difference": 0.00,
+    # What the control account holds: receipts less landlord payments.
+    "control": 93800.00,
 }
 
 #: The statement window: first month of history to the end of the last.
@@ -716,6 +722,7 @@ def _statements():
     do for an Accounts user.
     """
     from darkbrown.api import statements
+    from darkbrown.patches import _ledger_common as L
 
     _h("statements  %s to %s" % (STATEMENT_FROM, STATEMENT_TO))
     got = {}
@@ -735,6 +742,19 @@ def _statements():
         print("\n    a statement endpoint raised - the ledger is not usable")
         return False
 
+    company = frappe.db.get_single_value("DBR Settings", "default_company")
+    ctl = frappe.db.get_value("Account", {"account_name": L.CONTROL_ACCOUNT,
+                                          "company": company,
+                                          "is_group": 0}, "name")
+    got["control"] = 0.0
+    if ctl:
+        rows = frappe.get_all("GL Entry",
+                              filters={"account": ctl, "is_cancelled": 0},
+                              fields=["sum(debit) as dr", "sum(credit) as cr"])
+        if rows:
+            got["control"] = round(float(rows[0].dr or 0)
+                                   - float(rows[0].cr or 0), 2)
+
     ok = True
     for k, want in EXPECT_STATEMENTS.items():
         g = got.get(k)
@@ -753,9 +773,23 @@ def _statements():
              "reconciles" if cf.get("reconciled") else "DOES NOT RECONCILE"))
     ok = ok and bool(bs.get("balanced")) and bool(cf.get("reconciled"))
 
+    print("\n    %s holds %s - the cash the historical period generated,"
+          % (L.CONTROL_ACCOUNT, format(got["control"], ",.2f")))
+    print("    waiting for one journal into the real bank accounts at go-live.")
+
+    bank = [a.name for a in frappe.get_all(
+        "Account", filters={"company": company, "is_group": 0,
+                            "account_type": ["in", ("Bank", "Cash")]},
+        fields=["name"])]
+    moved = frappe.db.count("GL Entry", {"account": ["in", bank or [""]],
+                                         "is_cancelled": 0}) if bank else 0
+    print("    real bank and cash accounts: %d GL rows  %s"
+          % (moved, "ok - clean" if not moved else
+             "<-- something posted to a real bank account"))
+    ok = ok and not moved
+
     # Nothing should be sitting in Temporary Opening: revision 5 left the whole
     # 256,400 there, which is what made every statement read wrong.
-    company = frappe.db.get_single_value("DBR Settings", "default_company")
     temp = frappe.db.get_value("Account", {"account_name": "Temporary Opening",
                                            "company": company}, "name")
     if temp:

@@ -649,7 +649,8 @@ body.focus main{max-width:none}
   <h1 id="ptop">MD Command Centre</h1>
   <div class="ptoggle" id="ptoggle">
     <button data-p="jul" class="on">Jul '26</button><button data-p="jun">Jun '26</button>
-    <button data-p="q3">Q3</button><button data-p="ytd">YTD</button>
+    <button data-p="q3">Q3</button><button data-p="ytd">YTD</button
+    ><button data-p="life">Lifetime</button>
   </div>
   <div class="ticker" id="ticker">Next landlord cheque <b id="tickAmt">486,000</b><span id="tickDays">· Al Kuwari Est. · in 7 days</span></div>
   <div class="sync" id="sync">Synced 07:12 · Sun 26 Jul</div>
@@ -1543,7 +1544,9 @@ const KPI={
  q3: {...pack(9,11,6,8), arr:418000, arrD:+5.6, cash:2140000, cashD:-1.1, pdc30:1085000, ll30:986000,
       vd:566, vdD:+21, br:3.1, brD:+0.2, unm:9, unmA:'2 > 5d', ap:4, apOld:2, label:"May–Jul '26"},
  ytd:{...pack(5,11,0,4),  arr:418000, arrD:+9.4, cash:2140000, cashD:+6.3, pdc30:1085000, ll30:986000,
-      vd:1240, vdD:-4, br:3.2, brD:-0.6, unm:9, unmA:'2 > 5d', ap:4, apOld:2, label:"Jan–Jul '26"}
+      vd:1240, vdD:-4, br:3.2, brD:-0.6, unm:9, unmA:'2 > 5d', ap:4, apOld:2, label:"Jan–Jul '26"},
+ life:{...pack(5,11,0,4),  arr:418000, arrD:null, cash:2140000, cashD:null, pdc30:1085000, ll30:986000,
+      vd:1240, vdD:null, br:3.2, brD:null, unm:9, unmA:'2 > 5d', ap:4, apOld:2, label:"Lifetime"}
 };
 
 /* live data · replaces the seed when the server sent figures */
