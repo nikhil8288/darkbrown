@@ -82,7 +82,7 @@ import traceback
 import frappe
 from frappe.utils import getdate
 
-REVISION = 11
+REVISION = 12
 CONFIRM = "REMOVE ALL DARKBROWN DATA"
 HERE = os.path.dirname(os.path.abspath(__file__))
 
@@ -90,13 +90,13 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 #: version. A file that exists but is the old copy is the failure mode that
 #: cost three attempts, so existence alone is not enough.
 DEPLOYED = [
-    ("ak12_rebuild.py",       "REVISION = 11"),
+    ("ak12_rebuild.py",       "REVISION = 12"),
     ("wipe_ledger_once.py",   "no buildings"),
     ("wipe_ledger.py",        "direct table delete"),
     ("ak12_doctor.py",        "AK-12 DOCTOR"),
     ("load_ak12_history.py",  "income_account(company)"),
-    ("load_ak12_headlease.py", "def _preflight"),
-    ("_ledger_common.py",     "Head Lease Rent"),
+    ("load_ak12_headlease.py", "def _heal"),
+    ("_ledger_common.py",     "def cost_centre_for"),
     ("ak12_headlease.csv",    "Head lease HL AK-12"),
     ("load_customers.py",     "had the tenant flag switched on"),
     ("import_tenancies.py",   'open(path, encoding="utf-8-sig")'),
@@ -287,6 +287,18 @@ def check():
                  "   BOM (harmless now, loaders strip it)" if bom else "",
                  "" if has else "   <-- not the revision-%d file" % REVISION))
         ok = ok and has
+    shell = os.path.join(HERE, "..", "shell", "index.html")
+    if os.path.exists(shell):
+        raw = open(shell, "rb").read()
+        for proof, what in ((b"LEDGER_ROUTES", "the BOOKS name clash"),
+                            (b"window.DB_SEED?new Date", "the hardcoded date")):
+            has = proof in raw
+            print("    %s  shell/index.html - %s"
+                  % ("ok     " if has else "OLD    ", what))
+            ok = ok and has
+    else:
+        print("    ?       shell/index.html not found next to patches/")
+
     try:
         import darkbrown.api.cutover as cutover
         src = open(cutover.__file__.replace(".pyc", ".py"), "rb").read()

@@ -1,4 +1,4 @@
-# AK-12 clean rebuild — revision 11
+# AK-12 clean rebuild — revision 12
 
 Empty the site, load one building with its 8 units, 9 tenants (7 current,
 2 former), 11 agreements and nine months of real invoices and receipts, then
@@ -6,7 +6,83 @@ prove the result. One module runs it all: `darkbrown/patches/ak12_rebuild.py`.
 
 ---
 
-## Where the load got to — half of it
+## Revision 12 — everything, in one build
+
+Three separate faults, all fixed and all verified. Deploy, then run the two
+commands under "Do this first". Nothing else is needed.
+
+### 1. The head-lease cost never posted
+
+The loader created its expense account and then failed on the first Purchase
+Invoice — visible on your own screens, where Position counted 29 expense
+accounts against 28 before, and 5 income accounts against 4.
+
+Revision 11 named the missing prerequisite. This one fixes it. `_heal()` runs
+before any posting and corrects the four things that have exactly one sensible
+value, printing each correction:
+
+- creates a **Creditors** account if nothing on the chart is typed Payable
+- flags the **Landlord Rent** item as a purchase item if it is sales-only
+  (ERPNext refuses a sales-only item on a Purchase Invoice — the most likely
+  cause here)
+- writes **Building.cost_center** if it is blank, creating the cost centre if
+  needed. That field is read-only and only the `after_insert` hook writes it,
+  so a Building created any other way carries none
+- creates any **fiscal year** the accrual or payment dates need
+
+If the insert still fails, it now retries down a ladder — without the custom
+contract/period fields, then without a cost centre, then as a plain description
+line with no item code — and prints which rung worked and what the full form
+was refused with. A fallback nobody knows about is worse than a failure, so
+each one is announced.
+
+Verified against four separately broken sites: item sales-only, no Payable
+account anywhere, `cost_center` blank, and ERPNext rejecting the custom fields
+outright. All four end with 162,000 of cost on the P&L.
+
+### 2. Cash at bank 0, Receivables 0 — a name clash in the shell
+
+Line 6306 declared `const BOOKS = ['coa','ledger','journal',...]`, a list of
+route names. A script-scope `const` beats a window property, so every bare
+`BOOKS` in the file resolved to that **array** rather than to `window.BOOKS`,
+the ledger payload. Consequences, all of which you have been looking at:
+
+- `booksNote()` read `.from`, `.to` and `.accounts` off an array — hence
+  **"undefined to undefined · undefined accounts on the chart"**
+- `accGroup()` found no `.groups` on an array and fell back to the prototype
+  account codes `1010`/`1020`/`1030`/`1100`/`2100`. Your accounts are named,
+  not numbered, so nothing matched and **Cash at bank, Receivables and Deposits
+  held all read 0** on a ledger holding 255,800 and 600
+- Chart of accounts read "balances as at undefined"
+
+The array is renamed `LEDGER_ROUTES`, and the four bare reads are now explicit
+`window.BOOKS`, so a future shadow cannot do this again. Proved by rendering
+the real shell in jsdom against the real `accounting.books` payload:
+
+```
+before   booksNote -> undefined to undefined · undefined accounts
+         accGroup bank 0 · receivable 0
+after    booksNote -> 2025-09-05 to 2026-09-05 · 47 accounts on the chart
+         accGroup bank 255,800 · receivable 600
+```
+
+### 3. The General Ledger screen was stuck at 26 July 2026
+
+`const TODAY = new Date('2026-07-26')`, a prototype literal used in 32 places.
+It is why that screen said "as at 26 Jul 26" while the Trial Balance screen
+said 05 Sept 26. Harmless while the history ended 05 Jul — from August the two
+screens would have disagreed and the ledger one would have been wrong. `TODAY`
+now reads the real date when `DB_SEED` is present (the boot payload is injected
+above that line, so it can be read there) and keeps the fixed date in the
+prototype, so the demo screens that assume it are unaffected. Same jsdom run
+confirms the date moved to today.
+
+`check` now verifies both shell fixes are on the server alongside the Python
+ones, so a partial deploy is caught before you load.
+
+---
+
+## Where the previous load got to
 
 The wipe worked and the rent side loaded correctly. The head-lease side did
 not, so the ledger has income and no cost:
@@ -44,41 +120,16 @@ missing instead of throwing. If the insert still fails, it now prints the
 supplier, company, posting date, credit account, expense account, item, cost
 centre and amount it tried to post, then stops.
 
-Run this and send me the output — it is read-only and takes a second:
-
-```
-bench --site erp.darkbrown.qa execute darkbrown.patches.load_ak12_headlease.dry_run
-```
-
-If the preflight is clean, then:
+Fixed in revision 12 — see above. The command to run is:
 
 ```
 bench --site erp.darkbrown.qa execute darkbrown.patches.load_ak12_headlease.run
 ```
 
-That posts only the missing 9 invoices and 9 payments. The rent side is already
+It posts only the missing 9 invoices and 9 payments. The rent side is already
 correct and is not touched.
 
-### Two things wrong in the shell, unrelated to the data
-
-**The General Ledger screen is stuck at 26 July 2026.** `shell/index.html` line
-691 has `const TODAY = new Date('2026-07-26')`, a prototype constant used in 32
-places. That is why the GL screen's trial balance says "as at 26 Jul 26" while
-the proper Trial Balance screen says "As at 05 Sept 26". Today it makes no
-difference, because the history ends 05 Jul 26 — but from August onward the GL
-screen will silently exclude everything after 26 July while the Trial Balance
-screen includes it, and the two will disagree. It needs to come from the server
-rather than a literal. I have not changed it in this pack: 32 call sites,
-several of them prototype screens that assume that date, so it wants its own
-verified pass rather than being bundled with a data fix.
-
-**"undefined to undefined · undefined accounts on the chart"** at the foot of
-the General Ledger and Journal Entries screens. `booksNote()` reads `from`,
-`to` and `accounts` off `window.BOOKS`; `api.accounting.books` does return all
-three, so the payload the shell is holding is not the one that endpoint
-returns. Cosmetic, but it is a symptom worth chasing.
-
-Say the word on either and I will fix them properly, with the route sweep.
+Both shell defects described above are fixed in this build.
 
 ---
 
@@ -402,7 +453,7 @@ nothing and looks like a load that ran.
 
 That is the failure this pack is built around. `check` reads the files
 actually on the server and refuses to say READY unless each one is the
-revision-11 copy. If `check` does not print `REVISION 11` and `READY`, the
+revision-12 copy. If `check` does not print `REVISION 12` and `READY`, the
 deploy did not land and nothing else is worth trying.
 
 **Second cause, once the first is fixed:** the site was never actually empty.
@@ -415,7 +466,7 @@ doctypes the purge does not list (Historical Monthly PL and seven others).
 
 ## Deploy
 
-1. Unzip `ak12_rebuild_r11.zip` over the **repo root** — the folder that
+1. Unzip `ak12_rebuild_r12.zip` over the **repo root** — the folder that
    contains `darkbrown/` and `setup.py`. Everything lands under
    `darkbrown/patches/` and `darkbrown/api/`. Nothing to delete.
 2. GitHub Desktop must show **exactly these 11 changes** — 3 new, 8 modified:

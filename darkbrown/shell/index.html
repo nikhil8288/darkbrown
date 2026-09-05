@@ -688,7 +688,13 @@ const esc=s=>String(s).replace(/[<>&]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[
    on the next render, where a quote would close the attribute early. */
 const escA=s=>String(s===undefined||s===null?'':s)
   .replace(/[<>&"']/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&#39;'}[c]));
-const DAY=864e5, TODAY=new Date('2026-07-26');
+/* The prototype's date. On a live site it has to be the real one, or the
+   ledger screen's trial balance and position silently exclude everything
+   posted after it while the Trial Balance screen includes it, and the two
+   disagree. DB_SEED is injected above this line, so it can be read here. */
+const DAY=864e5,
+  TODAY=window.DB_SEED?new Date(new Date().toISOString().slice(0,10))
+                      :new Date('2026-07-26');
 const asDate=d=>d instanceof Date?d:new Date(d);
 const fdate=d=>{const t=asDate(d);
   return isFinite(t)?t.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'2-digit'}):'\u2014'};
@@ -1401,8 +1407,8 @@ function accBalance(code){
    the company's own accounts are banks, receivables and deposits, and the
    prototype codes are only the fallback when nothing is live. */
 function accGroup(k,fallback){
-  const g=(window.BOOKS&&BOOKS.groups&&BOOKS.groups[k]&&BOOKS.groups[k].length)
-    ?BOOKS.groups[k]:fallback;
+  const B=window.BOOKS;
+  const g=(B&&B.groups&&B.groups[k]&&B.groups[k].length)?B.groups[k]:fallback;
   return g.reduce((s,c)=>s+accBalance(c).bal,0);
 }
 
@@ -1426,7 +1432,7 @@ window.books=books;
    them, because a ledger that silently shows twelve months reads as a ledger. */
 function booksNote(){
   if(!window.BOOKS) return '';
-  const b=BOOKS;
+  const b=window.BOOKS;
   return `<div class="foot"><span>${b.from} to ${b.to} \u00b7 ${b.accounts} accounts on the chart</span>
     <span>${b.capped?'capped at '+b.cap+' postings \u2014 older ones are in the desk':'every posting in the window'}</span></div>`;
 }
@@ -5858,7 +5864,7 @@ ROUTES.coa=()=>{
        <td>${a[3]}</td><td class="r num">${b.dr?money(b.dr):'—'}</td><td class="r num">${b.cr?money(b.cr):'—'}</td>
        <td class="r num">${money(Math.abs(b.bal))} ${b.nat}</td></tr>`});
   });
-  return page('Chart of accounts',COA.length+' accounts · five classes · used by every automatic posting'+(window.BOOKS?' · balances as at '+BOOKS.to:'')+'',
+  return page('Chart of accounts',COA.length+' accounts · five classes · used by every automatic posting'+(window.BOOKS?' \u00b7 balances as at '+window.BOOKS.to:'')+'',
    fbtn('New journal entry','journal-entry')+actbtn('Add account'),
    stat(cls.map(c=>[c+'s',COA.filter(a=>a[2]===c).length]))+
    `<div class="card"><h3>Accounts <span class="plabel">click any account for its ledger</span></h3>
@@ -6303,7 +6309,14 @@ const PLANONLY=['planning','capacity','forecast','fva','scenarios','scenario','c
    authority; this only stops the nav from putting a door there that does not
    open. Accounts is on the list because the accountant is the person these
    screens are for. */
-const BOOKS=['coa','ledger','journal','trial','account','pl','bs','cf'];
+/* Renamed from BOOKS. As BOOKS it shadowed window.BOOKS - the ledger payload -
+   for every bare `BOOKS` reference in this file, because a script-scope const
+   wins over a window property. booksNote() read `.from`/`.to`/`.accounts` off
+   this array and printed "undefined to undefined · undefined accounts", and
+   accGroup() found no `.groups` on it and silently fell back to the prototype
+   account codes, which is why Cash at bank, Receivables and Deposits held all
+   read 0 on a ledger holding 255,800. */
+const LEDGER_ROUTES=['coa','ledger','journal','trial','account','pl','bs','cf'];
 window.cycleRole=()=>{const o=Object.keys(ROLES);
   if(DB_REAL_ROLE!=='MD'){toast('Your role is set by your login');return}
   ROLEV=o[(Math.max(0,o.indexOf(ROLEV))+1)%o.length];applyRole();
@@ -6353,7 +6366,7 @@ function roleCan(r){
   if((ROLE_DENY[ROLEV]||[]).indexOf(r)>=0)return false;
   if(RESTRICTED.includes(r))return ROLEV==='MD'||ROLEV==='GM';
   if(PLANONLY.includes(r))return ROLEV==='MD'||ROLEV==='GM';
-  if(BOOKS.includes(r))return ROLEV==='MD'||ROLEV==='GM'||ROLEV==='ACC';
+  if(LEDGER_ROUTES.includes(r))return ROLEV==='MD'||ROLEV==='GM'||ROLEV==='ACC';
   return true;}
 window.roleCan=roleCan;
 
@@ -7349,7 +7362,7 @@ function roleBlock(r){
    ? 'Owner current account balances are restricted to the Managing Director and the General Manager under D73. Accounts can classify a shareholder movement at reconciliation, but never sees the running balance.'
    : PLANONLY.includes(r)
    ? 'Planning reads the reverse-planning solver, which is reserved to the Managing Director and the General Manager.'
-   : BOOKS.includes(r)
+   : LEDGER_ROUTES.includes(r)
    ? 'The books are open to the Managing Director, the General Manager and Accounts.'
    : r==='dash'
    ? 'The Command Centre is the Managing Director\'s screen. Your own home carries the part of it that is yours.'

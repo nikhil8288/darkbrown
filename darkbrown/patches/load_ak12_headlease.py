@@ -79,6 +79,119 @@ def _head_lease(building):
     return hl[0].name, hl[0].landlord
 
 
+#: Each rung drops the next most likely thing to be refused, so a site with an
+#: unusual chart or missing custom fields still gets its cost onto the P&L.
+#: Anything below the first rung is printed, because a fallback that nobody
+#: knows happened is worse than a failure.
+def _insert_invoice(spec, row):
+    """Insert and submit, falling back through progressively plainer forms."""
+    ladder = [
+        ("as built", lambda d: d),
+        ("without the custom contract/period fields", _drop_custom),
+        ("without a cost centre", _drop_cost_centre),
+        ("as a plain description line, no item code", _drop_item),
+    ]
+    first_error = None
+    for label, shape in ladder:
+        try:
+            doc = _clone(shape(spec))
+            doc.insert(ignore_permissions=True)
+            doc.submit()
+            if label != "as built":
+                print("    %s posted %s - the full form was refused: %s"
+                      % (row["period"][:7], label, str(first_error)[:110]))
+            return doc
+        except Exception as e:
+            if first_error is None:
+                first_error = e
+            frappe.db.rollback()
+    raise first_error
+
+
+#: Header fields carried onto each retry. Listed rather than copied wholesale,
+#: because a Document that has already been through validate carries derived
+#: fields that must not be replayed onto a fresh one.
+_HEADER = ("supplier", "company", "set_posting_time", "posting_date",
+           "bill_date", "due_date", "credit_to", "cost_center", "remarks",
+           "custom_landlord_contract", "custom_billing_period")
+_LINE = ("item_code", "item_name", "description", "qty", "rate",
+         "expense_account", "cost_center")
+
+
+def _clone(spec):
+    """A fresh Purchase Invoice from a plain dict of what to post."""
+    doc = frappe.new_doc("Purchase Invoice")
+    for f in _HEADER:
+        if spec.get(f) is not None:
+            setattr(doc, f, spec[f])
+    line = {f: spec["line"].get(f) for f in _LINE
+            if spec["line"].get(f) is not None}
+    doc.append("items", line)
+    doc.flags.ignore_mandatory = True
+    doc.flags.ignore_permissions = True
+    return doc
+
+
+def _drop_custom(spec):
+    spec = dict(spec, line=dict(spec["line"]))
+    spec.pop("custom_landlord_contract", None)
+    spec.pop("custom_billing_period", None)
+    return spec
+
+
+def _drop_cost_centre(spec):
+    spec = _drop_custom(spec)
+    spec.pop("cost_center", None)
+    spec["line"].pop("cost_center", None)
+    return spec
+
+
+def _drop_item(spec):
+    spec = _drop_cost_centre(spec)
+    spec["line"].pop("item_code", None)
+    return spec
+
+
+def _heal():
+    """Fix what can be fixed, rather than report it and stop.
+
+    Revision 11 named the missing prerequisites. That is the right thing when
+    a human has to decide, and the wrong thing for four items that have exactly
+    one sensible value: a Payable account, a purchasable item, the building's
+    cost centre, and fiscal years covering the dates. All four are created or
+    corrected here, and every correction is printed so nothing happens silently.
+    """
+    done = []
+    company = L.company()
+
+    _, made = L.payable(company)
+    if made:
+        done.append("created a Creditors account (none was typed Payable)")
+
+    if L.ensure_purchasable("Landlord Rent"):
+        done.append("flagged item 'Landlord Rent' as a purchase item")
+
+    for building in sorted({r["building"] for r in _rows()}):
+        if frappe.db.exists("Building", building):
+            cc, made = L.cost_centre_for(building)
+            if made:
+                done.append("wrote cost centre %s onto Building %s"
+                            % (cc, building))
+
+    dates = [r["accrued_on"] for r in _rows()]
+    dates += [r["paid_on"] for r in _rows() if (r.get("paid_on") or "").strip()]
+    years = L.ensure_fiscal_years(dates)
+    if years:
+        done.append("created fiscal year(s) %s" % ", ".join(years))
+
+    if done:
+        print("  healed before posting:")
+        for d in done:
+            print("    - %s" % d)
+    frappe.db.commit()
+    return done
+
+
 def _preflight():
     """Everything a Purchase Invoice insert needs, checked before one is built.
 
@@ -93,27 +206,11 @@ def _preflight():
     if not company:
         return [("company", "DBR Settings has no default_company")]
 
-    if not frappe.db.get_value("Account", {"account_type": "Payable",
-                                           "company": company,
-                                           "is_group": 0}, "name"):
-        out.append(("payable account",
-                    "no Account on %s typed Payable - a Purchase Invoice has "
-                    "nowhere to credit" % company))
     if not L.cash_account(company):
         out.append(("bank/cash account",
                     "no Account typed Bank or Cash - the landlord payment has "
                     "nowhere to pay from"))
 
-    item = frappe.db.get_value("Item", "Landlord Rent",
-                               ["is_purchase_item", "has_variants",
-                                "disabled"], as_dict=True)
-    if item:
-        if not item.is_purchase_item:
-            out.append(("item Landlord Rent",
-                        "exists but is_purchase_item is 0 - ERPNext refuses it "
-                        "on a Purchase Invoice. Tick 'Is Purchase Item'."))
-        if item.disabled:
-            out.append(("item Landlord Rent", "is disabled"))
 
     for r in _rows():
         if not frappe.db.exists("Building", r["building"]):
@@ -127,21 +224,7 @@ def _preflight():
         elif not frappe.db.exists("Supplier", hl[0].landlord):
             out.append(("landlord", "Supplier %r does not exist"
                         % hl[0].landlord))
-        if not L.cost_center(r["building"]):
-            out.append(("cost centre",
-                        "Building %s has no cost_center - the hook that writes "
-                        "it did not run" % r["building"]))
         break
-
-    dates = sorted({r["accrued_on"] for r in _rows()}
-                   | {r["paid_on"] for r in _rows() if (r.get("paid_on") or "").strip()})
-    fys = frappe.get_all("Fiscal Year", fields=["year_start_date",
-                                                "year_end_date"])
-    for d in dates:
-        if not any(str(f.year_start_date) <= d <= str(f.year_end_date)
-                   for f in fys):
-            out.append(("fiscal year", "nothing covers %s" % d))
-            break
 
     if frappe.db.get_value("Company", company, "enable_perpetual_inventory"):
         out.append(("perpetual inventory",
@@ -181,7 +264,7 @@ def dry_run():
     assumed = sum(1 for r in rows if "ASSUMED" in (r.get("remarks") or ""))
     pre = _preflight()
     print("=" * 76)
-    print("DRY RUN - nothing created")
+    print("DRY RUN - nothing created (healing is deferred to run)")
     print("=" * 76)
     print("  rows %d | PROBLEMS %d | invoices on site %d | payments on site %d"
           % (len(rows), len(problems), len(inv_seen), len(pay_seen)))
@@ -217,14 +300,16 @@ def dry_run():
 def run():
     rows = _rows()
     problems, accrued, ok = _checks(rows)
+    _heal()
     pre = _preflight()
     if problems or not ok or pre:
         print("ABORTING: dry_run is not clean. Nothing was created.")
         dry_run()
         return {"invoices": 0, "payments": 0, "aborted": True}
 
+    _heal()
     company = L.company()
-    payable = L.payable(company)
+    payable, _ = L.payable(company)
     cash = L.cash_account(company)
     expense, made_acc = L.expense_account(company)
     item = L.item("Landlord Rent", sales=False, purchase=True)
@@ -249,34 +334,26 @@ def run():
                 {"remarks": ["like", "%[" + inv_no + "]%"], "docstatus": 1},
                 "name")
         else:
-            pi = frappe.new_doc("Purchase Invoice")
-            pi.supplier = landlord
-            pi.company = company
-            pi.set_posting_time = 1
-            pi.posting_date = on
-            pi.bill_date = on
-            pi.due_date = on
-            pi.credit_to = payable
-            pi.cost_center = cc
-            pi.custom_landlord_contract = hl
-            pi.custom_billing_period = r["period"][:7]
-            pi.remarks = "[%s] | AK12_HEADLEASE | %s | %s | %s" % (
-                inv_no, r["building"], r["period"][:7], r.get("remarks") or "")
-            pi.append("items", {
-                "item_code": item,
-                "item_name": "Head lease rent - %s" % r["building"],
-                "description": "Head lease rent, %s, %s" % (r["building"],
-                                                            r["period"][:7]),
-                "qty": 1,
-                "rate": amount,
-                "expense_account": expense,
-                "cost_center": cc,
-            })
-            pi.flags.ignore_mandatory = True
-            pi.flags.ignore_permissions = True
+            spec = {
+                "supplier": landlord, "company": company,
+                "set_posting_time": 1, "posting_date": on, "bill_date": on,
+                "due_date": on, "credit_to": payable, "cost_center": cc,
+                "custom_landlord_contract": hl,
+                "custom_billing_period": r["period"][:7],
+                "remarks": "[%s] | AK12_HEADLEASE | %s | %s | %s" % (
+                    inv_no, r["building"], r["period"][:7],
+                    r.get("remarks") or ""),
+                "line": {
+                    "item_code": item,
+                    "item_name": "Head lease rent - %s" % r["building"],
+                    "description": "Head lease rent, %s, %s"
+                                   % (r["building"], r["period"][:7]),
+                    "qty": 1, "rate": amount,
+                    "expense_account": expense, "cost_center": cc,
+                },
+            }
             try:
-                pi.insert(ignore_permissions=True)
-                pi.submit()
+                pi = _insert_invoice(spec, r)
             except Exception:
                 import traceback
                 print("\n  FAILED on the %s invoice. What it tried to post:"
