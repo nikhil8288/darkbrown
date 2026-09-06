@@ -70,6 +70,37 @@ def preview():
 
 
 @frappe.whitelist()
+def residual_preview():
+    """Count what `purge` cannot see. Writes nothing.
+
+    purge is scoped by party flag and by Building.cost_center, so a record
+    that lost its flag - or a cost centre whose Building is already gone -
+    does not appear in preview() and the screen reports an empty site while
+    the records are still there.
+    """
+    _guard()
+    from darkbrown.demo import residuals
+    out = residuals.preview()
+    out["total"] = sum(out["counts"].values()) if out["counts"] else 0
+    return out
+
+
+@frappe.whitelist()
+def residual_sweep(confirm=None):
+    """Remove the residue. Refuses on a live ledger or a loaded portfolio."""
+    _guard()
+    from darkbrown.demo import residuals
+    if confirm != residuals.CONFIRM:
+        frappe.throw(_("Type the confirmation phrase exactly to go "
+                       "ahead: {0}").format(residuals.CONFIRM))
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        out = residuals.run(confirm=confirm)
+    out["log"] = buf.getvalue()
+    return out
+
+
+@frappe.whitelist()
 def start(action, confirm=None, wide=0):
     """Hand a long job to a background worker."""
     _guard()
