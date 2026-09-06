@@ -57,8 +57,8 @@ CATALOGUE = [
     ("cheques", "Cheque register",
      "Every cheque by status, bank and maturity",
      "Cheque records"),
-    ("occupancy", "Occupancy and voids",
-     "Occupied, vacant, void days and the rent those voids cost",
+    ("occupancy", "Occupancy and vacancy",
+     "Occupied, vacant days and the rent that vacancy costs",
      "Units and Tenancy Agreements"),
     ("renewals", "Renewal pipeline",
      "Agreements expiring in the window, with rent and notice dates",
@@ -151,33 +151,62 @@ def _pl_by_building(frm, to, building=None):
         elif root == "Expense":
             rows_by[(b, month)]["expense"] += flt(e.debit) - flt(e.credit)
 
+    # Overhead does not post to a building and never should; it is divided
+    # here so the margin is what the building actually earns the company
+    # rather than what it earns before anyone is paid to run it.
+    from darkbrown.utils import allocation
+    try:
+        alloc = allocation.allocate(frm, to).get("by_building_month") or {}
+    except Exception:
+        frappe.log_error(frappe.get_traceback(), "Overhead allocation skipped")
+        alloc = {}
+
+    keys = set(rows_by) | {(k.split("|")[0], k.split("|")[1] + "-01")
+                           for k in alloc}
+    if building:
+        keys = {k for k in keys if k[0] == building}
+
     rows = []
-    for (b, month), v in sorted(rows_by.items()):
-        net = v["income"] - v["expense"]
+    for (b, month) in sorted(keys):
+        v = rows_by.get((b, month), {"income": 0.0, "expense": 0.0})
+        overhead = flt(alloc.get("%s|%s" % (b, month[:7]), 0.0))
+        net = v["income"] - v["expense"] - overhead
         rows.append({"building": b, "month": month[:7],
                      "income": round(v["income"], 2),
                      "expense": round(v["expense"], 2),
+                     "overhead": round(overhead, 2),
                      "net": round(net, 2),
                      "margin": round(net / v["income"] * 100, 1)
                      if v["income"] else None})
 
     cols = [_col("building", "Building"), _col("month", "Month"),
             _col("income", "Revenue", "money"),
-            _col("expense", "Head-lease cost", "money"),
+            _col("expense", "Direct cost", "money"),
+            _col("overhead", "Allocated overhead", "money"),
             _col("net", "Net", "money"), _col("margin", "Margin", "percent")]
     inc = sum(r["income"] for r in rows)
     exp = sum(r["expense"] for r in rows)
+    ovh = sum(r["overhead"] for r in rows)
     totals = {"income": round(inc, 2), "expense": round(exp, 2),
-              "net": round(inc - exp, 2),
-              "margin": round((inc - exp) / inc * 100, 1) if inc else None}
-    note = ""
+              "overhead": round(ovh, 2),
+              "net": round(inc - exp - ovh, 2),
+              "margin": round((inc - exp - ovh) / inc * 100, 1) if inc else None}
+    note = ("Direct cost is what posted to the building's own cost centre. "
+            "Allocated overhead is the company's common cost divided by "
+            "head-lease weight across the buildings that were live that "
+            "month, in whole riyals - it is not in the ledger against this "
+            "building and never will be, because it is not this building's "
+            "cost. It is here because a margin that ignores it flatters every "
+            "building. ")
     if not rows:
-        note = ("Nothing posted against a building cost centre in this window. "
-                "A posting with no cost centre cannot be attributed to a "
-                "building and is left out rather than spread across them.")
+        note = ("Nothing posted against a building cost centre in this window, "
+                "and no overhead to divide. A posting with no cost centre "
+                "cannot be attributed to a building and is left out rather "
+                "than spread across them.")
     elif not any(r["expense"] for r in rows):
-        note = ("No head-lease cost is posted in this window, so every margin "
-                "reads 100%. Revenue without its cost is not a margin.")
+        note += ("No direct cost is posted in this window, so the margins are "
+                 "revenue less overhead only. Revenue without its lease cost "
+                 "is not a margin.")
     return _pack("pl_by_building", cols, rows, totals, note)
 
 
@@ -373,10 +402,10 @@ def _occupancy(frm, to, building=None):
     cols = [_col("building", "Building"), _col("unit", "Unit"),
             _col("type", "Type"), _col("status", "Status"),
             _col("occupied", "Occupied days", "number"),
-            _col("void", "Void days", "number"),
+            _col("void", "Vacant days", "number"),
             _col("pct", "Occupancy", "percent"),
             _col("rent", "Current rent", "money"),
-            _col("lost", "Rent lost to voids", "money")]
+            _col("lost", "Rent lost to vacancy", "money")]
     occ = sum(r["occupied"] for r in rows)
     tot = span * len(rows)
     totals = {"occupied": occ, "void": sum(r["void"] for r in rows),
@@ -384,7 +413,7 @@ def _occupancy(frm, to, building=None):
               "rent": round(sum(r["rent"] for r in rows), 2),
               "lost": round(sum(r["lost"] for r in rows), 2)}
     return _pack("occupancy", cols, rows, totals,
-                 "Rent lost to voids values a void month at the unit's asking "
+                 "Rent lost to vacancy values a vacant month at the unit's asking "
                  "rent, falling back to its current rent where no asking rent "
                  "is set. It is an opportunity figure, not a ledger one.")
 

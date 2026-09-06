@@ -1,0 +1,256 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "creation": "2026-09-07 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "index_web_pages_for_search": 0,
+ "is_submittable": 1,
+ "links": [],
+ "modified": "2026-09-07 00:00:00.000000",
+ "module": "Darkbrown",
+ "name": "Expense Entry",
+ "owner": "Administrator",
+ "sort_field": "expense_date",
+ "sort_order": "DESC",
+ "track_changes": 1,
+ "autoname": "format:EXP-{#####}",
+ "title_field": "description",
+ "field_order": [
+  "expense_date",
+  "expense_head",
+  "amount",
+  "column_break_1",
+  "basis",
+  "building",
+  "cost_center",
+  "section_settlement",
+  "payment_mode",
+  "paid_from",
+  "column_break_2",
+  "supplier",
+  "reference",
+  "section_detail",
+  "description",
+  "attachment",
+  "column_break_3",
+  "notes",
+  "section_posting",
+  "journal_entry",
+  "column_break_4",
+  "company",
+  "amended_from"
+ ],
+ "fields": [
+  {
+   "fieldname": "expense_date",
+   "fieldtype": "Date",
+   "label": "Date",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "description": "The date the cost was incurred. The allocation of a common cost uses this month, so a bill back-dated into March is shared by the buildings that were live in March."
+  },
+  {
+   "fieldname": "expense_head",
+   "fieldtype": "Link",
+   "options": "Account",
+   "label": "Expense Head",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "description": "Which account the cost lands in. The head decides whether it belongs to a building or to the company \u2014 that is not a choice made here."
+  },
+  {
+   "fieldname": "amount",
+   "fieldtype": "Currency",
+   "options": "QAR",
+   "label": "Amount",
+   "reqd": 1,
+   "in_list_view": 1,
+   "description": "Always positive."
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "basis",
+   "fieldtype": "Select",
+   "options": "\nBuilding\nCommon",
+   "label": "Basis",
+   "read_only": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "description": "Read off the expense head. Building costs post to that building; common costs post to Overhead and are shared out by head-lease cost across the buildings live that month."
+  },
+  {
+   "fieldname": "building",
+   "fieldtype": "Link",
+   "options": "Building",
+   "label": "Building",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "depends_on": "eval:doc.basis=='Building'",
+   "mandatory_depends_on": "eval:doc.basis=='Building'",
+   "description": "Required for a building head. A building cost with no building is a cost that can never be found again."
+  },
+  {
+   "fieldname": "cost_center",
+   "fieldtype": "Link",
+   "options": "Cost Center",
+   "label": "Cost Centre",
+   "read_only": 1,
+   "description": "Resolved on submit \u2014 the building's own centre, or Overhead."
+  },
+  {
+   "fieldname": "section_settlement",
+   "fieldtype": "Section Break",
+   "label": "How it was settled"
+  },
+  {
+   "fieldname": "payment_mode",
+   "fieldtype": "Select",
+   "options": "Bank\nCash\nUnpaid",
+   "default": "Bank",
+   "label": "Settled By",
+   "reqd": 1,
+   "in_standard_filter": 1,
+   "description": "Unpaid records the cost now and leaves it owing to the supplier, so the expense sits in the right month whether or not the money has moved. Petty cash is not here on purpose \u2014 the float has its own screen and recording it twice would double the spend."
+  },
+  {
+   "fieldname": "paid_from",
+   "fieldtype": "Link",
+   "options": "Account",
+   "label": "Paid From",
+   "depends_on": "eval:doc.payment_mode!='Unpaid'",
+   "mandatory_depends_on": "eval:doc.payment_mode!='Unpaid'",
+   "description": "The bank or cash account the money left."
+  },
+  {
+   "fieldname": "column_break_2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "supplier",
+   "fieldtype": "Link",
+   "options": "Supplier",
+   "label": "Supplier",
+   "depends_on": "eval:doc.payment_mode=='Unpaid'",
+   "mandatory_depends_on": "eval:doc.payment_mode=='Unpaid'",
+   "description": "Who is owed. The credit goes to their payable account so the liability is theirs and not a lump."
+  },
+  {
+   "fieldname": "reference",
+   "fieldtype": "Data",
+   "label": "Reference",
+   "description": "Invoice, receipt or voucher number."
+  },
+  {
+   "fieldname": "section_detail",
+   "fieldtype": "Section Break",
+   "label": "What it was for"
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Data",
+   "label": "Description",
+   "reqd": 1,
+   "in_list_view": 1,
+   "description": "Becomes the narration on the journal, so it is what anyone reading the ledger later will see."
+  },
+  {
+   "fieldname": "attachment",
+   "fieldtype": "Attach",
+   "label": "Bill or receipt"
+  },
+  {
+   "fieldname": "column_break_3",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "notes",
+   "fieldtype": "Small Text",
+   "label": "Notes"
+  },
+  {
+   "fieldname": "section_posting",
+   "fieldtype": "Section Break",
+   "label": "Posting"
+  },
+  {
+   "fieldname": "journal_entry",
+   "fieldtype": "Link",
+   "options": "Journal Entry",
+   "label": "Journal Entry",
+   "read_only": 1,
+   "description": "Written on submit. Cancelling this entry cancels it."
+  },
+  {
+   "fieldname": "column_break_4",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "options": "Company",
+   "label": "Company",
+   "read_only": 1
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "options": "Expense Entry",
+   "label": "Amended From",
+   "read_only": 1,
+   "print_hide": 1,
+   "no_copy": 1
+  }
+ ],
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "read": 1,
+   "report": 1,
+   "write": 1,
+   "submit": 1,
+   "cancel": 1,
+   "amend": 1,
+   "role": "System Manager"
+  },
+  {
+   "create": 1,
+   "delete": 0,
+   "read": 1,
+   "report": 1,
+   "write": 1,
+   "submit": 1,
+   "cancel": 1,
+   "amend": 1,
+   "role": "Managing Director"
+  },
+  {
+   "create": 1,
+   "delete": 0,
+   "read": 1,
+   "report": 1,
+   "write": 1,
+   "submit": 1,
+   "cancel": 1,
+   "amend": 1,
+   "role": "Accounts"
+  },
+  {
+   "create": 1,
+   "delete": 0,
+   "read": 1,
+   "report": 1,
+   "write": 1,
+   "submit": 1,
+   "cancel": 0,
+   "amend": 0,
+   "role": "General Manager"
+  }
+ ]
+}

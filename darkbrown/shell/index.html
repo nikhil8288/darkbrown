@@ -110,6 +110,17 @@ main>#view>.stats,main>#view>.grid2,main>#view>.g3,main>#view>.card,main>#view>.
 .stats .st .v{font:600 18px var(--mono);color:var(--ink);margin-top:3px}
 .stats .st .s{font-size:10px;color:var(--mut);margin-top:1px}
 .stats .st .s.r{color:var(--red)} .stats .st .s.a{color:var(--amber)} .stats .st .s.g{color:var(--em)}
+.stats .st.clk{cursor:pointer;transition:border-color .12s,background .12s}
+.stats .st.clk:hover{border-color:var(--em);background:var(--bg)}
+.stats .st.clk::after{content:'';display:block;height:2px;margin-top:7px;border-radius:2px;background:transparent}
+.stats .st.clk.on{border-color:var(--em);background:var(--bg)}
+.stats .st.clk.on::after{background:var(--em)}
+.stats .st.clk.on .l{color:var(--em)}
+.ptoggle.inline{display:inline-flex;vertical-align:middle}
+.fchip{display:inline-flex;align-items:center;gap:6px;background:var(--bg2);border:1px solid var(--em);
+ border-radius:999px;padding:3px 6px 3px 10px;font-size:11px;color:var(--ink);margin-bottom:8px}
+.fchip button{background:none;border:0;color:var(--mut);cursor:pointer;font-size:13px;line-height:1;padding:0 4px}
+.fchip button:hover{color:var(--red)}
 
 /* ---- MD wall: four tiles, colour is the message ---- */
 #wall{grid-column:1/-1;display:grid;gap:10px;grid-template-columns:repeat(1,minmax(0,1fr));margin-bottom:4px}
@@ -606,6 +617,7 @@ body.focus main{max-width:none}
     <div class="nv" data-r="receipts">Receipts</div>
     <div class="nv" data-r="cheques">Cheques</div>
     <div class="nv" data-r="batches">Batches</div>
+    <div class="nv" data-r="expenses">Expenses</div>
     <div class="nv" data-r="recon">Reconciliation <span class="b r" id="nbRecon">9</span></div>
     <div class="nv" data-r="closing">Weekly Closing</div>
     <div class="grp">Accounts</div>
@@ -758,7 +770,7 @@ BUILDINGS.forEach(b=>{for(let u=1;u<=b.units;u++){
   UNITS.push({id:b.id+'-U'+String(u*101%400+100).padStart(3,'0'),b:b.id,bn:b.n,
     type:pick(['Studio','1 BR','2 BR','2 BR','3 BR','Villa']),floor:ri(1,b.floors),
     sqm:ri(48,190), rent:Math.round(4200+R()*5400), llRent:0,
-    st:vac?pick(['Void','Void','Make-ready','Marketing','Reserved']):(R()<0.05?'Notice':'Occupied'),
+    st:vac?pick(['Vacant','Vacant','Make-ready','Marketing','Reserved']):(R()<0.05?'Notice':'Occupied'),
     vd:vac?ri(4,52):0});
 }});
 UNITS.forEach(u=>u.llRent=Math.round(u.rent*0.78));
@@ -965,7 +977,99 @@ function page(t,sub,actions,body){
    <div class="pa">${actions||''}</div></div>${body}`;
 }
 function crumb(items){return `<div class="crumb">${items.map((i,n)=>n<items.length-1?`<a href="${i[1]}">${i[0]}</a><span>›</span>`:`<b>${i[0]}</b>`).join('')}</div>`}
-function stat(items){return `<div class="stats">${items.map(i=>`<div class="st"><div class="l">${i[0]}</div><div class="v">${i[1]}</div>${i[2]?`<div class="s ${i[3]||''}">${i[2]}</div>`:''}</div>`).join('')}</div>`}
+/* ---------- filters that live in the hash ----------
+   A list filter has to survive a reload, because the person who filtered the
+   list is the same person who then refreshes it, follows a link out and comes
+   back, or sends the URL to someone else. Holding the filter in a variable
+   loses it every time; holding it in the address bar loses it never, and the
+   back button starts working on filters for free.
+
+   The query rides on the hash — #/units?st=Vacant — so it never reaches the
+   server, which has no opinion about it. */
+function qs(){
+  const h=location.hash||''; const i=h.indexOf('?');
+  if(i<0) return {};
+  const out={};
+  try{ new URLSearchParams(h.slice(i+1)).forEach((v,k)=>{out[k]=v}); }catch(e){}
+  return out;
+}
+function qsSet(k,v){
+  const h=location.hash||'#/'; const i=h.indexOf('?');
+  const base=i<0?h:h.slice(0,i);
+  let p; try{ p=new URLSearchParams(i<0?'':h.slice(i+1)); }catch(e){ p=new URLSearchParams(); }
+  if(v===null||v===undefined||v==='') p.delete(k); else p.set(k,v);
+  const q=p.toString();
+  location.hash=base+(q?'?'+q:'');
+}
+/* Clicking the box that is already on clears it, which is the only behaviour
+   that does not need a second control to undo the first. */
+function qsTog(k,v){ qsSet(k,(qs()[k]||'')===String(v)?'':String(v)) }
+window.qs=qs;window.qsSet=qsSet;window.qsTog=qsTog;
+
+/* A visible statement of what is being hidden. A filtered table that does not
+   say it is filtered reads as a shorter portfolio. */
+function fchip(label,k){
+  return `<div class="fchip">Showing ${esc(label)}
+    <button title="Clear" onclick="qsSet('${k}','')">&times;</button></div>`;
+}
+
+/* ---------- the reporting period on the accounts screens ----------
+   The Command Centre has had a period toggle since the beginning; the
+   statements never did, so "profit and loss" meant the fiscal year to date
+   and there was no way to ask it anything else. Same five buttons and the
+   same shape, but read off the real calendar rather than a fixed pair of
+   months: the two month buttons follow the current month and the one before
+   it, and the quarter and the year to date follow the Jan-to-Dec fiscal year.
+
+   Every window ends today at the latest. A balance sheet headed "as at 30
+   September" on the seventh of September is not wrong by a rounding — it is
+   a different statement from the one anybody asked for.
+
+   The choice rides in the hash like every other filter, so a reload keeps it
+   and the back button steps through it. */
+const MON3=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const ISO=d=>new Date(d).toISOString().slice(0,10);
+function acctPeriods(){
+  const y=TODAY.getUTCFullYear(), m=TODAY.getUTCMonth();
+  const first=(yy,mm)=>new Date(Date.UTC(yy,mm,1));
+  const last=(yy,mm)=>new Date(Date.UTC(yy,mm+1,0));
+  const cap=d=>ISO(new Date(Math.min(new Date(d).getTime(),TODAY.getTime())));
+  const pm=m===0?11:m-1, py=m===0?y-1:y, q=Math.floor(m/3), yr=n=>String(n).slice(2);
+  return [
+    {k:'m0',  l:MON3[m]+" '"+yr(y),   frm:ISO(first(y,m)),    to:cap(last(y,m))},
+    {k:'m1',  l:MON3[pm]+" '"+yr(py), frm:ISO(first(py,pm)),  to:cap(last(py,pm))},
+    {k:'q',   l:'Q'+(q+1),            frm:ISO(first(y,q*3)),  to:cap(last(y,q*3+2))},
+    {k:'ytd', l:'YTD',                frm:ISO(first(y,0)),    to:cap(last(y,11))},
+    {k:'life',l:'Lifetime',           frm:'2000-01-01',       to:cap(last(y,11))}];
+}
+function acctPeriod(){
+  const ps=acctPeriods(), want=qs().p||'m0';
+  return ps.find(p=>p.k===want)||ps[0];
+}
+function periodBar(){
+  const cur=acctPeriod().k;
+  return `<div class="ptoggle inline">${acctPeriods().map(p=>
+    `<button class="${p.k===cur?'on':''}" onclick="qsSet('p','${p.k}')">${p.l}</button>`).join('')}</div>`;
+}
+/* What the window actually was, said out loud. "Q3" means nothing on its own
+   to the person checking a figure against a bank statement. */
+function periodSpan(p){
+  p=p||acctPeriod();
+  return p.k==='life'?'everything posted up to '+fdate(p.to)
+    :fdate(p.frm)+' to '+fdate(p.to);
+}
+function periodAsAt(p){ p=p||acctPeriod(); return 'as at '+fdate(p.to) }
+window.acctPeriod=acctPeriod;window.periodBar=periodBar;window.periodSpan=periodSpan;
+
+/* items are [label, value, sub, tone, filter] and the filter, when present,
+   is {k, v}: the query key the box writes and the value it writes there. */
+function stat(items){return `<div class="stats">${items.map(i=>{
+  const f=i[4], inner=`<div class="l">${i[0]}</div><div class="v">${i[1]}</div>${i[2]?`<div class="s ${i[3]||''}">${i[2]}</div>`:''}`;
+  if(!f) return `<div class="st">${inner}</div>`;
+  const on=(qs()[f.k]||'')===String(f.v==null?'':f.v);
+  return `<div class="st clk ${on?'on':''}" role="button" tabindex="0"
+    onclick="qsTog('${f.k}','${String(f.v==null?'':f.v).replace(/'/g,"\\'")}')">${inner}</div>`;
+}).join('')}</div>`}
 function tbl(cols,rows,opt={}){
   const h=cols.map(c=>`<th class="${c.r?'r':''}" onclick="sortTbl('${opt.id||'t'}',${cols.indexOf(c)})">${c.h}</th>`).join('');
   const b=rows.map(r=>`<tr class="${opt.click?'drill':''}" ${opt.click?`onclick="${opt.click}('${r.__id}')"`:''}>${
@@ -987,7 +1091,7 @@ function steps(list,cur){
 function chip(t,c){return `<span class="chip ${c||'n'}">${t}</span>`}
 const stChip=s=>({'Occupied':'g','Current':'g','Paid':'g','Cleared':'g','Active':'g','Completed':'g','Validated':'g','Renewed':'g','Approved':'g','Pushed to vault':'g','Reconciled':'g','Issued':'g',
  'Notice':'a','Late':'a','Part paid':'a','Deposited':'a','Expiring':'a','Negotiating':'a','Needs review':'a','Awaiting parts':'a','Pending':'a','Promise to pay':'a','Reminder sent':'a',
- 'Void':'r','In arrears':'r','Unpaid':'r','Bounced':'r','Expired':'r','Not started':'r','Flagged':'r','Emergency':'r','Legal notice':'r','Escalated':'r','Promise broken':'r'}[s]||'n');
+ 'Vacant':'r','In arrears':'r','Unpaid':'r','Bounced':'r','Expired':'r','Not started':'r','Flagged':'r','Emergency':'r','Legal notice':'r','Escalated':'r','Promise broken':'r'}[s]||'n');
 function empty(msg){return `<div class="mt">${msg}</div>`}
 function actbtn(t,p){return `<button class="btn" onclick="toast('${p||t}')">${t}</button>`}
 function notFound(what,back){
@@ -1076,9 +1180,13 @@ function lazy(key,method,args){
   const c=DB_LAZY[key];
   if(c) return c;
   DB_LAZY[key]={state:'load'};
+  /* An open form can be waiting on this too - the expense form needs the
+     chart before it can offer a head. router() redraws the screen behind the
+     modal and leaves the modal itself stale, so the form is redrawn as well. */
+  const settle=()=>{router(); if(window.FOPEN&&typeof drawForm==='function'){try{drawForm()}catch(e){console.error(e)}}};
   dbCall(method,args||{})
-    .then(d=>{DB_LAZY[key]={state:'ok',data:d};router();})
-    .catch(e=>{DB_LAZY[key]={state:'err',msg:e.message};router();});
+    .then(d=>{DB_LAZY[key]={state:'ok',data:d};settle();})
+    .catch(e=>{DB_LAZY[key]={state:'err',msg:e.message};settle();});
   return DB_LAZY[key];
 }
 window.lazy=lazy;
@@ -1248,7 +1356,13 @@ function router(){
      screen the visitor would only be refused. */
   const dflt=(typeof ROLE_HOME==='function'&&typeof ROLEV!=='undefined')
     ? ROLE_HOME(ROLEV) : '#/dash';
-  const h=(location.hash||dflt).slice(2);
+  /* The hash can now carry a filter — #/units?st=Vacant — so the query comes
+     off before the route is resolved. Without this the route name would be
+     "units?st=Vacant" and every filtered list would fall through to the
+     unknown-route default. */
+  const full=(location.hash||dflt).slice(2);
+  const qi=full.indexOf('?');
+  const h=qi<0?full:full.slice(0,qi);
   const [r,rawId]=h.split('/');
   /* Real docnames contain spaces — "Najma Tower", "Najma Tower-501" — and the
      hash encodes them. Without decoding, every lookup missed and the
@@ -1288,7 +1402,7 @@ function router(){
    batches:'Cheque batches',recon:'Reconciliation',closing:'Weekly closing',approvals:'Approvals',
    approval:'Approval',reports:'Reports',admin:'Admin',ledger:'General ledger',coa:'Chart of accounts',
    journal:'Journal entries',trial:'Trial balance',account:'Account ledger',
-   pl:'Profit and loss',bs:'Balance sheet',cf:'Cash flow',
+   pl:'Profit and loss',bs:'Balance sheet',cf:'Cash flow',expenses:'Expenses',
    generate:'Generate invoices',billrun:'Invoice run',receipts:'Receipts',receipt:'Receipt',amendment:'Invoice amendment',
    owners:'Owners & shareholders',shareholder:'Shareholder',policy:'Distribution policy',
    runs:'Distribution runs',run:'Distribution run',memo:'Approval memo',
@@ -1314,7 +1428,7 @@ document.addEventListener('click',e=>{
 const NOTES={
  'APR-0102':[{by:'Aisha R.',role:'Documentation',when:dplus(-3),t:'Move-out inspection clean, no deductions raised. Deposit was received by bank transfer so release must mirror that.'},
    {by:'General Manager',role:'GM',when:dplus(-2),t:'Reviewed and supported. Tenant left in good standing, recommend full release.'}],
- 'APR-0103':[{by:'General Manager',role:'GM',when:dplus(-2),t:'Unit has been void 44 days. A two-month concession costs less than another month empty. Recommend approval.'}],
+ 'APR-0103':[{by:'General Manager',role:'GM',when:dplus(-2),t:'Unit has been vacant 44 days. A two-month concession costs less than another month empty. Recommend approval.'}],
  'APR-0105':[{by:'Yusuf K.',role:'Accounts',when:dplus(-1),t:'Landlord holding at 4%. Comparable head-leases in Bin Mahmoud renewed at 5-6% this year.'}],
  'TOC-0180':[{by:'Aisha R.',role:'Collections',when:dplus(-9),t:'Spoke to accounts payable. They confirmed the invoice is in their payment run for month end.'}],
  'MO-0051':[{by:'Aisha R.',role:'Documentation',when:dplus(-4),t:'Tenant requested early handover. Inspection booked for Thursday morning.'}]};
@@ -1415,11 +1529,14 @@ function accGroup(k,fallback){
 /* Chart and journals for the five ledger screens, fetched once between them.
    Returns true when the screen may render, or the pending state to show. */
 function books(){
-  const c=lazy('books','accounting.books');
+  const P=acctPeriod();
+  const c=lazy('books:'+P.k,'accounting.books',{frm:P.frm,to:P.to});
   if(c.state==='demo') return true;
   if(c.state!=='ok') return c;
-  if(!c.applied){
-    c.applied=1;
+  /* The cache is keyed by period, so switching period lands on a different
+     entry and this has to reapply — `applied` is per entry, not global. */
+  if(!c.applied||window.__booksP!==P.k){
+    c.applied=1; window.__booksP=P.k;
     window.BOOKS=c.data;
     COA.length=0; (c.data.coa||[]).forEach(r=>COA.push(r));
     JRN.length=0; (c.data.jrn||[]).forEach(j=>JRN.push(j));
@@ -1468,7 +1585,7 @@ const DASH_TPL=`<div class="grid">
   <div class="card c4"><h3>Bounce list <span class="plabel">rolling 30d</span></h3><div id="bounces"></div></div>
 
   <div class="card c4"><h3>Arrears + promises <span class="plabel" id="pl1"></span></h3><div id="arrears"></div></div>
-  <div class="card c4"><h3>Void pipeline <span class="tag red" id="voidTag">—</span></h3><div id="voids"></div></div>
+  <div class="card c4"><h3>Vacancy pipeline <span class="tag red" id="voidTag">—</span></h3><div id="voids"></div></div>
   <div class="card c4"><h3>Expiry runway <span class="plabel">12 months ahead</span></h3><div id="expiry"></div></div>
 
   <div class="band"><h2>Review</h2><div class="rule"></div><span>WEEKLY · MONTHLY · THURSDAY CLOSING</span></div>
@@ -1504,7 +1621,7 @@ const kf=n=>n0(n);
 
 /* A panel the server answered for renders the server's rows; a panel it did
    not answer for is stubbed by gateDash. The difference matters: an empty
-   array is a fact about the business — no bounces, no voids — while an
+   array is a fact about the business — no bounces, no vacancies — while an
    absent key means the calculation never ran. undefined = not sent,
    [] / {} = sent and genuinely empty. */
 function livePanel(key){
@@ -1689,7 +1806,7 @@ function renderKPIs(p){
     s:live?'':spk([940000,980000,1020000,995000,1050000,1010000,1085000],'#2E6B57')},
    {l:'Landlord out \u00b7 30d',v:k(P.ll30),d:live?'':kdelta(1.4,false,'%'),
     s:live?'':spk([958000,958000,964000,964000,972000,972000,986000],'#A63D2F')},
-   {l:'Void days '+(p==='jul'?'MTD':''),v:kval(P.vd,null,'vd'),d:dl(P.vdD,false,'%'),
+   {l:'Vacant days '+(p==='jul'?'MTD':''),v:kval(P.vd,null,'vd'),d:dl(P.vdD,false,'%'),
     s:live?'':spk([160,171,182,168,175,187,212],'#B07C2A'),w:P.vd>200},
    {l:'Bounce rate 90d',v:pc(P.br),d:dl(P.brD,false,'pt'),
     s:live?'':spk([2.6,2.8,3.1,2.7,3.0,2.9,3.4],'#B07C2A'),w:P.br>3.2},
@@ -1969,20 +2086,20 @@ function renderArrears(){
   </div><div class="foot"><span>total QAR 418,000 · 23 tenants</span><span>60d+ = QAR 138,000</span></div>`;
 }
 
-/* ---------- void pipeline ---------- */
+/* ---------- vacancy pipeline ---------- */
 function renderVoids(){
   const L=livePanel('voids');
   if(L!==undefined){
     const t=$('#voidTag');
     if(!L.length){if(t){t.textContent='';t.className='tag';}
-      $('#voids').innerHTML=liveEmpty('Every unit is occupied or on notice. No voids.');return;}
+      $('#voids').innerHTML=liveEmpty('Every unit is occupied or on notice. Nothing vacant.');return;}
     const bleed=L.reduce((a,r)=>a+(r.bleed||0),0);
     if(t){t.textContent=`${L.length} UNITS${bleed?' · '+kf(bleed)+'/MO':''}`;t.className='tag red';}
     $('#voids').innerHTML=`<div class="tw"><table><tr><th>Unit</th><th>Stage</th><th class="r">Days</th><th class="r">Bleed/mo</th></tr>
     ${L.slice(0,6).map(r=>`<tr class="drill" onclick="go('#/units')" title="${esc(r.b||'')}"><td>${esc(r.u||'—')} <span style="color:var(--dim);font-size:10px">${esc(r.b||'')}</span></td>
      <td><span class="chip ${r.stage==='Vacant'?'r':'a'}">${esc(r.stage||'')}</span></td>
      <td class="r num">${kval(r.days,null,'vd')}</td><td class="r num">${r.bleed?kf(r.bleed):'—'}</td></tr>`).join('')}</table></div>
-    <div class="foot"><span>${L.length} void unit${L.length===1?'':'s'}${L.length>6?' · +'+(L.length-6)+' more':''}</span>
+    <div class="foot"><span>${L.length} vacant unit${L.length===1?'':'s'}${L.length>6?' · +'+(L.length-6)+' more':''}</span>
      <span style="color:var(--red)">${bleed?'bleeding '+kf(bleed)+' / mo at avg rents':''}</span></div>`;
     return;
   }
@@ -1996,7 +2113,7 @@ function renderVoids(){
   ${rows.map(r=>`<tr class="drill" onclick="go('#/units')" title="${r[1]} · owner ${r[4]}"><td>${r[0]} <span style="color:var(--dim);font-size:10px">${r[1]}</span></td>
    <td><span class="chip ${r[2]>30?'r':r[2]>14?'a':'n'}">${r[3]}</span></td>
    <td class="r num">${r[2]}</td><td class="r num">${n0(r[5])}</td></tr>`).join('')}</table></div>
-  <div class="foot"><span>15 void units total · +10 more</span><span style="color:var(--red)">bleeding QAR 76,300 / mo</span></div>`;
+  <div class="foot"><span>15 vacant units total · +10 more</span><span style="color:var(--red)">bleeding QAR 76,300 / mo</span></div>`;
   $('#voidTag').textContent='15 UNITS · QAR 76,000/MON';
 }
 
@@ -2328,7 +2445,7 @@ function renderOcc(){
    <text x="${W-8}" y="${y(276)-4}" text-anchor="end" class="n" font-size="9" fill="#75634F">276 units</text>`;
   for(let i=0;i<12;i+=2)s+=`<text x="${L+i*step}" y="138" text-anchor="middle" font-size="8" fill="#75634F">${MON[i]}</text>`;
   $('#occ').innerHTML=`<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto">${s}</svg>
-  <div class="foot"><span><span class="sw" style="background:#2E6B57"></span>occupied <span class="sw" style="background:#B07C2A;margin-left:8px"></span>+ on notice</span><span>Jul: 261 occ · 7 notice · 8 void</span></div>`;
+  <div class="foot"><span><span class="sw" style="background:#2E6B57"></span>occupied <span class="sw" style="background:#B07C2A;margin-left:8px"></span>+ on notice</span><span>Jul: 261 occ · 7 notice · 8 vacant</span></div>`;
 }
 
 /* ---------- buildings data ---------- */
@@ -2363,7 +2480,7 @@ function renderHeatmap(){
     return;
   }
   const cols=[['occ','Occ %',v=>v+'%',(v)=>1-(v-70)/30],['mp','Margin %',v=>v.toFixed(0)+'%',v=>1-(v-8)/18],
-   ['arr','Arrears',v=>n0(v),v=>v/58],['vd','Void days',v=>v,v=>v/38],['om','Open maint',v=>v,v=>v/7],['ex','Expiry risk',v=>v,v=>v/6]];
+   ['arr','Arrears',v=>n0(v),v=>v/58],['vd','Vacant days',v=>v,v=>v/38],['om','Open maint',v=>v,v=>v/7],['ex','Expiry risk',v=>v,v=>v/6]];
   let h='<table class="hm"><tr><th onclick="hmSort(\'n\')">Building</th>'+cols.map(c=>`<th class="r" onclick="hmSort('${c[0]}')">${c[1]}</th>`).join('')+'</tr>';
   for(const b of BD_view){
     h+=`<tr class="drill" onclick="go('#/buildings')" title="Opens ${b.n} workspace"><td>${b.n}</td>`+cols.map(c=>{
@@ -3779,7 +3896,7 @@ function homeOps(){
     ${panel('Vacant units and the bleed','units',()=>vacant.length?tbl(
       [{h:'Unit',v:u=>u.id},{h:'Building',v:u=>u.bn},{h:'Type',v:u=>u.type},
        {h:'Head-lease cost',r:1,mono:1,v:u=>n0(u.llRent)},
-       {h:'Void days',r:1,v:u=>chip(u.vd||0,(u.vd||0)>30?'r':'a')}],
+       {h:'Vacant days',r:1,v:u=>chip(u.vd||0,(u.vd||0)>30?'r':'a')}],
       vacant.slice(0,15).map(u=>({...u,__id:u.id})),{id:'hov',click:'openU'})
       :empty('Every unit is occupied'),
       vacant.length?'Costing '+n0(bleed)+' a month in head-lease rent against no sublease income.'
@@ -3962,7 +4079,7 @@ function homeMNT(){
    </div>
    ${panel('Units not ready','units',()=>notReady.length?tbl(
      [{h:'Unit',v:u=>u.id},{h:'Building',v:u=>u.bn},{h:'Type',v:u=>u.type},
-      {h:'Void days',r:1,v:u=>chip(u.vd||0,(u.vd||0)>30?'r':'a')}],
+      {h:'Vacant days',r:1,v:u=>chip(u.vd||0,(u.vd||0)>30?'r':'a')}],
      notReady.map(u=>({...u,__id:u.id})),{id:'hmu',click:'openU'})
      :empty('Every unit is either occupied or ready to let'),
      'A unit stays Not Ready until somebody changes it \u2014 it does not clear when the last job closes.')}`};
@@ -3978,7 +4095,10 @@ const APPR_DT={'Amendment':'Agreement Amendment','Tenancy activation':'Tenancy A
 window.APPR_DT=APPR_DT;
 
 /* ---------------- Buildings ---------------- */
-ROUTES.buildings=()=>page('Buildings',`${BUILDINGS.length} buildings · ${UNITS.length} units · sublease portfolio`,'',
+ROUTES.buildings=()=>{
+ const f=qs().f||'';
+ const rows=f==='exp90'?BUILDINGS.filter(b=>within(b.hlEnd,90)):BUILDINGS;
+ return page('Buildings',`${BUILDINGS.length} buildings · ${UNITS.length} units · sublease portfolio`,'',
  `<div class="card wiz"><div class="wz">
    <div><h3 style="margin-bottom:4px">Onboard a building</h3>
     <p class="pp">One pass captures the property, the landlord as a party, the documents, the head-lease terms and every unit number.
@@ -3986,17 +4106,20 @@ ROUTES.buildings=()=>page('Buildings',`${BUILDINGS.length} buildings · ${UNITS.
     <div class="wzsteps">${['Property','Landlord','Documents','Head-lease','Units','Review']
       .map((s,i)=>`<span><b>${i+1}</b>${s}</span>`).join('')}</div></div>
    <div class="wzgo">${fbtn('Start the wizard','onboard-building')}</div></div></div>`+
- stat([['Buildings',BUILDINGS.length],['Units',UNITS.length],['Landlords',LL.length],
+ stat([['Buildings',BUILDINGS.length,'','',{k:'f',v:''}],['Units',UNITS.length],['Landlords',LL.length],
   ['Head-lease cost',k(BUILDINGS.reduce((a,b)=>a+b.cost,0))],
-  ['Expiring in 90 days',BUILDINGS.filter(b=>within(b.hlEnd,90)).length,'','a']])+
+  ['Expiring in 90 days',BUILDINGS.filter(b=>within(b.hlEnd,90)).length,'','a',{k:'f',v:'exp90'}]])+
+ (f==='exp90'?fchip('head leases ending within 90 days','f'):'')+
  searchbox('bl','Search by building, area or landlord')+
- `<div class="card">${tbl([
+ `<div class="card">${rows.length?tbl([
   {h:'Building',v:b=>b.n},{h:'Area',v:b=>b.area},{h:'Landlord',v:b=>b.ll},
   {h:'Units',r:1,mono:1,v:b=>b.units},{h:'Revenue',r:1,mono:1,v:b=>k(b.rev)},
   {h:'Head-lease',r:1,mono:1,v:b=>k(b.cost)},{h:'Margin',r:1,mono:1,v:b=>k(b.m)},
   {h:'Margin %',r:1,mono:1,v:b=>mpTxt(b),style:b=>mpBad(b,18)?'color:var(--red)':'color:var(--em)'},
   {h:'Lease ends',r:1,v:b=>b.hlEnd}],
-  BUILDINGS.map(b=>({...b,__id:b.id})),{id:'bl',click:'openB'})}</div>`);
+  rows.map(b=>({...b,__id:b.id})),{id:'bl',click:'openB',
+   foot:f?[rows.length+' of '+BUILDINGS.length+' buildings','']:null})
+  :empty('No head lease ends in the next 90 days.')}</div>`)};
 
 /* ---------- Landlords, now with everything the wizard captured ---------- */
 window.openB=id=>go('#/building/'+id);
@@ -4018,7 +4141,7 @@ ROUTES.building=id=>{const b=id?B(id):BUILDINGS[0]; if(!b) return notFound('Buil
   (b.st==='Onboarding'?fbtn('Record handover','record-handover',{b:b.id,bn:b.n}):'')
    +fbtn('New unit','add-unit',{b:b.id,bn:b.n})+fbtn('Log maintenance','raise-job',{bn:b.n}),
   (b.st==='Onboarding'?`<div class="note" style="border-left-color:var(--amber)">
-    <b>This building is still onboarding.</b> It has no handover date, so void days
+    <b>This building is still onboarding.</b> It has no handover date, so vacant days
     run from nowhere${b.nr?` and ${b.nr} unit${b.nr===1?'':'s'} cannot be let`:''}.
     Record the handover when the landlord hands it over.</div>`:'')+
   stat([['Status',chip(b.st||'—',b.st==='Active'?'g':b.st==='Onboarding'?'a':'n')],
@@ -4026,7 +4149,7 @@ ROUTES.building=id=>{const b=id?B(id):BUILDINGS[0]; if(!b) return notFound('Buil
    ['Units',b.units],['Occupied',us.filter(u=>u.st==='Occupied').length+' / '+b.units],
    ['Monthly revenue',n0(b.rev)],['Head-lease rent',n0(b.cost)],
    ['Margin',n0(b.m)+' · '+mpTxt(b),'',mpBad(b,14)?'r':'g'],['Arrears',n0(b.arr),'',b.arr>30000?'r':''],
-   ['Void days',b.vd,'',b.vd>20?'a':''],['Head-lease ends',b.hlEnd]])+
+   ['Vacant days',b.vd,'',b.vd>20?'a':''],['Head-lease ends',b.hlEnd]])+
   `<div class="grid2">
    <div class="card"><h3>Units</h3>${tbl([
     {h:'Unit',v:u=>u.id},{h:'Type',v:u=>u.type},{h:'Floor',r:1,mono:1,v:u=>u.floor},
@@ -4044,17 +4167,25 @@ ROUTES.building=id=>{const b=id?B(id):BUILDINGS[0]; if(!b) return notFound('Buil
    ${filesCard('building',b.id,b.n)}`)};
 
 /* ---------------- Units ---------------- */
-ROUTES.units=()=>page('Units',`${UNITS.length} units across ${BUILDINGS.length} buildings`,'',
- stat([['Total',UNITS.length],['Occupied',UNITS.filter(u=>u.st==='Occupied').length],
-  ['Void',UNITS.filter(u=>u.st==='Void').length,'',
-  'r'],['On notice',UNITS.filter(u=>u.st==='Notice').length,'','a']])+
- `<div class="card">${tbl([
+ROUTES.units=()=>{
+ const f=qs().st||'';
+ const rows=f?UNITS.filter(u=>u.st===f):UNITS;
+ return page('Units',`${UNITS.length} units across ${BUILDINGS.length} buildings`,'',
+ stat([['Total',UNITS.length,'','',{k:'st',v:''}],
+  ['Occupied',UNITS.filter(u=>u.st==='Occupied').length,'','',{k:'st',v:'Occupied'}],
+  ['Vacant',UNITS.filter(u=>u.st==='Vacant').length,'',
+  'r',{k:'st',v:'Vacant'}],['On notice',UNITS.filter(u=>u.st==='Notice').length,'','a',{k:'st',v:'Notice'}]])+
+ (f?fchip(f.toLowerCase()+' units only','st'):'')+
+ `<div class="card">${rows.length?tbl([
   {h:'Unit',v:u=>u.id},{h:'Building',v:u=>u.bn},{h:'Type',v:u=>u.type},
   {h:'Floor',r:1,mono:1,v:u=>u.floor},{h:'Sqm',r:1,mono:1,v:u=>u.sqm},
   {h:'Tenant rent',r:1,mono:1,v:u=>n0(u.rent)},{h:'Landlord cost',r:1,mono:1,v:u=>n0(u.llRent)},
   {h:'Spread',r:1,mono:1,v:u=>'+'+n0((u.rent-u.llRent)),style:()=>'color:var(--em)'},
-  {h:'Status',v:u=>chip(u.st,stChip(u.st))},{h:'Void days',r:1,mono:1,v:u=>u.vd||'—'}],
-  UNITS.map(u=>({...u,__id:u.id})),{id:'ul',click:'openU',foot:[UNITS.length+' units','sorted by building — click any header']})}</div>`);
+  {h:'Status',v:u=>chip(u.st,stChip(u.st))},{h:'Vacant days',r:1,mono:1,v:u=>u.vd||'—'}],
+  rows.map(u=>({...u,__id:u.id})),{id:'ul',click:'openU',
+   foot:[f?rows.length+' of '+UNITS.length+' units':UNITS.length+' units',
+     'sorted by building — click any header']})
+  :empty('No unit is '+f.toLowerCase()+' right now.')}</div>`)};
 window.openU=id=>go('#/unit/'+id);
 
 ROUTES.unit=id=>{const u=id?U(id):UNITS[0]; if(!u) return notFound('Unit','#/units'); const ag=uAgr(u.id);
@@ -4077,7 +4208,7 @@ ROUTES.unit=id=>{const u=id?U(id):UNITS[0]; if(!u) return notFound('Unit','#/uni
    ['Agreement',ag?ag.id:'—'],['Started',ag?ag.start:'—'],
    ['Ends',ag?ag.end:'—','',ag&&ag.endD<90?'a':''],
    ['Deposit held',ag?n0(ag.dep):'—'],['Payment',ag?ag.freq+' · '+ag.mode:'—'],
-   ['Void days',u.vd||'—','',u.vd>30?'r':'']])+
+   ['Vacant days',u.vd||'—','',u.vd>30?'r':'']])+
   (u.st==='Occupied'&&!ag?`<div class="note" style="border-left-color:var(--amber)">
     <b>This unit is occupied with no agreement on file.</b> Nothing bills against
     it and it contributes nothing to the building's revenue until the tenancy is
@@ -4091,17 +4222,24 @@ ROUTES.unit=id=>{const u=id?U(id):UNITS[0]; if(!u) return notFound('Unit','#/uni
     </div><div class="mt" style="margin-top:8px">Inspections happen at move-in and move-out only — no periodic inspection module.</div></div></div>`)};
 
 /* ---------------- Tenants ---------------- */
-ROUTES.tenants=()=>page('Tenants',TENANTS.length+' tenants · 5 corporate, rest individual',
+ROUTES.tenants=()=>{
+ const f=qs().st||'';
+ const rows=f?TENANTS.filter(t=>t.st===f):TENANTS;
+ return page('Tenants',TENANTS.length+' tenants · 5 corporate, rest individual',
  fbtn('Add tenant','add-tenant'),
- stat([['Tenants',TENANTS.length],['Current',TENANTS.filter(t=>t.st==='Current').length],
-  ['Late',TENANTS.filter(t=>t.st==='Late').length,'','a'],['In arrears',TENANTS.filter(t=>t.st==='In arrears').length,'','r']])+
- `<div class="card">${tbl([
+ stat([['Tenants',TENANTS.length,'','',{k:'st',v:''}],['Current',TENANTS.filter(t=>t.st==='Current').length,'','',{k:'st',v:'Current'}],
+  ['Late',TENANTS.filter(t=>t.st==='Late').length,'','a',{k:'st',v:'Late'}],
+  ['In arrears',TENANTS.filter(t=>t.st==='In arrears').length,'','r',{k:'st',v:'In arrears'}]])+
+ (f?fchip(f.toLowerCase()+' tenants only','st'):'')+
+ `<div class="card">${rows.length?tbl([
   {h:'ID',v:t=>t.id},{h:'Tenant',v:t=>t.n+(t.corp?' <span class="chip n">CORP</span>':'')},
   {h:'Units',r:1,mono:1,v:t=>t.units},{h:'Rent / mo',r:1,mono:1,v:t=>n0(t.rent)},
   {h:'Arrears',r:1,mono:1,v:t=>t.arr?n0(t.arr):'—',style:t=>t.arr>25000?'color:var(--red)':''},
   {h:'Status',v:t=>chip(t.st,stChip(t.st))},{h:'Since',r:1,v:t=>t.since}],
-  TENANTS.map(t=>({...t,__id:t.id})),{id:'tl',click:'openT',foot:[TENANTS.length+' tenants',
-   'Σ arrears '+n0(TENANTS.reduce((a,t)=>a+t.arr,0))]})}</div>`);
+  rows.map(t=>({...t,__id:t.id})),{id:'tl',click:'openT',
+   foot:[(f?rows.length+' of '+TENANTS.length:TENANTS.length)+' tenants',
+   'Σ arrears '+n0(rows.reduce((a,t)=>a+t.arr,0))]})
+  :empty('No tenant is '+f.toLowerCase()+' right now.')}</div>`)};
 window.openT=id=>go('#/tenant/'+id);
 
 ROUTES.tenant=id=>{const t=id?T(id):TENANTS[0]; if(!t) return notFound('Tenant','#/tenants'); const ags=AGR.filter(a=>a.t===t.id);
@@ -4260,17 +4398,24 @@ ROUTES.landlords=()=>{
       : 'No landlords in the demo data.')}</div>`);
  const noid=LL.filter(l=>!l.idno||l.idno==='\u2014').length;
  const nobank=LL.filter(l=>!l.bank||l.bank==='\u2014').length;
+ const lf=qs().f||'';
+ const lrows=lf==='noid'?LL.filter(l=>!l.idno||l.idno==='\u2014')
+   :lf==='nobank'?LL.filter(l=>!l.bank||l.bank==='\u2014'):LL;
  return page('Landlords',LL.length+' head-lease counterparties · a landlord with no identity on file cannot be paid','',
- stat([['Landlords',LL.length],['Buildings covered',LL.reduce((a,l)=>a+(l.buildings||[]).length,0)],
-  ['No identity on file',noid,'',noid?'r':'g'],['No bank account',nobank,'',nobank?'a':'g']])+
+ stat([['Landlords',LL.length,'','',{k:'f',v:''}],['Buildings covered',LL.reduce((a,l)=>a+(l.buildings||[]).length,0)],
+  ['No identity on file',noid,'',noid?'r':'g',{k:'f',v:'noid'}],
+  ['No bank account',nobank,'',nobank?'a':'g',{k:'f',v:'nobank'}]])+
+ (lf?fchip(lf==='noid'?'landlords with no identity on file':'landlords with no bank account','f'):'')+
  searchbox('lll','Search by name, identity number or building')+
- `<div class="card">${tbl([
+ `<div class="card">${lrows.length?tbl([
   {h:'Landlord',v:l=>l.n},{h:'Type',v:l=>l.type},{h:'Identity',v:l=>l.idno},
   {h:'Mobile',v:l=>l.phone},{h:'Buildings',r:1,mono:1,v:l=>(l.buildings||[]).length},
   {h:'Documents',v:l=>(l.docs||[]).length?chip(l.docs.length+' on file','g'):chip('None','r')},
   {h:'On file since',r:1,v:l=>l.since}],
-  LL.map(l=>({...l,__id:l.id})),{id:'lll',click:'openLL',
-   foot:['a landlord with no bank account on file cannot be paid by transfer']})}</div>`)};
+  lrows.map(l=>({...l,__id:l.id})),{id:'lll',click:'openLL',
+   foot:[lf?lrows.length+' of '+LL.length+' landlords'
+     :'a landlord with no bank account on file cannot be paid by transfer']})
+  :empty('Every landlord has that on file.')}</div>`)};
 window.openLL=id=>go('#/landlord/'+id);
 window.openL=id=>go('#/landlord/'+id);
 
@@ -4302,19 +4447,25 @@ ROUTES.landlord=id=>{const l=L_(id);
 
 /* ---------- Agreements, searchable ---------- */
 /* ---------------- Agreements ---------------- */
-ROUTES.agreements=()=>page('Agreements',AGR.length+' tenancy agreements · expiry-driven renewal pipeline',
+ROUTES.agreements=()=>{
+ const f=qs().st||'';
+ const rows=f?AGR.filter(a=>a.st===f):AGR;
+ return page('Agreements',AGR.length+' tenancy agreements · expiry-driven renewal pipeline',
  fbtn('New agreement','new-agreement'),
- stat([['Agreements',AGR.length],['Active',AGR.filter(a=>a.st==='Active').length],
-  ['Expiring in 60 days',AGR.filter(a=>a.st==='Expiring').length,'','a'],
-  ['Expired',AGR.filter(a=>a.st==='Expired').length,'','r'],
+ stat([['Agreements',AGR.length,'','',{k:'st',v:''}],['Active',AGR.filter(a=>a.st==='Active').length,'','',{k:'st',v:'Active'}],
+  ['Expiring in 60 days',AGR.filter(a=>a.st==='Expiring').length,'','a',{k:'st',v:'Expiring'}],
+  ['Expired',AGR.filter(a=>a.st==='Expired').length,'','r',{k:'st',v:'Expired'}],
   ['Annual value',k(AGR.reduce((a,x)=>a+x.rent,0)*12)]])+
+ (f?fchip(f.toLowerCase()+' agreements only','st'):'')+
  searchbox('al','Search by tenant, unit, building or agreement reference')+
- `<div class="card">${tbl([
+ `<div class="card">${rows.length?tbl([
   {h:'Ref',v:a=>a.id},{h:'Tenant',v:a=>a.tn},{h:'Unit',v:a=>a.u},{h:'Building',v:a=>a.bn},
   {h:'Rent',r:1,mono:1,v:a=>k(a.rent)},{h:'Start',r:1,v:a=>a.start},{h:'Ends',r:1,v:a=>a.end},
   {h:'Status',v:a=>chip(a.st,stChip(a.st))},{h:'Renewal',v:a=>chip(a.ren,stChip(a.ren))}],
-  AGR.map(a=>({...a,__id:a.id})),{id:'al',click:'openA',
-   foot:['type to filter · escape clears','click any header to sort']})}</div>`);
+  rows.map(a=>({...a,__id:a.id})),{id:'al',click:'openA',
+   foot:[f?rows.length+' of '+AGR.length+' agreements':'type to filter · escape clears',
+     'click any header to sort']})
+  :empty('No agreement is '+f.toLowerCase()+' right now.')}</div>`)};
 
 /* ---------- Cases: who opens them, and how ---------- */
 const CASERULES=[
@@ -4833,7 +4984,7 @@ ROUTES.reports=()=>{
      ['Arbitrage spread analysis','Per building and per unit spread over 36 months'],
      ['Arrears ageing','0–30 / 31–60 / 61–90 / 90+ with tenant detail'],
      ['Cheque register','All PDCs by status, bank and maturity'],
-     ['Occupancy and voids','Occupancy, void days and lost spread'],
+     ['Occupancy and vacancy','Occupancy, vacant days and lost spread'],
      ['Renewal pipeline','Expiries, renewal status and achieved uplift'],
      ['Deposit liability','Held, due for release, released'],
      ['Utility recovery','Billed vs recovered by building'],
@@ -5278,8 +5429,8 @@ ROUTES.ledger=()=>{
   const cls=t=>COA.filter(a=>a[2]===t).reduce((s,a)=>s+accBalance(a[0]).bal,0);
   const sel=(k,opts)=>`<select onchange="lfSet('${k}',this.value)">${opts.map(o=>
     `<option ${LF[k]===o?'selected':''}>${o}</option>`).join('')}</select>`;
-  return page('General ledger','Double-entry journals · every posting traceable to its source document',
-   fbtn('New journal entry','journal-entry')+actbtn('Export trial balance')+actbtn('Period close'),
+  return page('General ledger','Double-entry journals · '+periodSpan()+' · every posting traceable to its source',
+   periodBar()+fbtn('New journal entry','journal-entry')+actbtn('Export trial balance')+actbtn('Period close'),
    stat([['Journals',JRN.length],['Debits',money(totDr)],['Credits',money(totCr)],
      ['In balance',Math.abs(totDr-totCr)<0.01?'Yes':'No','',Math.abs(totDr-totCr)<0.01?'g':'r'],
      ['Cash at bank',money(accGroup('bank',['1010','1020'])+accGroup('cash',['1030'])),'','g'],
@@ -5624,7 +5775,7 @@ FORMS['onboard-building']={t:'Onboard a building',s:'Workflow 2A · property, la
     area:d.area,floors:+d.floors||1});
   WZU.forEach(u=>{const no=(u.no||'').trim(); if(!no)return;
    UNITS.push({id:id+'-'+no,b:id,bn:d.name,no,type:u.type||'2BR',floor:+u.floor||1,sqm:+u.sqm||0,
-    rent:+u.rent||0,llRent:+(cost/Math.max(1,WZU.length)).toFixed(1),st:'Void',vd:0,tn:''})});
+    rent:+u.rent||0,llRent:+(cost/Math.max(1,WZU.length)).toFixed(1),st:'Vacant',vd:0,tn:''})});
   addJrn('Journal','Head-lease commenced — '+d.name,id,[['1200',cost,0],['2010',0,cost]]);
   const n=WZU.length;
   return{title:'Building onboarded',msg:d.name+' created as '+id,
@@ -5714,6 +5865,61 @@ FORMS['add-tenant']={t:'Add tenant',s:'Workflow 2B · tenancy onboarding',cta:'C
     (payTakesCheques(d.method)?Math.round(12/per)+' cheques logged'
       :d.method==='Cash'?'cash collection schedule recorded':'transfer schedule recorded'),
    goto:'#/tenant/'+id}}};
+
+/* ---------- record an expense ----------
+   The head is the only thing anybody chooses that matters. Everything
+   downstream - which cost centre, whether a building is even asked for,
+   whether it reaches one building's margin or all of them - falls out of it,
+   so the form reads the basis back off the chart and shows it before the save
+   rather than after. */
+function expHeads(){
+  const c=lazy('expheads','expenses.heads');
+  return c.state==='ok'?c.data:(c.state==='err'?{error:c.msg}:null);
+}
+FORMS['record-expense']={t:'Record an expense',
+ s:'The head decides where it lands \u2014 one building, or the company',cta:'Record it',
+ init:()=>({date:new Date().toISOString().slice(0,10),mode:'Bank'}),
+ steps:[{n:'Expense',body:d=>{
+  const H=expHeads();
+  if(!H) return `<div class="note">Reading the expense chart\u2026</div>`;
+  if(H.error) return `<div class="note bad"><b>The chart could not be read.</b>
+    ${esc(H.error)}<br>Nothing is offered rather than a list that might be wrong.</div>`;
+  if(!H.heads.length) return `<div class="note bad"><b>No expense head exists yet.</b>
+    The chart is built on migrate; if this site has not migrated since the
+    expense chart landed, run it and reopen this form.</div>`;
+  const cur=H.heads.find(h=>h.head===d.head);
+  const basis=cur?cur.basis:'';
+  return `<div class="fg">
+   ${fld({k:'head',l:'Expense head',t:'sel',o:['',...H.heads.map(h=>h.head)],req:1,live:1},d.head)}
+   ${fld({k:'date',l:'Date',t:'date',req:1},d.date)}
+   ${fld({k:'amount',l:'Amount (QAR)',t:'num',step:'10',req:1,live:1},d.amount)}
+   ${basis==='Building'?fld({k:'building',l:'Building',t:'sel',req:1,
+     o:['',...H.buildings.map(b=>b.label)]},d.building):''}
+   ${fld({k:'mode',l:'Settled by',t:'sel',o:['Bank','Cash','Unpaid'],req:1,live:1,
+     hint:'petty cash has its own screen \u2014 keying it here too would double the spend'},d.mode)}
+   ${d.mode!=='Unpaid'?fld({k:'paid_from',l:'Paid from',t:'sel',req:1,o:['',...H.banks]},d.paid_from):''}
+   ${d.mode==='Unpaid'?fld({k:'supplier',l:'Owed to',t:'sel',req:1,o:['',...H.suppliers]},d.supplier):''}
+   ${fld({k:'what',l:'What it was for',t:'txt',req:1,full:1,p:'lift service call'},d.what)}
+   ${fld({k:'ref',l:'Reference',t:'txt',p:'invoice or receipt number'},d.ref)}</div>
+  ${cur?`<div class="note">${cur.group} \u00b7 <b>${cur.basis}</b>. ${cur.basis==='Building'
+   ?'This posts to that building\u2019s own cost centre and reaches its margin directly.'
+   :'This posts to Overhead. It is divided across the buildings that were Active or on Notice Period in the month of the date above, weighted by head-lease cost \u2014 not evenly, and not against this one building.'}</div>`:''}
+  ${d.mode==='Unpaid'?`<div class="note">Recording it unpaid puts the cost in the
+   month it belongs to and leaves the money owing to the supplier. The payment
+   is a separate movement when it happens.</div>`:''}`},
+  fields:[{k:'head',req:1},{k:'date',req:1},{k:'amount',req:1},{k:'what',req:1}],
+  check:d=>{
+   const H=expHeads(); if(!H||H.error||!H.heads) return false;
+   const cur=H.heads.find(h=>h.head===d.head);
+   if(!cur) return false;
+   if(!(+d.amount>0)) return false;
+   if(!d.what) return false;
+   if(cur.basis==='Building'&&!d.building) return false;
+   if(d.mode==='Unpaid'?!d.supplier:!d.paid_from) return false;
+   return true},
+  msg:'A head, a date, a positive amount and a description. A building head needs its building; a paid expense needs the account it left, an unpaid one needs the supplier.'}],
+ submit:d=>({title:'Not recorded',msg:'The prototype has no ledger to post to',
+  detail:'An expense is a real posting. Nothing was written.',goto:'#/expenses'})};
 
 /* ---------- reworked deposit batch ---------- */
 FORMS['petty-entry']={t:'Record a petty cash movement',
@@ -5977,8 +6183,8 @@ ROUTES.coa=()=>{
        <td>${a[3]}</td><td class="r num">${b.dr?money(b.dr):'—'}</td><td class="r num">${b.cr?money(b.cr):'—'}</td>
        <td class="r num">${money(Math.abs(b.bal))} ${b.nat}</td></tr>`});
   });
-  return page('Chart of accounts',COA.length+' accounts · five classes · used by every automatic posting'+(window.BOOKS?' \u00b7 balances as at '+window.BOOKS.to:'')+'',
-   fbtn('New journal entry','journal-entry')+actbtn('Add account'),
+  return page('Chart of accounts',COA.length+' accounts · five classes · balances '+periodAsAt(),
+   periodBar()+fbtn('New journal entry','journal-entry')+actbtn('Add account'),
    stat(cls.map(c=>[c+'s',COA.filter(a=>a[2]===c).length]))+
    `<div class="card"><h3>Accounts <span class="plabel">click any account for its ledger</span></h3>
     <div class="tw"><table><thead><tr><th>Code</th><th>Account</th><th>Normal</th>
@@ -5992,8 +6198,8 @@ ROUTES.journal=id=>{
   const res=jrnFiltered();
   const sel=(k,opts)=>`<select onchange="lfSet('${k}',this.value)">${opts.map(o=>
     `<option ${LF[k]===o?'selected':''}>${o}</option>`).join('')}</select>`;
-  return page('Journal entries',JRN.length+' postings · automatic entries plus manual adjustments',
-   fbtn('New journal entry','journal-entry')+actbtn('Export'),
+  return page('Journal entries',JRN.length+' postings in the window · '+periodSpan(),
+   periodBar()+fbtn('New journal entry','journal-entry')+actbtn('Export'),
    stat([['Journals',JRN.length],['Manual',JRN.filter(j=>j.ty==='Journal'||j.by==='Managing Director').length],
      ['Automatic',JRN.filter(j=>j.ty!=='Journal').length],['Types',new Set(JRN.map(j=>j.ty)).size],
      ['Latest',JRN.length?JRN[0].d:'\u2014']])+
@@ -6021,7 +6227,7 @@ function trialLive(d){
   const cls=t=>rows.filter(r=>r[2]===t).reduce((s,r)=>
     s+(r[3]==='Dr'?r[4]-r[5]:r[5]-r[4]),0);
   return page('Trial balance',`As at ${fdate(d.as_on)} \u00b7 every account with movement`,
-   actbtn('Print'),
+   periodBar()+actbtn('Print'),
    stat([['Accounts with movement',rows.length],['Total debits',money(d.dr)],
      ['Total credits',money(d.cr)],
      ['Difference',money(Math.abs(d.dr-d.cr)),'',d.balanced?'g':'r'],
@@ -6048,7 +6254,8 @@ window.trialLive=trialLive;
    own call rather than reusing the windowed read — running it off `books`
    would quietly drop every opening position and still print "in balance". */
 ROUTES.trial=()=>{
-  const c=lazy('trial','accounting.trial_balance');
+  const P=acctPeriod();
+  const c=lazy('trial:'+P.k,'accounting.trial_balance',{as_on:P.to});
   if(c.state!=='ok'&&c.state!=='demo') return lazyPage('Trial balance','Reads the ledger as at today',c);
   if(c.state==='ok') return trialLive(c.data);
   const used=COA.filter(a=>{const b=accBalance(a[0]);return b.dr||b.cr});
@@ -6113,31 +6320,59 @@ function stTable(rows,label,tot,emptyMsg){
 
 /* ---------- Profit and loss ---------- */
 function plLive(d){
-  const inc=(d.sections||[])[0]||{rows:[],total:0}, exp=(d.sections||[])[1]||{rows:[],total:0};
+  /* The server sends `groups` now. An older server sends only `sections`, and
+     falling back to that shape means an out-of-step deploy prints a plainer
+     statement rather than a stack trace. */
+  const rev=d.revenue||(d.sections||[])[0]||{rows:[],total:0};
+  const groups=d.groups||null;
+  const pct=v=>v===null||v===undefined?'\u2014':v+'%';
+  const cos=d.cost_of_sales!==undefined?d.cost_of_sales:null;
+
+  const body=groups
+    ? groups.map(g=>`<div class="card" style="margin-top:14px"><h3>${esc(g.label)}</h3>
+       ${stTable(g.rows,'Total '+g.label.toLowerCase(),g.total,'Nothing posted to '+g.label.toLowerCase()+' in this window.')}</div>`).join('')
+    : `<div class="card" style="margin-top:14px"><h3>Expenses</h3>
+       ${stTable(((d.sections||[])[1]||{rows:[]}).rows,'Total expenses',d.expense,'No expenses posted in this window.')}</div>`;
+
+  const below=groups?groups.filter(g=>g.key!=='Cost of Sales'):[];
+
   return page('Profit and loss',
    `${fdate(d.frm)} to ${fdate(d.to)} \u00b7 period closing entries excluded`,
-   actbtn('Print'),
-   stat([['Income',money(d.income)],['Expenses',money(d.expense)],
+   periodBar()+actbtn('Print'),
+   stat([['Revenue',money(d.income)],
+     ...(cos===null?[]:[['Gross margin',money(d.gross),pct(d.gross_margin),
+       d.gross>=0?'g':'r']]),
+     ['Expenses',money(d.expense)],
      ['Net result',money(d.net),'',d.net>=0?'g':'r'],
-     ['Margin',d.margin===null||d.margin===undefined?'\u2014':d.margin+'%','',
+     ['Margin',pct(d.margin),'',
        d.margin===null||d.margin===undefined?'':d.margin>=0?'g':'r']])+
-   `<div class="card"><h3>Income</h3>
-     ${stTable(inc.rows,'Total income',inc.total,'No income posted in this window.')}</div>
-    <div class="card" style="margin-top:14px"><h3>Expenses</h3>
-     ${stTable(exp.rows,'Total expenses',exp.total,'No expenses posted in this window.')}</div>
-    <div class="card" style="margin-top:14px"><h3>Result</h3>
+   `<div class="card"><h3>Revenue</h3>
+     ${stTable(rev.rows,'Total revenue',rev.total,'No revenue posted in this window.')}</div>`+
+   body+
+   `<div class="card" style="margin-top:14px"><h3>Result</h3>
      <div class="tw"><table><tbody>
-      <tr><td>Income</td><td class="r num">${money(d.income)}</td></tr>
-      <tr><td>Expenses</td><td class="r num">${money(d.expense)}</td></tr>
+      <tr><td>Revenue</td><td class="r num">${money(d.income)}</td></tr>
+      ${cos===null?'':`<tr><td>Cost of sales</td><td class="r num">${money(cos)}</td></tr>
+      <tr class="grp2"><td>Gross margin${d.gross_margin===null||d.gross_margin===undefined?'':' · '+d.gross_margin+'%'}</td>
+        <td class="r num">${money(d.gross)}</td></tr>`}
+      ${below.map(g=>`<tr><td>${esc(g.label)}</td><td class="r num">${money(g.total)}</td></tr>`).join('')}
+      ${groups?'':`<tr><td>Expenses</td><td class="r num">${money(d.expense)}</td></tr>`}
       <tr class="grp2"><td>Net result</td><td class="r num">${money(d.net)}</td></tr>
      </tbody></table></div>
+     ${groups?`<div class="note">Cost of sales is what it costs to have the units
+     to let \u2014 head-lease rent, building utilities, cleaning, key money. Gross
+     margin is the arbitrage spread before anyone is paid to run the business;
+     everything under it is the cost of running it. A cost sitting in the wrong
+     group moves this line, so the chart is the place to argue with it, not
+     this screen.</div>`:''}
      <div class="note">Rent-free periods follow whatever treatment the ledger
      was posted on. If that decision changes, this statement changes with it \u2014
      nothing here is restated in the screen.</div></div>`)}
 window.plLive=plLive;
 
 ROUTES.pl=()=>{
-  const c=lazy('pl','statements.profit_and_loss');
+  const P=acctPeriod();
+  const c=lazy('pl:'+P.k,'statements.profit_and_loss',{frm:P.frm,to:P.to});
   if(c.state!=='ok'&&c.state!=='demo')
     return lazyPage('Profit and loss','Reads the ledger over the reporting window',c);
   if(c.state==='ok') return plLive(c.data);
@@ -6154,7 +6389,7 @@ ROUTES.pl=()=>{
 function bsLive(d){
   const [as,li,eq]=d.sections||[{rows:[],total:0},{rows:[],total:0},{rows:[],total:0}];
   return page('Balance sheet',`As at ${fdate(d.as_on)}`,
-   actbtn('Print'),
+   periodBar()+actbtn('Print'),
    stat([['Assets',money(d.assets)],['Liabilities',money(d.liabilities)],
      ['Equity',money(d.equity)],
      ['Unclosed profit',money(d.unclosed),'',d.unclosed>=0?'g':'r'],
@@ -6182,7 +6417,8 @@ function bsLive(d){
 window.bsLive=bsLive;
 
 ROUTES.bs=()=>{
-  const c=lazy('bs','statements.balance_sheet');
+  const P=acctPeriod();
+  const c=lazy('bs:'+P.k,'statements.balance_sheet',{as_on:P.to});
   if(c.state!=='ok'&&c.state!=='demo')
     return lazyPage('Balance sheet','Reads the ledger as at today',c);
   if(c.state==='ok') return bsLive(c.data);
@@ -6203,7 +6439,7 @@ function cfLive(d){
   const b=d.buckets||[];
   return page('Cash flow',
    `${fdate(d.frm)} to ${fdate(d.to)} \u00b7 direct method \u00b7 ${n0(d.vouchers||0)} vouchers moved cash`,
-   actbtn('Print'),
+   periodBar()+actbtn('Print'),
    stat([['Opening cash',money(d.opening)],['Net movement',money(d.net),'',d.net>=0?'g':'r'],
      ['Closing cash',money(d.closing)],
      ['Reconciled',d.reconciled?'Yes':'No','',d.reconciled?'g':'r']])+
@@ -6235,19 +6471,96 @@ function cfLive(d){
 window.cfLive=cfLive;
 
 ROUTES.cf=()=>{
-  const c=lazy('cf','statements.cash_flow');
+  const P=acctPeriod();
+  const c=lazy('cf:'+P.k,'statements.cash_flow',{frm:P.frm,to:P.to});
   if(c.state!=='ok'&&c.state!=='demo')
     return lazyPage('Cash flow','Reads every movement on the cash and bank accounts',c);
   if(c.state==='ok') return cfLive(c.data);
   /* The prototype has no cash movement to classify, and a cash flow built from
      invented vouchers is worse than none. It says so rather than fills in. */
-  return page('Cash flow','Direct method \u00b7 reads the live ledger','',
+  return page('Cash flow','Direct method \u00b7 reads the live ledger',periodBar(),
    `<div class="card"><div class="unwired big"><span class="uw-tag">LIVE ONLY</span>
      <p>The cash flow is derived from the vouchers that actually moved the cash
      and bank accounts. The prototype has no such vouchers, so there is nothing
      honest to show here.</p>
      <p class="uw-note">On a live site this reads the ledger and reconciles
      opening plus movement to closing cash.</p></div></div>`);
+};
+
+/* ---------- Expenses ----------
+   Everything on the cost side used to arrive through the cutover journal, so
+   from go-live the only spend the system could see was head-lease rent. This
+   is where the rest of it is keyed.
+
+   The screen's real job is the second card. A building cost lands on that
+   building and is the end of it; a common cost lands on Overhead and is
+   divided by head-lease weight across the buildings that were live that
+   month. Someone is going to ask why their building is carrying nine
+   thousand of salary, and the answer has to be on the screen rather than in
+   somebody's head. */
+function expLive(d){
+  const f=qs().b||'';
+  const rows=f?(d.rows||[]).filter(r=>r.basis===f):(d.rows||[]);
+  const a=window.DB_LAZY['alloc:'+acctPeriod().k];
+  const al=(a&&a.state==='ok')?a.data:null;
+  return page('Expenses',
+   `${fdate(d.frm)} to ${fdate(d.to)} \u00b7 ${d.count} entries \u00b7 head decides whether a cost is a building's or the company's`,
+   periodBar()+fbtn('Record an expense','record-expense'),
+   stat([['Total',money(d.total),'','',{k:'b',v:''}],
+     ['Direct to buildings',money(d.direct),'','',{k:'b',v:'Building'}],
+     ['Common',money(d.common),'shared out','a',{k:'b',v:'Common'}],
+     ['Still unpaid',money(d.unpaid),'',d.unpaid?'r':'g']])+
+   (f?fchip(f==='Building'?'building costs only':'common costs only','b'):'')+
+   (d.capped?`<div class="note">Capped at ${rows.length} entries \u2014 narrow the
+     period to see the rest.</div>`:'')+
+   `<div class="card"><h3>Entries</h3>
+    ${rows.length?tbl([
+     {h:'Date',r:1,v:r=>fdate(r.date)},{h:'Head',v:r=>esc(r.head)},
+     {h:'Group',v:r=>chip(r.group||'\u2014','n')},
+     {h:'Basis',v:r=>chip(r.basis,r.basis==='Building'?'g':'a')},
+     {h:'Building',v:r=>esc(r.bn)},{h:'What for',v:r=>esc(r.what)},
+     {h:'Settled',v:r=>r.mode==='Unpaid'?chip('Unpaid','r'):chip(r.mode,'n')},
+     {h:'Amount',r:1,mono:1,v:r=>money(r.amount)}],
+     rows.map(r=>({...r,__id:r.je||r.id})),
+     {id:'exl',click:'openExpJ',
+      foot:[rows.length+(f?' of '+d.count:'')+' entries','click a row for its journal']})
+     :empty(f?'Nothing '+f.toLowerCase()+' in this window.'
+             :'No expense has been keyed in this window.')}</div>
+   <div class="card" style="margin-top:14px"><h3>How the common cost divides</h3>
+    ${al&&al.rows&&al.rows.length?tbl([
+      {h:'Building',v:r=>esc(r.label)},
+      {h:'Share of the common pool',r:1,mono:1,v:r=>money(r.amount)}],
+      al.rows.map(r=>({...r,__id:r.building})),
+      {id:'alc',foot:[al.rows.length+' buildings carried a share',
+        'pool '+money(al.total)+(al.unallocated?' \u00b7 '+money(al.unallocated)+' unallocated':'')]})
+     :empty(al?'No common cost to divide in this window.':'Reading the split\u2026')}
+    <div class="note">Weighted by head-lease cost, in whole riyals, across the
+    buildings that were Active or on Notice Period in each month. A building
+    that had not been handed over does not carry that month. The shares add
+    back to the pool exactly \u2014 the odd riyal goes to whichever buildings were
+    rounded down hardest rather than to nobody.
+    ${al&&al.unallocated?`<br><b>${money(al.unallocated)} could not be divided</b>
+    because no building was live in the month it was posted. It stays on
+    Overhead.`:''}</div></div>`);
+}
+window.openExpJ=id=>{ if(id&&String(id).indexOf('EXP-')!==0) go('#/journal/'+id) };
+
+ROUTES.expenses=()=>{
+  const P=acctPeriod();
+  const c=lazy('exp:'+P.k,'expenses.register',{frm:P.frm,to:P.to});
+  if(c.state==='ok') lazy('alloc:'+P.k,'expenses.allocation_preview',{frm:P.frm,to:P.to});
+  if(c.state!=='ok'&&c.state!=='demo')
+    return lazyPage('Expenses','Reads what has been keyed against the expense chart',c);
+  if(c.state==='ok') return expLive(c.data);
+  /* No demo expenses exist, and a made-up cost base would put a number under
+     the MD's eye that nothing in the ledger supports. */
+  return page('Expenses','Reads the live ledger',periodBar(),
+   `<div class="card"><div class="unwired big"><span class="uw-tag">LIVE ONLY</span>
+     <p>Expenses are read from what has actually been keyed against the expense
+     chart. The prototype has none, and an invented cost base would flatter or
+     damn every building's margin on nothing.</p>
+     <p class="uw-note">On a live site this lists every entry in the window and
+     shows how the common pool divided.</p></div></div>`);
 };
 
 function journalDetail(id){const j=JRN.find(x=>x.id===id)||JRN[0];
@@ -6429,7 +6742,7 @@ const PLANONLY=['planning','capacity','forecast','fva','scenarios','scenario','c
    accGroup() found no `.groups` on it and silently fell back to the prototype
    account codes, which is why Cash at bank, Receivables and Deposits held all
    read 0 on a ledger holding 255,800. */
-const LEDGER_ROUTES=['coa','ledger','journal','trial','account','pl','bs','cf'];
+const LEDGER_ROUTES=['coa','ledger','journal','trial','account','pl','bs','cf','expenses'];
 window.cycleRole=()=>{const o=Object.keys(ROLES);
   if(DB_REAL_ROLE!=='MD'){toast('Your role is set by your login');return}
   ROLEV=o[(Math.max(0,o.indexOf(ROLEV))+1)%o.length];applyRole();
@@ -6794,12 +7107,12 @@ function provisionalNote(long){return provisional()
    ${k(shClassified())} separated out, taking the floor from ${k(GROSS*DPOL.months)} to ${k(floorK())}.
    Head-lease months remain an open data request.</div>`}
 
-function voidTable(id){const v=UNITS.filter(u=>u.st==='Void');
+function vacantTable(id){const v=UNITS.filter(u=>u.st==='Vacant');
  return tbl([{h:'Unit',v:u=>u.id},{h:'Building',v:u=>u.bn},{h:'Type',v:u=>u.type},
-  {h:'Asking',r:1,mono:1,v:u=>k(u.rent)},{h:'Void days',r:1,mono:1,v:u=>u.vd||'—',style:u=>u.vd>60?'color:var(--red)':''},
+  {h:'Asking',r:1,mono:1,v:u=>k(u.rent)},{h:'Vacant days',r:1,mono:1,v:u=>u.vd||'—',style:u=>u.vd>60?'color:var(--red)':''},
   {h:'Plan',v:u=>u.vd>60?'Reprice, then market':'Marketing'}],
   v.map(u=>({...u,__id:u.id})),{id,click:'openU',
-   foot:[v.length+' void units · '+k(v.reduce((a,u)=>a+u.rent,0))+' of rent not being billed','detail capped at twelve months — Q16']})}
+   foot:[v.length+' vacant units · '+k(v.reduce((a,u)=>a+u.rent,0))+' of rent not being billed','detail capped at twelve months — Q16']})}
 
 /* ================================================================
    PLANNING — Stage 2H
@@ -6828,7 +7141,7 @@ const PRISK=[
  {r:'Single collector handles cash',p:'Medium',i:'control',m:'Two-person deposit rule at Stage 2C',s:'a'},
  {r:'Owner drawings inside operating cost',p:'High',i:'QAR 120,000 per month',m:'Classification at intake — D68',s:'r'}];
 const PACT=[
- {a:'Fill 9 void units in Muaither West',o:'General Manager',by:'30 Sep 26',e:38.4,st:'In progress'},
+ {a:'Fill 9 vacant units in Muaither West',o:'General Manager',by:'30 Sep 26',e:38.4,st:'In progress'},
  {a:'Renegotiate the New Meridien contract',o:'General Manager',by:'31 Aug 26',e:8.56,st:'Not started'},
  {a:'Classify all shareholder movements to date',o:'Accounts',by:'07 Aug 26',e:120,st:'In progress'},
  {a:'Obtain the accountant position on Q21',o:'Managing Director',by:'15 Aug 26',e:0,st:'Not started'},
@@ -6847,7 +7160,7 @@ ROUTES.planning=()=>{const v=capVerdict(DPOL.target);
    ['Open actions',PACT.filter(a=>a.st!=='Done').length],
    ['Basis',provisional()?'provisional':'three closed months','',provisional()?'a':'g']])+
   `<div class="note"><b>Planning does not offer rent increases or better collection as levers.</b> Both are locked out by decision.
-   What it can move is voids, cost, and the shape of the portfolio.</div>
+   What it can move is vacancy, cost, and the shape of the portfolio.</div>
   <div class="card"><h3>Distribution capacity against the target
     <span class="chip ${v.cls}">${v.txt}</span></h3>${capChart(DPOL.target,220)}
    <div class="foot"><span>green is what the company can afford · gold is what the owners want</span>
@@ -6885,7 +7198,7 @@ ROUTES.capacity=()=>{const v=capVerdict(DPOL.target);
     ${tbl([{h:'Lever',v:r=>r[0]},{h:'Required',v:r=>r[1]},{h:'Monthly effect',r:1,mono:1,v:r=>k(r[2])},
       {h:'Feasibility',v:r=>chip(r[3],r[3]==='Feasible'?'g':r[3]==='Tight'?'a':'r')}],
      [['Classify shareholder movements',openFlags()?'3 flagged lines':'done',120,'Feasible'],
-      ['Fill void units','9 of 12',38.4,'Tight'],
+      ['Fill vacant units','9 of 12',38.4,'Tight'],
       ['Renegotiate manpower','20% reduction',8.56,'Feasible'],
       ['Add a building','14 units at 41% spread',41.2,'Requires capital']].map(r=>({...r,__id:r[0]})),
      {id:'sv',foot:['gap to close '+k(Math.max(0,DPOL.target-headK())),
@@ -6926,7 +7239,7 @@ ROUTES.forecast=()=>page('Forecast','Eighteen months rolling · renewals assumed
    ${pbar([-18,13,-23],['April','May','June'],{h:150})}</div>
   <div class="card" id="sec-as"><h3>Assumptions</h3><div class="kv">
    ${[['Renewals','At current terms, flagged as an assumption'],['Rent increases','Not permitted as a lever'],
-      ['Collection rate','Held at actual, not improved'],['Void fill','Three months to full on new stock'],
+      ['Collection rate','Held at actual, not improved'],['Vacancy fill','Three months to full on new stock'],
       ['Head-lease rent','Missing from the months analysed — the largest known gap']]
     .map(r=>`<div><span>${r[0]}</span><b style="font-weight:400">${r[1]}</b></div>`).join('')}</div></div></div>`);
 
@@ -6981,13 +7294,13 @@ ROUTES.scenario=id=>{const s=id?SC(id):SCEN[0]; if(!s) return notFound('Scenario
      .map(r=>`<div><span>${r[0]}</span><b style="font-weight:400">${r[1]}</b></div>`).join('')}</div></div></div>`)};
 
 /* ---- portfolio plan · absorbs unit-level planning ---- */
-ROUTES.portfolioplan=()=>page('Portfolio plan','Every building against the spread threshold, and every void beneath it','',
- secnav([['Buildings','sec-b'],['Voids','sec-v']])+
+ROUTES.portfolioplan=()=>page('Portfolio plan','Every building against the spread threshold, and every vacancy beneath it','',
+ secnav([['Buildings','sec-b'],['Vacancies','sec-v']])+
  stat([['Buildings',BUILDINGS.length],['Below threshold',BUILDINGS.filter(b=>mpBad(b,18)).length,'','r'],
-  ['Void units',UNITS.filter(u=>u.st==='Void').length],
-  ['Rent not being billed',k(UNITS.filter(u=>u.st==='Void').reduce((a,u)=>a+u.rent,0))]])+
+  ['Vacant units',UNITS.filter(u=>u.st==='Vacant').length],
+  ['Rent not being billed',k(UNITS.filter(u=>u.st==='Vacant').reduce((a,u)=>a+u.rent,0))]])+
  `<div class="note">A building below the threshold for four consecutive quarters becomes an exit question for the MD.
-   Filling a void is the cheaper lever and is always tried first.</div>
+   Filling a vacancy is the cheaper lever and is always tried first.</div>
  <div class="card" id="sec-b"><h3>Buildings against the 18% threshold</h3>${tbl([
   {h:'Building',v:b=>b.n},{h:'Units',r:1,mono:1,v:b=>b.units},{h:'Revenue',r:1,mono:1,v:b=>k(b.rev)},
   {h:'Head-lease',r:1,mono:1,v:b=>k(b.cost)},{h:'Margin',r:1,mono:1,v:b=>k(b.m)},
@@ -6996,7 +7309,7 @@ ROUTES.portfolioplan=()=>page('Portfolio plan','Every building against the sprea
   {h:'Verdict',v:b=>mpBad(b,18)?chip(b.mp==null?'No revenue billed':'Below threshold','r')
     :b.mp<24?chip('Watch','a'):chip('Hold','g')}],
   BUILDINGS.map(b=>({...b,__id:b.id})),{id:'pp',click:'openB',foot:[BUILDINGS.length+' buildings','click a header to sort']})}</div>
- <div class="card" id="sec-v"><h3>Void units and the plan for each</h3>${voidTable('vp')}</div>`);
+ <div class="card" id="sec-v"><h3>Vacant units and the plan for each</h3>${vacantTable('vp')}</div>`);
 
 ROUTES.model=()=>page('Building model','Quick model for a candidate building · detailed model once terms are agreed',
  fbtn('Model a building','model-building'),
@@ -7068,9 +7381,9 @@ const CFOT=[
  ['Which buildings are dragging the spread?',
   ()=>{const w=BUILDINGS.slice().sort((a,b)=>(a.mp==null?-1e9:a.mp)-(b.mp==null?-1e9:b.mp)).slice(0,2);
    return `${w[0].n} at ${mpTxt(w[0])} and ${w[1].n} at ${mpTxt(w[1])}, against a threshold of 18%.
-   Muaither West is also carrying voids worth ${k(38.4)} a month if filled.<br><br>Filling voids is a permitted lever. Raising rent is not,
+   Muaither West is also carrying vacancies worth ${k(38.4)} a month if filled.<br><br>Filling vacancies is a permitted lever. Raising rent is not,
    so I have not modelled it.`},
-  'Portfolio service · void pipeline'],
+  'Portfolio service · vacancy pipeline'],
  ['What has Khayaz drawn this year?',
   ()=>`I cannot answer that. Per-shareholder balances sit outside what I am permitted to read, and that boundary is enforced on the server
    rather than left to my judgement.<br><br>What I can tell you is what the company can afford in total. The owner positions are on the Owners
@@ -7285,7 +7598,7 @@ Object.assign(FORMS,{
  steps:[
   {n:'Basics',fields:[
    {k:'name',l:'Scenario name',t:'txt',req:1,full:1,p:'Add Barwa Annex, 14 units'},
-   {k:'type',l:'Type',t:'sel',o:['Add a building','Exit a building','Cost change','Void fill plan'],req:1},
+   {k:'type',l:'Type',t:'sel',o:['Add a building','Exit a building','Cost change','Vacancy fill plan'],req:1},
    {k:'note',l:'What this tests',t:'ta',full:1,p:'One sentence a reader who was not in the room would understand'}]},
   {n:'Numbers',fields:[
    {k:'head',l:'Head-lease, monthly K',t:'num'},{k:'sub',l:'Expected sublet, monthly K',t:'num'},
@@ -7591,7 +7904,7 @@ function unitEditor(d){
     <th>Asking rent, QAR</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`:
    `<div class="mt">No units yet. Add them one at a time, or paste the list from the landlord's schedule.</div>`}
   ${dupes.length?`<div class="merr" style="display:block">Duplicate unit number: ${[...new Set(dupes)].join(', ')}</div>`:''}
-  <div class="note">Asking rent is optional at this point. A unit with no rent is created as void and priced when it is first let.</div>`}
+  <div class="note">Asking rent is optional at this point. A unit with no rent is created as vacant and priced when it is first let.</div>`}
 
 /* ---------- search on any rendered table ---------- */
 window.filterTable=(id,q)=>{const t=document.getElementById(id);if(!t||!t.tBodies[0])return;
@@ -7644,7 +7957,7 @@ Object.assign(FORMS,{
           ready:b&&b.nr?'Yes':'No'}},
  steps:[{n:'Handover',body:d=>{const b=d.b?B(d.b):null;const nr=b?(b.nr||0):0;
   return `<div class="note">Handover is the day the building became yours to let. It is what moves
-    the building out of Onboarding, and it is the date every void-day count runs from.</div>
+    the building out of Onboarding, and it is the date every vacant-day count runs from.</div>
    <div class="fg">
     ${fld({k:'date',l:'Handover date',t:'date',req:1},d.date)}
     ${nr?fld({k:'ready',l:'Mark the '+nr+' unit'+(nr===1?'':'s')+' still Not Ready as Vacant',
@@ -8622,6 +8935,29 @@ const W_DOCTYPE={'Auto-detect':'Unknown','Cheque batch':'Cheque Batch','Tenant c
 const WIRE={
 
 /* ---------------- people ---------------- */
+
+'record-expense':{
+ guard:d=>{
+   if(!(+d.amount>0)) return 'An amount is needed, and it is always positive.';
+   const H=(window.DB_LAZY['expheads']||{}).data;
+   const cur=H&&(H.heads||[]).find(h=>h.head===d.head);
+   if(!cur) return 'Pick an expense head from the chart.';
+   if(cur.basis==='Building'&&!d.building) return cur.head+' is a building cost and needs its building.';
+   return null},
+ m:'expenses.record',
+ a:d=>{
+   const H=(window.DB_LAZY['expheads']||{}).data||{};
+   const cur=(H.heads||[]).find(h=>h.head===d.head)||{};
+   const b=(H.buildings||[]).find(x=>x.label===d.building);
+   return {payload:{head:cur.account||d.head,date:d.date,amount:+d.amount||0,
+     building:b?b.id:(d.building||null),mode:d.mode,paid_from:d.paid_from,
+     supplier:d.supplier,what:d.what,ref:d.ref}}},
+ ok:(r,d)=>({title:'Recorded',
+   msg:'QAR '+n0(+d.amount||0)+' to '+d.head,
+   detail:r.basis==='Building'
+     ?'Posted to '+(r.building||'the building')+' \u00b7 journal '+(r.journal||'\u2014')
+     :'Posted to Overhead and shared across the buildings live that month \u00b7 journal '+(r.journal||'\u2014'),
+   goto:'#/expenses'})},
 
 'petty-entry':{
  guard:d=>{

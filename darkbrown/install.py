@@ -46,6 +46,7 @@ def after_install():
     reconcile_custom_fields()
     seed_settings()
     seed_document_requirements()
+    seed_expense_chart()
     frappe.db.commit()
 
 
@@ -54,7 +55,23 @@ def after_migrate():
     patch. Everything below is a no-op when it already exists."""
     reconcile_custom_fields()
     seed_document_requirements()
+    seed_expense_chart()
     frappe.db.commit()
+
+
+def seed_expense_chart():
+    """The five P&L groups, every expense head under them, and the overhead
+    cost centre.
+
+    A site with no company yet - which is every site between `new-site` and
+    the setup wizard - has nowhere to put them, so this returns quietly rather
+    than failing the migrate. It runs again next time.
+    """
+    from darkbrown.utils.chart_of_accounts import ensure_chart
+    try:
+        ensure_chart()
+    except Exception:
+        frappe.log_error(frappe.get_traceback(), "Expense chart not built")
 
 
 def create_roles():

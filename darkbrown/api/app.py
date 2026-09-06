@@ -144,7 +144,7 @@ def _headlease_rollup():
 
 UNIT_STATE = {
     "Occupied": "Occupied",
-    "Vacant": "Void",
+    "Vacant": "Vacant",
     "Not Ready": "Make-ready",
     "Reserved": "Reserved",
     "Under Maintenance": "Make-ready",
@@ -180,7 +180,7 @@ def units():
             "sqm": round(flt(u.area_sqm)) or 0,
             "rent": rent,
             "llRent": round(rent * 0.78, 1),
-            "st": UNIT_STATE.get(u.status, u.status or "Void"),
+            "st": UNIT_STATE.get(u.status, u.status or "Vacant"),
             "vd": date_diff(today(), u.modified) if vacant else 0,
         })
     return out

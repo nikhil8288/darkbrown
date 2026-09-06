@@ -245,9 +245,68 @@ def _section(nodes, root_type, label):
 
 # --------------------------------------------------------- profit and loss
 
+def _expense_groups(nodes):
+    """The five P&L groups, in order, each with the accounts beneath it.
+
+    Reads the group accounts by name off the chart rather than by walking the
+    tree from the expense root, because a site can carry expense accounts that
+    predate the grouping - the head-lease loaders create theirs under Direct
+    Expenses - and those must still appear. Anything not under one of the five
+    is collected into a final "Other" group instead of vanishing, which is the
+    only behaviour that keeps the statement adding up.
+    """
+    from darkbrown.utils.chart_of_accounts import GROUPS
+
+    by_name = {}
+    for n in nodes.values():
+        by_name.setdefault(n["label"], []).append(n)
+
+    sections, claimed = [], set()
+    for key, label in GROUPS:
+        roots = [n for n in by_name.get(key, [])
+                 if n["cls"] == "Expense" and n["group"]]
+        rows, total = [], 0.0
+        for r in roots:
+            _rollup(r)
+            total += r["total"]
+            claimed.add(r["acc"])
+            for d in _descendants(r):
+                claimed.add(d["acc"])
+            _flatten(r, 0, rows)
+        sections.append({"key": key, "label": label, "rows": rows,
+                         "total": round(total, 2)})
+
+    # Expense accounts that never made it under a group.
+    stray, total = [], 0.0
+    for r in _roots(nodes, "Expense"):
+        _rollup(r)
+        for n in [r] + list(_descendants(r)):
+            if n["acc"] in claimed or n["group"]:
+                continue
+            own = round(_signed(n), 2)
+            if not own:
+                continue
+            total += own
+            stray.append({"code": n["code"], "label": n["label"],
+                          "cls": n["cls"], "type": n["type"], "acc": n["acc"],
+                          "depth": 0, "group": False, "amount": own})
+    if stray:
+        sections.append({"key": "Other", "label": "Other expenses",
+                         "rows": stray, "total": round(total, 2)})
+    return sections
+
+
 @frappe.whitelist()
 def profit_and_loss(frm=None, to=None):
-    """Trading over a window: income, expense and what is left.
+    """Trading over a window, with a gross margin in the middle of it.
+
+    The old shape was income, then every expense account in one list. That is
+    a ledger dump: it cannot say whether a bad month was the leases or the
+    office, and in a sublease business those are different problems with
+    different fixes. Cost of sales now sits directly under revenue, so gross
+    margin - rent in against what it cost to have the units to let - reads off
+    the face of the statement, and staff, operating, writedowns and bank
+    charges come below it.
 
     Period Closing Vouchers are excluded. They move a closed year's profit into
     equity and are not trading, so a window spanning one would otherwise count
@@ -259,14 +318,33 @@ def profit_and_loss(frm=None, to=None):
     nodes = _tree(company)
     _apply(nodes, _sums(company, frm, to, exclude_closing=True))
 
-    income = _section(nodes, "Income", "Income")
-    expense = _section(nodes, "Expense", "Expenses")
-    net = round(income["total"] - expense["total"], 2)
-    margin = round(net / income["total"] * 100, 1) if income["total"] else None
-    return {"sections": [income, expense],
-            "income": income["total"], "expense": expense["total"],
-            "net": net, "margin": margin,
-            "frm": frm, "to": to, "company": company}
+    income = _section(nodes, "Income", "Revenue")
+    groups = _expense_groups(nodes)
+
+    cos = next((g["total"] for g in groups if g["key"] == "Cost of Sales"), 0.0)
+    gross = round(income["total"] - cos, 2)
+    expense = round(sum(g["total"] for g in groups), 2)
+    net = round(income["total"] - expense, 2)
+    pct = lambda v: (round(v / income["total"] * 100, 1)
+                     if income["total"] else None)
+
+    return {
+        # The two statements the shell draws from, in print order.
+        "revenue": income,
+        "groups": groups,
+        # Backwards-compatible: anything still reading `sections` gets the old
+        # two-part shape rather than an exception.
+        "sections": [income, {"key": "expense", "label": "Expenses",
+                              "rows": [r for g in groups for r in g["rows"]],
+                              "total": expense}],
+        "income": income["total"],
+        "cost_of_sales": round(cos, 2),
+        "gross": gross,
+        "gross_margin": pct(gross),
+        "expense": expense,
+        "net": net,
+        "margin": pct(net),
+        "frm": frm, "to": to, "company": company}
 
 
 # ------------------------------------------------------------ balance sheet
