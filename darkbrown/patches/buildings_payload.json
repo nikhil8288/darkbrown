@@ -84,7 +84,8 @@
    "end_date": "2026-11-30",
    "payment_frequency": "Monthly",
    "security_deposit": 18000.0
-  }
+  },
+  "handover_date": "2025-12-01"
  },
  {
   "building_name": "DAJ-21",
@@ -302,7 +303,8 @@
    "end_date": "2027-08-31",
    "payment_frequency": "Monthly",
    "security_deposit": 0.0
-  }
+  },
+  "handover_date": "2025-09-01"
  },
  {
   "building_name": "MQ-56",
@@ -402,7 +404,8 @@
    "end_date": "2028-03-31",
    "payment_frequency": "Monthly",
    "security_deposit": 15000.0
-  }
+  },
+  "handover_date": "2025-12-01"
  },
  {
   "building_name": "MR-130",
@@ -517,7 +520,8 @@
    "end_date": "2028-10-31",
    "payment_frequency": "Monthly",
    "security_deposit": 0.0
-  }
+  },
+  "handover_date": "2025-11-01"
  },
  {
   "building_name": "MT-21",
@@ -548,7 +552,8 @@
    "end_date": "2026-07-31",
    "payment_frequency": "Monthly",
    "security_deposit": 0.0
-  }
+  },
+  "handover_date": "2025-08-01"
  },
  {
   "building_name": "OG-48",
@@ -713,7 +718,8 @@
    "end_date": "2027-01-31",
    "payment_frequency": "Monthly",
    "security_deposit": 52000.0
-  }
+  },
+  "handover_date": "2026-02-01"
  },
  {
   "building_name": "TV-20",
@@ -815,7 +821,8 @@
    "end_date": "2027-08-31",
    "payment_frequency": "Quarterly",
    "security_deposit": 0.0
-  }
+  },
+  "handover_date": "2025-11-01"
  },
  {
   "building_name": "TV-27",
@@ -939,7 +946,8 @@
    "end_date": "2028-02-29",
    "payment_frequency": "Monthly",
    "security_deposit": 25000.0
-  }
+  },
+  "handover_date": "2026-01-01"
  },
  {
   "building_name": "TV-66",
@@ -1033,7 +1041,8 @@
    "end_date": "2027-09-30",
    "payment_frequency": "Monthly",
    "security_deposit": 14000.0
-  }
+  },
+  "handover_date": "2025-09-01"
  },
  {
   "building_name": "TV-68",
@@ -1133,7 +1142,8 @@
    "end_date": "2027-09-30",
    "payment_frequency": "Monthly",
    "security_deposit": 14000.0
-  }
+  },
+  "handover_date": "2025-09-01"
  },
  {
   "building_name": "TWR-12",
@@ -1286,7 +1296,8 @@
    "end_date": "2028-07-31",
    "payment_frequency": "Monthly",
    "security_deposit": 32000.0
-  }
+  },
+  "handover_date": "2026-03-01"
  },
  {
   "building_name": "TWR-16",
@@ -1439,7 +1450,8 @@
    "end_date": "2028-04-30",
    "payment_frequency": "Monthly",
    "security_deposit": 32000.0
-  }
+  },
+  "handover_date": "2026-03-01"
  },
  {
   "building_name": "TWR-17",
@@ -1590,7 +1602,8 @@
    "end_date": "2029-01-31",
    "payment_frequency": "Monthly",
    "security_deposit": 32000.0
-  }
+  },
+  "handover_date": "2026-03-01"
  },
  {
   "building_name": "TWR-19",
@@ -1739,7 +1752,8 @@
    "end_date": "2029-01-31",
    "payment_frequency": "Monthly",
    "security_deposit": 32000.0
-  }
+  },
+  "handover_date": "2026-03-01"
  },
  {
   "building_name": "TWR-20",
@@ -1972,7 +1986,8 @@
    "end_date": "2028-04-30",
    "payment_frequency": "Monthly",
    "security_deposit": 32000.0
-  }
+  },
+  "handover_date": "2026-03-01"
  },
  {
   "building_name": "TWR-35",
@@ -2122,7 +2137,8 @@
    "end_date": "2028-09-30",
    "payment_frequency": "Monthly",
    "security_deposit": 32000.0
-  }
+  },
+  "handover_date": "2026-03-01"
  },
  {
   "building_name": "TWR-37",
@@ -2247,7 +2263,8 @@
    "end_date": "2029-01-31",
    "payment_frequency": "Monthly",
    "security_deposit": 32000.0
-  }
+  },
+  "handover_date": "2026-03-01"
  },
  {
   "building_name": "TWR-39",
@@ -2373,7 +2390,8 @@
    "end_date": "2028-09-30",
    "payment_frequency": "Monthly",
    "security_deposit": 32000.0
-  }
+  },
+  "handover_date": "2026-03-01"
  },
  {
   "building_name": "TWR-45",
@@ -2512,7 +2530,8 @@
    "end_date": "2028-04-30",
    "payment_frequency": "Monthly",
    "security_deposit": 32000.0
-  }
+  },
+  "handover_date": "2026-03-01"
  },
  {
   "building_name": "TWR-58",
@@ -2632,7 +2651,8 @@
    "end_date": "2028-04-30",
    "payment_frequency": "Monthly",
    "security_deposit": 32000.0
-  }
+  },
+  "handover_date": "2026-03-01"
  },
  {
   "building_name": "UG-169",
@@ -2719,7 +2739,8 @@
    "end_date": "2028-12-31",
    "payment_frequency": "Monthly",
    "security_deposit": 30000.0
-  }
+  },
+  "handover_date": "2026-01-01"
  },
  {
   "building_name": "UG-180",
@@ -2991,6 +3012,7 @@
    "end_date": "2028-01-31",
    "payment_frequency": "Monthly",
    "security_deposit": 56000.0
-  }
+  },
+  "handover_date": "2026-02-01"
  }
 ]
