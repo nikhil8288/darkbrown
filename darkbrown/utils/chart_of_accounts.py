@@ -73,6 +73,12 @@ HEADS = [
     ("Commission on Sales", "Cost of Sales", BUILDING),
     ("Electricity Buildings", "Cost of Sales", BUILDING),
     ("Key Money", "Cost of Sales", BUILDING),
+    # Key money paid on properties that were bid for and not won. There is no
+    # building to carry it, so the basis is Common: it posts to the overhead
+    # centre and reaches each building through the allocation, weighted by
+    # head-lease cost. It stays in cost of sales at the accountant's direction,
+    # so it sits above gross margin rather than below it.
+    ("Key Money - Other", "Cost of Sales", COMMON),
     ("Marketing Expenses", "Cost of Sales", BUILDING),
     ("Repairs & Maintenance Equipment", "Cost of Sales", BUILDING),
     ("Wifi & Mobile Buildings", "Cost of Sales", BUILDING),
