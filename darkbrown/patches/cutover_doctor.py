@@ -54,6 +54,41 @@ def run():
             first_gap = (dt, got, want, step)
         print("  %-20s %6s / %-6d %s" % (dt, got, want, mark))
 
+    # 104 Customers on a site with no Buildings is residue from an earlier
+    # load. It matters: import_tenancies matches on the normalised name, so a
+    # stale Customer that normalises the same as a pack name will either take
+    # the tenancy (and its old ledger with it) or make the name ambiguous and
+    # abort the whole step.
+    import json as _json
+    import re as _re
+
+    def _norm(x):
+        x = (x or "").upper().replace("\u00a0", " ")
+        return " ".join(_re.sub(r"[^A-Z0-9 ]", " ", x).split())
+
+    pack = os.path.join(HERE, "customers.json")
+    if os.path.exists(pack):
+        want = {_norm(n): n for n in _json.load(open(pack, encoding="utf-8"))}
+        site = {}
+        for c in frappe.get_all("Customer", fields=["name", "customer_name"]):
+            site.setdefault(_norm(c.customer_name), []).append(c.name)
+        overlap = sorted(k for k in want if k in site)
+        ambiguous = sorted(k for k in want if len(site.get(k, [])) > 1)
+        stale = sorted(k for k in site if k not in want)
+        print("\ncustomers on the site vs the pack")
+        print("  in both (will be reused, not recreated) : %d" % len(overlap))
+        print("  on the site but NOT in the pack          : %d" % len(stale))
+        print("  matching more than one Customer          : %d %s"
+              % (len(ambiguous), ambiguous[:5] or ""))
+        if ambiguous:
+            print("  ^ import_tenancies aborts on an ambiguous name. Fix these first.")
+        if stale and not frappe.db.count("Building"):
+            print("  ^ %d Customers with no Buildings on the site is residue from an"
+                  % len(stale))
+            print("    earlier load. If the purge was meant to have run, it did not")
+            print("    finish. First five: %s"
+                  % [site[k][0] for k in stale[:5]])
+
     print("\ntenants flagged db_is_tenant : %s" % _count("Customer", {"db_is_tenant": 1}))
     print("landlords flagged db_is_landlord: %s" % _count("Supplier", {"db_is_landlord": 1}))
     print("units reading Occupied         : %s" % _count("Unit", {"status": "Occupied"}))

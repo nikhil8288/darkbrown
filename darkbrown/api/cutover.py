@@ -28,30 +28,34 @@ PATCHES = frappe.get_app_path("darkbrown", "patches") if hasattr(
         os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "patches")
 
 FILES = ["tenancies.csv", "opening_arrears.csv", "buildings_payload.json",
-         "customers.json", "ak12_history.csv", "ak12_headlease.csv",
-         "load_buildings.py", "load_customers.py", "load_ak12_history.py",
-         "load_ak12_headlease.py", "_ledger_common.py", "ak12_rebuild.py",
-         "ak12_doctor.py", "tenancy_name_map.csv", "arrears_name_map.csv"]
+         "customers.json", "portfolio_history.csv", "owner_rent_history.csv",
+         "keymoney_history.csv", "opex_journal.csv",
+         "load_buildings.py", "load_customers.py",
+         "load_portfolio_history.py", "load_portfolio_headlease.py",
+         "_ledger_common.py", "cutover_doctor.py",
+         "tenancy_name_map.csv", "arrears_name_map.csv"]
 
 #: Order matters and is not negotiable. Tenancies resolve against Customers and
 #: Units, arrears resolve against Customers, and a Unit cannot exist before its
 #: Building. Each entry is (label, dotted module, needs).
 STEPS = [
     ("Tenants", "darkbrown.patches.load_customers",
-     "9 Customers - 7 current AK-12 tenants, 2 former"),
+     "365 Customers"),
     ("Buildings and units", "darkbrown.patches.load_buildings",
-     "1 building, 8 units, 1 head lease"),
+     "23 buildings, 305 units, 22 head leases, 13 landlords"),
     ("Tenancies", "darkbrown.patches.import_tenancies",
-     "11 agreements - 7 live, 4 historical"),
+     "442 agreements - 266 live, 176 historical"),
     ("Opening arrears", "darkbrown.patches.seed_opening_arrears",
-     "nothing - AK-12 carries its receipt history instead"),
-    # These two post against the Customers and the Head Lease, so they run
+     "nothing - the rent history carries the arrears instead"),
+    # These two post against the Customers and the Head Leases, so they run
     # last. Together they are what puts income AND cost on the P&L; the rent
     # side alone gives a statement with revenue and no cost of sales.
-    ("Rent history", "darkbrown.patches.load_ak12_history",
-     "69 invoices, 69 receipts; 256,400.00 charged, 255,800.00 collected"),
-    ("Head-lease cost", "darkbrown.patches.load_ak12_headlease",
-     "9 purchase invoices, 9 payments; 162,000.00 accrued"),
+    ("Rent history", "darkbrown.patches.load_portfolio_history",
+     "1,782 invoices and receipts; 5,283,008.00 charged, "
+     "5,158,806.00 collected"),
+    ("Head-lease cost", "darkbrown.patches.load_portfolio_headlease",
+     "135 purchase invoices and payments; 3,669,500.00 accrued, "
+     "3,459,500.00 paid, 210,000.00 payable"),
 ]
 
 BAR = "-" * 72
@@ -195,6 +199,35 @@ def _sequence(live):
     if live:
         print("\n  Writing for real. Each loader skips what already exists,")
         print("  so a re-run after a failure is safe.\n")
+    else:
+        print("""
+  READ THIS BEFORE THE OUTPUT BELOW.
+
+  A dry run writes nothing, so nothing a step would have created exists for
+  the steps after it. On an empty site that means:
+
+    step 3  every tenancy reports "tenant: unmatched" and "building not
+            found", because steps 1 and 2 created no Customers and no
+            Buildings
+    step 5  every rent row reports "no Customer named ..."
+    step 6  every head-lease row reports "building not on the site"
+
+  Those are the dry run describing itself, not defects in the data. They
+  disappear on the real run, where each step commits before the next starts.
+
+  What IS worth reading in a dry run:
+
+    step 1  how many Customers already exist, and whether any name is
+            ambiguous - an ambiguous name is a real blocker
+    step 2  that all 23 buildings say CREATE and each names a real landlord
+    step 3  the row count and any problem that is NOT "unmatched" or "not
+            found" - a bad date, a nil rent, a duplicate key, two live
+            tenancies on one unit
+    steps 5 and 6  the control totals against the expected figures above
+
+  To see steps 3, 5 and 6 judged properly, run steps 1 and 2 for real first,
+  then dry-run the rest.
+""")
 
     for i, (label, dotted, needs) in enumerate(STEPS, 1):
         _h("%d/%d  %s   (expects %s)" % (i, len(STEPS), label, needs))
