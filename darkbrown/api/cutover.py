@@ -266,6 +266,41 @@ def _sequence(live):
     return True
 
 
+def _ledger_state():
+    """What is on the GL, and whether it is safe to load onto.
+
+    Counting records cannot tell you a load went wrong: the loaders are
+    idempotent, so on a dirty site every voucher is skipped as already-present
+    and the wrong ones stay. Counting GL rows can.
+
+    A ledger made only of this pack's own vouchers is not a problem - that is
+    a half-finished load, and re-running is how you finish it. What must stop
+    a load is a voucher this pack did not write, because the loaders will skip
+    past it and leave its amount on the statements.
+    """
+    live = frappe.db.count("GL Entry", {"is_cancelled": 0})
+
+    opening = untagged_si = 0
+    for d in frappe.get_all("Sales Invoice", filters={"docstatus": 1},
+                            fields=["remarks", "is_opening"], limit=5000):
+        if (d.is_opening or "") == "Yes":
+            opening += 1
+        elif "[AK12-HIST-INV-" not in (d.remarks or ""):
+            untagged_si += 1
+    untagged_pi = sum(
+        1 for d in frappe.get_all("Purchase Invoice", filters={"docstatus": 1},
+                                  fields=["remarks"], limit=5000)
+        if "[AK12-HL-INV-" not in (d.remarks or ""))
+    journals = frappe.db.count("Journal Entry", {"docstatus": 1})
+
+    foreign = opening + untagged_si + untagged_pi + journals
+    return {"gl_rows": live, "opening_invoices": opening,
+            "untagged_sales_invoices": untagged_si,
+            "untagged_purchase_invoices": untagged_pi,
+            "journal_entries": journals, "foreign": foreign,
+            "empty": live == 0, "clean": foreign == 0}
+
+
 def run_dry():
     return _sequence(False)
 
@@ -273,14 +308,11 @@ def run_dry():
 def run_load():
     """The Data screen's "Load for real" button.
 
-    It refuses on a site that already has a ledger, for the same reason
-    `ak12_rebuild.load` does: the loaders are idempotent, so on a dirty site
+    It refuses on a site that already has a ledger, because the loaders are idempotent, so on a dirty site
     they skip everything and report success while the wrong vouchers stay put.
     This button cannot reset - that stays on the bench, where it needs a typed
     confirmation phrase - so all it can do here is stop and say so.
     """
-    from darkbrown.patches.ak12_rebuild import _ledger_state
-
     st = _ledger_state()
     if not st["clean"]:
         return {"aborted": True, "reason": "ledger not empty", "ledger": st,
@@ -290,8 +322,8 @@ def run_load():
                     "rent invoices, %d landlord invoices, %d journal entries. "
                     "Loading again would skip everything already created and "
                     "leave those in place. Clear it from the bench first: "
-                    "ak12_rebuild.rebuild with the confirmation phrase, or run "
-                    "ak12_doctor.run to see exactly what is there."
+                    "bench --site <site> execute darkbrown.patches.cutover_doctor.run "
+                    "to see exactly what is there."
                     % (st["foreign"], st["opening_invoices"],
                        st["untagged_sales_invoices"],
                        st["untagged_purchase_invoices"],
