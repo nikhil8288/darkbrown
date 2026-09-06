@@ -1,0 +1,4 @@
+﻿master_row_id,building,unit_no,tenant_name,start_date,end_date,reason
+MAR-0067,MQ-56,P-01,MAHESH MAHADEV JADHAV,2026-07-01,2026-07-31,Nil rent. Importer refuses monthly_rent <= 0. Confirm the rent or confirm the unit was vacant.
+MAR-0424,UG-20,F-05,NAVAS FAMILY,2026-05-01,2026-05-31,Nil rent. Importer refuses monthly_rent <= 0. Confirm the rent or confirm the unit was vacant.
+MAR-0427,UG-20,F-07,NAVAS FAMILY,2026-03-01,2026-04-30,Nil rent. Importer refuses monthly_rent <= 0. Confirm the rent or confirm the unit was vacant.

@@ -1,0 +1,25 @@
+﻿building,master_workbook_grid,revenue_ledger,difference,note
+AK-12,256400.00,256400.00,0.00,
+DAJ-21,913410.00,917210.00,-3800.00,Master grid overstates the ledger. The ledger is the source and has been used.
+MQ-56,191400.00,189400.00,2000.00,Master grid overstates the ledger. The ledger is the source and has been used.
+MR-130,395515.00,398115.00,-2600.00,Master grid overstates the ledger. The ledger is the source and has been used.
+MT-21,252000.00,252000.00,0.00,
+OG-48,572400.00,572400.00,0.00,
+TV-20,216500.00,220500.00,-4000.00,Master grid overstates the ledger. The ledger is the source and has been used.
+TV-27,191950.00,179850.00,12100.00,Master grid overstates the ledger. The ledger is the source and has been used.
+TV-66,212650.00,212250.00,400.00,Master grid overstates the ledger. The ledger is the source and has been used.
+TV-68,187850.00,184283.00,3567.00,Master grid overstates the ledger. The ledger is the source and has been used.
+TWR-12,124850.00,125150.00,-300.00,Master grid overstates the ledger. The ledger is the source and has been used.
+TWR-16,131150.00,130950.00,200.00,Master grid overstates the ledger. The ledger is the source and has been used.
+TWR-17,115950.00,115450.00,500.00,Master grid overstates the ledger. The ledger is the source and has been used.
+TWR-19,121100.00,120950.00,150.00,Master grid overstates the ledger. The ledger is the source and has been used.
+TWR-20,140700.00,139750.00,950.00,Master grid overstates the ledger. The ledger is the source and has been used.
+TWR-35,143850.00,143350.00,500.00,Master grid overstates the ledger. The ledger is the source and has been used.
+TWR-37,123150.00,123150.00,0.00,
+TWR-39,133400.00,133400.00,0.00,
+TWR-45,124550.00,122425.00,2125.00,Master grid overstates the ledger. The ledger is the source and has been used.
+TWR-58,121350.00,121150.00,200.00,Master grid overstates the ledger. The ledger is the source and has been used.
+UG-169,213200.00,213200.00,0.00,
+UG-180,103500.00,103500.00,0.00,
+UG-20,334800.00,331950.00,2850.00,Master grid overstates the ledger. The ledger is the source and has been used.
+TOTAL,5321625.00,5306783.00,14842.00,"The P&L revenue line 5,306,783 is the ledger figure, not the grid figure."

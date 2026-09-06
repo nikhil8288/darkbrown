@@ -4,7 +4,7 @@
   "status": "Active",
   "area_name": "Ain Khalid",
   "landlord": {
-   "name": "AL MADAR REAL ESTATE W.L.L",
+   "name": "Al Madar Real Estate W.L.L.",
    "type": "Company"
   },
   "units": [
@@ -12,71 +12,2985 @@
     "unit_no": "F-01",
     "unit_type": "3BR",
     "status": "Vacant",
+    "asking_rent": 5000.0,
+    "furnishing": "Unfurnished",
     "bedrooms": 3,
-    "asking_rent": 5000,
-    "furnishing": "Unfurnished"
+    "kahramaa_meter_no": "1024870",
+    "water_meter_no": "938533"
    },
    {
     "unit_no": "F-02",
     "unit_type": "",
     "status": "Vacant",
-    "asking_rent": 5700,
+    "asking_rent": 5700.0,
     "furnishing": "Unfurnished"
    },
    {
     "unit_no": "G-01",
     "unit_type": "",
     "status": "Vacant",
-    "asking_rent": 5000,
+    "asking_rent": 5000.0,
     "furnishing": "Unfurnished"
    },
    {
     "unit_no": "G-01A",
     "unit_type": "1BR",
     "status": "Vacant",
+    "asking_rent": 3000.0,
+    "furnishing": "Unfurnished",
     "bedrooms": 1,
-    "asking_rent": 3000,
-    "furnishing": "Unfurnished"
+    "kahramaa_meter_no": "1024870",
+    "water_meter_no": "938533"
    },
    {
     "unit_no": "G-01B",
     "unit_type": "1BR",
     "status": "Vacant",
+    "asking_rent": 3200.0,
+    "furnishing": "Unfurnished",
     "bedrooms": 1,
-    "asking_rent": 3200,
-    "furnishing": "Unfurnished"
+    "kahramaa_meter_no": "1024870",
+    "water_meter_no": "938533"
    },
    {
     "unit_no": "O-01",
     "unit_type": "",
     "status": "Vacant",
-    "asking_rent": 2000,
+    "asking_rent": 2000.0,
     "furnishing": "Unfurnished"
    },
    {
     "unit_no": "P-01",
     "unit_type": "",
     "status": "Vacant",
-    "asking_rent": 2500,
+    "asking_rent": 2500.0,
     "furnishing": "Unfurnished"
    },
    {
     "unit_no": "P-02",
     "unit_type": "",
     "status": "Vacant",
-    "asking_rent": 3000,
+    "asking_rent": 3000.0,
     "furnishing": "Unfurnished"
    }
   ],
-  "head_lease": {
-   "annual_rent": 216000.0,
-   "start_date": "2025-11-01",
-   "end_date": "2026-11-30",
-   "payment_frequency": "Monthly"
-  },
   "zone_no": "56",
   "street_no": "224",
   "building_no": "12",
-  "kahramaa_account_no": "1024870"
+  "kahramaa_account_no": "1024870",
+  "head_lease": {
+   "annual_rent": 216000.0,
+   "start_date": "2025-12-01",
+   "end_date": "2026-11-30",
+   "payment_frequency": "Monthly",
+   "security_deposit": 18000.0
+  }
+ },
+ {
+  "building_name": "DAJ-21",
+  "status": "Active",
+  "area_name": "Doha Al Jadeed / Al-Mabrouka",
+  "landlord": {
+   "name": "Hassan Bin Hassan Al Jufairy",
+   "type": "Company"
+  },
+  "units": [
+   {
+    "unit_no": "F-01",
+    "unit_type": "2BR",
+    "status": "Vacant",
+    "asking_rent": 4200.0,
+    "furnishing": "Unfurnished",
+    "bedrooms": 2
+   },
+   {
+    "unit_no": "F-02",
+    "unit_type": "2BR",
+    "status": "Vacant",
+    "asking_rent": 4500.0,
+    "furnishing": "Unfurnished",
+    "bedrooms": 2
+   },
+   {
+    "unit_no": "F-04",
+    "unit_type": "2BR",
+    "status": "Vacant",
+    "asking_rent": 3800.0,
+    "furnishing": "Unfurnished",
+    "bedrooms": 2
+   },
+   {
+    "unit_no": "F-05",
+    "unit_type": "2BR",
+    "status": "Vacant",
+    "asking_rent": 4000.0,
+    "furnishing": "Unfurnished",
+    "bedrooms": 2
+   },
+   {
+    "unit_no": "F-06",
+    "unit_type": "1BR",
+    "status": "Vacant",
+    "asking_rent": 3100.0,
+    "furnishing": "Unfurnished",
+    "bedrooms": 1
+   },
+   {
+    "unit_no": "F-08",
+    "unit_type": "2BR",
+    "status": "Vacant",
+    "asking_rent": 4000.0,
+    "furnishing": "Unfurnished",
+    "bedrooms": 2
+   },
+   {
+    "unit_no": "F-09",
+    "unit_type": "2BR",
+    "status": "Vacant",
+    "asking_rent": 1000.0,
+    "furnishing": "Unfurnished",
+    "bedrooms": 2
+   },
+   {
+    "unit_no": "F-10",
+    "unit_type": "2BR",
+    "status": "Vacant",
+    "asking_rent": 4000.0,
+    "furnishing": "Unfurnished",
+    "bedrooms": 2
+   },
+   {
+    "unit_no": "F-12",
+    "unit_type": "1BR",
+    "status": "Vacant",
+    "asking_rent": 3400.0,
+    "furnishing": "Unfurnished",
+    "bedrooms": 1
+   },
+   {
+    "unit_no": "F-13",
+    "unit_type": "2BR",
+    "status": "Vacant",
+    "asking_rent": 4200.0,
+    "furnishing": "Unfurnished",
+    "bedrooms": 2
+   },
+   {
+    "unit_no": "F-14",
+    "unit_type": "2BR",
+    "status": "Vacant",
+    "asking_rent": 4000.0,
+    "furnishing": "Unfurnished",
+    "bedrooms": 2
+   },
+   {
+    "unit_no": "F-16",
+    "unit_type": "2BR",
+    "status": "Vacant",
+    "asking_rent": 4200.0,
+    "furnishing": "Unfurnished",
+    "bedrooms": 2
+   },
+   {
+    "unit_no": "F-18",
+    "unit_type": "1BR",
+    "status": "Vacant",
+    "asking_rent": 3600.0,
+    "furnishing": "Unfurnished",
+    "bedrooms": 1
+   },
+   {
+    "unit_no": "F-19",
+    "unit_type": "2BR",
+    "status": "Vacant",
+    "asking_rent": 4000.0,
+    "furnishing": "Unfurnished",
+    "bedrooms": 2
+   },
+   {
+    "unit_no": "F-20",
+    "unit_type": "2BR",
+    "status": "Vacant",
+    "asking_rent": 4200.0,
+    "furnishing": "Unfurnished",
+    "bedrooms": 2
+   },
+   {
+    "unit_no": "F-22",
+    "unit_type": "2BR",
+    "status": "Vacant",
+    "asking_rent": 4200.0,
+    "furnishing": "Unfurnished",
+    "bedrooms": 2
+   },
+   {
+    "unit_no": "F-23",
+    "unit_type": "2BR",
+    "status": "Vacant",
+    "asking_rent": 4200.0,
+    "furnishing": "Unfurnished",
+    "bedrooms": 2
+   },
+   {
+    "unit_no": "F-24",
+    "unit_type": "1BR",
+    "status": "Vacant",
+    "asking_rent": 3600.0,
+    "furnishing": "Unfurnished",
+    "bedrooms": 1
+   },
+   {
+    "unit_no": "F-25",
+    "unit_type": "2BR",
+    "status": "Vacant",
+    "asking_rent": 4200.0,
+    "furnishing": "Unfurnished",
+    "bedrooms": 2
+   },
+   {
+    "unit_no": "F-26",
+    "unit_type": "2BR",
+    "status": "Vacant",
+    "asking_rent": 4200.0,
+    "furnishing": "Unfurnished",
+    "bedrooms": 2
+   },
+   {
+    "unit_no": "F-28",
+    "unit_type": "2BR",
+    "status": "Vacant",
+    "asking_rent": 3900.0,
+    "furnishing": "Unfurnished",
+    "bedrooms": 2
+   },
+   {
+    "unit_no": "F-29",
+    "unit_type": "2BR",
+    "status": "Vacant",
+    "asking_rent": 4200.0,
+    "furnishing": "Unfurnished",
+    "bedrooms": 2
+   },
+   {
+    "unit_no": "F-31",
+    "unit_type": "2BR",
+    "status": "Vacant",
+    "asking_rent": 4000.0,
+    "furnishing": "Unfurnished",
+    "bedrooms": 2
+   },
+   {
+    "unit_no": "F-32",
+    "unit_type": "2BR",
+    "status": "Vacant",
+    "asking_rent": 4200.0,
+    "furnishing": "Unfurnished",
+    "bedrooms": 2
+   },
+   {
+    "unit_no": "F-34",
+    "unit_type": "2BR",
+    "status": "Vacant",
+    "asking_rent": 4000.0,
+    "furnishing": "Unfurnished",
+    "bedrooms": 2
+   }
+  ],
+  "head_lease": {
+   "annual_rent": 336000.0,
+   "start_date": "2025-09-01",
+   "end_date": "2027-08-31",
+   "payment_frequency": "Monthly",
+   "security_deposit": 0.0
+  }
+ },
+ {
+  "building_name": "MQ-56",
+  "status": "Active",
+  "area_name": "Matar Qadeem",
+  "landlord": {
+   "name": "Jassim Ali A A Shams",
+   "type": "Company"
+  },
+  "units": [
+   {
+    "unit_no": "F-01",
+    "unit_type": "Studio",
+    "status": "Vacant",
+    "asking_rent": 2100.0,
+    "furnishing": "Unfurnished",
+    "kahramaa_meter_no": "119238",
+    "water_meter_no": "87536"
+   },
+   {
+    "unit_no": "F-02",
+    "unit_type": "1BR",
+    "status": "Vacant",
+    "asking_rent": 2000.0,
+    "furnishing": "Unfurnished",
+    "bedrooms": 1
+   },
+   {
+    "unit_no": "F-03",
+    "unit_type": "1BR",
+    "status": "Vacant",
+    "asking_rent": 3000.0,
+    "furnishing": "Unfurnished",
+    "bedrooms": 1
+   },
+   {
+    "unit_no": "G-01",
+    "unit_type": "1BR",
+    "status": "Vacant",
+    "asking_rent": 3000.0,
+    "furnishing": "Unfurnished",
+    "bedrooms": 1,
+    "kahramaa_meter_no": "119238",
+    "water_meter_no": "87536"
+   },
+   {
+    "unit_no": "G-02",
+    "unit_type": "1BR",
+    "status": "Vacant",
+    "asking_rent": 3000.0,
+    "furnishing": "Unfurnished",
+    "bedrooms": 1,
+    "kahramaa_meter_no": "119238",
+    "water_meter_no": "87536"
+   },
+   {
+    "unit_no": "G-03",
+    "unit_type": "Studio",
+    "status": "Vacant",
+    "asking_rent": 2000.0,
+    "furnishing": "Unfurnished",
+    "kahramaa_meter_no": "119238",
+    "water_meter_no": "87536"
+   },
+   {
+    "unit_no": "O-01",
+    "unit_type": "Studio",
+    "status": "Vacant",
+    "asking_rent": 1800.0,
+    "furnishing": "Unfurnished"
+   },
+   {
+    "unit_no": "O-02",
+    "unit_type": "Studio",
+    "status": "Vacant",
+    "asking_rent": 1300.0,
+    "furnishing": "Unfurnished",
+    "kahramaa_meter_no": "119238",
+    "water_meter_no": "87536"
+   },
+   {
+    "unit_no": "P-01",
+    "unit_type": "2BR",
+    "status": "Vacant",
+    "asking_rent": 4000.0,
+    "furnishing": "Unfurnished",
+    "bedrooms": 2
+   }
+  ],
+  "zone_no": "45",
+  "street_no": "703",
+  "building_no": "56",
+  "kahramaa_account_no": "119238",
+  "head_lease": {
+   "annual_rent": 180000.0,
+   "start_date": "2025-12-01",
+   "end_date": "2028-03-31",
+   "payment_frequency": "Monthly",
+   "security_deposit": 15000.0
+  }
+ },
+ {
+  "building_name": "MR-130",
+  "status": "Active",
+  "area_name": "Mansoura",
+  "landlord": {
+   "name": "Ahmed Abdulrahman Ahmadi Al-Shaibi",
+   "type": "Company"
+  },
+  "units": [
+   {
+    "unit_no": "F-01",
+    "unit_type": "2BR",
+    "status": "Vacant",
+    "asking_rent": 5000.0,
+    "furnishing": "Unfurnished",
+    "bedrooms": 2,
+    "kahramaa_meter_no": "1138090",
+    "water_meter_no": "1058025"
+   },
+   {
+    "unit_no": "F-02",
+    "unit_type": "2BR",
+    "status": "Vacant",
+    "asking_rent": 5000.0,
+    "furnishing": "Unfurnished",
+    "bedrooms": 2,
+    "kahramaa_meter_no": "1138090",
+    "water_meter_no": "1058025"
+   },
+   {
+    "unit_no": "F-03",
+    "unit_type": "2BR",
+    "status": "Vacant",
+    "asking_rent": 4300.0,
+    "furnishing": "Unfurnished",
+    "bedrooms": 2
+   },
+   {
+    "unit_no": "F-04",
+    "unit_type": "2BR",
+    "status": "Vacant",
+    "asking_rent": 5000.0,
+    "furnishing": "Unfurnished",
+    "bedrooms": 2
+   },
+   {
+    "unit_no": "F-05",
+    "unit_type": "2BR",
+    "status": "Vacant",
+    "asking_rent": 5000.0,
+    "furnishing": "Unfurnished",
+    "bedrooms": 2,
+    "kahramaa_meter_no": "1138092",
+    "water_meter_no": "1058027"
+   },
+   {
+    "unit_no": "F-06",
+    "unit_type": "2BR",
+    "status": "Vacant",
+    "asking_rent": 5800.0,
+    "furnishing": "Unfurnished",
+    "bedrooms": 2,
+    "kahramaa_meter_no": "1138093",
+    "water_meter_no": "1058028"
+   },
+   {
+    "unit_no": "F-07",
+    "unit_type": "2BR",
+    "status": "Vacant",
+    "asking_rent": 5000.0,
+    "furnishing": "Unfurnished",
+    "bedrooms": 2,
+    "kahramaa_meter_no": "1138094",
+    "water_meter_no": "1058029"
+   },
+   {
+    "unit_no": "F-08",
+    "unit_type": "2BR",
+    "status": "Vacant",
+    "asking_rent": 5000.0,
+    "furnishing": "Unfurnished",
+    "bedrooms": 2,
+    "kahramaa_meter_no": "1138095",
+    "water_meter_no": "1058030"
+   },
+   {
+    "unit_no": "F-09",
+    "unit_type": "2BR",
+    "status": "Vacant",
+    "asking_rent": 5000.0,
+    "furnishing": "Unfurnished",
+    "bedrooms": 2
+   },
+   {
+    "unit_no": "F-10",
+    "unit_type": "2BR",
+    "status": "Vacant",
+    "asking_rent": 5000.0,
+    "furnishing": "Unfurnished",
+    "bedrooms": 2,
+    "kahramaa_meter_no": "1138087",
+    "water_meter_no": "1058022"
+   }
+  ],
+  "zone_no": "25",
+  "street_no": "850",
+  "building_no": "130",
+  "head_lease": {
+   "annual_rent": 408000.0,
+   "start_date": "2025-11-01",
+   "end_date": "2028-10-31",
+   "payment_frequency": "Monthly",
+   "security_deposit": 0.0
+  }
+ },
+ {
+  "building_name": "MT-21",
+  "status": "Active",
+  "area_name": "Muaither",
+  "landlord": {
+   "name": "Aisha Mahmoud Abdulmohsen Al Mahmoud",
+   "type": "Company"
+  },
+  "units": [
+   {
+    "unit_no": "VILLA",
+    "unit_type": "Villa",
+    "status": "Vacant",
+    "asking_rent": 28000.0,
+    "furnishing": "Unfurnished",
+    "kahramaa_meter_no": "89171",
+    "water_meter_no": "76076"
+   }
+  ],
+  "zone_no": "53",
+  "street_no": "716",
+  "building_no": "21",
+  "kahramaa_account_no": "89171",
+  "head_lease": {
+   "annual_rent": 240000.0,
+   "start_date": "2025-08-01",
+   "end_date": "2026-07-31",
+   "payment_frequency": "Monthly",
+   "security_deposit": 0.0
+  }
+ },
+ {
+  "building_name": "OG-48",
+  "status": "Active",
+  "area_name": "Al Ghanim Al Ateeq",
+  "landlord": {
+   "name": "Sultan Ghanem Sultan Al Ghanem / Shahin Khaled Ghanem Al Ghanem",
+   "type": "Company"
+  },
+  "units": [
+   {
+    "unit_no": "F-01",
+    "unit_type": "1BR",
+    "status": "Vacant",
+    "asking_rent": 3500.0,
+    "furnishing": "Unfurnished",
+    "bedrooms": 1
+   },
+   {
+    "unit_no": "F-02",
+    "unit_type": "1BR",
+    "status": "Vacant",
+    "asking_rent": 3500.0,
+    "furnishing": "Unfurnished",
+    "bedrooms": 1
+   },
+   {
+    "unit_no": "F-03",
+    "unit_type": "1BR",
+    "status": "Vacant",
+    "asking_rent": 3600.0,
+    "furnishing": "Unfurnished",
+    "bedrooms": 1
+   },
+   {
+    "unit_no": "F-04",
+    "unit_type": "1BR",
+    "status": "Vacant",
+    "asking_rent": 3600.0,
+    "furnishing": "Unfurnished",
+    "bedrooms": 1
+   },
+   {
+    "unit_no": "F-05",
+    "unit_type": "1BR",
+    "status": "Vacant",
+    "asking_rent": 3600.0,
+    "furnishing": "Unfurnished",
+    "bedrooms": 1
+   },
+   {
+    "unit_no": "F-06",
+    "unit_type": "1BR",
+    "status": "Vacant",
+    "asking_rent": 3600.0,
+    "furnishing": "Unfurnished",
+    "bedrooms": 1
+   },
+   {
+    "unit_no": "F-07",
+    "unit_type": "1BR",
+    "status": "Vacant",
+    "asking_rent": 3300.0,
+    "furnishing": "Unfurnished",
+    "bedrooms": 1
+   },
+   {
+    "unit_no": "F-08",
+    "unit_type": "1BR",
+    "status": "Vacant",
+    "asking_rent": 3400.0,
+    "furnishing": "Unfurnished",
+    "bedrooms": 1
+   },
+   {
+    "unit_no": "F-09",
+    "unit_type": "1BR",
+    "status": "Vacant",
+    "asking_rent": 3600.0,
+    "furnishing": "Unfurnished",
+    "bedrooms": 1
+   },
+   {
+    "unit_no": "F-10",
+    "unit_type": "1BR",
+    "status": "Vacant",
+    "asking_rent": 3500.0,
+    "furnishing": "Unfurnished",
+    "bedrooms": 1
+   },
+   {
+    "unit_no": "F-11",
+    "unit_type": "1BR",
+    "status": "Vacant",
+    "asking_rent": 3600.0,
+    "furnishing": "Unfurnished",
+    "bedrooms": 1
+   },
+   {
+    "unit_no": "F-12",
+    "unit_type": "1BR",
+    "status": "Vacant",
+    "asking_rent": 3600.0,
+    "furnishing": "Unfurnished",
+    "bedrooms": 1
+   },
+   {
+    "unit_no": "F-13",
+    "unit_type": "1BR",
+    "status": "Vacant",
+    "asking_rent": 3600.0,
+    "furnishing": "Unfurnished",
+    "bedrooms": 1
+   },
+   {
+    "unit_no": "F-14",
+    "unit_type": "1BR",
+    "status": "Vacant",
+    "asking_rent": 3500.0,
+    "furnishing": "Unfurnished",
+    "bedrooms": 1
+   },
+   {
+    "unit_no": "F-15",
+    "unit_type": "1BR",
+    "status": "Vacant",
+    "asking_rent": 3500.0,
+    "furnishing": "Unfurnished",
+    "bedrooms": 1
+   },
+   {
+    "unit_no": "F-16",
+    "unit_type": "1BR",
+    "status": "Vacant",
+    "asking_rent": 3500.0,
+    "furnishing": "Unfurnished",
+    "bedrooms": 1
+   },
+   {
+    "unit_no": "F-17",
+    "unit_type": "1BR",
+    "status": "Vacant",
+    "asking_rent": 3500.0,
+    "furnishing": "Unfurnished",
+    "bedrooms": 1
+   },
+   {
+    "unit_no": "F-18",
+    "unit_type": "1BR",
+    "status": "Vacant",
+    "asking_rent": 3600.0,
+    "furnishing": "Unfurnished",
+    "bedrooms": 1
+   }
+  ],
+  "zone_no": "6",
+  "street_no": "109",
+  "building_no": "48",
+  "head_lease": {
+   "annual_rent": 624000.0,
+   "start_date": "2026-02-01",
+   "end_date": "2027-01-31",
+   "payment_frequency": "Monthly",
+   "security_deposit": 52000.0
+  }
+ },
+ {
+  "building_name": "TV-20",
+  "status": "Active",
+  "area_name": "Al Thumama",
+  "landlord": {
+   "name": "Jamal Jassim Mohsen Al Haddad",
+   "type": "Company"
+  },
+  "units": [
+   {
+    "unit_no": "F-01",
+    "unit_type": "1BR",
+    "status": "Vacant",
+    "asking_rent": 3500.0,
+    "furnishing": "Unfurnished",
+    "bedrooms": 1,
+    "kahramaa_meter_no": "1102990",
+    "water_meter_no": "1017749"
+   },
+   {
+    "unit_no": "F-02",
+    "unit_type": "1BR",
+    "status": "Vacant",
+    "asking_rent": 2800.0,
+    "furnishing": "Unfurnished",
+    "bedrooms": 1,
+    "kahramaa_meter_no": "1102990",
+    "water_meter_no": "1017749"
+   },
+   {
+    "unit_no": "F-03",
+    "unit_type": "Studio",
+    "status": "Vacant",
+    "asking_rent": 2000.0,
+    "furnishing": "Unfurnished"
+   },
+   {
+    "unit_no": "G-01",
+    "unit_type": "2BR",
+    "status": "Vacant",
+    "asking_rent": 4500.0,
+    "furnishing": "Unfurnished",
+    "bedrooms": 2,
+    "kahramaa_meter_no": "1102990",
+    "water_meter_no": "1017749"
+   },
+   {
+    "unit_no": "G-02",
+    "unit_type": "1BR",
+    "status": "Vacant",
+    "asking_rent": 3400.0,
+    "furnishing": "Unfurnished",
+    "bedrooms": 1
+   },
+   {
+    "unit_no": "O-01",
+    "unit_type": "Studio",
+    "status": "Vacant",
+    "asking_rent": 1800.0,
+    "furnishing": "Unfurnished",
+    "kahramaa_meter_no": "1102990",
+    "water_meter_no": "1017749"
+   },
+   {
+    "unit_no": "O-02",
+    "unit_type": "1BR",
+    "status": "Vacant",
+    "asking_rent": 1500.0,
+    "furnishing": "Unfurnished",
+    "bedrooms": 1,
+    "kahramaa_meter_no": "1102990",
+    "water_meter_no": "1017749"
+   },
+   {
+    "unit_no": "O-03",
+    "unit_type": "Studio",
+    "status": "Vacant",
+    "asking_rent": 1400.0,
+    "furnishing": "Unfurnished",
+    "kahramaa_meter_no": "1102990",
+    "water_meter_no": "1017749"
+   },
+   {
+    "unit_no": "P-01",
+    "unit_type": "Studio",
+    "status": "Vacant",
+    "asking_rent": 1700.0,
+    "furnishing": "Unfurnished"
+   }
+  ],
+  "zone_no": "46",
+  "street_no": "806",
+  "building_no": "20",
+  "kahramaa_account_no": "1102990",
+  "head_lease": {
+   "annual_rent": 156000.0,
+   "start_date": "2025-11-01",
+   "end_date": "2027-08-31",
+   "payment_frequency": "Quarterly",
+   "security_deposit": 0.0
+  }
+ },
+ {
+  "building_name": "TV-27",
+  "status": "Active",
+  "area_name": "Al Thumama",
+  "landlord": {
+   "name": "Nassir Ali Mohamed Al-Saadi",
+   "type": "Company"
+  },
+  "units": [
+   {
+    "unit_no": "CABIN",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 0,
+    "furnishing": "Unfurnished"
+   },
+   {
+    "unit_no": "F-01",
+    "unit_type": "1BR",
+    "status": "Vacant",
+    "asking_rent": 3600.0,
+    "furnishing": "Unfurnished",
+    "bedrooms": 1,
+    "kahramaa_meter_no": "1174604",
+    "water_meter_no": "1112677"
+   },
+   {
+    "unit_no": "F-02",
+    "unit_type": "2BR",
+    "status": "Vacant",
+    "asking_rent": 4600.0,
+    "furnishing": "Unfurnished",
+    "bedrooms": 2,
+    "kahramaa_meter_no": "1174604",
+    "water_meter_no": "1112677"
+   },
+   {
+    "unit_no": "F-03",
+    "unit_type": "2BR",
+    "status": "Vacant",
+    "asking_rent": 4500.0,
+    "furnishing": "Unfurnished",
+    "bedrooms": 2,
+    "kahramaa_meter_no": "1174604",
+    "water_meter_no": "1112677"
+   },
+   {
+    "unit_no": "F-04",
+    "unit_type": "1BR",
+    "status": "Vacant",
+    "asking_rent": 3600.0,
+    "furnishing": "Unfurnished",
+    "bedrooms": 1,
+    "kahramaa_meter_no": "1174604",
+    "water_meter_no": "1112677"
+   },
+   {
+    "unit_no": "G-01",
+    "unit_type": "2BR",
+    "status": "Vacant",
+    "asking_rent": 5300.0,
+    "furnishing": "Unfurnished",
+    "bedrooms": 2,
+    "kahramaa_meter_no": "1174604",
+    "water_meter_no": "1112677"
+   },
+   {
+    "unit_no": "G-02",
+    "unit_type": "2BR",
+    "status": "Vacant",
+    "asking_rent": 5500.0,
+    "furnishing": "Unfurnished",
+    "bedrooms": 2,
+    "kahramaa_meter_no": "1174604",
+    "water_meter_no": "1112677"
+   },
+   {
+    "unit_no": "G-03",
+    "unit_type": "Studio",
+    "status": "Vacant",
+    "asking_rent": 1750.0,
+    "furnishing": "Unfurnished",
+    "kahramaa_meter_no": "1174604",
+    "water_meter_no": "1112677"
+   },
+   {
+    "unit_no": "G-04",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 3500.0,
+    "furnishing": "Unfurnished"
+   },
+   {
+    "unit_no": "G-05",
+    "unit_type": "Studio",
+    "status": "Vacant",
+    "asking_rent": 2400.0,
+    "furnishing": "Unfurnished",
+    "kahramaa_meter_no": "1174604",
+    "water_meter_no": "1112677"
+   },
+   {
+    "unit_no": "G-06",
+    "unit_type": "1BR",
+    "status": "Vacant",
+    "asking_rent": 3200.0,
+    "furnishing": "Unfurnished",
+    "bedrooms": 1,
+    "kahramaa_meter_no": "1174604",
+    "water_meter_no": "1112677"
+   }
+  ],
+  "zone_no": "47",
+  "street_no": "966",
+  "building_no": "27",
+  "kahramaa_account_no": "1174604",
+  "head_lease": {
+   "annual_rent": 300000.0,
+   "start_date": "2026-01-01",
+   "end_date": "2028-02-29",
+   "payment_frequency": "Monthly",
+   "security_deposit": 25000.0
+  }
+ },
+ {
+  "building_name": "TV-66",
+  "status": "Active",
+  "area_name": "Al Thumama",
+  "landlord": {
+   "name": "Abdulaziz Ibrahim A H Al-Ajail",
+   "type": "Company"
+  },
+  "units": [
+   {
+    "unit_no": "0-01",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 2300.0,
+    "furnishing": "Unfurnished"
+   },
+   {
+    "unit_no": "0-02",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 1350.0,
+    "furnishing": "Unfurnished"
+   },
+   {
+    "unit_no": "F-04",
+    "unit_type": "1BR",
+    "status": "Vacant",
+    "asking_rent": 2500.0,
+    "furnishing": "Unfurnished",
+    "bedrooms": 1
+   },
+   {
+    "unit_no": "F-05",
+    "unit_type": "1BR",
+    "status": "Vacant",
+    "asking_rent": 2900.0,
+    "furnishing": "Unfurnished",
+    "bedrooms": 1,
+    "kahramaa_meter_no": "1176326",
+    "water_meter_no": "1110036"
+   },
+   {
+    "unit_no": "F-06",
+    "unit_type": "Studio",
+    "status": "Vacant",
+    "asking_rent": 2000.0,
+    "furnishing": "Unfurnished",
+    "kahramaa_meter_no": "1176326",
+    "water_meter_no": "1110036"
+   },
+   {
+    "unit_no": "G-01",
+    "unit_type": "1BR",
+    "status": "Vacant",
+    "asking_rent": 2500.0,
+    "furnishing": "Unfurnished",
+    "bedrooms": 1,
+    "kahramaa_meter_no": "1176326",
+    "water_meter_no": "1110036"
+   },
+   {
+    "unit_no": "G-02",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 2750.0,
+    "furnishing": "Unfurnished"
+   },
+   {
+    "unit_no": "G-03",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 2750.0,
+    "furnishing": "Unfurnished"
+   },
+   {
+    "unit_no": "P-01",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 2000.0,
+    "furnishing": "Unfurnished"
+   }
+  ],
+  "zone_no": "46",
+  "street_no": "968",
+  "building_no": "66",
+  "kahramaa_account_no": "1176326",
+  "head_lease": {
+   "annual_rent": 168000.0,
+   "start_date": "2025-09-01",
+   "end_date": "2027-09-30",
+   "payment_frequency": "Monthly",
+   "security_deposit": 14000.0
+  }
+ },
+ {
+  "building_name": "TV-68",
+  "status": "Active",
+  "area_name": "Al Thumama",
+  "landlord": {
+   "name": "Abdulaziz Ibrahim A H Al-Ajail",
+   "type": "Company"
+  },
+  "units": [
+   {
+    "unit_no": "0-01",
+    "unit_type": "1BR",
+    "status": "Vacant",
+    "asking_rent": 2350.0,
+    "furnishing": "Unfurnished",
+    "bedrooms": 1,
+    "kahramaa_meter_no": "1178446",
+    "water_meter_no": "1100554"
+   },
+   {
+    "unit_no": "0-02",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 0,
+    "furnishing": "Unfurnished"
+   },
+   {
+    "unit_no": "F-04",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 2700.0,
+    "furnishing": "Unfurnished"
+   },
+   {
+    "unit_no": "F-05",
+    "unit_type": "1BR",
+    "status": "Vacant",
+    "asking_rent": 3000.0,
+    "furnishing": "Fully Furnished",
+    "bedrooms": 1,
+    "kahramaa_meter_no": "1178446",
+    "water_meter_no": "1100554"
+   },
+   {
+    "unit_no": "F-06",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 1800.0,
+    "furnishing": "Unfurnished"
+   },
+   {
+    "unit_no": "G-01",
+    "unit_type": "1BR",
+    "status": "Vacant",
+    "asking_rent": 2300.0,
+    "furnishing": "Unfurnished",
+    "bedrooms": 1
+   },
+   {
+    "unit_no": "G-02",
+    "unit_type": "1BR",
+    "status": "Vacant",
+    "asking_rent": 3000.0,
+    "furnishing": "Unfurnished",
+    "bedrooms": 1,
+    "kahramaa_meter_no": "1178446",
+    "water_meter_no": "1100554"
+   },
+   {
+    "unit_no": "G-03",
+    "unit_type": "1BR",
+    "status": "Vacant",
+    "asking_rent": 2600.0,
+    "furnishing": "Unfurnished",
+    "bedrooms": 1,
+    "kahramaa_meter_no": "1178446",
+    "water_meter_no": "1100554"
+   },
+   {
+    "unit_no": "P-01",
+    "unit_type": "Studio",
+    "status": "Vacant",
+    "asking_rent": 1650.0,
+    "furnishing": "Unfurnished",
+    "kahramaa_meter_no": "1178446",
+    "water_meter_no": "1100554"
+   }
+  ],
+  "zone_no": "46",
+  "street_no": "968",
+  "building_no": "68",
+  "kahramaa_account_no": "1178446",
+  "head_lease": {
+   "annual_rent": 168000.0,
+   "start_date": "2025-09-01",
+   "end_date": "2027-09-30",
+   "payment_frequency": "Monthly",
+   "security_deposit": 14000.0
+  }
+ },
+ {
+  "building_name": "TWR-12",
+  "status": "Active",
+  "area_name": "Umm Lakhba (Duhail)",
+  "landlord": {
+   "name": "Al Adekhar Real Estate Company WLL",
+   "type": "Company"
+  },
+  "units": [
+   {
+    "unit_no": "F-01",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 1550.0,
+    "furnishing": "Unfurnished",
+    "kahramaa_meter_no": "1180144",
+    "water_meter_no": "1115135"
+   },
+   {
+    "unit_no": "F-02",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 1400.0,
+    "furnishing": "Unfurnished",
+    "kahramaa_meter_no": "1180144",
+    "water_meter_no": "1115135"
+   },
+   {
+    "unit_no": "F-03",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 1900.0,
+    "furnishing": "Unfurnished",
+    "kahramaa_meter_no": "1180144",
+    "water_meter_no": "1115135"
+   },
+   {
+    "unit_no": "F-04",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 1350.0,
+    "furnishing": "Unfurnished",
+    "kahramaa_meter_no": "1180144",
+    "water_meter_no": "1115135"
+   },
+   {
+    "unit_no": "F-05",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 2000.0,
+    "furnishing": "Unfurnished",
+    "kahramaa_meter_no": "1180144",
+    "water_meter_no": "1115135"
+   },
+   {
+    "unit_no": "F-06",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 1600.0,
+    "furnishing": "Unfurnished",
+    "kahramaa_meter_no": "1180144",
+    "water_meter_no": "1115135"
+   },
+   {
+    "unit_no": "F-07",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 2000.0,
+    "furnishing": "Unfurnished",
+    "kahramaa_meter_no": "1180144",
+    "water_meter_no": "1115135"
+   },
+   {
+    "unit_no": "F-08",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 2500.0,
+    "furnishing": "Unfurnished",
+    "kahramaa_meter_no": "1180144",
+    "water_meter_no": "1115135"
+   },
+   {
+    "unit_no": "F-09",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 1100.0,
+    "furnishing": "Unfurnished",
+    "kahramaa_meter_no": "1180144",
+    "water_meter_no": "1115135"
+   },
+   {
+    "unit_no": "F-10",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 2200.0,
+    "furnishing": "Unfurnished"
+   },
+   {
+    "unit_no": "F-11",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 1200.0,
+    "furnishing": "Unfurnished",
+    "kahramaa_meter_no": "1180144",
+    "water_meter_no": "1115135"
+   },
+   {
+    "unit_no": "F-12",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 2000.0,
+    "furnishing": "Unfurnished"
+   },
+   {
+    "unit_no": "F-13",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 2400.0,
+    "furnishing": "Unfurnished",
+    "kahramaa_meter_no": "1180144",
+    "water_meter_no": "1115135"
+   },
+   {
+    "unit_no": "F-14",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 1500.0,
+    "furnishing": "Unfurnished",
+    "kahramaa_meter_no": "1180144",
+    "water_meter_no": "1115135"
+   },
+   {
+    "unit_no": "F-15",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 1200.0,
+    "furnishing": "Unfurnished",
+    "kahramaa_meter_no": "1180144",
+    "water_meter_no": "1115136"
+   }
+  ],
+  "zone_no": "31",
+  "street_no": "917",
+  "building_no": "12",
+  "kahramaa_account_no": "1180144",
+  "head_lease": {
+   "annual_rent": 192000.0,
+   "start_date": "2026-03-01",
+   "end_date": "2028-07-31",
+   "payment_frequency": "Monthly",
+   "security_deposit": 32000.0
+  }
+ },
+ {
+  "building_name": "TWR-16",
+  "status": "Active",
+  "area_name": "Umm Lakhba (Duhail)",
+  "landlord": {
+   "name": "Al Adekhar Real Estate Company WLL",
+   "type": "Company"
+  },
+  "units": [
+   {
+    "unit_no": "F-01",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 1600.0,
+    "furnishing": "Unfurnished",
+    "kahramaa_meter_no": "1180132",
+    "water_meter_no": "1115141"
+   },
+   {
+    "unit_no": "F-02",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 1350.0,
+    "furnishing": "Unfurnished",
+    "kahramaa_meter_no": "1180132",
+    "water_meter_no": "1115141"
+   },
+   {
+    "unit_no": "F-03",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 1500.0,
+    "furnishing": "Unfurnished",
+    "kahramaa_meter_no": "1180132",
+    "water_meter_no": "1115141"
+   },
+   {
+    "unit_no": "F-04",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 1400.0,
+    "furnishing": "Unfurnished",
+    "kahramaa_meter_no": "1180132",
+    "water_meter_no": "1115141"
+   },
+   {
+    "unit_no": "F-05",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 2400.0,
+    "furnishing": "Unfurnished"
+   },
+   {
+    "unit_no": "F-06",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 1850.0,
+    "furnishing": "Unfurnished"
+   },
+   {
+    "unit_no": "F-07",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 1850.0,
+    "furnishing": "Unfurnished",
+    "kahramaa_meter_no": "1180132",
+    "water_meter_no": "1115141"
+   },
+   {
+    "unit_no": "F-08",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 2300.0,
+    "furnishing": "Unfurnished",
+    "kahramaa_meter_no": "1180132",
+    "water_meter_no": "1115141"
+   },
+   {
+    "unit_no": "F-09",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 1200.0,
+    "furnishing": "Unfurnished",
+    "kahramaa_meter_no": "1180132",
+    "water_meter_no": "1115141"
+   },
+   {
+    "unit_no": "F-10",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 2500.0,
+    "furnishing": "Unfurnished",
+    "kahramaa_meter_no": "1180132",
+    "water_meter_no": "1115141"
+   },
+   {
+    "unit_no": "F-11",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 1100.0,
+    "furnishing": "Unfurnished",
+    "kahramaa_meter_no": "1180132",
+    "water_meter_no": "1115141"
+   },
+   {
+    "unit_no": "F-12",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 2300.0,
+    "furnishing": "Unfurnished",
+    "kahramaa_meter_no": "1180132",
+    "water_meter_no": "1115141"
+   },
+   {
+    "unit_no": "F-13",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 2400.0,
+    "furnishing": "Unfurnished",
+    "kahramaa_meter_no": "1180132",
+    "water_meter_no": "1115141"
+   },
+   {
+    "unit_no": "F-14",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 1500.0,
+    "furnishing": "Unfurnished",
+    "kahramaa_meter_no": "1180132",
+    "water_meter_no": "1115141"
+   },
+   {
+    "unit_no": "F-15",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 1300.0,
+    "furnishing": "Unfurnished",
+    "kahramaa_meter_no": "1180132",
+    "water_meter_no": "1115141"
+   }
+  ],
+  "zone_no": "31",
+  "street_no": "917",
+  "building_no": "16",
+  "kahramaa_account_no": "1180132",
+  "head_lease": {
+   "annual_rent": 192000.0,
+   "start_date": "2026-03-01",
+   "end_date": "2028-04-30",
+   "payment_frequency": "Monthly",
+   "security_deposit": 32000.0
+  }
+ },
+ {
+  "building_name": "TWR-17",
+  "status": "Active",
+  "area_name": "Umm Lakhba (Duhail)",
+  "landlord": {
+   "name": "Al Adekhar Real Estate Company WLL",
+   "type": "Company"
+  },
+  "units": [
+   {
+    "unit_no": "F-01",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 1750.0,
+    "furnishing": "Unfurnished",
+    "kahramaa_meter_no": "1178346",
+    "water_meter_no": "1178346"
+   },
+   {
+    "unit_no": "F-02",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 1200.0,
+    "furnishing": "Unfurnished"
+   },
+   {
+    "unit_no": "F-02/1",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 1000.0,
+    "furnishing": "Unfurnished",
+    "kahramaa_meter_no": "1178346",
+    "water_meter_no": "1112040"
+   },
+   {
+    "unit_no": "F-02/2",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 1100.0,
+    "furnishing": "Unfurnished"
+   },
+   {
+    "unit_no": "F-03",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 1500.0,
+    "furnishing": "Unfurnished",
+    "kahramaa_meter_no": "1178346",
+    "water_meter_no": "1178346"
+   },
+   {
+    "unit_no": "F-04",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 2300.0,
+    "furnishing": "Unfurnished",
+    "kahramaa_meter_no": "1178346",
+    "water_meter_no": "1178346"
+   },
+   {
+    "unit_no": "F-05",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 2000.0,
+    "furnishing": "Unfurnished",
+    "kahramaa_meter_no": "1178346",
+    "water_meter_no": "1178346"
+   },
+   {
+    "unit_no": "F-06",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 2000.0,
+    "furnishing": "Unfurnished",
+    "kahramaa_meter_no": "1178346",
+    "water_meter_no": "1178346"
+   },
+   {
+    "unit_no": "F-07",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 2800.0,
+    "furnishing": "Unfurnished",
+    "kahramaa_meter_no": "1178346",
+    "water_meter_no": "1178346"
+   },
+   {
+    "unit_no": "F-08",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 2700.0,
+    "furnishing": "Unfurnished",
+    "kahramaa_meter_no": "1178346",
+    "water_meter_no": "1112042"
+   },
+   {
+    "unit_no": "F-09",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 2300.0,
+    "furnishing": "Unfurnished",
+    "kahramaa_meter_no": "1178346",
+    "water_meter_no": "1178346"
+   },
+   {
+    "unit_no": "F-10",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 2700.0,
+    "furnishing": "Unfurnished",
+    "kahramaa_meter_no": "1178346",
+    "water_meter_no": "1112042"
+   },
+   {
+    "unit_no": "F-11",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 1200.0,
+    "furnishing": "Unfurnished",
+    "kahramaa_meter_no": "1178346",
+    "water_meter_no": "1112042"
+   },
+   {
+    "unit_no": "F-12",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 1400.0,
+    "furnishing": "Unfurnished",
+    "kahramaa_meter_no": "1178346",
+    "water_meter_no": "1112042"
+   },
+   {
+    "unit_no": "F-13",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 1400.0,
+    "furnishing": "Unfurnished"
+   }
+  ],
+  "zone_no": "31",
+  "street_no": "917",
+  "building_no": "17",
+  "kahramaa_account_no": "1178346",
+  "head_lease": {
+   "annual_rent": 192000.0,
+   "start_date": "2026-03-01",
+   "end_date": "2029-01-31",
+   "payment_frequency": "Monthly",
+   "security_deposit": 32000.0
+  }
+ },
+ {
+  "building_name": "TWR-19",
+  "status": "Active",
+  "area_name": "Umm Lakhba (Duhail)",
+  "landlord": {
+   "name": "Al Adekhar Real Estate Company WLL",
+   "type": "Company"
+  },
+  "units": [
+   {
+    "unit_no": "F-01",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 1750.0,
+    "furnishing": "Unfurnished",
+    "kahramaa_meter_no": "1178347",
+    "water_meter_no": "1178347"
+   },
+   {
+    "unit_no": "F-02",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 1000.0,
+    "furnishing": "Unfurnished"
+   },
+   {
+    "unit_no": "F-02/1",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 1000.0,
+    "furnishing": "Unfurnished",
+    "kahramaa_meter_no": "1178347",
+    "water_meter_no": "1178347"
+   },
+   {
+    "unit_no": "F-02/2",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 1000.0,
+    "furnishing": "Unfurnished",
+    "kahramaa_meter_no": "1178347",
+    "water_meter_no": "1178347"
+   },
+   {
+    "unit_no": "F-03",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 1500.0,
+    "furnishing": "Unfurnished",
+    "kahramaa_meter_no": "1178347",
+    "water_meter_no": "1112042"
+   },
+   {
+    "unit_no": "F-04",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 2000.0,
+    "furnishing": "Unfurnished"
+   },
+   {
+    "unit_no": "F-05",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 2000.0,
+    "furnishing": "Unfurnished",
+    "kahramaa_meter_no": "1178347",
+    "water_meter_no": "1178347"
+   },
+   {
+    "unit_no": "F-06",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 2600.0,
+    "furnishing": "Unfurnished"
+   },
+   {
+    "unit_no": "F-07",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 2800.0,
+    "furnishing": "Unfurnished",
+    "kahramaa_meter_no": "1178347",
+    "water_meter_no": "1112042"
+   },
+   {
+    "unit_no": "F-08",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 2700.0,
+    "furnishing": "Unfurnished",
+    "kahramaa_meter_no": "1178347",
+    "water_meter_no": "1112042"
+   },
+   {
+    "unit_no": "F-09",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 2200.0,
+    "furnishing": "Unfurnished",
+    "kahramaa_meter_no": "1178347",
+    "water_meter_no": "1112042"
+   },
+   {
+    "unit_no": "F-10",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 2000.0,
+    "furnishing": "Unfurnished",
+    "kahramaa_meter_no": "1178347",
+    "water_meter_no": "1178347"
+   },
+   {
+    "unit_no": "F-11",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 1600.0,
+    "furnishing": "Unfurnished",
+    "kahramaa_meter_no": "1178347",
+    "water_meter_no": "1178347"
+   },
+   {
+    "unit_no": "F-12",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 1650.0,
+    "furnishing": "Unfurnished",
+    "kahramaa_meter_no": "1178347",
+    "water_meter_no": "1178347"
+   },
+   {
+    "unit_no": "F-13",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 1650.0,
+    "furnishing": "Unfurnished"
+   }
+  ],
+  "zone_no": "31",
+  "street_no": "917",
+  "building_no": "19",
+  "kahramaa_account_no": "1178347",
+  "head_lease": {
+   "annual_rent": 192000.0,
+   "start_date": "2026-03-01",
+   "end_date": "2029-01-31",
+   "payment_frequency": "Monthly",
+   "security_deposit": 32000.0
+  }
+ },
+ {
+  "building_name": "TWR-20",
+  "status": "Active",
+  "area_name": "Umm Lakhba (Duhail)",
+  "landlord": {
+   "name": "Al Adekhar Real Estate Company WLL",
+   "type": "Company"
+  },
+  "units": [
+   {
+    "unit_no": "F-01",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 1500.0,
+    "furnishing": "Unfurnished",
+    "kahramaa_meter_no": "1180131",
+    "water_meter_no": "1115139"
+   },
+   {
+    "unit_no": "F-02",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 1600.0,
+    "furnishing": "Unfurnished",
+    "water_meter_no": "1115139"
+   },
+   {
+    "unit_no": "F-03",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 1100.0,
+    "furnishing": "Unfurnished"
+   },
+   {
+    "unit_no": "F-03/1",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 1100.0,
+    "furnishing": "Unfurnished",
+    "water_meter_no": "1115139"
+   },
+   {
+    "unit_no": "F-03/2",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 950.0,
+    "furnishing": "Unfurnished",
+    "water_meter_no": "1115139"
+   },
+   {
+    "unit_no": "F-04",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 2200.0,
+    "furnishing": "Unfurnished",
+    "kahramaa_meter_no": "1180131",
+    "water_meter_no": "1115139"
+   },
+   {
+    "unit_no": "F-05",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 2350.0,
+    "furnishing": "Unfurnished",
+    "kahramaa_meter_no": "1180131",
+    "water_meter_no": "1115139"
+   },
+   {
+    "unit_no": "F-06",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 2100.0,
+    "furnishing": "Unfurnished"
+   },
+   {
+    "unit_no": "F-07",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 2250.0,
+    "furnishing": "Unfurnished",
+    "water_meter_no": "1115139"
+   },
+   {
+    "unit_no": "F-08",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 2500.0,
+    "furnishing": "Unfurnished",
+    "water_meter_no": "1115139"
+   },
+   {
+    "unit_no": "F-09",
+    "unit_type": "Studio",
+    "status": "Vacant",
+    "asking_rent": 1900.0,
+    "furnishing": "Unfurnished",
+    "water_meter_no": "1115139"
+   },
+   {
+    "unit_no": "F-10",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 2500.0,
+    "furnishing": "Unfurnished",
+    "kahramaa_meter_no": "1180131",
+    "water_meter_no": "1115139"
+   },
+   {
+    "unit_no": "F-11",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 2500.0,
+    "furnishing": "Unfurnished"
+   },
+   {
+    "unit_no": "F-12",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 1100.0,
+    "furnishing": "Unfurnished"
+   },
+   {
+    "unit_no": "F-13",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 1300.0,
+    "furnishing": "Unfurnished"
+   },
+   {
+    "unit_no": "F-14",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 0,
+    "furnishing": "Unfurnished"
+   },
+   {
+    "unit_no": "F-15",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 1200.0,
+    "furnishing": "Unfurnished"
+   },
+   {
+    "unit_no": "F-16",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 0,
+    "furnishing": "Unfurnished"
+   },
+   {
+    "unit_no": "F-17",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 1000.0,
+    "furnishing": "Unfurnished"
+   },
+   {
+    "unit_no": "F-18",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 1900.0,
+    "furnishing": "Unfurnished"
+   },
+   {
+    "unit_no": "F-O/1",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 1100.0,
+    "furnishing": "Unfurnished",
+    "water_meter_no": "1115139"
+   },
+   {
+    "unit_no": "F-O/2",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 1300.0,
+    "furnishing": "Unfurnished",
+    "water_meter_no": "1115139"
+   },
+   {
+    "unit_no": "F-O/3",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 1000.0,
+    "furnishing": "Unfurnished"
+   },
+   {
+    "unit_no": "F-O/4",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 1200.0,
+    "furnishing": "Unfurnished",
+    "kahramaa_meter_no": "1180131",
+    "water_meter_no": "1115139"
+   },
+   {
+    "unit_no": "F-O/5",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 1100.0,
+    "furnishing": "Unfurnished",
+    "kahramaa_meter_no": "1180131",
+    "water_meter_no": "1115139"
+   },
+   {
+    "unit_no": "F-O/6",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 1000.0,
+    "furnishing": "Unfurnished",
+    "water_meter_no": "1115139"
+   },
+   {
+    "unit_no": "F-O/7",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 1900.0,
+    "furnishing": "Unfurnished",
+    "water_meter_no": "1115139"
+   }
+  ],
+  "zone_no": "31",
+  "street_no": "917",
+  "building_no": "20",
+  "kahramaa_account_no": "1180131",
+  "head_lease": {
+   "annual_rent": 192000.0,
+   "start_date": "2026-03-01",
+   "end_date": "2028-04-30",
+   "payment_frequency": "Monthly",
+   "security_deposit": 32000.0
+  }
+ },
+ {
+  "building_name": "TWR-35",
+  "status": "Active",
+  "area_name": "Umm Lakhba (Duhail)",
+  "landlord": {
+   "name": "Al Adekhar Real Estate Company WLL",
+   "type": "Company"
+  },
+  "units": [
+   {
+    "unit_no": "F-01",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 1900.0,
+    "furnishing": "Unfurnished",
+    "water_meter_no": "1115139"
+   },
+   {
+    "unit_no": "F-02",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 1600.0,
+    "furnishing": "Unfurnished",
+    "water_meter_no": "1115139"
+   },
+   {
+    "unit_no": "F-03",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 2100.0,
+    "furnishing": "Unfurnished",
+    "water_meter_no": "1115139"
+   },
+   {
+    "unit_no": "F-04",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 1950.0,
+    "furnishing": "Unfurnished",
+    "water_meter_no": "1115139"
+   },
+   {
+    "unit_no": "F-05",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 2550.0,
+    "furnishing": "Unfurnished"
+   },
+   {
+    "unit_no": "F-06",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 2400.0,
+    "furnishing": "Unfurnished"
+   },
+   {
+    "unit_no": "F-07",
+    "unit_type": "Studio",
+    "status": "Vacant",
+    "asking_rent": 2200.0,
+    "furnishing": "Unfurnished",
+    "kahramaa_meter_no": "1178349",
+    "water_meter_no": "1112046"
+   },
+   {
+    "unit_no": "F-08",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 2050.0,
+    "furnishing": "Unfurnished"
+   },
+   {
+    "unit_no": "F-09",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 2350.0,
+    "furnishing": "Unfurnished",
+    "water_meter_no": "1115139"
+   },
+   {
+    "unit_no": "F-10",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 1700.0,
+    "furnishing": "Unfurnished",
+    "water_meter_no": "1115139"
+   },
+   {
+    "unit_no": "F-11",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 1500.0,
+    "furnishing": "Unfurnished",
+    "water_meter_no": "1115139"
+   },
+   {
+    "unit_no": "F-12",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 1700.0,
+    "furnishing": "Unfurnished",
+    "water_meter_no": "1115139"
+   },
+   {
+    "unit_no": "F-13",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 1300.0,
+    "furnishing": "Unfurnished",
+    "water_meter_no": "1115139"
+   },
+   {
+    "unit_no": "F-14",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 1250.0,
+    "furnishing": "Unfurnished",
+    "kahramaa_meter_no": "1178349",
+    "water_meter_no": "1112046"
+   },
+   {
+    "unit_no": "F-15",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 1500.0,
+    "furnishing": "Unfurnished",
+    "water_meter_no": "1115139"
+   },
+   {
+    "unit_no": "F-16",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 1200.0,
+    "furnishing": "Unfurnished",
+    "kahramaa_meter_no": "1178349",
+    "water_meter_no": "1112046"
+   }
+  ],
+  "zone_no": "31",
+  "street_no": "913",
+  "building_no": "35",
+  "kahramaa_account_no": "1178349",
+  "head_lease": {
+   "annual_rent": 192000.0,
+   "start_date": "2026-03-01",
+   "end_date": "2028-09-30",
+   "payment_frequency": "Monthly",
+   "security_deposit": 32000.0
+  }
+ },
+ {
+  "building_name": "TWR-37",
+  "status": "Active",
+  "area_name": "Umm Lakhba (Duhail)",
+  "landlord": {
+   "name": "Al Adekhar Real Estate Company WLL",
+   "type": "Company"
+  },
+  "units": [
+   {
+    "unit_no": "F-01",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 1700.0,
+    "furnishing": "Unfurnished",
+    "water_meter_no": "1178348"
+   },
+   {
+    "unit_no": "F-02",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 1150.0,
+    "furnishing": "Unfurnished",
+    "water_meter_no": "1178348"
+   },
+   {
+    "unit_no": "F-03",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 1200.0,
+    "furnishing": "Unfurnished",
+    "water_meter_no": "1178348"
+   },
+   {
+    "unit_no": "F-04",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 2200.0,
+    "furnishing": "Unfurnished",
+    "water_meter_no": "1178348"
+   },
+   {
+    "unit_no": "F-05",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 2000.0,
+    "furnishing": "Unfurnished",
+    "water_meter_no": "1178348"
+   },
+   {
+    "unit_no": "F-06",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 2100.0,
+    "furnishing": "Unfurnished",
+    "water_meter_no": "1178348"
+   },
+   {
+    "unit_no": "F-07",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 2500.0,
+    "furnishing": "Unfurnished",
+    "kahramaa_meter_no": "1178348",
+    "water_meter_no": "1172044"
+   },
+   {
+    "unit_no": "F-08",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 2500.0,
+    "furnishing": "Unfurnished",
+    "water_meter_no": "1178348"
+   },
+   {
+    "unit_no": "F-09",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 2100.0,
+    "furnishing": "Unfurnished"
+   },
+   {
+    "unit_no": "F-10",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 2800.0,
+    "furnishing": "Unfurnished",
+    "water_meter_no": "1178348"
+   },
+   {
+    "unit_no": "F-11",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 1650.0,
+    "furnishing": "Unfurnished"
+   },
+   {
+    "unit_no": "F-12",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 1250.0,
+    "furnishing": "Unfurnished",
+    "water_meter_no": "1178348"
+   },
+   {
+    "unit_no": "F-13",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 1400.0,
+    "furnishing": "Unfurnished",
+    "water_meter_no": "1178348"
+   }
+  ],
+  "zone_no": "31",
+  "street_no": "913",
+  "building_no": "37",
+  "kahramaa_account_no": "1178348",
+  "head_lease": {
+   "annual_rent": 192000.0,
+   "start_date": "2026-03-01",
+   "end_date": "2029-01-31",
+   "payment_frequency": "Monthly",
+   "security_deposit": 32000.0
+  }
+ },
+ {
+  "building_name": "TWR-39",
+  "status": "Active",
+  "area_name": "Umm Lakhba (Duhail)",
+  "landlord": {
+   "name": "Al Adekhar Real Estate Company WLL",
+   "type": "Company"
+  },
+  "units": [
+   {
+    "unit_no": "F-01",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 1900.0,
+    "furnishing": "Unfurnished"
+   },
+   {
+    "unit_no": "F-02",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 1500.0,
+    "furnishing": "Unfurnished"
+   },
+   {
+    "unit_no": "F-03",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 1700.0,
+    "furnishing": "Unfurnished"
+   },
+   {
+    "unit_no": "F-04",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 1450.0,
+    "furnishing": "Unfurnished"
+   },
+   {
+    "unit_no": "F-05",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 2150.0,
+    "furnishing": "Unfurnished"
+   },
+   {
+    "unit_no": "F-06",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 1700.0,
+    "furnishing": "Unfurnished"
+   },
+   {
+    "unit_no": "F-07",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 2000.0,
+    "furnishing": "Unfurnished"
+   },
+   {
+    "unit_no": "F-08",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 2300.0,
+    "furnishing": "Unfurnished"
+   },
+   {
+    "unit_no": "F-09",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 1300.0,
+    "furnishing": "Unfurnished"
+   },
+   {
+    "unit_no": "F-10",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 2100.0,
+    "furnishing": "Unfurnished"
+   },
+   {
+    "unit_no": "F-11",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 1150.0,
+    "furnishing": "Unfurnished"
+   },
+   {
+    "unit_no": "F-12",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 2400.0,
+    "furnishing": "Unfurnished"
+   },
+   {
+    "unit_no": "F-13",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 2500.0,
+    "furnishing": "Unfurnished"
+   },
+   {
+    "unit_no": "F-14",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 1300.0,
+    "furnishing": "Unfurnished"
+   },
+   {
+    "unit_no": "F-15",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 1550.0,
+    "furnishing": "Unfurnished"
+   }
+  ],
+  "zone_no": "31",
+  "street_no": "913",
+  "building_no": "39",
+  "head_lease": {
+   "annual_rent": 192000.0,
+   "start_date": "2026-03-01",
+   "end_date": "2028-09-30",
+   "payment_frequency": "Monthly",
+   "security_deposit": 32000.0
+  }
+ },
+ {
+  "building_name": "TWR-45",
+  "status": "Active",
+  "area_name": "Umm Lakhba (Duhail)",
+  "landlord": {
+   "name": "Al Adekhar Real Estate Company WLL",
+   "type": "Company"
+  },
+  "units": [
+   {
+    "unit_no": "F-01",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 1700.0,
+    "furnishing": "Unfurnished",
+    "kahramaa_meter_no": "1178346",
+    "water_meter_no": "1178346"
+   },
+   {
+    "unit_no": "F-02",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 1350.0,
+    "furnishing": "Unfurnished",
+    "kahramaa_meter_no": "1178354"
+   },
+   {
+    "unit_no": "F-03",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 1750.0,
+    "furnishing": "Unfurnished",
+    "kahramaa_meter_no": "1178346",
+    "water_meter_no": "1178346"
+   },
+   {
+    "unit_no": "F-04",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 1300.0,
+    "furnishing": "Unfurnished",
+    "kahramaa_meter_no": "1178354",
+    "water_meter_no": "1112052"
+   },
+   {
+    "unit_no": "F-05",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 1900.0,
+    "furnishing": "Unfurnished"
+   },
+   {
+    "unit_no": "F-06",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 1800.0,
+    "furnishing": "Unfurnished",
+    "kahramaa_meter_no": "1178346",
+    "water_meter_no": "1178346"
+   },
+   {
+    "unit_no": "F-07",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 1800.0,
+    "furnishing": "Unfurnished",
+    "kahramaa_meter_no": "1178354",
+    "water_meter_no": "1112052"
+   },
+   {
+    "unit_no": "F-08",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 2000.0,
+    "furnishing": "Unfurnished",
+    "kahramaa_meter_no": "1178354",
+    "water_meter_no": "1112052"
+   },
+   {
+    "unit_no": "F-09",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 2000.0,
+    "furnishing": "Unfurnished",
+    "kahramaa_meter_no": "1178354"
+   },
+   {
+    "unit_no": "F-10",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 2900.0,
+    "furnishing": "Unfurnished",
+    "kahramaa_meter_no": "1178354",
+    "water_meter_no": "1112052"
+   },
+   {
+    "unit_no": "F-11",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 2150.0,
+    "furnishing": "Unfurnished",
+    "kahramaa_meter_no": "1178354"
+   },
+   {
+    "unit_no": "F-12",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 2400.0,
+    "furnishing": "Unfurnished",
+    "kahramaa_meter_no": "1178354"
+   },
+   {
+    "unit_no": "F-13",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 1500.0,
+    "furnishing": "Unfurnished",
+    "kahramaa_meter_no": "1178354"
+   },
+   {
+    "unit_no": "F-14",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 1600.0,
+    "furnishing": "Unfurnished",
+    "kahramaa_meter_no": "1178354"
+   }
+  ],
+  "zone_no": "31",
+  "street_no": "913",
+  "building_no": "45",
+  "head_lease": {
+   "annual_rent": 192000.0,
+   "start_date": "2026-03-01",
+   "end_date": "2028-04-30",
+   "payment_frequency": "Monthly",
+   "security_deposit": 32000.0
+  }
+ },
+ {
+  "building_name": "TWR-58",
+  "status": "Active",
+  "area_name": "Umm Lakhba (Duhail)",
+  "landlord": {
+   "name": "Al Adekhar Real Estate Company WLL",
+   "type": "Company"
+  },
+  "units": [
+   {
+    "unit_no": "F-01",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 1800.0,
+    "furnishing": "Unfurnished",
+    "water_meter_no": "1172349"
+   },
+   {
+    "unit_no": "F-02",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 1800.0,
+    "furnishing": "Unfurnished",
+    "water_meter_no": "1172349"
+   },
+   {
+    "unit_no": "F-03",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 1450.0,
+    "furnishing": "Unfurnished",
+    "kahramaa_meter_no": "1172349",
+    "water_meter_no": "1105539"
+   },
+   {
+    "unit_no": "F-04",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 2400.0,
+    "furnishing": "Unfurnished",
+    "kahramaa_meter_no": "1172349",
+    "water_meter_no": "1105539"
+   },
+   {
+    "unit_no": "F-05",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 1700.0,
+    "furnishing": "Unfurnished"
+   },
+   {
+    "unit_no": "F-06",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 2500.0,
+    "furnishing": "Unfurnished",
+    "water_meter_no": "1172349"
+   },
+   {
+    "unit_no": "F-07",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 2500.0,
+    "furnishing": "Unfurnished"
+   },
+   {
+    "unit_no": "F-08",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 2500.0,
+    "furnishing": "Unfurnished",
+    "water_meter_no": "1172349"
+   },
+   {
+    "unit_no": "F-09",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 2450.0,
+    "furnishing": "Unfurnished",
+    "kahramaa_meter_no": "1172349"
+   },
+   {
+    "unit_no": "F-10",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 2500.0,
+    "furnishing": "Unfurnished",
+    "kahramaa_meter_no": "1172349",
+    "water_meter_no": "1105539"
+   },
+   {
+    "unit_no": "F-11",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 1600.0,
+    "furnishing": "Unfurnished",
+    "water_meter_no": "1172349"
+   },
+   {
+    "unit_no": "F-12",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 1500.0,
+    "furnishing": "Unfurnished",
+    "kahramaa_meter_no": "1172349",
+    "water_meter_no": "1105539"
+   }
+  ],
+  "zone_no": "31",
+  "street_no": "913",
+  "building_no": "58",
+  "kahramaa_account_no": "1172349",
+  "head_lease": {
+   "annual_rent": 192000.0,
+   "start_date": "2026-03-01",
+   "end_date": "2028-04-30",
+   "payment_frequency": "Monthly",
+   "security_deposit": 32000.0
+  }
+ },
+ {
+  "building_name": "UG-169",
+  "status": "Active",
+  "area_name": "Umm Guwailina",
+  "landlord": {
+   "name": "Mohd Ibrahim A E Al-Naemi",
+   "type": "Company"
+  },
+  "units": [
+   {
+    "unit_no": "F-01/FB",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 7000.0,
+    "furnishing": "Unfurnished"
+   },
+   {
+    "unit_no": "F-01/FF",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 6800.0,
+    "furnishing": "Unfurnished",
+    "kahramaa_meter_no": "29207"
+   },
+   {
+    "unit_no": "F-02/SF",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 6800.0,
+    "furnishing": "Unfurnished",
+    "kahramaa_meter_no": "29208"
+   },
+   {
+    "unit_no": "G-01/B",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 1900.0,
+    "furnishing": "Unfurnished"
+   },
+   {
+    "unit_no": "G-01/GF",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 6800.0,
+    "furnishing": "Unfurnished",
+    "kahramaa_meter_no": "29206"
+   },
+   {
+    "unit_no": "G-02/B",
+    "unit_type": "Studio",
+    "status": "Vacant",
+    "asking_rent": 1200.0,
+    "furnishing": "Unfurnished"
+   },
+   {
+    "unit_no": "G-03/B",
+    "unit_type": "Studio",
+    "status": "Vacant",
+    "asking_rent": 1800.0,
+    "furnishing": "Unfurnished"
+   },
+   {
+    "unit_no": "G-04/B",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 1900.0,
+    "furnishing": "Unfurnished"
+   },
+   {
+    "unit_no": "G-05/B",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 1900.0,
+    "furnishing": "Unfurnished"
+   }
+  ],
+  "zone_no": "27",
+  "street_no": "810",
+  "building_no": "169",
+  "head_lease": {
+   "annual_rent": 360000.0,
+   "start_date": "2026-01-01",
+   "end_date": "2028-12-31",
+   "payment_frequency": "Monthly",
+   "security_deposit": 30000.0
+  }
+ },
+ {
+  "building_name": "UG-180",
+  "status": "Active",
+  "area_name": "Umm Guwailina",
+  "landlord": {
+   "name": "(landlord not identified) UG-180",
+   "type": "Company"
+  },
+  "units": [
+   {
+    "unit_no": "F-01/3",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 6500.0,
+    "furnishing": "Unfurnished"
+   },
+   {
+    "unit_no": "F-01/FB",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 7000.0,
+    "furnishing": "Unfurnished"
+   },
+   {
+    "unit_no": "F-01/FF",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 6500.0,
+    "furnishing": "Unfurnished"
+   },
+   {
+    "unit_no": "F-01/S",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 7000.0,
+    "furnishing": "Unfurnished"
+   },
+   {
+    "unit_no": "F-02/SF",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 6500.0,
+    "furnishing": "Unfurnished"
+   },
+   {
+    "unit_no": "F-02/T",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 6500.0,
+    "furnishing": "Unfurnished"
+   },
+   {
+    "unit_no": "G-01/B",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 1900.0,
+    "furnishing": "Unfurnished"
+   },
+   {
+    "unit_no": "G-01/F",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 6500.0,
+    "furnishing": "Unfurnished"
+   },
+   {
+    "unit_no": "G-01/G",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 1800.0,
+    "furnishing": "Unfurnished"
+   },
+   {
+    "unit_no": "G-01/GF",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 6500.0,
+    "furnishing": "Unfurnished"
+   },
+   {
+    "unit_no": "G-02/B",
+    "unit_type": "Studio",
+    "status": "Vacant",
+    "asking_rent": 1200.0,
+    "furnishing": "Unfurnished"
+   },
+   {
+    "unit_no": "G-02/G",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 1000.0,
+    "furnishing": "Unfurnished"
+   },
+   {
+    "unit_no": "G-03/B",
+    "unit_type": "Studio",
+    "status": "Vacant",
+    "asking_rent": 2000.0,
+    "furnishing": "Unfurnished"
+   },
+   {
+    "unit_no": "G-04/B",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 1900.0,
+    "furnishing": "Unfurnished"
+   },
+   {
+    "unit_no": "G-05/B",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 1900.0,
+    "furnishing": "Unfurnished"
+   }
+  ]
+ },
+ {
+  "building_name": "UG-20",
+  "status": "Active",
+  "area_name": "Umm Guwailina",
+  "landlord": {
+   "name": "Adel Mohammed Ali Mohammed Al-Mutawa",
+   "type": "Company"
+  },
+  "units": [
+   {
+    "unit_no": "F-01",
+    "unit_type": "2BR",
+    "status": "Vacant",
+    "asking_rent": 3700.0,
+    "furnishing": "Unfurnished",
+    "bedrooms": 2,
+    "kahramaa_meter_no": "1271166",
+    "water_meter_no": "1217610"
+   },
+   {
+    "unit_no": "F-02",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 3500.0,
+    "furnishing": "Unfurnished"
+   },
+   {
+    "unit_no": "F-03",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 5000.0,
+    "furnishing": "Unfurnished"
+   },
+   {
+    "unit_no": "F-04",
+    "unit_type": "1BR",
+    "status": "Vacant",
+    "asking_rent": 3600.0,
+    "furnishing": "Unfurnished",
+    "bedrooms": 1,
+    "kahramaa_meter_no": "1271169",
+    "water_meter_no": "1217613"
+   },
+   {
+    "unit_no": "F-05",
+    "unit_type": "2BR",
+    "status": "Vacant",
+    "asking_rent": 3500.0,
+    "furnishing": "Unfurnished",
+    "bedrooms": 2,
+    "kahramaa_meter_no": "1271170",
+    "water_meter_no": "1217614"
+   },
+   {
+    "unit_no": "F-06",
+    "unit_type": "2BR",
+    "status": "Vacant",
+    "asking_rent": 5300.0,
+    "furnishing": "Unfurnished",
+    "bedrooms": 2,
+    "kahramaa_meter_no": "1271171",
+    "water_meter_no": "1217615"
+   },
+   {
+    "unit_no": "F-07",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 3600.0,
+    "furnishing": "Unfurnished"
+   },
+   {
+    "unit_no": "F-08",
+    "unit_type": "1BR",
+    "status": "Vacant",
+    "asking_rent": 3600.0,
+    "furnishing": "Unfurnished",
+    "bedrooms": 1,
+    "kahramaa_meter_no": "1271173",
+    "water_meter_no": "1217617"
+   },
+   {
+    "unit_no": "F-09",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 5300.0,
+    "furnishing": "Unfurnished"
+   },
+   {
+    "unit_no": "F-10",
+    "unit_type": "",
+    "status": "Vacant",
+    "asking_rent": 3500.0,
+    "furnishing": "Unfurnished"
+   },
+   {
+    "unit_no": "F-11",
+    "unit_type": "1BR",
+    "status": "Vacant",
+    "asking_rent": 3500.0,
+    "furnishing": "Unfurnished",
+    "bedrooms": 1,
+    "kahramaa_meter_no": "1271176",
+    "water_meter_no": "1217620"
+   },
+   {
+    "unit_no": "F-12",
+    "unit_type": "3BR",
+    "status": "Vacant",
+    "asking_rent": 5200.0,
+    "furnishing": "Unfurnished",
+    "bedrooms": 3,
+    "kahramaa_meter_no": "1271177",
+    "water_meter_no": "1217621"
+   },
+   {
+    "unit_no": "F-13",
+    "unit_type": "2BR",
+    "status": "Vacant",
+    "asking_rent": 3500.0,
+    "furnishing": "Unfurnished",
+    "bedrooms": 2,
+    "kahramaa_meter_no": "1271178",
+    "water_meter_no": "1217622"
+   },
+   {
+    "unit_no": "F-14",
+    "unit_type": "2BR",
+    "status": "Vacant",
+    "asking_rent": 3500.0,
+    "furnishing": "Unfurnished",
+    "bedrooms": 2,
+    "kahramaa_meter_no": "1271179",
+    "water_meter_no": "1217623"
+   },
+   {
+    "unit_no": "F-15",
+    "unit_type": "3BR",
+    "status": "Vacant",
+    "asking_rent": 5250.0,
+    "furnishing": "Unfurnished",
+    "bedrooms": 3,
+    "kahramaa_meter_no": "1271180",
+    "water_meter_no": "1217624"
+   }
+  ],
+  "zone_no": "27",
+  "street_no": "895",
+  "building_no": "20",
+  "head_lease": {
+   "annual_rent": 672000.0,
+   "start_date": "2026-02-01",
+   "end_date": "2028-01-31",
+   "payment_frequency": "Monthly",
+   "security_deposit": 56000.0
+  }
  }
 ]

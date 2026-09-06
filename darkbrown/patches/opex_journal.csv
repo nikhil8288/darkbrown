@@ -1,0 +1,36 @@
+﻿expense_category,amount,posting_date,contra_account,treatment,note
+A/C MAINTENANCE,45606.00,2026-07-31,Historical Cutover Control,post,Whole-period total. No monthly breakup in the source.
+ACCRUED EXPENSES,260951.35,2026-07-31,,hold,"Accrued liability, not cash. Credit accrued expenses, not the control account."
+ADVERTISEMENT EXPENSES,20300.32,2026-07-31,Historical Cutover Control,post,Whole-period total. No monthly breakup in the source.
+AUDIT FEES,1500.00,2026-07-31,Historical Cutover Control,post,Whole-period total. No monthly breakup in the source.
+BANK CHARGES,7274.50,2026-07-31,Historical Cutover Control,post,Whole-period total. No monthly breakup in the source.
+BONUS- STAFFS,2000.00,2026-07-31,Historical Cutover Control,post,Whole-period total. No monthly breakup in the source.
+CLEANING & PEST CONTROL,12170.00,2026-07-31,Historical Cutover Control,post,Whole-period total. No monthly breakup in the source.
+COMMISION - PROPERTIES,27510.00,2026-07-31,Historical Cutover Control,post,Whole-period total. No monthly breakup in the source.
+DEPRECIATION FURNITURE AND FITTINGS,244919.00,2026-07-31,,hold,"Non-cash. Credit accumulated depreciation, not the control account."
+FOOD EXPENSES,7428.25,2026-07-31,Historical Cutover Control,post,Whole-period total. No monthly breakup in the source.
+FUEL-VEHICLES,32942.89,2026-07-31,Historical Cutover Control,post,Whole-period total. No monthly breakup in the source.
+GOVT EXPENSES (FEES),12260.00,2026-07-31,Historical Cutover Control,post,Whole-period total. No monthly breakup in the source.
+INSURANCE-DOHA BANK,59130.00,2026-07-31,Historical Cutover Control,post,Whole-period total. No monthly breakup in the source.
+IT & SOFTWARE EXPENSES,7200.00,2026-07-31,Historical Cutover Control,post,Whole-period total. No monthly breakup in the source.
+KAHRAMA-OFFICE,8698.00,2026-07-31,Historical Cutover Control,post,Whole-period total. No monthly breakup in the source.
+KEYMONEY PROPERTIES,1419551.00,2026-07-31,Historical Cutover Control,excluded,Posted per building and month from keymoney_history.csv. Excluded here so it is not counted twice.
+LABOUR CHARGES- OUTSIDE,33074.00,2026-07-31,Historical Cutover Control,post,Whole-period total. No monthly breakup in the source.
+OFFICE EXPENSES,31665.40,2026-07-31,Historical Cutover Control,post,Whole-period total. No monthly breakup in the source.
+OFFICE RENT,198000.00,2026-07-31,Historical Cutover Control,post,Whole-period total. No monthly breakup in the source.
+OTHER MAINTENANCE,138899.70,2026-07-31,Historical Cutover Control,post,Whole-period total. No monthly breakup in the source.
+OTHER MAINTENANCE-SHAKAMA,70000.00,2026-07-31,Historical Cutover Control,post,Whole-period total. No monthly breakup in the source.
+OTHER EXPENSES - PROPERTIES,2305.00,2026-07-31,Historical Cutover Control,post,Whole-period total. No monthly breakup in the source.
+QID & VISA EXP-STAFFS,25214.00,2026-07-31,Historical Cutover Control,post,Whole-period total. No monthly breakup in the source.
+RENT A CAR,17000.00,2026-07-31,Historical Cutover Control,post,Whole-period total. No monthly breakup in the source.
+SALARY - STAFFS,263686.00,2026-07-31,Historical Cutover Control,post,Whole-period total. No monthly breakup in the source.
+SHARAF- PERSONAL EXPENSES,14073.00,2026-07-31,Historical Cutover Control,post,Whole-period total. No monthly breakup in the source.
+SPONSOR SHIP FEES,31935.00,2026-07-31,Historical Cutover Control,post,Whole-period total. No monthly breakup in the source.
+"SHARAF-CAPITAL - PRE OPERATIVE EXP[CR,BROKERAGE & OTHER ASSETS]",150000.00,2026-07-31,Historical Cutover Control,post,Whole-period total. No monthly breakup in the source.
+TICKET STAFFS,6122.00,2026-07-31,Historical Cutover Control,post,Whole-period total. No monthly breakup in the source.
+TOOLS & OTHERS,300.00,2026-07-31,Historical Cutover Control,post,Whole-period total. No monthly breakup in the source.
+TRANSPORATION-WASTE,6769.00,2026-07-31,Historical Cutover Control,post,Whole-period total. No monthly breakup in the source.
+TRANSPORTATION,1250.00,2026-07-31,Historical Cutover Control,post,Whole-period total. No monthly breakup in the source.
+VEHICLE MAINTENANCE,21247.09,2026-07-31,Historical Cutover Control,post,Whole-period total. No monthly breakup in the source.
+WATCHMAN,4000.00,2026-07-31,Historical Cutover Control,post,Whole-period total. No monthly breakup in the source.
+WIFI&MOBILE-OFFICE&UNITS,24572.00,2026-07-31,Historical Cutover Control,post,Whole-period total. No monthly breakup in the source.
