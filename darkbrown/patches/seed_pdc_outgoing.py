@@ -43,7 +43,7 @@ CSV = os.path.join(os.path.dirname(__file__), "pdc_outgoing.csv")
 NAME_MAP = os.path.join(os.path.dirname(__file__), "pdc_name_map.csv")
 BUILDING_MAP = os.path.join(os.path.dirname(__file__), "pdc_building_map.csv")
 
-EXPECTED_TOTAL = 538000.00
+EXPECTED_TOTAL = 13820500.00
 
 
 def _norm(s):

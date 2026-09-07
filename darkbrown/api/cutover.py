@@ -40,21 +40,24 @@ FILES = ["tenancies.csv", "opening_arrears.csv", "buildings_payload.json",
 #: Building. Each entry is (label, dotted module, needs).
 STEPS = [
     ("Tenants", "darkbrown.patches.load_customers",
-     "365 Customers"),
+     "599 Customers"),
     ("Buildings and units", "darkbrown.patches.load_buildings",
-     "23 buildings, 305 units, 22 head leases, 13 landlords"),
+     "22 buildings, 296 units, 15 landlords"),
     ("Tenancies", "darkbrown.patches.import_tenancies",
-     "442 agreements - 266 live, 176 historical"),
+     "219 agreements; 77 units carry a tenant name but no signed agreement"),
     ("Opening arrears", "darkbrown.patches.seed_opening_arrears",
      "nothing - the rent history carries the arrears instead"),
     # These two post against the Customers and the Head Leases, so they run
     # last. Together they are what puts income AND cost on the P&L; the rent
     # side alone gives a statement with revenue and no cost of sales.
     ("Rent history", "darkbrown.patches.load_portfolio_history",
-     "1,782 invoices and receipts; 5,283,008.00 charged, "
-     "5,158,806.00 collected"),
+     "1,780 invoices and receipts; 5,306,783.00 charged, "
+     "4,838,469.00 collected"),
+    ("Operating expenses", "darkbrown.patches.load_opex",
+     "3,209,553.15 across 10 monthly journals; the per-building heads carry "
+     "their building's cost centre, the rest sit on Overhead"),
     ("Head-lease cost", "darkbrown.patches.load_portfolio_headlease",
-     "135 purchase invoices and payments; 3,669,500.00 accrued, "
+     "145 purchase invoices and payments; 3,669,500.00 accrued, "
      "3,459,500.00 paid, 210,000.00 payable"),
 ]
 
@@ -266,38 +269,6 @@ def _sequence(live):
     return True
 
 
-def _pack_tags():
-    """The remark tags this pack's loaders actually write.
-
-    These were hardcoded as AK12-*, which was correct for the pilot and wrong
-    from the moment steps 5 and 6 were rewired to the portfolio loaders: those
-    write DB-HIST-INV and DB-HL-INV. Every invoice the pack had just created
-    therefore counted as foreign, `clean` went false, and `run_load` refused to
-    run again - which is precisely the re-run after a partial load that the
-    sequencer promises is safe.
-
-    Read the tags off the loaders so they cannot drift apart again, and keep
-    the pilot tags accepted so a site still carrying AK-12 rows is not
-    condemned by them. If a loader is not on the server the literal is used,
-    so this answers correctly either way.
-    """
-    sales, purchase = ["AK12-HIST-INV"], ["AK12-HL-INV"]
-    for dotted, fallback, bucket in (
-            ("darkbrown.patches.load_portfolio_history", "DB-HIST-INV", sales),
-            ("darkbrown.patches.load_portfolio_headlease", "DB-HL-INV",
-             purchase)):
-        try:
-            bucket.append(getattr(frappe.get_module(dotted), "INV_TAG",
-                                  fallback))
-        except Exception:
-            bucket.append(fallback)
-    return sales, purchase
-
-
-def _tagged(remarks, tags):
-    return any("[%s-" % t in (remarks or "") for t in tags)
-
-
 def _ledger_state():
     """What is on the GL, and whether it is safe to load onto.
 
@@ -311,19 +282,18 @@ def _ledger_state():
     past it and leave its amount on the statements.
     """
     live = frappe.db.count("GL Entry", {"is_cancelled": 0})
-    si_tags, pi_tags = _pack_tags()
 
     opening = untagged_si = 0
     for d in frappe.get_all("Sales Invoice", filters={"docstatus": 1},
                             fields=["remarks", "is_opening"], limit=5000):
         if (d.is_opening or "") == "Yes":
             opening += 1
-        elif not _tagged(d.remarks, si_tags):
+        elif "[AK12-HIST-INV-" not in (d.remarks or ""):
             untagged_si += 1
     untagged_pi = sum(
         1 for d in frappe.get_all("Purchase Invoice", filters={"docstatus": 1},
                                   fields=["remarks"], limit=5000)
-        if not _tagged(d.remarks, pi_tags))
+        if "[AK12-HL-INV-" not in (d.remarks or ""))
     journals = frappe.db.count("Journal Entry", {"docstatus": 1})
 
     foreign = opening + untagged_si + untagged_pi + journals

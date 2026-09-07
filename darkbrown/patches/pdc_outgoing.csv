@@ -1,0 +1,407 @@
+﻿cheque_date,party,amount,property_code,cheque_no,purpose,status,remarks
+2025-07-05,Jamal Jassim Mohsen Al Haddad,39000.00,TV-20,49,RENT-JUL'25,Cleared,Cheque Details line 2.
+2025-09-12,Hassan Bin Hassan Al Jufairy,28000.00,DAJ-21,181,RENT-SEP'25,Cleared,Cheque Details line 3.
+2025-10-12,Hassan Bin Hassan Al Jufairy,28000.00,DAJ-21,182,RENT-OCT'25,Cleared,Cheque Details line 4.
+2025-10-13,Ali Mubarak Y A Al-Kuwari,14000.00,TV-68,98,RENT-OCT'25,Cleared,Cheque Details line 5.
+2025-11-05,Ahmed Abdulrahman Ahmadi Al-Shaibi,34000.00,MR-130,1000001,RENT-2025-11-01 00:00:00,Cleared,Cheque Details line 6.
+2025-11-10,Jassim Ali A A Shams,15000.00,MQ-56,1,RENT-NOV'25,Cleared,Cheque Details line 7.
+2025-11-12,Hassan Bin Hassan Al Jufairy,28000.00,DAJ-21,183,RENT-NOV'25,Cleared,Cheque Details line 8.
+2025-11-13,Ali Mubarak Y A Al-Kuwari,14000.00,TV-66,74,RENT-NOV'25,Cleared,Cheque Details line 9.
+2025-11-13,Ali Mubarak Y A Al-Kuwari,14000.00,TV-68,99,RENT-NOV'25,Cleared,Cheque Details line 10.
+2025-11-15,Sultan Ghanem Sultan Al Ghanem / Shahin Khaled Ghanem Al Ghanem,52000.00,OG-48,2,RENT-NOV'25,Cleared,Cheque Details line 11.
+2025-11-15,Al Madar Real Estate W.L.L.,20000.00,AK-12,33,RENT-NOV'25,Cleared,Cheque Details line 12.
+2025-11-20,Aisha Mahmoud Abdulmohsen Al Mahmoud,20000.00,MT-21,,RENT-NOV'25,Cancelled,Cheque Details line 13. PAID BY CASH
+2025-12-08,Jassim Ali A A Shams,15000.00,MQ-56,5,RENT-DEC'25,Cleared,Cheque Details line 14.
+2025-12-10,Jamal Jassim Mohsen Al Haddad,39000.00,TV-20,50,RENT-DEC'25,Cleared,Cheque Details line 15.
+2025-12-12,Hassan Bin Hassan Al Jufairy,28000.00,DAJ-21,184,RENT-DEC'25,Cleared,Cheque Details line 16.
+2025-12-13,Ali Mubarak Y A Al-Kuwari,14000.00,TV-66,75,RENT-DEC'25,Cleared,Cheque Details line 17.
+2025-12-13,Ali Mubarak Y A Al-Kuwari,14000.00,TV-68,100,RENT-DEC'25,Cleared,Cheque Details line 18.
+2025-12-15,Sultan Ghanem Sultan Al Ghanem / Shahin Khaled Ghanem Al Ghanem,52000.00,OG-48,3,RENT-DEC'25,Cleared,Cheque Details line 19.
+2025-12-15,Ahmed Abdulrahman Ahmadi Al-Shaibi,34000.00,MR-130,1000002,RENT-DEC'25,Cleared,Cheque Details line 20.
+2025-12-15,Al Madar Real Estate W.L.L.,18000.00,AK-12,1000052,RENT-DEC'25,Cleared,Cheque Details line 21.
+2025-12-20,Aisha Mahmoud Abdulmohsen Al Mahmoud,20000.00,MT-21,,RENT-DEC'25,Cancelled,Cheque Details line 22. PAID BY CASH
+2026-01-08,Jassim Ali A A Shams,15000.00,MQ-56,6,RENT-JAN'26,Cleared,Cheque Details line 23.
+2026-01-12,Hassan Bin Hassan Al Jufairy,28000.00,DAJ-21,185,RENT-JAN'26,Cleared,Cheque Details line 24.
+2026-01-13,Ali Mubarak Y A Al-Kuwari,14000.00,TV-66,76,RENT-JAN'26,Cleared,Cheque Details line 25.
+2026-01-13,Ali Mubarak Y A Al-Kuwari,14000.00,TV-68,101,RENT-JAN'26,Cleared,Cheque Details line 26.
+2026-01-15,Sultan Ghanem Sultan Al Ghanem / Shahin Khaled Ghanem Al Ghanem,52000.00,OG-48,4,RENT-JAN'26,Cleared,Cheque Details line 27.
+2026-01-15,Ahmed Abdulrahman Ahmadi Al-Shaibi,34000.00,MR-130,1000003,RENT-JAN'26,Cleared,Cheque Details line 28.
+2026-01-15,Al Madar Real Estate W.L.L.,18000.00,AK-12,1000053,RENT-JAN'26,Cleared,Cheque Details line 29.
+2026-01-20,Aisha Mahmoud Abdulmohsen Al Mahmoud,20000.00,MT-21,,RENT-JAN'26,Cancelled,Cheque Details line 30. PAID BY CASH
+2026-02-08,Jassim Ali A A Shams,15000.00,MQ-56,7,RENT-FEB'26,Cleared,Cheque Details line 31.
+2026-02-12,Hassan Bin Hassan Al Jufairy,28000.00,DAJ-21,186,RENT-FEB'26,Cleared,Cheque Details line 32.
+2026-02-12,Mohd Ibrahim A E Al-Naemi,30000.00,UG-169,1000160,RENT-2026-02-01 00:00:00,Cleared,Cheque Details line 33.
+2026-02-13,Ali Mubarak Y A Al-Kuwari,14000.00,TV-66,77,RENT-FEB'26,Cleared,Cheque Details line 34.
+2026-02-13,Ali Mubarak Y A Al-Kuwari,14000.00,TV-68,102,RENT-FEB'26,Cleared,Cheque Details line 35.
+2026-02-15,Ahmed Abdulrahman Ahmadi Al-Shaibi,34000.00,MR-130,1000004,RENT-FEB'26,Cleared,Cheque Details line 36.
+2026-02-15,Al Madar Real Estate W.L.L.,18000.00,AK-12,1000054,RENT-FEB'26,Cleared,Cheque Details line 37.
+2026-02-15,Sultan Ghanem Sultan Al Ghanem / Shahin Khaled Ghanem Al Ghanem,52000.00,OG-48,1000123,RENT-FEB'26,Cleared,Cheque Details line 38.
+2026-02-16,Adel Mohammed Ali Mohammed Al-Mutawa,39500.00,UG-20,1000136,RENT-2026-02-01 00:00:00,Cleared,Cheque Details line 39.
+2026-02-20,Aisha Mahmoud Abdulmohsen Al Mahmoud,20000.00,MT-21,,RENT-FEB'26,Cancelled,Cheque Details line 40. PAID BY CASH
+2026-03-08,Jassim Ali A A Shams,15000.00,MQ-56,8,RENT-MAR'26,Cleared,Cheque Details line 41.
+2026-03-10,Jamal Jassim Mohsen Al Haddad,39000.00,TV-20,51,RENT-MAR'26,Cleared,Cheque Details line 42.
+2026-03-12,Nassir Ali Mohamed Al-Saadi,25000.00,TV-27,35,RENT-MAR'26,Cleared,Cheque Details line 43.
+2026-03-12,Hassan Bin Hassan Al Jufairy,28000.00,DAJ-21,187,RENT-MAR'26,Cleared,Cheque Details line 44.
+2026-03-12,Mohd Ibrahim A E Al-Naemi,30000.00,UG-169,1000161,RENT-MAR'26,Cleared,Cheque Details line 45.
+2026-03-12,Al Adekhar Real Estate Company WLL,32000.00,TWR-35/TWR-39,1000317,RENT-w,Cancelled,"Combined cheque covering 2 buildings at QAR 16,000 each: TWR-35, TWR-39. Cheque Details line 46. PAID BY CASH"
+2026-03-12,Al Adekhar Real Estate Company WLL,48000.00,TWR-17/TWR-19/TWR-37,100283,RENT-MAR'26,Cancelled,"Combined cheque covering 3 buildings at QAR 16,000 each: TWR-17, TWR-19, TWR-37. Cheque Details line 47. PAID BY CASH"
+2026-03-12,Al Adekhar Real Estate Company WLL,16000.00,TWR-12,100230,RENT-MAR'26,Cancelled,Cheque Details line 48. PAID BY CASH
+2026-03-13,Ali Mubarak Y A Al-Kuwari,14000.00,TV-66,78,RENT-MAR'26,Cleared,Cheque Details line 49.
+2026-03-13,Ali Mubarak Y A Al-Kuwari,14000.00,TV-68,103,RENT-MAR'26,Cleared,Cheque Details line 50.
+2026-03-15,Ahmed Abdulrahman Ahmadi Al-Shaibi,34000.00,MR-130,1000005,RENT-MAR'26,Cleared,Cheque Details line 51.
+2026-03-15,Al Madar Real Estate W.L.L.,18000.00,AK-12,1000055,RENT-MAR'26,Cleared,Cheque Details line 52.
+2026-03-15,Sultan Ghanem Sultan Al Ghanem / Shahin Khaled Ghanem Al Ghanem,52000.00,OG-48,1000124,RENT-MAR'26,Cleared,Cheque Details line 53.
+2026-03-16,Adel Mohammed Ali Mohammed Al-Mutawa,56000.00,UG-20,1000137,RENT-MAR'26,Cleared,Cheque Details line 54.
+2026-03-18,Hassan Bin Hassan Al Jufairy,50000.00,DAJ-21,1000103,RENT-MAR'26,Cleared,Cheque Details line 55.
+2026-03-20,Aisha Mahmoud Abdulmohsen Al Mahmoud,20000.00,MT-21,,RENT-MAR'26,Cancelled,Cheque Details line 56. PAID BY CASH
+2026-04-08,Jassim Ali A A Shams,15000.00,MQ-56,9,RENT-APR'26,Cleared,Cheque Details line 57.
+2026-04-12,Nassir Ali Mohamed Al-Saadi,25000.00,TV-27,36,RENT-APR'26,Cleared,Cheque Details line 58.
+2026-04-12,Hassan Bin Hassan Al Jufairy,28000.00,DAJ-21,188,RENT-APR'26,Cleared,Cheque Details line 59.
+2026-04-12,Mohd Ibrahim A E Al-Naemi,30000.00,UG-169,1000162,RENT-APR'26,Cleared,Cheque Details line 60.
+2026-04-12,Al Adekhar Real Estate Company WLL,32000.00,TWR-35/TWR-39,1000318,RENT-APR'26,Cancelled,"Combined cheque covering 2 buildings at QAR 16,000 each: TWR-35, TWR-39. Cheque Details line 61. PAID BY CASH"
+2026-04-12,Al Adekhar Real Estate Company WLL,48000.00,TWR-17/TWR-19/TWR-37,100284,RENT-APR'26,Cancelled,"Combined cheque covering 3 buildings at QAR 16,000 each: TWR-17, TWR-19, TWR-37. Cheque Details line 62. PAID BY CASH"
+2026-04-12,Al Adekhar Real Estate Company WLL,16000.00,TWR-12,100231,RENT-APR'26,Cancelled,Cheque Details line 63. PAID BY CASH
+2026-04-13,Ali Mubarak Y A Al-Kuwari,14000.00,TV-66,79,RENT-APR'26,Cleared,Cheque Details line 64.
+2026-04-13,Ali Mubarak Y A Al-Kuwari,14000.00,TV-68,104,RENT-APR'26,Cleared,Cheque Details line 65.
+2026-04-15,Ahmed Abdulrahman Ahmadi Al-Shaibi,34000.00,MR-130,1000006,RENT-APR'26,Cleared,Cheque Details line 66.
+2026-04-15,Al Madar Real Estate W.L.L.,18000.00,AK-12,1000056,RENT-APR'26,Cleared,Cheque Details line 67.
+2026-04-15,Sultan Ghanem Sultan Al Ghanem / Shahin Khaled Ghanem Al Ghanem,52000.00,OG-48,1000125,RENT-APR'26,Cleared,Cheque Details line 68.
+2026-04-16,Adel Mohammed Ali Mohammed Al-Mutawa,56000.00,UG-20,1000138,RENT-APR'26,Cancelled,Cheque Details line 69. RETURNED REPLACED WITH QNB CHQ#74
+2026-04-18,Hassan Bin Hassan Al Jufairy,50000.00,DAJ-21,1000104,RENT-APR'26,Cleared,Cheque Details line 70.
+2026-04-20,Aisha Mahmoud Abdulmohsen Al Mahmoud,20000.00,MT-21,349,RENT-APR'26,Cancelled,Cheque Details line 71. PAID BY CASH
+2026-05-04,Adel Mohammed Ali Mohammed Al-Mutawa,56000.00,UG-20,74,RENT-APR'26,Cleared,Cheque Details line 72.
+2026-05-08,Jassim Ali A A Shams,15000.00,MQ-56,10,RENT-MAY'26,Cleared,Cheque Details line 73.
+2026-05-12,Nassir Ali Mohamed Al-Saadi,25000.00,TV-27,37,RENT-MAY'26,Cleared,Cheque Details line 74.
+2026-05-12,Hassan Bin Hassan Al Jufairy,28000.00,DAJ-21,189,RENT-MAY'26,Cleared,Cheque Details line 75.
+2026-05-12,Mohd Ibrahim A E Al-Naemi,30000.00,UG-169,1000163,RENT-MAY'26,Cleared,Cheque Details line 76.
+2026-05-12,Al Adekhar Real Estate Company WLL,16000.00,TWR-12,100232,RENT-MAY'26,Cleared,Cheque Details line 77.
+2026-05-12,Al Adekhar Real Estate Company WLL,48000.00,TWR-17/TWR-19/TWR-37,100285,RENT-MAY'26,Cleared,"Combined cheque covering 3 buildings at QAR 16,000 each: TWR-17, TWR-19, TWR-37. Cheque Details line 78."
+2026-05-12,Al Adekhar Real Estate Company WLL,32000.00,TWR-35/TWR-39,1000319,RENT-MAY'26,Cleared,"Combined cheque covering 2 buildings at QAR 16,000 each: TWR-35, TWR-39. Cheque Details line 79."
+2026-05-12,Al Adekhar Real Estate Company WLL,64000.00,TWR-20/TWR-16/TWR-45/TWR-58,1000258,RENT-MAY'26,Cleared,"Combined cheque covering 4 buildings at QAR 16,000 each: TWR-20, TWR-16, TWR-45, TWR-58. Cheque Details line 80."
+2026-05-13,Ali Mubarak Y A Al-Kuwari,14000.00,TV-66,80,RENT-MAY'26,Cleared,Cheque Details line 81.
+2026-05-13,Ali Mubarak Y A Al-Kuwari,14000.00,TV-68,105,RENT-MAY'26,Cleared,Cheque Details line 82.
+2026-05-15,Ahmed Abdulrahman Ahmadi Al-Shaibi,34000.00,MR-130,1000007,RENT-MAY'26,Cleared,Cheque Details line 83.
+2026-05-15,Al Madar Real Estate W.L.L.,18000.00,AK-12,1000057,RENT-MAY'26,Cleared,Cheque Details line 84.
+2026-05-15,Sultan Ghanem Sultan Al Ghanem / Shahin Khaled Ghanem Al Ghanem,52000.00,OG-48,1000126,RENT-MAY'26,Cleared,Cheque Details line 85.
+2026-05-16,Adel Mohammed Ali Mohammed Al-Mutawa,56000.00,UG-20,1000139,RENT-MAY'26,Cleared,Cheque Details line 86.
+2026-05-18,Hassan Bin Hassan Al Jufairy,50000.00,DAJ-21,1000105,RENT-MAY'26,Cancelled,Cheque Details line 87. PAID BY CASH
+2026-05-20,Aisha Mahmoud Abdulmohsen Al Mahmoud,20000.00,MT-21,350,RENT-MAY'26,Cancelled,Cheque Details line 88. PAID BY CASH
+2026-06-08,Jassim Ali A A Shams,15000.00,MQ-56,34,RENT-JUN'26,Cleared,Cheque Details line 89.
+2026-06-10,Jamal Jassim Mohsen Al Haddad,39000.00,TV-20,52,RENT-JUN'26,Cleared,Cheque Details line 90.
+2026-06-12,Nassir Ali Mohamed Al-Saadi,25000.00,TV-27,38,RENT-JUN'26,Cleared,Cheque Details line 91.
+2026-06-12,Hassan Bin Hassan Al Jufairy,28000.00,DAJ-21,190,RENT-JUN'26,Cleared,Cheque Details line 92.
+2026-06-12,Mohd Ibrahim A E Al-Naemi,30000.00,UG-169,1000164,RENT-JUN'26,Cleared,Cheque Details line 93.
+2026-06-12,Al Adekhar Real Estate Company WLL,64000.00,TWR-20/TWR-16/TWR-45/TWR-58,1000259,RENT-JUN'26,Cleared,"Combined cheque covering 4 buildings at QAR 16,000 each: TWR-20, TWR-16, TWR-45, TWR-58. Cheque Details line 94."
+2026-06-12,Al Adekhar Real Estate Company WLL,48000.00,TWR-17/TWR-19/TWR-37,1000286,RENT-JUN'26,Cleared,"Combined cheque covering 3 buildings at QAR 16,000 each: TWR-17, TWR-19, TWR-37. Cheque Details line 95."
+2026-06-12,Al Adekhar Real Estate Company WLL,32000.00,TWR-35/TWR-39,1000320,RENT-JUN'26,Cleared,"Combined cheque covering 2 buildings at QAR 16,000 each: TWR-35, TWR-39. Cheque Details line 96."
+2026-06-13,Ali Mubarak Y A Al-Kuwari,14000.00,TV-66,81,RENT-JUN'26,Presented,Cheque Details line 97. RETURNED
+2026-06-13,Ali Mubarak Y A Al-Kuwari,14000.00,TV-68,106,RENT-JUN'26,Cleared,Cheque Details line 98.
+2026-06-15,Ahmed Abdulrahman Ahmadi Al-Shaibi,34000.00,MR-130,1000008,RENT-JUN'26,Presented,Cheque Details line 99. HOLD BY OWNER
+2026-06-15,Al Madar Real Estate W.L.L.,18000.00,AK-12,1000058,RENT-JUN'26,Cleared,Cheque Details line 100.
+2026-06-15,Sultan Ghanem Sultan Al Ghanem / Shahin Khaled Ghanem Al Ghanem,52000.00,OG-48,1000127,RENT-JUN'26,Cleared,Cheque Details line 101.
+2026-06-16,Adel Mohammed Ali Mohammed Al-Mutawa,56000.00,UG-20,1000140,RENT-JUN'26,Cleared,Cheque Details line 102.
+2026-06-18,Hassan Bin Hassan Al Jufairy,50000.00,DAJ-21,1000106,RENT-JUN'26,Cancelled,Cheque Details line 103. PAID BY CASH
+2026-06-20,Aisha Mahmoud Abdulmohsen Al Mahmoud,20000.00,MT-21,351,RENT-JUN'26,Cancelled,Cheque Details line 104. PAID BY CASH
+2026-07-08,Jassim Ali A A Shams,15000.00,MQ-56,11,RENT-JUL'26,Cleared,Cheque Details line 105.
+2026-07-12,Nassir Ali Mohamed Al-Saadi,25000.00,TV-27,39,RENT-JUL'26,Cleared,Cheque Details line 106.
+2026-07-12,Hassan Bin Hassan Al Jufairy,28000.00,DAJ-21,191,RENT-JUL'26,Cleared,Cheque Details line 107.
+2026-07-12,Mohd Ibrahim A E Al-Naemi,30000.00,UG-169,1000165,RENT-JUL'26,Cleared,Cheque Details line 108.
+2026-07-12,Al Adekhar Real Estate Company WLL,64000.00,TWR-20/TWR-16/TWR-45/TWR-58,1000260,RENT-JUL'26,Presented,"Combined cheque covering 4 buildings at QAR 16,000 each: TWR-20, TWR-16, TWR-45, TWR-58. Cheque Details line 109. RETURNED"
+2026-07-12,Al Adekhar Real Estate Company WLL,48000.00,TWR-17/TWR-19/TWR-37,1000287,RENT-JUL'26,Presented,"Combined cheque covering 3 buildings at QAR 16,000 each: TWR-17, TWR-19, TWR-37. Cheque Details line 110. RETURNED"
+2026-07-12,Al Adekhar Real Estate Company WLL,32000.00,TWR-35/TWR-39,1000321,RENT-JUL'26,Cleared,"Combined cheque covering 2 buildings at QAR 16,000 each: TWR-35, TWR-39. Cheque Details line 111."
+2026-07-13,Ali Mubarak Y A Al-Kuwari,14000.00,TV-66,82,RENT-JUL'26,Cleared,Cheque Details line 112.
+2026-07-13,Ali Mubarak Y A Al-Kuwari,14000.00,TV-68,107,RENT-JUL'26,Cleared,Cheque Details line 113.
+2026-07-15,Ahmed Abdulrahman Ahmadi Al-Shaibi,34000.00,MR-130,1000009,RENT-JUL'26,Cleared,Cheque Details line 114.
+2026-07-15,Al Madar Real Estate W.L.L.,18000.00,AK-12,1000059,RENT-JUL'26,Cleared,Cheque Details line 115.
+2026-07-15,Sultan Ghanem Sultan Al Ghanem / Shahin Khaled Ghanem Al Ghanem,52000.00,OG-48,1000128,RENT-JUL'26,Cleared,Cheque Details line 116.
+2026-07-16,Adel Mohammed Ali Mohammed Al-Mutawa,56000.00,UG-20,1000141,RENT-JUL'26,Cleared,Cheque Details line 117.
+2026-07-18,Hassan Bin Hassan Al Jufairy,50000.00,DAJ-21,1000107,RENT-JUL'26,Presented,Cheque Details line 118. HOLD BY OWNER
+2026-07-20,Aisha Mahmoud Abdulmohsen Al Mahmoud,20000.00,MT-21,1000352,RENT-JULY'26,Cancelled,Cheque Details line 119. PAID BY CASH
+2026-08-08,Jassim Ali A A Shams,15000.00,MQ-56,12,RENT-AUG'26,Presented,Cheque Details line 120.
+2026-08-12,Nassir Ali Mohamed Al-Saadi,25000.00,TV-27,40,RENT-AUG'26,Presented,Cheque Details line 121.
+2026-08-12,Hassan Bin Hassan Al Jufairy,28000.00,DAJ-21,192,RENT-AUG'26,Presented,Cheque Details line 122.
+2026-08-12,Mohd Ibrahim A E Al-Naemi,30000.00,UG-169,1000166,RENT-AUG'26,Presented,Cheque Details line 123.
+2026-08-12,Al Adekhar Real Estate Company WLL,16000.00,TWR-12,1000233,RENT-AUG'26,Presented,Cheque Details line 124.
+2026-08-12,Al Adekhar Real Estate Company WLL,64000.00,TWR-20/TWR-16/TWR-45/TWR-58,1000261,RENT-AUG'26,Presented,"Combined cheque covering 4 buildings at QAR 16,000 each: TWR-20, TWR-16, TWR-45, TWR-58. Cheque Details line 125."
+2026-08-12,Al Adekhar Real Estate Company WLL,48000.00,TWR-17/TWR-19/TWR-37,1000288,RENT-AUG'26,Presented,"Combined cheque covering 3 buildings at QAR 16,000 each: TWR-17, TWR-19, TWR-37. Cheque Details line 126."
+2026-08-13,Ali Mubarak Y A Al-Kuwari,14000.00,TV-66,83,RENT-AUG'26,Presented,Cheque Details line 127.
+2026-08-13,Ali Mubarak Y A Al-Kuwari,14000.00,TV-68,108,RENT-AUG'26,Presented,Cheque Details line 128.
+2026-08-15,Ahmed Abdulrahman Ahmadi Al-Shaibi,34000.00,MR-130,1000010,RENT-AUG'26,Presented,Cheque Details line 129.
+2026-08-15,Al Madar Real Estate W.L.L.,18000.00,AK-12,1000060,RENT-AUG'26,Presented,Cheque Details line 130.
+2026-08-15,Sultan Ghanem Sultan Al Ghanem / Shahin Khaled Ghanem Al Ghanem,52000.00,OG-48,1000129,RENT-AUG'26,Presented,Cheque Details line 131.
+2026-08-16,Adel Mohammed Ali Mohammed Al-Mutawa,56000.00,UG-20,1000142,RENT-AUG'26,Presented,Cheque Details line 132.
+2026-08-18,Hassan Bin Hassan Al Jufairy,50000.00,DAJ-21,1000108,RENT-AUG'26,Presented,Cheque Details line 133.
+2026-08-20,Aisha Mahmoud Abdulmohsen Al Mahmoud,20000.00,MT-21,1000353,RENT-AUG'26,Presented,Cheque Details line 134.
+2026-09-08,Jassim Ali A A Shams,15000.00,MQ-56,13,RENT-SEP'26,Presented,Cheque Details line 135.
+2026-09-10,Jamal Jassim Mohsen Al Haddad,39000.00,TV-20,53,RENT-SEP'26,Presented,Cheque Details line 136.
+2026-09-12,Nassir Ali Mohamed Al-Saadi,25000.00,TV-27,41,RENT-SEP'26,Presented,Cheque Details line 137.
+2026-09-12,Hassan Bin Hassan Al Jufairy,28000.00,DAJ-21,194,RENT-SEP'26,Presented,Cheque Details line 138.
+2026-09-12,Mohd Ibrahim A E Al-Naemi,30000.00,UG-169,1000167,RENT-SEP'26,Presented,Cheque Details line 139.
+2026-09-12,Al Adekhar Real Estate Company WLL,16000.00,TWR-12,1000234,RENT-SEP'26,Presented,Cheque Details line 140.
+2026-09-12,Al Adekhar Real Estate Company WLL,64000.00,TWR-20/TWR-16/TWR-45/TWR-58,1000262,RENT-SEP'26,Presented,"Combined cheque covering 4 buildings at QAR 16,000 each: TWR-20, TWR-16, TWR-45, TWR-58. Cheque Details line 141."
+2026-09-12,Al Adekhar Real Estate Company WLL,48000.00,TWR-17/TWR-19/TWR-37,1000289,RENT-SEP'26,Presented,"Combined cheque covering 3 buildings at QAR 16,000 each: TWR-17, TWR-19, TWR-37. Cheque Details line 142."
+2026-09-13,Ali Mubarak Y A Al-Kuwari,14000.00,TV-66,84,RENT-SEP'26,Presented,Cheque Details line 143.
+2026-09-13,Ali Mubarak Y A Al-Kuwari,14000.00,TV-68,109,RENT-SEP'26,Presented,Cheque Details line 144.
+2026-09-15,Ahmed Abdulrahman Ahmadi Al-Shaibi,34000.00,MR-130,1000011,RENT-SEP'26,Presented,Cheque Details line 145.
+2026-09-15,Al Madar Real Estate W.L.L.,18000.00,AK-12,1000061,RENT-SEP'26,Presented,Cheque Details line 146.
+2026-09-15,Sultan Ghanem Sultan Al Ghanem / Shahin Khaled Ghanem Al Ghanem,52000.00,OG-48,1000130,RENT-SEP'26,Presented,Cheque Details line 147.
+2026-09-16,Adel Mohammed Ali Mohammed Al-Mutawa,56000.00,UG-20,1000143,RENT-SEP'26,Presented,Cheque Details line 148.
+2026-09-18,Hassan Bin Hassan Al Jufairy,50000.00,DAJ-21,1000109,RENT-SEP'26,Presented,Cheque Details line 149.
+2026-09-20,Aisha Mahmoud Abdulmohsen Al Mahmoud,20000.00,MT-21,1000354,RENT-SEP'26,Presented,Cheque Details line 150.
+2026-10-08,Jassim Ali A A Shams,15000.00,MQ-56,14,RENT-OCT'26,Presented,Cheque Details line 151.
+2026-10-12,Nassir Ali Mohamed Al-Saadi,25000.00,TV-27,42,RENT-OCT'26,Presented,Cheque Details line 152.
+2026-10-12,Mohd Ibrahim A E Al-Naemi,30000.00,UG-169,1000168,RENT-OCT'26,Presented,Cheque Details line 153.
+2026-10-12,Al Adekhar Real Estate Company WLL,16000.00,TWR-12,1000235,RENT-OCT'26,Presented,Cheque Details line 154.
+2026-10-12,Al Adekhar Real Estate Company WLL,64000.00,TWR-20/TWR-16/TWR-45/TWR-58,1000263,RENT-OCT'26,Presented,"Combined cheque covering 4 buildings at QAR 16,000 each: TWR-20, TWR-16, TWR-45, TWR-58. Cheque Details line 155."
+2026-10-12,Al Adekhar Real Estate Company WLL,48000.00,TWR-17/TWR-19/TWR-37,1000290,RENT-OCT'26,Presented,"Combined cheque covering 3 buildings at QAR 16,000 each: TWR-17, TWR-19, TWR-37. Cheque Details line 156."
+2026-10-12,Al Adekhar Real Estate Company WLL,32000.00,TWR-35/TWR-39,1000322,RENT-OCT'26,Presented,"Combined cheque covering 2 buildings at QAR 16,000 each: TWR-35, TWR-39. Cheque Details line 157."
+2026-10-13,Ali Mubarak Y A Al-Kuwari,14000.00,TV-66,85,RENT-OCT'26,Presented,Cheque Details line 158.
+2026-10-13,Ali Mubarak Y A Al-Kuwari,14000.00,TV-68,110,RENT-OCT'26,Presented,Cheque Details line 159.
+2026-10-15,Ahmed Abdulrahman Ahmadi Al-Shaibi,34000.00,MR-130,1000012,RENT-OCT'26,Presented,Cheque Details line 160.
+2026-10-15,Al Madar Real Estate W.L.L.,18000.00,AK-12,1000062,RENT-OCT'26,Presented,Cheque Details line 161.
+2026-10-15,Sultan Ghanem Sultan Al Ghanem / Shahin Khaled Ghanem Al Ghanem,52000.00,OG-48,1000131,RENT-OCT'26,Presented,Cheque Details line 162.
+2026-10-16,Adel Mohammed Ali Mohammed Al-Mutawa,56000.00,UG-20,1000144,RENT-OCT'26,Presented,Cheque Details line 163.
+2026-10-18,Hassan Bin Hassan Al Jufairy,50000.00,DAJ-21,1000110,RENT-OCT'26,Presented,Cheque Details line 164.
+2026-10-20,Aisha Mahmoud Abdulmohsen Al Mahmoud,20000.00,MT-21,1000355,RENT-OCT'26,Presented,Cheque Details line 165.
+2026-11-08,Jassim Ali A A Shams,15000.00,MQ-56,15,RENT-NOV'26,Presented,Cheque Details line 166.
+2026-11-12,Nassir Ali Mohamed Al-Saadi,25000.00,TV-27,43,RENT-NOV'26,Presented,Cheque Details line 167.
+2026-11-12,Mohd Ibrahim A E Al-Naemi,30000.00,UG-169,1000169,RENT-NOV'26,Presented,Cheque Details line 168.
+2026-11-12,Al Adekhar Real Estate Company WLL,16000.00,TWR-12,1000236,RENT-NOV'26,Presented,Cheque Details line 169.
+2026-11-12,Al Adekhar Real Estate Company WLL,64000.00,TWR-20/TWR-16/TWR-45/TWR-58,1000264,RENT-NOV'26,Presented,"Combined cheque covering 4 buildings at QAR 16,000 each: TWR-20, TWR-16, TWR-45, TWR-58. Cheque Details line 170."
+2026-11-12,Al Adekhar Real Estate Company WLL,48000.00,TWR-17/TWR-19/TWR-37,1000291,RENT-NOV'26,Presented,"Combined cheque covering 3 buildings at QAR 16,000 each: TWR-17, TWR-19, TWR-37. Cheque Details line 171."
+2026-11-12,Al Adekhar Real Estate Company WLL,32000.00,TWR-35/TWR-39,1000323,RENT-NOV'26,Presented,"Combined cheque covering 2 buildings at QAR 16,000 each: TWR-35, TWR-39. Cheque Details line 172."
+2026-11-13,Ali Mubarak Y A Al-Kuwari,14000.00,TV-66,86,RENT-NOV'26,Presented,Cheque Details line 173.
+2026-11-13,Ali Mubarak Y A Al-Kuwari,14000.00,TV-68,111,RENT-NOV'26,Presented,Cheque Details line 174.
+2026-11-15,Ahmed Abdulrahman Ahmadi Al-Shaibi,34000.00,MR-130,1000013,RENT-NOV'26,Presented,Cheque Details line 175.
+2026-11-15,Al Madar Real Estate W.L.L.,18000.00,AK-12,1000063,RENT-NOV'26,Presented,Cheque Details line 176.
+2026-11-15,Sultan Ghanem Sultan Al Ghanem / Shahin Khaled Ghanem Al Ghanem,52000.00,OG-48,1000132,RENT-NOV'26,Presented,Cheque Details line 177.
+2026-11-16,Adel Mohammed Ali Mohammed Al-Mutawa,56000.00,UG-20,1000145,RENT-NOV'26,Presented,Cheque Details line 178.
+2026-11-18,Hassan Bin Hassan Al Jufairy,50000.00,DAJ-21,1000111,RENT-NOV'26,Presented,Cheque Details line 179.
+2026-11-20,Aisha Mahmoud Abdulmohsen Al Mahmoud,20000.00,MT-21,1000356,RENT-NOV'26,Presented,Cheque Details line 180.
+2026-12-08,Jassim Ali A A Shams,15000.00,MQ-56,16,RENT-DEC'26,Presented,Cheque Details line 181.
+2026-12-10,Jamal Jassim Mohsen Al Haddad,39000.00,TV-20,54,RENT-DEC'26,Presented,Cheque Details line 182.
+2026-12-12,Nassir Ali Mohamed Al-Saadi,25000.00,TV-27,44,RENT-DEC'26,Presented,Cheque Details line 183.
+2026-12-12,Mohd Ibrahim A E Al-Naemi,30000.00,UG-169,1000170,RENT-DEC'26,Presented,Cheque Details line 184.
+2026-12-12,Al Adekhar Real Estate Company WLL,16000.00,TWR-12,1000237,RENT-DEC'26,Presented,Cheque Details line 185.
+2026-12-12,Al Adekhar Real Estate Company WLL,64000.00,TWR-20/TWR-16/TWR-45/TWR-58,1000265,RENT-DEC'26,Presented,"Combined cheque covering 4 buildings at QAR 16,000 each: TWR-20, TWR-16, TWR-45, TWR-58. Cheque Details line 186."
+2026-12-12,Al Adekhar Real Estate Company WLL,32000.00,TWR-35/TWR-39,1000324,RENT-DEC'26,Presented,"Combined cheque covering 2 buildings at QAR 16,000 each: TWR-35, TWR-39. Cheque Details line 187."
+2026-12-13,Ali Mubarak Y A Al-Kuwari,14000.00,TV-66,87,RENT-DEC'26,Presented,Cheque Details line 188.
+2026-12-13,Ali Mubarak Y A Al-Kuwari,14000.00,TV-68,112,RENT-DEC'26,Presented,Cheque Details line 189.
+2026-12-15,Ahmed Abdulrahman Ahmadi Al-Shaibi,34000.00,MR-130,1000014,RENT-DEC'26,Presented,Cheque Details line 190.
+2026-12-15,Sultan Ghanem Sultan Al Ghanem / Shahin Khaled Ghanem Al Ghanem,52000.00,OG-48,1000133,RENT-DEC'26,Presented,Cheque Details line 191.
+2026-12-16,Adel Mohammed Ali Mohammed Al-Mutawa,56000.00,UG-20,1000146,RENT-DEC'26,Presented,Cheque Details line 192.
+2026-12-18,Hassan Bin Hassan Al Jufairy,50000.00,DAJ-21,1000112,RENT-DEC'26,Presented,Cheque Details line 193.
+2026-12-20,Aisha Mahmoud Abdulmohsen Al Mahmoud,20000.00,MT-21,1000357,RENT-DEC'26,Presented,Cheque Details line 194.
+2027-01-08,Jassim Ali A A Shams,15000.00,MQ-56,17,RENT-JAN'27,Presented,Cheque Details line 195.
+2027-01-12,Nassir Ali Mohamed Al-Saadi,25000.00,TV-27,45,RENT-JAN'27,Presented,Cheque Details line 196.
+2027-01-12,Mohd Ibrahim A E Al-Naemi,30000.00,UG-169,1000171,RENT-JAN'27,Presented,Cheque Details line 197.
+2027-01-12,Al Adekhar Real Estate Company WLL,16000.00,TWR-12,1000238,RENT-JAN'27,Presented,Cheque Details line 198.
+2027-01-12,Al Adekhar Real Estate Company WLL,64000.00,TWR-20/TWR-16/TWR-45/TWR-58,1000266,RENT-JAN'27,Presented,"Combined cheque covering 4 buildings at QAR 16,000 each: TWR-20, TWR-16, TWR-45, TWR-58. Cheque Details line 199."
+2027-01-12,Al Adekhar Real Estate Company WLL,32000.00,TWR-35/TWR-39,1000325,RENT-JAN'27,Presented,"Combined cheque covering 2 buildings at QAR 16,000 each: TWR-35, TWR-39. Cheque Details line 200."
+2027-01-13,Ali Mubarak Y A Al-Kuwari,14000.00,TV-66,88,RENT-JAN'27,Presented,Cheque Details line 201.
+2027-01-13,Ali Mubarak Y A Al-Kuwari,14000.00,TV-68,113,RENT-JAN'27,Presented,Cheque Details line 202.
+2027-01-15,Ahmed Abdulrahman Ahmadi Al-Shaibi,34000.00,MR-130,1000015,RENT-JAN'27,Presented,Cheque Details line 203.
+2027-01-15,Sultan Ghanem Sultan Al Ghanem / Shahin Khaled Ghanem Al Ghanem,52000.00,OG-48,1000134,RENT-JAN'27,Presented,Cheque Details line 204.
+2027-01-16,Adel Mohammed Ali Mohammed Al-Mutawa,56000.00,UG-20,1000147,RENT-JAN'27,Presented,Cheque Details line 205.
+2027-01-18,Hassan Bin Hassan Al Jufairy,50000.00,DAJ-21,1000113,RENT-JAN'27,Presented,Cheque Details line 206.
+2027-01-20,Aisha Mahmoud Abdulmohsen Al Mahmoud,20000.00,MT-21,1000358,RENT-JAN'27,Presented,Cheque Details line 207.
+2027-02-08,Jassim Ali A A Shams,15000.00,MQ-56,18,RENT-FEB'27,Presented,Cheque Details line 208.
+2027-02-12,Nassir Ali Mohamed Al-Saadi,25000.00,TV-27,46,RENT-FEB'27,Presented,Cheque Details line 209.
+2027-02-12,Mohd Ibrahim A E Al-Naemi,30000.00,UG-169,1000172,RENT-FEB'27,Presented,Cheque Details line 210.
+2027-02-12,Al Adekhar Real Estate Company WLL,16000.00,TWR-12,1000239,RENT-FEB'27,Presented,Cheque Details line 211.
+2027-02-12,Al Adekhar Real Estate Company WLL,64000.00,TWR-20/TWR-16/TWR-45/TWR-58,1000267,RENT-FEB'27,Presented,"Combined cheque covering 4 buildings at QAR 16,000 each: TWR-20, TWR-16, TWR-45, TWR-58. Cheque Details line 212."
+2027-02-12,Al Adekhar Real Estate Company WLL,48000.00,TWR-17/TWR-19/TWR-37,1000292,RENT-FEB'27,Presented,"Combined cheque covering 3 buildings at QAR 16,000 each: TWR-17, TWR-19, TWR-37. Cheque Details line 213."
+2027-02-12,Al Adekhar Real Estate Company WLL,32000.00,TWR-35/TWR-39,1000326,RENT-FEB'27,Presented,"Combined cheque covering 2 buildings at QAR 16,000 each: TWR-35, TWR-39. Cheque Details line 214."
+2027-02-13,Ali Mubarak Y A Al-Kuwari,14000.00,TV-66,89,RENT-FEB'27,Presented,Cheque Details line 215.
+2027-02-13,Ali Mubarak Y A Al-Kuwari,14000.00,TV-68,114,RENT-FEB'27,Presented,Cheque Details line 216.
+2027-02-15,Ahmed Abdulrahman Ahmadi Al-Shaibi,34000.00,MR-130,1000016,RENT-FEB'27,Presented,Cheque Details line 217.
+2027-02-16,Adel Mohammed Ali Mohammed Al-Mutawa,56000.00,UG-20,1000148,RENT-FEB'27,Presented,Cheque Details line 218.
+2027-02-18,Hassan Bin Hassan Al Jufairy,50000.00,DAJ-21,1000114,RENT-FEB'27,Presented,Cheque Details line 219.
+2027-02-20,Aisha Mahmoud Abdulmohsen Al Mahmoud,20000.00,MT-21,1000359,RENT-FEB'27,Presented,Cheque Details line 220.
+2027-03-08,Jassim Ali A A Shams,15000.00,MQ-56,19,RENT-MAR'27,Presented,Cheque Details line 221.
+2027-03-10,Jamal Jassim Mohsen Al Haddad,39000.00,TV-20,55,RENT-MAR'27,Presented,Cheque Details line 222.
+2027-03-12,Nassir Ali Mohamed Al-Saadi,25000.00,TV-27,47,RENT-MAR'27,Presented,Cheque Details line 223.
+2027-03-12,Mohd Ibrahim A E Al-Naemi,30000.00,UG-169,1000173,RENT-MAR'27,Presented,Cheque Details line 224.
+2027-03-12,Al Adekhar Real Estate Company WLL,16000.00,TWR-12,1000240,RENT-MAR'27,Presented,Cheque Details line 225.
+2027-03-12,Al Adekhar Real Estate Company WLL,64000.00,TWR-20/TWR-16/TWR-45/TWR-58,1000268,RENT-MAR'27,Presented,"Combined cheque covering 4 buildings at QAR 16,000 each: TWR-20, TWR-16, TWR-45, TWR-58. Cheque Details line 226."
+2027-03-12,Al Adekhar Real Estate Company WLL,48000.00,TWR-17/TWR-19/TWR-37,1000293,RENT-MAR'27,Presented,"Combined cheque covering 3 buildings at QAR 16,000 each: TWR-17, TWR-19, TWR-37. Cheque Details line 227."
+2027-03-12,Al Adekhar Real Estate Company WLL,32000.00,TWR-35/TWR-39,1000327,RENT-MAR'27,Presented,"Combined cheque covering 2 buildings at QAR 16,000 each: TWR-35, TWR-39. Cheque Details line 228."
+2027-03-13,Ali Mubarak Y A Al-Kuwari,14000.00,TV-66,90,RENT-MAR'27,Presented,Cheque Details line 229.
+2027-03-13,Ali Mubarak Y A Al-Kuwari,14000.00,TV-68,115,RENT-MAR'27,Presented,Cheque Details line 230.
+2027-03-15,Ahmed Abdulrahman Ahmadi Al-Shaibi,34000.00,MR-130,1000017,RENT-MAR'27,Presented,Cheque Details line 231.
+2027-03-16,Adel Mohammed Ali Mohammed Al-Mutawa,56000.00,UG-20,1000149,RENT-MAR'27,Presented,Cheque Details line 232.
+2027-03-18,Hassan Bin Hassan Al Jufairy,50000.00,DAJ-21,1000115,RENT-MAR'27,Presented,Cheque Details line 233.
+2027-03-20,Aisha Mahmoud Abdulmohsen Al Mahmoud,20000.00,MT-21,1000360,RENT-MAR'27,Presented,Cheque Details line 234.
+2027-04-08,Jassim Ali A A Shams,15000.00,MQ-56,20,RENT-APR'27,Presented,Cheque Details line 235.
+2027-04-12,Nassir Ali Mohamed Al-Saadi,25000.00,TV-27,48,RENT-APR'27,Presented,Cheque Details line 236.
+2027-04-12,Mohd Ibrahim A E Al-Naemi,30000.00,UG-169,1000174,RENT-APR'27,Presented,Cheque Details line 237.
+2027-04-12,Al Adekhar Real Estate Company WLL,16000.00,TWR-12,1000241,RENT-APR'27,Presented,Cheque Details line 238.
+2027-04-12,Al Adekhar Real Estate Company WLL,64000.00,TWR-20/TWR-16/TWR-45/TWR-58,1000269,RENT-APR'27,Presented,"Combined cheque covering 4 buildings at QAR 16,000 each: TWR-20, TWR-16, TWR-45, TWR-58. Cheque Details line 239."
+2027-04-12,Al Adekhar Real Estate Company WLL,48000.00,TWR-17/TWR-19/TWR-37,1000294,RENT-APR'27,Presented,"Combined cheque covering 3 buildings at QAR 16,000 each: TWR-17, TWR-19, TWR-37. Cheque Details line 240."
+2027-04-12,Al Adekhar Real Estate Company WLL,32000.00,TWR-35/TWR-39,1000328,RENT-APR'27,Presented,"Combined cheque covering 2 buildings at QAR 16,000 each: TWR-35, TWR-39. Cheque Details line 241."
+2027-04-13,Ali Mubarak Y A Al-Kuwari,14000.00,TV-66,91,RENT-APR'27,Presented,Cheque Details line 242.
+2027-04-13,Ali Mubarak Y A Al-Kuwari,14000.00,TV-68,116,RENT-APR'27,Presented,Cheque Details line 243.
+2027-04-15,Ahmed Abdulrahman Ahmadi Al-Shaibi,34000.00,MR-130,1000018,RENT-APR'27,Presented,Cheque Details line 244.
+2027-04-16,Adel Mohammed Ali Mohammed Al-Mutawa,56000.00,UG-20,1000150,RENT-APR'27,Presented,Cheque Details line 245.
+2027-04-18,Hassan Bin Hassan Al Jufairy,50000.00,DAJ-21,1000116,RENT-APR'27,Presented,Cheque Details line 246.
+2027-04-20,Aisha Mahmoud Abdulmohsen Al Mahmoud,20000.00,MT-21,1000361,RENT-APR'27,Presented,Cheque Details line 247.
+2027-05-08,Jassim Ali A A Shams,15000.00,MQ-56,21,RENT-MAY'27,Presented,Cheque Details line 248.
+2027-05-12,Nassir Ali Mohamed Al-Saadi,25000.00,TV-27,49,RENT-MAY'27,Presented,Cheque Details line 249.
+2027-05-12,Mohd Ibrahim A E Al-Naemi,30000.00,UG-169,1000175,RENT-MAY'27,Presented,Cheque Details line 250.
+2027-05-12,Al Adekhar Real Estate Company WLL,16000.00,TWR-12,1000242,RENT-MAY'27,Presented,Cheque Details line 251.
+2027-05-12,Al Adekhar Real Estate Company WLL,64000.00,TWR-20/TWR-16/TWR-45/TWR-58,1000270,RENT-MAY'27,Presented,"Combined cheque covering 4 buildings at QAR 16,000 each: TWR-20, TWR-16, TWR-45, TWR-58. Cheque Details line 252."
+2027-05-12,Al Adekhar Real Estate Company WLL,48000.00,TWR-17/TWR-19/TWR-37,1000295,RENT-MAY'27,Presented,"Combined cheque covering 3 buildings at QAR 16,000 each: TWR-17, TWR-19, TWR-37. Cheque Details line 253."
+2027-05-12,Al Adekhar Real Estate Company WLL,32000.00,TWR-35/TWR-39,1000329,RENT-MAY'27,Presented,"Combined cheque covering 2 buildings at QAR 16,000 each: TWR-35, TWR-39. Cheque Details line 254."
+2027-05-13,Ali Mubarak Y A Al-Kuwari,14000.00,TV-66,92,RENT-MAY'27,Presented,Cheque Details line 255.
+2027-05-13,Ali Mubarak Y A Al-Kuwari,14000.00,TV-68,117,RENT-MAY'27,Presented,Cheque Details line 256.
+2027-05-15,Ahmed Abdulrahman Ahmadi Al-Shaibi,34000.00,MR-130,1000019,RENT-MAY'27,Presented,Cheque Details line 257.
+2027-05-16,Adel Mohammed Ali Mohammed Al-Mutawa,56000.00,UG-20,1000151,RENT-MAY'27,Presented,Cheque Details line 258.
+2027-05-18,Hassan Bin Hassan Al Jufairy,50000.00,DAJ-21,1000117,RENT-MAY'27,Presented,Cheque Details line 259.
+2027-05-20,Aisha Mahmoud Abdulmohsen Al Mahmoud,20000.00,MT-21,1000362,RENT-MAY'27,Presented,Cheque Details line 260.
+2027-06-08,Jassim Ali A A Shams,15000.00,MQ-56,22,RENT-JUN'27,Presented,Cheque Details line 261.
+2027-06-10,Jamal Jassim Mohsen Al Haddad,39000.00,TV-20,56,RENT-JUN'27,Cleared,Cheque Details line 262.
+2027-06-12,Nassir Ali Mohamed Al-Saadi,25000.00,TV-27,50,RENT-JUN'27,Presented,Cheque Details line 263.
+2027-06-12,Mohd Ibrahim A E Al-Naemi,30000.00,UG-169,1000176,RENT-JUN'27,Presented,Cheque Details line 264.
+2027-06-12,Al Adekhar Real Estate Company WLL,16000.00,TWR-12,1000243,RENT-JUN'27,Presented,Cheque Details line 265.
+2027-06-12,Al Adekhar Real Estate Company WLL,64000.00,TWR-20/TWR-16/TWR-45/TWR-58,1000271,RENT-JUN'27,Presented,"Combined cheque covering 4 buildings at QAR 16,000 each: TWR-20, TWR-16, TWR-45, TWR-58. Cheque Details line 266."
+2027-06-12,Al Adekhar Real Estate Company WLL,48000.00,TWR-17/TWR-19/TWR-37,1000296,RENT-JUN'27,Presented,"Combined cheque covering 3 buildings at QAR 16,000 each: TWR-17, TWR-19, TWR-37. Cheque Details line 267."
+2027-06-12,Al Adekhar Real Estate Company WLL,32000.00,TWR-35/TWR-39,1000330,RENT-JUN'27,Presented,"Combined cheque covering 2 buildings at QAR 16,000 each: TWR-35, TWR-39. Cheque Details line 268."
+2027-06-13,Ali Mubarak Y A Al-Kuwari,14000.00,TV-66,93,RENT-JUN'27,Presented,Cheque Details line 269.
+2027-06-13,Ali Mubarak Y A Al-Kuwari,14000.00,TV-68,118,RENT-JUN'27,Presented,Cheque Details line 270.
+2027-06-15,Ahmed Abdulrahman Ahmadi Al-Shaibi,34000.00,MR-130,1000020,RENT-JUN'27,Presented,Cheque Details line 271.
+2027-06-16,Adel Mohammed Ali Mohammed Al-Mutawa,56000.00,UG-20,1000152,RENT-JUN'27,Presented,Cheque Details line 272.
+2027-06-18,Hassan Bin Hassan Al Jufairy,50000.00,DAJ-21,1000118,RENT-JUN'27,Presented,Cheque Details line 273.
+2027-06-20,Aisha Mahmoud Abdulmohsen Al Mahmoud,20000.00,MT-21,1000363,RENT-JUN'27,Presented,Cheque Details line 274.
+2027-07-08,Jassim Ali A A Shams,15000.00,MQ-56,23,RENT-JUL'27,Presented,Cheque Details line 275.
+2027-07-12,Nassir Ali Mohamed Al-Saadi,25000.00,TV-27,51,RENT-JUL'27,Presented,Cheque Details line 276.
+2027-07-12,Mohd Ibrahim A E Al-Naemi,30000.00,UG-169,1000177,RENT-JUL'27,Presented,Cheque Details line 277.
+2027-07-12,Al Adekhar Real Estate Company WLL,16000.00,TWR-12,1000244,RENT-JUL'27,Presented,Cheque Details line 278.
+2027-07-12,Al Adekhar Real Estate Company WLL,64000.00,TWR-20/TWR-16/TWR-45/TWR-58,1000272,RENT-JUL'27,Presented,"Combined cheque covering 4 buildings at QAR 16,000 each: TWR-20, TWR-16, TWR-45, TWR-58. Cheque Details line 279."
+2027-07-12,Al Adekhar Real Estate Company WLL,48000.00,TWR-17/TWR-19/TWR-37,1000297,RENT-JUL'27,Presented,"Combined cheque covering 3 buildings at QAR 16,000 each: TWR-17, TWR-19, TWR-37. Cheque Details line 280."
+2027-07-12,Al Adekhar Real Estate Company WLL,32000.00,TWR-35/TWR-39,1000331,RENT-JUL'27,Presented,"Combined cheque covering 2 buildings at QAR 16,000 each: TWR-35, TWR-39. Cheque Details line 281."
+2027-07-13,Ali Mubarak Y A Al-Kuwari,14000.00,TV-66,94,RENT-JUL'27,Presented,Cheque Details line 282.
+2027-07-13,Ali Mubarak Y A Al-Kuwari,14000.00,TV-68,119,RENT-JUL'27,Presented,Cheque Details line 283.
+2027-07-15,Ahmed Abdulrahman Ahmadi Al-Shaibi,34000.00,MR-130,1000021,RENT-JUL'27,Presented,Cheque Details line 284.
+2027-07-16,Adel Mohammed Ali Mohammed Al-Mutawa,56000.00,UG-20,1000153,RENT-JUL'27,Presented,Cheque Details line 285.
+2027-07-18,Hassan Bin Hassan Al Jufairy,50000.00,DAJ-21,1000119,RENT-JUL'27,Presented,Cheque Details line 286.
+2027-07-20,Aisha Mahmoud Abdulmohsen Al Mahmoud,20000.00,MT-21,1000364,RENT-JUL'27,Presented,Cheque Details line 287.
+2027-08-08,Jassim Ali A A Shams,15000.00,MQ-56,24,RENT-AUG'27,Presented,Cheque Details line 288.
+2027-08-12,Nassir Ali Mohamed Al-Saadi,25000.00,TV-27,52,RENT-AUG'27,Presented,Cheque Details line 289.
+2027-08-12,Mohd Ibrahim A E Al-Naemi,30000.00,UG-169,1000178,RENT-AUG'27,Presented,Cheque Details line 290.
+2027-08-12,Al Adekhar Real Estate Company WLL,16000.00,TWR-12,1000245,RENT-AUG'27,Presented,Cheque Details line 291.
+2027-08-12,Al Adekhar Real Estate Company WLL,64000.00,TWR-20/TWR-16/TWR-45/TWR-58,1000273,RENT-AUG'27,Presented,"Combined cheque covering 4 buildings at QAR 16,000 each: TWR-20, TWR-16, TWR-45, TWR-58. Cheque Details line 292."
+2027-08-12,Al Adekhar Real Estate Company WLL,48000.00,TWR-17/TWR-19/TWR-37,1000298,RENT-AUG'27,Presented,"Combined cheque covering 3 buildings at QAR 16,000 each: TWR-17, TWR-19, TWR-37. Cheque Details line 293."
+2027-08-12,Al Adekhar Real Estate Company WLL,32000.00,TWR-35/TWR-39,1000332,RENT-AUG'27,Presented,"Combined cheque covering 2 buildings at QAR 16,000 each: TWR-35, TWR-39. Cheque Details line 294."
+2027-08-13,Ali Mubarak Y A Al-Kuwari,14000.00,TV-66,95,RENT-AUG'27,Presented,Cheque Details line 295.
+2027-08-13,Ali Mubarak Y A Al-Kuwari,14000.00,TV-68,120,RENT-AUG'27,Presented,Cheque Details line 296.
+2027-08-15,Ahmed Abdulrahman Ahmadi Al-Shaibi,34000.00,MR-130,1000022,RENT-AUG'27,Presented,Cheque Details line 297.
+2027-08-16,Adel Mohammed Ali Mohammed Al-Mutawa,56000.00,UG-20,1000154,RENT-AUG'27,Presented,Cheque Details line 298.
+2027-08-18,Hassan Bin Hassan Al Jufairy,50000.00,DAJ-21,1000120,RENT-AUG'27,Presented,Cheque Details line 299.
+2027-08-20,Aisha Mahmoud Abdulmohsen Al Mahmoud,20000.00,MT-21,1000365,RENT-AUG'27,Presented,Cheque Details line 300.
+2027-09-08,Jassim Ali A A Shams,15000.00,MQ-56,25,RENT-SEP'27,Presented,Cheque Details line 301.
+2027-09-12,Nassir Ali Mohamed Al-Saadi,25000.00,TV-27,53,RENT-SEP'27,Presented,Cheque Details line 302.
+2027-09-12,Mohd Ibrahim A E Al-Naemi,30000.00,UG-169,1000179,RENT-SEP'27,Presented,Cheque Details line 303.
+2027-09-12,Al Adekhar Real Estate Company WLL,16000.00,TWR-12,1000246,RENT-SEP'27,Presented,Cheque Details line 304.
+2027-09-12,Al Adekhar Real Estate Company WLL,64000.00,TWR-20/TWR-16/TWR-45/TWR-58,1000274,RENT-SEP'27,Presented,"Combined cheque covering 4 buildings at QAR 16,000 each: TWR-20, TWR-16, TWR-45, TWR-58. Cheque Details line 305."
+2027-09-12,Al Adekhar Real Estate Company WLL,48000.00,TWR-17/TWR-19/TWR-37,1000299,RENT-SEP'27,Presented,"Combined cheque covering 3 buildings at QAR 16,000 each: TWR-17, TWR-19, TWR-37. Cheque Details line 306."
+2027-09-12,Al Adekhar Real Estate Company WLL,32000.00,TWR-35/TWR-39,1000333,RENT-SEP'27,Presented,"Combined cheque covering 2 buildings at QAR 16,000 each: TWR-35, TWR-39. Cheque Details line 307."
+2027-09-13,Ali Mubarak Y A Al-Kuwari,14000.00,TV-66,96,RENT-SEP'27,Presented,Cheque Details line 308.
+2027-09-13,Ali Mubarak Y A Al-Kuwari,14000.00,TV-68,121,RENT-SEP'27,Presented,Cheque Details line 309.
+2027-09-15,Ahmed Abdulrahman Ahmadi Al-Shaibi,34000.00,MR-130,1000023,RENT-SEP'27,Presented,Cheque Details line 310.
+2027-09-16,Adel Mohammed Ali Mohammed Al-Mutawa,56000.00,UG-20,1000155,RENT-SEP'27,Presented,Cheque Details line 311.
+2027-09-18,Hassan Bin Hassan Al Jufairy,50000.00,DAJ-21,1000121,RENT-SEP'27,Presented,Cheque Details line 312.
+2027-09-20,Aisha Mahmoud Abdulmohsen Al Mahmoud,20000.00,MT-21,1000366,RENT-SEP'27,Presented,Cheque Details line 313.
+2027-10-08,Jassim Ali A A Shams,15000.00,MQ-56,26,RENT-OCT'27,Presented,Cheque Details line 314.
+2027-10-12,Nassir Ali Mohamed Al-Saadi,25000.00,TV-27,54,RENT-OCT'27,Presented,Cheque Details line 315.
+2027-10-12,Mohd Ibrahim A E Al-Naemi,30000.00,UG-169,1000180,RENT-OCT'27,Presented,Cheque Details line 316.
+2027-10-12,Al Adekhar Real Estate Company WLL,16000.00,TWR-12,1000247,RENT-OCT'27,Presented,Cheque Details line 317.
+2027-10-12,Al Adekhar Real Estate Company WLL,64000.00,TWR-20/TWR-16/TWR-45/TWR-58,1000275,RENT-OCT'27,Presented,"Combined cheque covering 4 buildings at QAR 16,000 each: TWR-20, TWR-16, TWR-45, TWR-58. Cheque Details line 318."
+2027-10-12,Al Adekhar Real Estate Company WLL,48000.00,TWR-17/TWR-19/TWR-37,1000300,RENT-OCT'27,Presented,"Combined cheque covering 3 buildings at QAR 16,000 each: TWR-17, TWR-19, TWR-37. Cheque Details line 319."
+2027-10-12,Al Adekhar Real Estate Company WLL,32000.00,TWR-35/TWR-39,1000334,RENT-OCT'27,Presented,"Combined cheque covering 2 buildings at QAR 16,000 each: TWR-35, TWR-39. Cheque Details line 320."
+2027-10-15,Ahmed Abdulrahman Ahmadi Al-Shaibi,34000.00,MR-130,1000024,RENT-OCT'27,Presented,Cheque Details line 321.
+2027-10-16,Adel Mohammed Ali Mohammed Al-Mutawa,56000.00,UG-20,1000156,RENT-OCT'27,Presented,Cheque Details line 322.
+2027-10-20,Aisha Mahmoud Abdulmohsen Al Mahmoud,20000.00,MT-21,1000367,RENT-OCT'27,Presented,Cheque Details line 323.
+2027-11-08,Jassim Ali A A Shams,15000.00,MQ-56,27,RENT-NOV'27,Presented,Cheque Details line 324.
+2027-11-12,Nassir Ali Mohamed Al-Saadi,25000.00,TV-27,55,RENT-NOV'27,Presented,Cheque Details line 325.
+2027-11-12,Mohd Ibrahim A E Al-Naemi,30000.00,UG-169,1000181,RENT-NOV'27,Presented,Cheque Details line 326.
+2027-11-12,Al Adekhar Real Estate Company WLL,16000.00,TWR-12,1000248,RENT-NOV'27,Presented,Cheque Details line 327.
+2027-11-12,Al Adekhar Real Estate Company WLL,64000.00,TWR-20/TWR-16/TWR-45/TWR-58,1000276,RENT-NOV'27,Presented,"Combined cheque covering 4 buildings at QAR 16,000 each: TWR-20, TWR-16, TWR-45, TWR-58. Cheque Details line 328."
+2027-11-12,Al Adekhar Real Estate Company WLL,48000.00,TWR-17/TWR-19/TWR-37,1000301,RENT-NOV'27,Presented,"Combined cheque covering 3 buildings at QAR 16,000 each: TWR-17, TWR-19, TWR-37. Cheque Details line 329."
+2027-11-12,Al Adekhar Real Estate Company WLL,32000.00,TWR-35/TWR-39,1000335,RENT-NOV'27,Presented,"Combined cheque covering 2 buildings at QAR 16,000 each: TWR-35, TWR-39. Cheque Details line 330."
+2027-11-15,Ahmed Abdulrahman Ahmadi Al-Shaibi,34000.00,MR-130,1000025,RENT-NOV'27,Presented,Cheque Details line 331.
+2027-11-16,Adel Mohammed Ali Mohammed Al-Mutawa,56000.00,UG-20,1000157,RENT-NOV'27,Presented,Cheque Details line 332.
+2027-11-20,Aisha Mahmoud Abdulmohsen Al Mahmoud,20000.00,MT-21,1000368,RENT-NOV'27,Presented,Cheque Details line 333.
+2027-12-08,Jassim Ali A A Shams,15000.00,MQ-56,28,RENT-DEC'27,Presented,Cheque Details line 334.
+2027-12-12,Nassir Ali Mohamed Al-Saadi,25000.00,TV-27,56,RENT-DEC'27,Presented,Cheque Details line 335.
+2027-12-12,Mohd Ibrahim A E Al-Naemi,30000.00,UG-169,1000182,RENT-DEC'27,Presented,Cheque Details line 336.
+2027-12-12,Al Adekhar Real Estate Company WLL,16000.00,TWR-12,1000249,RENT-DEC'27,Presented,Cheque Details line 337.
+2027-12-12,Al Adekhar Real Estate Company WLL,64000.00,TWR-20/TWR-16/TWR-45/TWR-58,1000277,RENT-DEC'27,Presented,"Combined cheque covering 4 buildings at QAR 16,000 each: TWR-20, TWR-16, TWR-45, TWR-58. Cheque Details line 338."
+2027-12-12,Al Adekhar Real Estate Company WLL,48000.00,TWR-17/TWR-19/TWR-37,1000302,RENT-DEC'27,Presented,"Combined cheque covering 3 buildings at QAR 16,000 each: TWR-17, TWR-19, TWR-37. Cheque Details line 339."
+2027-12-12,Al Adekhar Real Estate Company WLL,32000.00,TWR-35/TWR-39,1000336,RENT-DEC'27,Presented,"Combined cheque covering 2 buildings at QAR 16,000 each: TWR-35, TWR-39. Cheque Details line 340."
+2027-12-15,Ahmed Abdulrahman Ahmadi Al-Shaibi,34000.00,MR-130,1000026,RENT-DEC'27,Presented,Cheque Details line 341.
+2027-12-16,Adel Mohammed Ali Mohammed Al-Mutawa,56000.00,UG-20,1000158,RENT-DEC'27,Presented,Cheque Details line 342.
+2027-12-20,Aisha Mahmoud Abdulmohsen Al Mahmoud,20000.00,MT-21,1000369,RENT-DEC'27,Presented,Cheque Details line 343.
+2028-01-08,Jassim Ali A A Shams,15000.00,MQ-56,29,RENT-JAN'28,Presented,Cheque Details line 344.
+2028-01-12,Nassir Ali Mohamed Al-Saadi,25000.00,TV-27,57,RENT-JAN'28,Presented,Cheque Details line 345.
+2028-01-12,Mohd Ibrahim A E Al-Naemi,30000.00,UG-169,1000183,RENT-JAN'28,Presented,Cheque Details line 346.
+2028-01-12,Al Adekhar Real Estate Company WLL,16000.00,TWR-12,1000250,RENT-JAN'28,Presented,Cheque Details line 347.
+2028-01-12,Al Adekhar Real Estate Company WLL,64000.00,TWR-20/TWR-16/TWR-45/TWR-58,1000278,RENT-JAN'28,Presented,"Combined cheque covering 4 buildings at QAR 16,000 each: TWR-20, TWR-16, TWR-45, TWR-58. Cheque Details line 348."
+2028-01-12,Al Adekhar Real Estate Company WLL,48000.00,TWR-17/TWR-19/TWR-37,1000303,RENT-JAN'28,Presented,"Combined cheque covering 3 buildings at QAR 16,000 each: TWR-17, TWR-19, TWR-37. Cheque Details line 349."
+2028-01-12,Al Adekhar Real Estate Company WLL,32000.00,TWR-35/TWR-39,1000337,RENT-JAN'28,Presented,"Combined cheque covering 2 buildings at QAR 16,000 each: TWR-35, TWR-39. Cheque Details line 350."
+2028-01-15,Ahmed Abdulrahman Ahmadi Al-Shaibi,34000.00,MR-130,1000027,RENT-JAN'28,Presented,Cheque Details line 351.
+2028-01-16,Adel Mohammed Ali Mohammed Al-Mutawa,56000.00,UG-20,1000159,RENT-JAN'28,Presented,Cheque Details line 352.
+2028-01-20,Aisha Mahmoud Abdulmohsen Al Mahmoud,20000.00,MT-21,1000370,RENT-JAN'28,Presented,Cheque Details line 353.
+2028-02-08,Jassim Ali A A Shams,15000.00,MQ-56,30,RENT-FEB'28,Presented,Cheque Details line 354.
+2028-02-12,Nassir Ali Mohamed Al-Saadi,25000.00,TV-27,58,RENT-FEB'28,Presented,Cheque Details line 355.
+2028-02-12,Mohd Ibrahim A E Al-Naemi,30000.00,UG-169,1000184,RENT-FEB'28,Presented,Cheque Details line 356.
+2028-02-12,Al Adekhar Real Estate Company WLL,16000.00,TWR-12,1000251,RENT-FEB'28,Presented,Cheque Details line 357.
+2028-02-12,Al Adekhar Real Estate Company WLL,64000.00,TWR-20/TWR-16/TWR-45/TWR-58,1000279,RENT-FEB'28,Presented,"Combined cheque covering 4 buildings at QAR 16,000 each: TWR-20, TWR-16, TWR-45, TWR-58. Cheque Details line 358."
+2028-02-12,Al Adekhar Real Estate Company WLL,48000.00,TWR-17/TWR-19/TWR-37,1000304,RENT-FEB'28,Presented,"Combined cheque covering 3 buildings at QAR 16,000 each: TWR-17, TWR-19, TWR-37. Cheque Details line 359."
+2028-02-12,Al Adekhar Real Estate Company WLL,32000.00,TWR-35/TWR-39,1000338,RENT-FEB'28,Presented,"Combined cheque covering 2 buildings at QAR 16,000 each: TWR-35, TWR-39. Cheque Details line 360."
+2028-02-15,Ahmed Abdulrahman Ahmadi Al-Shaibi,34000.00,MR-130,1000028,RENT-FEB'28,Presented,Cheque Details line 361.
+2028-02-20,Aisha Mahmoud Abdulmohsen Al Mahmoud,20000.00,MT-21,1000371,RENT-FEB'28,Presented,Cheque Details line 362.
+2028-03-08,Jassim Ali A A Shams,15000.00,MQ-56,31,RENT-MAR'28,Presented,Cheque Details line 363.
+2028-03-12,Mohd Ibrahim A E Al-Naemi,30000.00,UG-169,1000185,RENT-MAR'28,Presented,Cheque Details line 364.
+2028-03-12,Al Adekhar Real Estate Company WLL,16000.00,TWR-12,1000252,RENT-MAR'28,Presented,Cheque Details line 365.
+2028-03-12,Al Adekhar Real Estate Company WLL,64000.00,TWR-20/TWR-16/TWR-45/TWR-58,1000280,RENT-MAR'28,Presented,"Combined cheque covering 4 buildings at QAR 16,000 each: TWR-20, TWR-16, TWR-45, TWR-58. Cheque Details line 366."
+2028-03-12,Al Adekhar Real Estate Company WLL,48000.00,TWR-17/TWR-19/TWR-37,1000305,RENT-MAR'28,Presented,"Combined cheque covering 3 buildings at QAR 16,000 each: TWR-17, TWR-19, TWR-37. Cheque Details line 367."
+2028-03-12,Al Adekhar Real Estate Company WLL,32000.00,TWR-35/TWR-39,1000339,RENT-MAR'28,Presented,"Combined cheque covering 2 buildings at QAR 16,000 each: TWR-35, TWR-39. Cheque Details line 368."
+2028-03-15,Ahmed Abdulrahman Ahmadi Al-Shaibi,34000.00,MR-130,1000029,RENT-MAR'28,Presented,Cheque Details line 369.
+2028-03-20,Aisha Mahmoud Abdulmohsen Al Mahmoud,20000.00,MT-21,1000372,RENT-MAR'28,Presented,Cheque Details line 370.
+2028-04-12,Mohd Ibrahim A E Al-Naemi,30000.00,UG-169,1000186,RENT-APR'28,Presented,Cheque Details line 371.
+2028-04-12,Al Adekhar Real Estate Company WLL,16000.00,TWR-12,1000253,RENT-APR'28,Presented,Cheque Details line 372.
+2028-04-12,Al Adekhar Real Estate Company WLL,64000.00,TWR-20/TWR-16/TWR-45/TWR-58,1000281,RENT-APR'28,Presented,"Combined cheque covering 4 buildings at QAR 16,000 each: TWR-20, TWR-16, TWR-45, TWR-58. Cheque Details line 373."
+2028-04-12,Al Adekhar Real Estate Company WLL,48000.00,TWR-17/TWR-19/TWR-37,1000306,RENT-APR'28,Presented,"Combined cheque covering 3 buildings at QAR 16,000 each: TWR-17, TWR-19, TWR-37. Cheque Details line 374."
+2028-04-12,Al Adekhar Real Estate Company WLL,32000.00,TWR-35/TWR-39,1000340,RENT-APR'28,Presented,"Combined cheque covering 2 buildings at QAR 16,000 each: TWR-35, TWR-39. Cheque Details line 375."
+2028-04-15,Ahmed Abdulrahman Ahmadi Al-Shaibi,34000.00,MR-130,1000030,RENT-APR'28,Presented,Cheque Details line 376.
+2028-05-12,Mohd Ibrahim A E Al-Naemi,30000.00,UG-169,1000187,RENT-MAY'28,Presented,Cheque Details line 377.
+2028-05-12,Al Adekhar Real Estate Company WLL,16000.00,TWR-12,1000254,RENT-MAY'28,Presented,Cheque Details line 378.
+2028-05-12,Al Adekhar Real Estate Company WLL,48000.00,TWR-17/TWR-19/TWR-37,1000307,RENT-MAY'28,Presented,"Combined cheque covering 3 buildings at QAR 16,000 each: TWR-17, TWR-19, TWR-37. Cheque Details line 379."
+2028-05-12,Al Adekhar Real Estate Company WLL,32000.00,TWR-35/TWR-39,1000341,RENT-MAY'28,Presented,"Combined cheque covering 2 buildings at QAR 16,000 each: TWR-35, TWR-39. Cheque Details line 380."
+2028-05-15,Ahmed Abdulrahman Ahmadi Al-Shaibi,34000.00,MR-130,1000031,RENT-MAY'28,Presented,Cheque Details line 381.
+2028-06-12,Mohd Ibrahim A E Al-Naemi,30000.00,UG-169,1000188,RENT-JUN'28,Presented,Cheque Details line 382.
+2028-06-12,Al Adekhar Real Estate Company WLL,16000.00,TWR-12,1000255,RENT-JUN'28,Presented,Cheque Details line 383.
+2028-06-12,Al Adekhar Real Estate Company WLL,48000.00,TWR-17/TWR-19/TWR-37,1000308,RENT-JUN'28,Presented,"Combined cheque covering 3 buildings at QAR 16,000 each: TWR-17, TWR-19, TWR-37. Cheque Details line 384."
+2028-06-12,Al Adekhar Real Estate Company WLL,32000.00,TWR-35/TWR-39,1000342,RENT-JUN'28,Presented,"Combined cheque covering 2 buildings at QAR 16,000 each: TWR-35, TWR-39. Cheque Details line 385."
+2028-06-15,Ahmed Abdulrahman Ahmadi Al-Shaibi,34000.00,MR-130,1000032,RENT-JUN'28,Presented,Cheque Details line 386.
+2028-07-12,Mohd Ibrahim A E Al-Naemi,30000.00,UG-169,1000189,RENT-JUL'28,Presented,Cheque Details line 387.
+2028-07-12,Al Adekhar Real Estate Company WLL,16000.00,TWR-12,1000256,RENT-JUL'28,Presented,Cheque Details line 388.
+2028-07-12,Al Adekhar Real Estate Company WLL,48000.00,TWR-17/TWR-19/TWR-37,1000309,RENT-JUL'28,Presented,"Combined cheque covering 3 buildings at QAR 16,000 each: TWR-17, TWR-19, TWR-37. Cheque Details line 389."
+2028-07-12,Al Adekhar Real Estate Company WLL,32000.00,TWR-35/TWR-39,1000343,RENT-JUL'28,Presented,"Combined cheque covering 2 buildings at QAR 16,000 each: TWR-35, TWR-39. Cheque Details line 390."
+2028-07-15,Ahmed Abdulrahman Ahmadi Al-Shaibi,34000.00,MR-130,1000033,RENT-JUL'28,Presented,Cheque Details line 391.
+2028-08-12,Mohd Ibrahim A E Al-Naemi,30000.00,UG-169,1000190,RENT-AUG'28,Presented,Cheque Details line 392.
+2028-08-12,Al Adekhar Real Estate Company WLL,48000.00,TWR-17/TWR-19/TWR-37,1000310,RENT-AUG'28,Presented,"Combined cheque covering 3 buildings at QAR 16,000 each: TWR-17, TWR-19, TWR-37. Cheque Details line 393."
+2028-08-12,Al Adekhar Real Estate Company WLL,32000.00,TWR-35/TWR-39,1000344,RENT-AUG'28,Presented,"Combined cheque covering 2 buildings at QAR 16,000 each: TWR-35, TWR-39. Cheque Details line 394."
+2028-08-15,Ahmed Abdulrahman Ahmadi Al-Shaibi,34000.00,MR-130,1000034,RENT-AUG'28,Presented,Cheque Details line 395.
+2028-09-12,Mohd Ibrahim A E Al-Naemi,30000.00,UG-169,1000191,RENT-SEP'28,Presented,Cheque Details line 396.
+2028-09-12,Al Adekhar Real Estate Company WLL,48000.00,TWR-17/TWR-19/TWR-37,1000311,RENT-SEP'28,Presented,"Combined cheque covering 3 buildings at QAR 16,000 each: TWR-17, TWR-19, TWR-37. Cheque Details line 397."
+2028-09-12,Al Adekhar Real Estate Company WLL,32000.00,TWR-35/TWR-39,1000345,RENT-SEP'28,Presented,"Combined cheque covering 2 buildings at QAR 16,000 each: TWR-35, TWR-39. Cheque Details line 398."
+2028-09-15,Ahmed Abdulrahman Ahmadi Al-Shaibi,34000.00,MR-130,1000035,RENT-SEP'28,Presented,Cheque Details line 399.
+2028-10-12,Mohd Ibrahim A E Al-Naemi,30000.00,UG-169,1000192,RENT-OCT'28,Presented,Cheque Details line 400.
+2028-10-12,Al Adekhar Real Estate Company WLL,48000.00,TWR-17/TWR-19/TWR-37,1000312,RENT-OCT'28,Presented,"Combined cheque covering 3 buildings at QAR 16,000 each: TWR-17, TWR-19, TWR-37. Cheque Details line 401."
+2028-10-15,Ahmed Abdulrahman Ahmadi Al-Shaibi,34000.00,MR-130,1000036,RENT-OCT'28,Presented,Cheque Details line 402.
+2028-11-12,Mohd Ibrahim A E Al-Naemi,30000.00,UG-169,1000193,RENT-NOV'28,Presented,Cheque Details line 403.
+2028-11-12,Al Adekhar Real Estate Company WLL,48000.00,TWR-17/TWR-19/TWR-37,1000313,RENT-NOV'28,Presented,"Combined cheque covering 3 buildings at QAR 16,000 each: TWR-17, TWR-19, TWR-37. Cheque Details line 404."
+2028-12-12,Mohd Ibrahim A E Al-Naemi,30000.00,UG-169,1000194,RENT-DEC'28,Presented,Cheque Details line 405.
+2028-12-12,Al Adekhar Real Estate Company WLL,48000.00,TWR-17/TWR-19/TWR-37,1000314,RENT-DEC'28,Presented,"Combined cheque covering 3 buildings at QAR 16,000 each: TWR-17, TWR-19, TWR-37. Cheque Details line 406."
+2029-01-12,Al Adekhar Real Estate Company WLL,48000.00,TWR-17/TWR-19/TWR-37,1000315,RENT-JAN'29,Presented,"Combined cheque covering 3 buildings at QAR 16,000 each: TWR-17, TWR-19, TWR-37. Cheque Details line 407."
