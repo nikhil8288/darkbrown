@@ -2,7 +2,13 @@
 name = "darkbrown"
 version = "2.0.1"
 description = "DarkBrown Real Estate — V2 property management platform"
-requires-python = ">=3.10"
+# Upper bound is deliberate and is not about the code. Frappe Cloud resolves
+# the interpreter for its release syntax check from this line: if the spec
+# matches 3.14.0 it runs `python3.14 -m compileall` over the whole repo, and
+# on a bench that has no 3.14 that check fails the release before the build
+# starts - "Run Validations - Pre-build", 0s, no output. Capping below 3.14
+# sends it back to the bench interpreter. Raise the cap when the bench moves.
+requires-python = ">=3.10,<3.14"
 # PyMuPDF is only the fallback rasteriser for PDFs the API will not take
 # whole. Document intake works without it; it is declared so a bench that
 # does need it has it.
