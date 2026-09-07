@@ -269,6 +269,25 @@ def _sequence(live):
     return True
 
 
+#: Every voucher this pack writes carries one of these. Sales and purchase
+#: invoices carry it in `remarks`, journals in `user_remark`.
+#:
+#: The guard below used to look only for the AK-12 pilot tags. When the
+#: orchestrator was rewired to the portfolio loaders the tags changed and this
+#: list did not, so a site holding nothing but this pack's own vouchers read as
+#: dirty and "Load for real" refused - silently, because it returns its reason
+#: rather than printing it, and the screen showed only "Done." The pilot tags
+#: stay recognised so a site loaded from the old pack is still read correctly.
+OWN_SI_TAGS = ("[DB-HIST-INV-", "[AK12-HIST-INV-")
+OWN_PI_TAGS = ("[DB-HL-INV-", "[AK12-HL-INV-")
+OWN_JE_TAGS = ("[DBR-OPEX-",)
+
+
+def _own(text, tags):
+    text = text or ""
+    return any(t in text for t in tags)
+
+
 def _ledger_state():
     """What is on the GL, and whether it is safe to load onto.
 
@@ -288,13 +307,16 @@ def _ledger_state():
                             fields=["remarks", "is_opening"], limit=5000):
         if (d.is_opening or "") == "Yes":
             opening += 1
-        elif "[AK12-HIST-INV-" not in (d.remarks or ""):
+        elif not _own(d.remarks, OWN_SI_TAGS):
             untagged_si += 1
     untagged_pi = sum(
         1 for d in frappe.get_all("Purchase Invoice", filters={"docstatus": 1},
                                   fields=["remarks"], limit=5000)
-        if "[AK12-HL-INV-" not in (d.remarks or ""))
-    journals = frappe.db.count("Journal Entry", {"docstatus": 1})
+        if not _own(d.remarks, OWN_PI_TAGS))
+    journals = sum(
+        1 for d in frappe.get_all("Journal Entry", filters={"docstatus": 1},
+                                  fields=["user_remark"], limit=5000)
+        if not _own(d.user_remark, OWN_JE_TAGS))
 
     foreign = opening + untagged_si + untagged_pi + journals
     return {"gl_rows": live, "opening_invoices": opening,
