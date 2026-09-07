@@ -266,6 +266,38 @@ def _sequence(live):
     return True
 
 
+def _pack_tags():
+    """The remark tags this pack's loaders actually write.
+
+    These were hardcoded as AK12-*, which was correct for the pilot and wrong
+    from the moment steps 5 and 6 were rewired to the portfolio loaders: those
+    write DB-HIST-INV and DB-HL-INV. Every invoice the pack had just created
+    therefore counted as foreign, `clean` went false, and `run_load` refused to
+    run again - which is precisely the re-run after a partial load that the
+    sequencer promises is safe.
+
+    Read the tags off the loaders so they cannot drift apart again, and keep
+    the pilot tags accepted so a site still carrying AK-12 rows is not
+    condemned by them. If a loader is not on the server the literal is used,
+    so this answers correctly either way.
+    """
+    sales, purchase = ["AK12-HIST-INV"], ["AK12-HL-INV"]
+    for dotted, fallback, bucket in (
+            ("darkbrown.patches.load_portfolio_history", "DB-HIST-INV", sales),
+            ("darkbrown.patches.load_portfolio_headlease", "DB-HL-INV",
+             purchase)):
+        try:
+            bucket.append(getattr(frappe.get_module(dotted), "INV_TAG",
+                                  fallback))
+        except Exception:
+            bucket.append(fallback)
+    return sales, purchase
+
+
+def _tagged(remarks, tags):
+    return any("[%s-" % t in (remarks or "") for t in tags)
+
+
 def _ledger_state():
     """What is on the GL, and whether it is safe to load onto.
 
@@ -279,18 +311,19 @@ def _ledger_state():
     past it and leave its amount on the statements.
     """
     live = frappe.db.count("GL Entry", {"is_cancelled": 0})
+    si_tags, pi_tags = _pack_tags()
 
     opening = untagged_si = 0
     for d in frappe.get_all("Sales Invoice", filters={"docstatus": 1},
                             fields=["remarks", "is_opening"], limit=5000):
         if (d.is_opening or "") == "Yes":
             opening += 1
-        elif "[AK12-HIST-INV-" not in (d.remarks or ""):
+        elif not _tagged(d.remarks, si_tags):
             untagged_si += 1
     untagged_pi = sum(
         1 for d in frappe.get_all("Purchase Invoice", filters={"docstatus": 1},
                                   fields=["remarks"], limit=5000)
-        if "[AK12-HL-INV-" not in (d.remarks or ""))
+        if not _tagged(d.remarks, pi_tags))
     journals = frappe.db.count("Journal Entry", {"docstatus": 1})
 
     foreign = opening + untagged_si + untagged_pi + journals

@@ -193,6 +193,28 @@ def _heal():
     return done
 
 
+#: A preflight entry is (severity, what, why).
+#:
+#: The severity is the whole point of the list and it was missing, so the gate
+#: below could only ask whether the list was empty. It never was: the
+#: perpetual-inventory entry describes itself, in its own text, as a warning
+#: rather than a blocker, and the line this loader builds uses a service item
+#: (`_ledger_common.item` sets is_stock_item = 0), so no warehouse is ever
+#: required. Step 6 therefore aborted every time on a site with nothing wrong
+#: with it, and the cost side of the P&L never loaded.
+BLOCKER = "blocker"
+WARNING = "warning"
+
+
+def _blockers(pre):
+    """The entries that actually stop an insert. Everything else is printed."""
+    return [e for e in pre if e[0] == BLOCKER]
+
+
+def _warnings(pre):
+    return [e for e in pre if e[0] != BLOCKER]
+
+
 def _preflight():
     """Everything a Purchase Invoice insert needs, checked before one is built.
 
@@ -205,26 +227,32 @@ def _preflight():
     out = []
     company = L.company()
     if not company:
-        return [("company", "DBR Settings has no default_company")]
+        return [(BLOCKER, "company", "DBR Settings has no default_company")]
 
-
-
+    # Every building on the sheet, not only the first one. `_head_lease`
+    # throws and `run` commits as it goes, so a head lease missing on the
+    # seventh building surfaced as a traceback with six already posted -
+    # which is the failure this function exists to get in front of. Checking
+    # one building said nothing about the other 22.
+    seen = set()
     for r in _rows():
-        if not frappe.db.exists("Building", r["building"]):
+        building = r["building"]
+        if building in seen or not frappe.db.exists("Building", building):
             continue
-        hl = frappe.get_all("Head Lease", filters={"building": r["building"]},
+        seen.add(building)
+        hl = frappe.get_all("Head Lease", filters={"building": building},
                             fields=["name", "landlord"], limit=1)
         if not hl:
-            out.append(("head lease", "%s has none" % r["building"]))
+            out.append((BLOCKER, "head lease", "%s has none" % building))
         elif not hl[0].landlord:
-            out.append(("head lease", "%s has no landlord" % hl[0].name))
+            out.append((BLOCKER, "head lease",
+                        "%s has no landlord" % hl[0].name))
         elif not frappe.db.exists("Supplier", hl[0].landlord):
-            out.append(("landlord", "Supplier %r does not exist"
+            out.append((BLOCKER, "landlord", "Supplier %r does not exist"
                         % hl[0].landlord))
-        break
 
     if frappe.db.get_value("Company", company, "enable_perpetual_inventory"):
-        out.append(("perpetual inventory",
+        out.append((WARNING, "perpetual inventory",
                     "enabled on %s - a stock item on the invoice would need a "
                     "warehouse. The line uses a service item, so this is a "
                     "warning rather than a blocker." % company))
@@ -262,17 +290,22 @@ def dry_run():
     paid = sum(flt(r["paid_amount"]) for r in rows if (r.get("paid_on") or "").strip())
     assumed = sum(1 for r in rows if "ASSUMED" in (r.get("remarks") or ""))
     pre = _preflight()
+    blockers, warnings = _blockers(pre), _warnings(pre)
     print("=" * 76)
     print("DRY RUN - nothing created (healing is deferred to run)")
     print("=" * 76)
     print("  rows %d | PROBLEMS %d | invoices on site %d | payments on site %d"
           % (len(rows), len(problems), len(inv_seen), len(pay_seen)))
-    if pre:
+    if blockers:
         print("\n  PREFLIGHT - these will stop the insert:")
-        for what, why in pre:
+        for _sev, what, why in blockers:
             print("    %-20s %s" % (what, why))
     else:
         print("  preflight: everything the insert needs is present")
+    if warnings:
+        print("\n  PREFLIGHT - noted, does NOT stop the load:")
+        for _sev, what, why in warnings:
+            print("    %-20s %s" % (what, why))
     for r in rows:
         print("  %-6s %s  accrue %10.2f on %s   pay %10.2f on %s  %s"
               % (r["building"], r["period"][:7], flt(r["amount"]),
@@ -293,7 +326,8 @@ def dry_run():
     for i, why in problems:
         print("  L%-4d %s" % (i + 2, why))
     return {"rows": len(rows), "problems": len(problems), "accrued": accrued,
-            "paid": paid, "ok": ok and not pre, "preflight": pre}
+            "paid": paid, "ok": ok and not blockers, "preflight": pre,
+            "blockers": len(blockers), "warnings": len(warnings)}
 
 
 def run():
@@ -301,7 +335,10 @@ def run():
     problems, accrued, ok = _checks(rows)
     _heal()
     pre = _preflight()
-    if problems or not ok or pre:
+    # Blockers only. `pre` is never empty on a company with perpetual
+    # inventory switched on, and testing the list rather than its severities
+    # is what stopped step 6 on a site that had nothing wrong with it.
+    if problems or not ok or _blockers(pre):
         print("ABORTING: dry_run is not clean. Nothing was created.")
         dry_run()
         return {"invoices": 0, "payments": 0, "aborted": True}
