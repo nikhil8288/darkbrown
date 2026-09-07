@@ -132,6 +132,31 @@ def template():
 
 # ---------------------------------------------------------------- matching
 
+def _notice_days(value, default):
+    """Notice is free text in the tenancy master as often as it is a number.
+
+    The master carries "2 months before expiry" on half the book and a blank
+    on the rest, and the field on the doctype is an Int. Coercing the string
+    straight to int stopped the whole load on the first row. A month is read
+    as 30 days and a week as 7; anything with no number in it falls back to
+    the site default rather than guessing.
+    """
+    s = str(value or "").strip()
+    if not s:
+        return int(default)
+    if s.replace(".", "", 1).isdigit():
+        return int(float(s))
+    found = re.search(r"\d+", s)
+    if not found:
+        return int(default)
+    n = int(found.group())
+    if re.search(r"month", s, re.I):
+        return n * 30
+    if re.search(r"week", s, re.I):
+        return n * 7
+    return n
+
+
 def _norm(s):
     s = (s or "").upper().replace("\xa0", " ")
     s = re.sub(r"[^A-Z0-9 ]", " ", s)
@@ -449,7 +474,7 @@ def run():
             "status": rec["status"],
             "start_date": rec["start"],
             "end_date": rec["end"],
-            "notice_days": int(r.get("notice_days") or default_notice),
+            "notice_days": _notice_days(r.get("notice_days"), default_notice),
             "auto_renew": 1 if str(r.get("auto_renew") or "").strip() in
                           ("1", "yes", "Yes", "true", "True") else 0,
             "monthly_rent": rec["rent"],
