@@ -68,7 +68,10 @@ INV_RE = re.compile(r"\[(%s-\d{5})\]" % INV_TAG)
 #: Straight off the workbook's Reconciliation sheet. run() aborts on a mismatch
 #: rather than post a ledger that does not tie to its source.
 EXPECTED_RENT = 5306783.00
-EXPECTED_COLLECTED = 4838469.00
+# Received + Advance - Previous Due Rcvd, per the derivation above. The
+# first cut of portfolio_history.csv carried Received alone, which left
+# 468,314 outstanding instead of the 124,202 the workbook actually shows.
+EXPECTED_COLLECTED = 5182581.00
 
 
 def _norm(s):

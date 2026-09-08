@@ -1,140 +1,151 @@
-# DEPLOY — complete build 2.0.1
+# DarkBrown fix pack — Anoop's trial balance review + MD dashboard
 
-This is the whole repo, not an overlay. Replace your working copy's contents
-with it (keep your `.git`), commit, push.
+Unzip over the repo root. Commit, push, let Frappe Cloud deploy, then run the
+commands below in order.
 
-Diff against `5a09442`, the last commit that built successfully:
-
-    pyproject.toml                                   version 2.0.0 -> 2.0.1
-    darkbrown/__init__.py                            version 2.0.0 -> 2.0.1
-    darkbrown/api/cutover.py                         ledger-clean gate
-    darkbrown/patches/load_portfolio_headlease.py    step 6 preflight gate
-    verify/cutover_gate.py                           new — the harness
-    DEPLOY.md                                        this file
-
-Four source files. No doctype, no shell, no hooks, no figure is touched. No
-deletions, so no DELETE_THESE.txt.
-
-## Read this before you deploy
-
-**This build does not fix the pre-build validation failure, because I still do
-not know what that failure is.** What it fixes is the version inconsistency I
-introduced in `ab5cc20` — `pyproject.toml` said 2.0.0 while `__init__.py` said
-2.0.1 — plus the three cutover bugs the previous zip carried.
-
-Frappe Cloud's pre-build validation reads `requires-python` from
-`pyproject.toml`, the node engine from `package.json`, and `required_apps`
-from `hooks.py`. This build changes none of those, exactly as `ab5cc20`
-changed none of them. If those three inputs are what the validator rejected,
-this build will fail the same way.
-
-### Isolate it first — two minutes, and it answers the question
-
-Redeploy `5a09442` from the Deploys screen. That commit built and shipped
-before.
-
-* **`5a09442` fails too** — the bench changed, not the app. Look at the
-  Dependencies tab (Python and Node versions against `requires-python =
-  ">=3.10"`) and at the pending bench update behind the "Update Available"
-  badge. Nothing in this zip will help and pushing it again wastes a cycle.
-* **`5a09442` builds** — it is something in my commit, and the Issues tab text
-  will name which input it objected to. Send it and I will fix the actual
-  thing.
-
-## Confirm the deploy landed
-
-`darkbrown.__version__` and the wheel metadata now both read **2.0.1**:
-
-    bash check_darkbrown.sh <site>
-
-Still 2.0.0 means the deploy did not reach the server. If you would rather not
-rely on the version, this works regardless:
-
-    grep -c "_pack_tags" apps/darkbrown/darkbrown/api/cutover.py
-    grep -c "BLOCKER" apps/darkbrown/darkbrown/patches/load_portfolio_headlease.py
-
-Expect 2 and 7.
+Built against `1736aac`. Note that is not `58a792f` — check that is the commit
+you expect to be live.
 
 ---
 
-## The three fixes
+## What is in here
 
-### 1. Step 6 aborted on a site with nothing wrong with it
+| File | Fixes |
+|---|---|
+| `darkbrown/patches/portfolio_history.csv` | Point 1 — advance and prior-due receipts |
+| `darkbrown/patches/load_portfolio_history.py` | Point 1 — control total |
+| `darkbrown/patches/reclass_cutover_credits.py` | Point 2 — expense credit leg |
+| `darkbrown/patches/reclass_pl_groups.py` | Points 3, 4, 5 — P&L classification |
+| `darkbrown/patches/tenancy_exceptions.csv` | The 65 tenancies with no live agreement |
+| `darkbrown/patches/check_head_leases.py` | The "31 Jul 27" lease-end problem |
 
-`load_portfolio_headlease.run` asked whether the preflight list was empty:
+---
 
-    if problems or not ok or pre:        # <- any entry at all
+## Deploy order
 
-`_preflight` returned `(what, why)` pairs with no severity, and one entry is
-the perpetual-inventory note — which describes itself, in its own text, as a
-warning rather than a blocker. The line this loader builds uses a service item
-(`_ledger_common.item` sets `is_stock_item = 0`), so no warehouse is ever
-needed. On any company with perpetual inventory on, `pre` was never empty, so
-step 6 aborted every time and the cost side of the P&L never loaded — income
-with no cost of sales, a 100% margin on a business whose whole point is the
-spread.
+Each step is `dry_run` first. Read the output. Only then `run`.
 
-Entries are now `(severity, what, why)` and the gate filters:
+### 1 — Receipts (point 1)
 
-    if problems or not ok or _blockers(pre):
+```
+bench --site erp.darkbrown.qa execute darkbrown.patches.load_portfolio_history.dry_run
+```
 
-The dry run prints blockers and warnings under separate headings, so a warning
-still gets read. `dry_run()` returns `blockers` and `warnings` counts; `ok` now
-means "no blockers" rather than "no entries".
+Must print rent 5,306,783.00 and collected 5,182,581.00. If it prints
+4,838,469.00 the old CSV is still on the server — the deploy did not land.
 
-### 2. Preflight only ever checked one building
+Because the history is already loaded, the receipts have to be rebuilt, not
+topped up. Reverse the existing `AK12-HIST-` receipts before re-running, or
+the 344,112 lands twice.
 
-The loop ended in an unconditional `break`, so it validated the first
-building's head lease and landlord and returned. `_head_lease` throws and `run`
-commits as it goes, so a head lease missing on the seventh building surfaced
-as a traceback with six already posted — the exact failure preflight exists to
-prevent. It now walks every building on the sheet, deduplicated, naming each
-one that is missing something.
+### 2 — Expense credits (point 2)
 
-Wider than you asked for. Without it the severity fix would let a load through
-that preflight had not actually checked, which is worse than the abort it
-replaces. Revert just the loop if you want it minimal.
+```
+bench --site erp.darkbrown.qa execute darkbrown.patches.reclass_cutover_credits.dry_run
+bench --site erp.darkbrown.qa execute darkbrown.patches.reclass_cutover_credits.run
+```
 
-### 3. `run_load` refused the re-run it promises is safe
+If `dry_run` reports zero rows, the tags in `TAGS` do not match what actually
+posted the expenses. Open one of those journals, read its `user_remark`, add
+the marker. Zero rows means the search missed, not that the books are clean.
 
-`cutover._ledger_state` looked for `[AK12-HIST-INV-` and `[AK12-HL-INV-` in
-invoice remarks. Correct for the pilot, wrong once steps 5 and 6 were rewired
-to the portfolio loaders, which write `DB-HIST-INV` and `DB-HL-INV`. Every
-invoice the pack had just written counted as foreign, `clean` went false, and
-`run_load` returned `aborted: ledger not empty`. Tags are now read off the
-loaders' `INV_TAG` with the literals as fallback, and the AK12 pilot tags are
-still accepted.
+### 3 — P&L classification (points 3, 4, 5)
 
-## Verify before you load
+```
+bench --site erp.darkbrown.qa execute darkbrown.utils.chart_of_accounts.ensure_chart
+bench --site erp.darkbrown.qa execute darkbrown.patches.reclass_pl_groups.dry_run
+bench --site erp.darkbrown.qa execute darkbrown.patches.reclass_pl_groups.run
+```
 
-    python3 verify/cutover_gate.py        # 18 checks, expect 0 failed
+**Keep the `dry_run` output.** It prints each account's current parent, which
+is the only record of how to reverse this.
 
-It imports the real modules against `verify/stub_frappe.py` and drives them
-with a real CSV at the path the shipped loader reads, so a pass means the
-shipped file behaves. Before and after on the same fixture:
+### 4 — Head leases
 
-    BEFORE  healthy site, perpetual ON      preflight=[perpetual inventory]     aborts=True
-    BEFORE  head lease missing on bldg 7    preflight=[perpetual inventory]     aborts=True
-    AFTER   healthy site, perpetual ON      preflight=[perpetual inventory]     aborts=False
-    AFTER   head lease missing on bldg 7    preflight=[head lease, perpetual]   aborts=True
+```
+bench --site erp.darkbrown.qa execute darkbrown.patches.check_head_leases.report
+```
 
-The BEFORE rows are the point: the old preflight never noticed the missing
-head lease. It aborted both times for the same wrong reason.
+Reports only. See "Cannot be fixed from data I have" below.
 
-Also green on this build: `python3 -m compileall darkbrown/`, all 54 doctype
-JSONs parse, `flit_core` produces `darkbrown-2.0.1.dist-info`, and
-`node verify/routes.js` — 25/25 role x seed states, 0 broken routes.
+### 5
 
-## Still open — deliberately not in this build
+```
+bench --site erp.darkbrown.qa migrate
+```
 
-* **Journal entries count as foreign wholesale.** `_ledger_state` adds every
-  submitted Journal Entry to `foreign`. Your opex journal to Historical
-  Cutover Control is a Journal Entry, so loading opex first and re-running
-  cutover will still abort. I do not know whether you want that one tagged and
-  exempted or whether opex always lands after the cutover. Say which.
+Then re-run `load_portfolio_history.dry_run` and confirm 124,202 outstanding.
 
-* **The 1,782 vs 1,773 / 1,741 count discrepancy** is in the step 5 data, not
-  in these gates. Nothing here moves those numbers.
+---
 
-* **135 assumed payment dates** still print their warning. The P&L is right
-  either way; the cash flow is not until the cheque book lands.
+## Decisions the code could not make
+
+**Point 1 was a CSV defect, not a loader defect.** `load_portfolio_history`
+already documents `collected = Received + Advance − Previous Due Rcvd`. The
+CSV was generated with `Received` alone. 153 of 1,780 rows amended; no row now
+has `collected` exceeding `rent`, so nothing over-allocates. Lands exactly on
+Anoop's 124,202.
+
+**Point 2 does not name the wrong account.** It finds credit legs on
+historical vouchers and moves whatever it finds. A hardcoded source would miss
+any voucher that used a different one. It posts a correcting journal rather
+than editing submitted GL entries — both legs are balance sheet, so the P&L
+does not move.
+
+**Points 3–5 needed no chart change.** `chart_of_accounts.HEADS` already puts
+Building Maintenance, Commission on Sales, Marketing Expenses and Key Money -
+Other in Cost of Sales, and Salary in Staff Cost. `ensure_chart()` deliberately
+refuses to reparent existing accounts on an unattended migrate, so it recorded
+them as misplaced and left them under Other Expense. `reclass_pl_groups` is
+the attended half. Reparenting moves the whole history with the account; no
+journal is written.
+
+`ALIASES` maps Owner Rent → Head Lease Rent, plus the workbook's
+"Building Maintanance" spelling. If Anoop's account names differ, add to
+that dict rather than renaming accounts on the site.
+
+---
+
+## Cannot be fixed from data I have
+
+**Head lease dates.** Nothing in the repo or in any file you have sent carries
+a head lease start or end date. The Tenancy Master is tenant agreements. All 22
+buildings reading 31 Jul 2027 is a placeholder somebody typed once, and it
+drives the 90-day renewal alert (`api/number_cards.py:81`) and the buildings
+screen expiry filter. These have to be entered from the signed head lease
+contracts.
+
+Separately: `buildings_payload.json` has no `head_lease` block, and
+`portfolio.onboard_building` only creates a Head Lease when `annual_rent` and
+`start_date` are both present. So the loaders in this repo create none, and
+rebuilding the site from the repo would produce a portfolio with no head
+leases at all. Add the block when you enter the real dates.
+
+**The 65 exceptions.** `tenancy_exceptions.csv` — 63 tenancies lapsed on or
+before 8 Sep 2026 with no renewal anywhere in Tenancy Master v28, plus 2 live
+tenancies with no agreement on file. QAR 206,300 of monthly rent. I have not
+guessed at renewals: I checked all 220 master agreements against the 63 lapsed
+and found zero live renewals, so these have genuinely ended or the renewals
+were never documented. That is Anoop's call, not the loader's.
+
+This is what is really behind AK-12 showing 3,000 and OG-48 showing zero. Both
+are correct as displayed. AK-12 has 7 tenancies of which 6 ended by 31 Jul;
+OG-48's 18 all ended the same day.
+
+**Building codes in the master are wrong for 15 rows.** Every agreement
+referenced `DB/DAF39/...` is labelled `TWR-16` in the Building Code column, and
+TWR-39 has no rows at all. Corrected via the contract reference when building
+the exceptions list, and the correction is self-validating: after it, all 219
+matched tenancies agree with the master on both end date and rent, with zero
+discrepancies. Before it, 10 rows disagreed. Worth fixing in the source
+workbook so v29 does not carry it forward. Two TWR-19 rows carry DAF16
+references and have the same problem.
+
+---
+
+## Not touched
+
+- The QAR 401,796 building-basis split still parked on Overhead. Separate
+  item from point 5's 208,608 — do not conflate them.
+- Row-level building restriction for managers.
+- Anoop's Head Lease permission fix.
