@@ -167,7 +167,11 @@ def run(confirm=None):
         frappe.throw("%d expense lines cannot be posted. Run dry_run to see "
                      "them. Nothing has been written." % len(problems))
 
-    control = L.control_account(company)
+    # control_account returns (name, created). Unpacking it as a bare
+    # string put a tuple in the account field, and every journal here
+    # was refused at insert - which is why the opex was never posted by
+    # this loader and the credits ended up elsewhere.
+    control, _made_control = L.control_account(company)
     L.ensure_fiscal_years([r["period"] for r in resolved])
 
     made, skipped = [], []

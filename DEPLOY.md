@@ -18,6 +18,9 @@ you expect to be live.
 | `darkbrown/patches/reclass_pl_groups.py` | Points 3, 4, 5 — P&L classification |
 | `darkbrown/patches/tenancy_exceptions.csv` | The 65 tenancies with no live agreement |
 | `darkbrown/patches/check_head_leases.py` | The "31 Jul 27" lease-end problem |
+| `darkbrown/patches/requeue_history_receipts.py` | Clears the way for point 1 |
+| `darkbrown/patches/load_opex.py` | `control_account` tuple bug (see below) |
+| `verify/fixpack.py` | Harness — run before deploying |
 
 ---
 
@@ -34,9 +37,17 @@ bench --site erp.darkbrown.qa execute darkbrown.patches.load_portfolio_history.d
 Must print rent 5,306,783.00 and collected 5,182,581.00. If it prints
 4,838,469.00 the old CSV is still on the server — the deploy did not land.
 
-Because the history is already loaded, the receipts have to be rebuilt, not
-topped up. Reverse the existing `AK12-HIST-` receipts before re-running, or
-the 344,112 lands twice.
+Because the history is already loaded, the amended rows have to be rebuilt.
+`requeue_history_receipts` does this. The split is not what it looks like:
+
+  26 receipts exist at the wrong amount   -> cancel and re-post   32,952.00
+  127 receipts do not exist at all        -> loader creates them 311,160.00
+                                                                 ----------
+                                             whole correction     344,112.00
+
+The 127 are rows where Received was zero and the entire amount is advance or
+prior-due recovery. `load_portfolio_history` only creates a Payment Entry
+`if paid:`, so it never made one. Nothing to cancel there.
 
 ### 2 — Expense credits (point 2)
 
@@ -140,6 +151,33 @@ matched tenancies agree with the master on both end date and rent, with zero
 discrepancies. Before it, 10 rows disagreed. Worth fixing in the source
 workbook so v29 does not carry it forward. Two TWR-19 rows carry DAF16
 references and have the same problem.
+
+---
+
+## A bug found in shipped code
+
+`_ledger_common.control_account()` returns `(name, created)`. `load_opex.py:170`
+unpacked it as a bare string and put a tuple in the journal's account field, so
+every journal it built was refused at insert. That loader has never posted
+anything. It is fixed in this pack.
+
+That also explains point 2. The expenses on the site were posted by something
+other than `load_opex`, which is why their credit leg went somewhere other than
+`Historical Cutover Control`.
+
+`load_portfolio_history.py:230` and `load_portfolio_headlease.py:349` unpack it
+correctly. Only `load_opex` had it wrong.
+
+---
+
+## Verify before you deploy
+
+```
+cd verify && python3 fixpack.py
+```
+
+24 checks against `stub_frappe`, importing the real shipped modules. This is
+what caught the tuple bug and the 26/127 split above.
 
 ---
 

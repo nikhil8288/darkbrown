@@ -78,7 +78,11 @@ def _plan():
                       "posting_date": pe.posting_date,
                       "was": flt(pe.paid_amount), "should_be": amount})
 
-    absent = [t for t, a in want.items() if a and t not in posted]
+    # (tag, amount). These rows have no Payment Entry at all: the loader
+    # only creates one `if paid:`, and before the correction their
+    # Received was zero. The loader will create them on the next run.
+    absent = sorted((t, a) for t, a in want.items()
+                    if a and t not in posted)
     stale.sort(key=lambda s: s["tag"])
     return stale, agreeing, absent
 
@@ -93,8 +97,11 @@ def dry_run():
     print("")
     print("  receipts already matching the CSV : %d  (left alone)" % agreeing)
     print("  receipts to cancel and re-post    : %d" % len(stale))
-    print("  rows with no receipt on the site  : %d  (loader will create)"
-          % len(absent))
+    absent_value = sum(a[1] for a in absent)
+    print("  receipts to create from scratch   : %d  worth %s"
+          % (len(absent), format(absent_value, ",.2f")))
+    print("     (Received was zero on these rows, so no Payment Entry was ever")
+    print("      made. The loader creates them; nothing to cancel.)")
 
     if not stale:
         print("")
@@ -120,25 +127,36 @@ def dry_run():
     print("  corrected total %14s" % format(should, ",.2f"))
     print("  difference      %14s" % format(should - was, ",.2f"))
     print("")
-    print("Expect the difference to be 344,112.00 - the advance (240,250) plus")
-    print("the prior due recovered (103,862). Any other number means the CSV on")
-    print("the server is not the one in the fix pack. Stop and check.")
+    print("  cancellations move   %14s" % format(should - was, ",.2f"))
+    print("  new receipts add     %14s" % format(absent_value, ",.2f"))
+    print("  whole correction     %14s"
+          % format(should - was + absent_value, ",.2f"))
+    print("")
+    print("The whole correction must be 344,112.00 - the advance (240,250)")
+    print("plus the prior due recovered (103,862). Any other number means the")
+    print("CSV on the server is not the one in the fix pack. Stop and check.")
     return {"stale": stale, "agreeing": agreeing, "absent": absent}
 
 
 def run():
     """Cancel the stale receipts. Then re-run load_portfolio_history.run."""
     stale, agreeing, absent = _plan()
-    if not stale:
-        print("Nothing to cancel.")
+    absent_value = sum(a[1] for a in absent)
+    if not stale and not absent:
+        print("Nothing to cancel and nothing missing.")
         return {"cancelled": [], "failed": []}
 
-    delta = sum(s["should_be"] - s["was"] for s in stale)
+    # The guard is on the WHOLE correction, not on the cancellations alone.
+    # 127 of the 153 amended rows had Received = 0, so the loader never made a
+    # Payment Entry for them at all - their whole value is advance or prior-due
+    # recovery and the loader will create them fresh. Checking only the stale
+    # 26 gives 32,952 and would refuse to run on a correct book.
+    delta = sum(s["should_be"] - s["was"] for s in stale) + absent_value
     if abs(delta - 344112.00) > 0.01:
         frappe.throw(
-            "The correction would move %s, expected 344,112.00. That is not "
-            "the advance and prior-due figure Anoop signed off. Refusing to "
-            "cancel %d receipts on a number nobody has agreed."
+            "The whole correction comes to %s, expected 344,112.00 (advance "
+            "240,250 plus prior due recovered 103,862). Refusing to cancel %d "
+            "receipts on a number nobody has agreed."
             % (format(delta, ",.2f"), len(stale)))
 
     cancelled, failed = [], []

@@ -80,9 +80,9 @@ def _balance(account):
         from `tabGL Entry`
         where account = %s and is_cancelled = 0
     """, account, as_dict=True)
-    if not row:
+    if not row or not isinstance(row[0], dict):
         return 0.0, 0
-    return float(row[0].bal or 0), int(row[0].n or 0)
+    return float(row[0].get("bal") or 0), int(row[0].get("n") or 0)
 
 
 def _plan():

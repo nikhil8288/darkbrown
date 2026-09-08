@@ -64,7 +64,10 @@ def _company():
 
 
 def _control(company):
-    return L.control_account(company)
+    # control_account returns (name, created). load_opex.py:170 unpacks it as
+    # a bare string and puts a tuple in the account field; do not copy that.
+    acc, _made = L.control_account(company)
+    return acc
 
 
 def _tag_clause():
