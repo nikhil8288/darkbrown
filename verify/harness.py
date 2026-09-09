@@ -439,7 +439,42 @@ def t_wipe_gate_tells_residue_from_ruin():
         "gate did not notice the Company was gone"
     reset()
 
+def t_wipe_orders_for_the_guards():
+    """The first Stage 0 run failed three ways, all ordering.
+
+    Unit.on_trash throws on Occupied and deleting a tenancy does not clear
+    that flag. guard_cost_center_delete throws while GL Entry rows exist. And
+    cancelling a voucher writes reversals rather than removing rows, so the
+    ledger has to be swept after the vouchers and before the buildings.
+
+    This pins that order in place so a later edit cannot quietly undo it.
+    """
+    import inspect
+    from darkbrown.load import stage_00_wipe as w0
+    src = inspect.getsource(w0.run)
+
+    occ = src.index("set status = 'Vacant'")
+    units = src.index('d != "Building"')
+    ledger = src.index("delete from `tab%s`")
+    bldg = src.index('for name in frappe.get_all("Building"')
+
+    assert occ < units, "units are deleted before occupancy is cleared"
+    assert ledger < bldg, "buildings are deleted before the ledger is cleared"
+    assert src.index("_force_submitted") < ledger, \
+        "the ledger is swept before stubborn vouchers are forced"
+
+def t_wipe_will_not_orphan_the_ledger():
+    """Sweeping GL rows while a voucher still points at them would leave the
+    ledger inconsistent rather than empty. The sweep has to be guarded."""
+    import inspect
+    from darkbrown.load import stage_00_wipe as w0
+    src = inspect.getsource(w0.run)
+    assert "survivors" in src and "leaving the ledger intact" in src, \
+        "the GL sweep is not guarded on the vouchers being gone"
+
 check("wipe covers every doctype the module owns", t_wipe_covers_every_doctype)
+check("wipe orders its passes around the guards", t_wipe_orders_for_the_guards)
+check("wipe will not orphan ledger rows", t_wipe_will_not_orphan_the_ledger)
 check("wipe refuses without the exact phrase", t_wipe_refuses_without_phrase)
 check("wipe gate refuses to pass blind or on residue", t_wipe_gate_tells_residue_from_ruin)
 

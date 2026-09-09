@@ -175,7 +175,22 @@ def check(wide=1):
 # ---------------------------------------------------------------------- run
 
 def run(confirm=None, wide=1, verbose=True):
-    """Remove it. Irreversible."""
+    """Remove it. Irreversible.
+
+    Order is not cosmetic here. The first attempt at this stage failed three
+    ways and each was an ordering problem:
+
+      * 296 units refused with "an occupied unit cannot be deleted". Deleting
+        a Tenancy Agreement does not reset Unit.status, and Unit.on_trash
+        throws on Occupied. So the status is cleared first, once the
+        tenancies are already gone.
+      * 22 buildings refused because their cost centre still carried ledger.
+      * GL Entry rose from 9,958 to 17,303. Cancelling a voucher in ERPNext
+        writes reversing entries and keeps the originals flagged cancelled;
+        deleting the voucher does not take them. So the ledger rows are swept
+        directly, after every voucher is gone and before the buildings that
+        depend on them being gone.
+    """
     if confirm != CONFIRM:
         frappe.throw("Wipe refused. Pass confirm='%s'. Run check() first."
                      % CONFIRM)
@@ -191,24 +206,42 @@ def run(confirm=None, wide=1, verbose=True):
     if verbose:
         print("STAGE 0 RUN")
 
-    # 1. The ledger. Cancel before delete; dependants before dependencies.
+    # 1. The ledger vouchers. Cancel then delete, dependants first.
     for dt in LEDGER:
-        killed = 0
+        killed, failed = 0, []
         for name in _ledger_names(dt, parties, wide):
             if _drop_submittable(dt, name):
                 killed += 1
+            else:
+                failed.append(name)
         if killed:
             log.append((dt, killed))
+        _report(dt, failed, verbose)
         frappe.db.commit()
 
-    # 2. Everything the module owns. Two passes: a record whose dependant was
-    #    removed in pass one can go in pass two, so an unknown dependency
-    #    costs a retry rather than a manual ordering fix.
-    doctypes = _order(_module_doctypes())
+    # 2. Anything submitted that would not cancel. A wipe is not a place to
+    #    argue with a document about its own state.
+    forced = _force_submitted(LEDGER, verbose)
+    if forced:
+        log.append(("forced cancel then delete", forced))
+
+    # 3. Units carry an occupancy flag that outlives the tenancy that set it.
+    #    Tenancies are gone by now, so nothing is being hidden by this.
+    try:
+        frappe.db.sql("update `tabUnit` set status = 'Vacant' "
+                      "where status = 'Occupied'")
+        frappe.db.commit()
+    except Exception as e:
+        print("  ! could not clear unit occupancy: %s"
+              % str(e).splitlines()[0][:80])
+
+    # 4. Everything the module owns except Building, which needs the ledger
+    #    gone before its cost centre will release.
+    doctypes = [d for d in _order(_module_doctypes()) if d != "Building"]
     for attempt in (1, 2):
         remaining = []
         for dt in doctypes:
-            killed = 0
+            killed, failed = 0, []
             try:
                 names = frappe.get_all(dt, pluck="name")
             except Exception:
@@ -216,8 +249,12 @@ def run(confirm=None, wide=1, verbose=True):
             for name in names:
                 if _drop(dt, name):
                     killed += 1
+                else:
+                    failed.append(name)
             if killed:
                 log.append((dt, killed))
+            if attempt == 2:
+                _report(dt, failed, verbose)
             frappe.db.commit()
             try:
                 if frappe.db.count(dt):
@@ -227,11 +264,40 @@ def run(confirm=None, wide=1, verbose=True):
         if not remaining:
             break
         doctypes = remaining
-        if verbose and attempt == 1:
-            print("  retrying %d doctype(s) that still hold records"
-                  % len(remaining))
 
-    # 3. Parties this app created.
+    # 5. The ledger rows themselves, now that no voucher points at them.
+    #    Guarded: if a voucher survived, leave the ledger alone and let the
+    #    gate report it, rather than orphaning entries from their document.
+    survivors = {dt: frappe.db.count(dt) for dt in LEDGER}
+    survivors = {k: v for k, v in survivors.items() if v}
+    if survivors:
+        print("  ! vouchers survived, leaving the ledger intact: %s"
+              % ", ".join("%s %d" % (k, v) for k, v in survivors.items()))
+    else:
+        for table in ("GL Entry", "Payment Ledger Entry"):
+            try:
+                n = frappe.db.count(table)
+                if n:
+                    frappe.db.sql("delete from `tab%s`" % table)
+                    frappe.db.commit()
+                    log.append((table, n))
+            except Exception as e:
+                print("  ! could not clear %s: %s"
+                      % (table, str(e).splitlines()[0][:80]))
+
+    # 6. Buildings, now that their cost centres carry nothing.
+    killed, failed = 0, []
+    for name in frappe.get_all("Building", pluck="name"):
+        if _drop("Building", name):
+            killed += 1
+        else:
+            failed.append(name)
+    if killed:
+        log.append(("Building", killed))
+    _report("Building", failed, verbose)
+    frappe.db.commit()
+
+    # 7. Parties this app created.
     for dt, names in (("Customer", _tenants()), ("Supplier", _landlords())):
         killed = 0
         for name in names:
@@ -241,9 +307,8 @@ def run(confirm=None, wide=1, verbose=True):
             log.append(("%s (DarkBrown parties)" % dt, killed))
         frappe.db.commit()
 
-    # 4. Per-building cost centres, now that nothing posts to them. A cost
-    #    centre still carrying live ledger is left alone and reported by
-    #    gate(), rather than deleted out from under a GL entry.
+    # 8. Any per-building cost centre the Building's own on_trash did not
+    #    take with it.
     killed = 0
     for cc in cost_centers:
         if not frappe.db.exists("Cost Center", cc):
@@ -255,8 +320,7 @@ def run(confirm=None, wide=1, verbose=True):
     if killed:
         log.append(("Cost Center (buildings)", killed))
 
-    # 5. Naming counters, so the next load starts at 0001 rather than
-    #    continuing the numbering of data that no longer exists.
+    # 9. Naming counters, so the next load starts at 0001.
     series = _reset_series()
     if series:
         log.append(("Naming series reset", series))
@@ -266,12 +330,62 @@ def run(confirm=None, wide=1, verbose=True):
     frappe.db.commit()
 
     if verbose:
+        print()
         for dt, n in log:
-            print("  removed %5d  %s" % (n, dt))
+            print("  removed %6d  %s" % (n, dt))
         if not log:
             print("  nothing to remove — the site was already empty")
+        print()
+        print("  Now press Gate.")
 
     return {"removed": dict(log)}
+
+
+def _report(doctype, failed, verbose=True):
+    """One line per reason, not one per record.
+
+    The first run printed the same refusal 296 times and then again on the
+    retry, which buried the three lines that actually mattered.
+    """
+    if not failed or not verbose:
+        return
+    print("  ! %d %s could not be removed, e.g. %s"
+          % (len(failed), doctype, ", ".join(failed[:3])))
+
+
+def _force_submitted(doctypes, verbose=True):
+    """Set docstatus to Cancelled in the database, then delete.
+
+    Ten Journal Entries refused to cancel through the ORM and then refused to
+    delete because they were still submitted. Correct behaviour for a live
+    ledger; wrong for a wipe whose entire purpose is to leave nothing behind.
+    """
+    forced = 0
+    for dt in doctypes:
+        try:
+            names = frappe.get_all(dt, filters={"docstatus": 1}, pluck="name")
+        except Exception:
+            continue
+        for name in names:
+            try:
+                frappe.db.set_value(dt, name, "docstatus", 2,
+                                    update_modified=False)
+                frappe.db.commit()
+                frappe.delete_doc(dt, name, force=True,
+                                  ignore_permissions=True,
+                                  ignore_missing=True,
+                                  delete_permanently=True)
+                forced += 1
+            except Exception as e:
+                print("  ! %s %s will not go: %s"
+                      % (dt, name, str(e).splitlines()[0][:70]))
+                frappe.db.rollback()
+    if forced:
+        frappe.db.commit()
+        if verbose:
+            print("  forced %d submitted document(s) that would not cancel"
+                  % forced)
+    return forced
 
 
 def _reset_series():
@@ -357,8 +471,11 @@ def gate():
         print("  FAIL — %d doctype(s) still hold records:" % len(problems))
         for dt, n in problems:
             print("    %-34s %8d" % (dt, n))
+        residue = dict(problems)
+        for note in _diagnose(residue):
+            print("  %s" % note)
         print("  Stage 1 must not run until this is zero.")
-        return {"pass": False, "residue": dict(problems)}
+        return {"pass": False, "residue": residue}
 
     print("  PASS — the site is empty and the foundation is intact")
     print("    Company        %d" % frappe.db.count("Company"))
@@ -368,6 +485,28 @@ def gate():
 
 
 # ------------------------------------------------------------------ helpers
+
+def _diagnose(residue):
+    """Say why, not just what. A count on its own sends somebody guessing."""
+    notes = []
+    if residue.get("Unit"):
+        notes.append("Unit: still flagged Occupied. Deleting a tenancy does "
+                     "not clear that flag; re-run Wipe, which now clears it.")
+    if residue.get("Building"):
+        notes.append("Building: its cost centre still carries ledger. Clear "
+                     "GL Entry first — re-run Wipe.")
+    if residue.get("GL Entry") or residue.get("Payment Ledger Entry"):
+        notes.append("Ledger rows outlive their voucher: cancelling writes "
+                     "reversals and keeps the originals. Re-run Wipe, which "
+                     "now sweeps them once the vouchers are gone.")
+    for dt in ("Journal Entry", "Sales Invoice", "Payment Entry",
+               "Purchase Invoice"):
+        if residue.get(dt):
+            notes.append("%s: would not cancel through the ORM. Re-run Wipe, "
+                         "which now forces the docstatus first." % dt)
+            break
+    return notes
+
 
 def _drop_submittable(doctype, name):
     try:
