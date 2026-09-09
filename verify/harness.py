@@ -473,7 +473,52 @@ def t_wipe_will_not_orphan_the_ledger():
         "the GL sweep is not guarded on the vouchers being gone"
 
 check("wipe covers every doctype the module owns", t_wipe_covers_every_doctype)
+def t_wipe_error_handler_cannot_throw():
+    """The handler that reports a failure must not become one.
+
+    DocumentLockedError carries no message. str(e).splitlines()[0] on an
+    empty string raises IndexError, which is how a report about ten journal
+    entries took down a run that had already cleared thousands of records.
+    """
+    from darkbrown.load import stage_00_wipe as w0
+
+    class Silent(Exception):
+        pass
+
+    for e in (Silent(), Silent(""), Silent("\n"), ValueError(""),
+              Exception("first line\nsecond line")):
+        out = w0._why(e)
+        assert isinstance(out, str) and out, "_why returned %r for %r" % (out, e)
+        assert "\n" not in out, "_why returned more than one line"
+
+def t_wipe_does_not_cancel_before_deleting():
+    """Cancelling writes reversing GL entries. On the first attempt that took
+    the ledger from 9,958 rows to 17,303 — all of which were about to be
+    deleted anyway. Forcing the docstatus skips that."""
+    import ast, inspect, textwrap
+    from darkbrown.load import stage_00_wipe as w0
+
+    def calls(fn):
+        """Method calls actually made, read from the syntax tree.
+
+        A first version of this test searched the source text and failed on
+        the docstring, which mentions doc.cancel() while explaining why it is
+        not used. Prose is not code.
+        """
+        tree = ast.parse(textwrap.dedent(inspect.getsource(fn)))
+        return {n.func.attr for n in ast.walk(tree)
+                if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)}
+
+    for fn in (w0._force_one, w0._drop_submittable):
+        assert "cancel" not in calls(fn), \
+            "%s calls cancel(), which writes reversing GL entries" % fn.__name__
+    assert "delete_doc" in calls(w0._force_one)
+    assert "_force_one" in inspect.getsource(w0._drop_submittable), \
+        "the submittable path no longer forces"
+
 check("wipe orders its passes around the guards", t_wipe_orders_for_the_guards)
+check("wipe error handler cannot itself throw", t_wipe_error_handler_cannot_throw)
+check("wipe forces rather than cancelling", t_wipe_does_not_cancel_before_deleting)
 check("wipe will not orphan ledger rows", t_wipe_will_not_orphan_the_ledger)
 check("wipe refuses without the exact phrase", t_wipe_refuses_without_phrase)
 check("wipe gate refuses to pass blind or on residue", t_wipe_gate_tells_residue_from_ruin)

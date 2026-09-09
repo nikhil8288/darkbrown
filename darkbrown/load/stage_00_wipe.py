@@ -233,7 +233,7 @@ def run(confirm=None, wide=1, verbose=True):
         frappe.db.commit()
     except Exception as e:
         print("  ! could not clear unit occupancy: %s"
-              % str(e).splitlines()[0][:80])
+              % _why(e))
 
     # 4. Everything the module owns except Building, which needs the ledger
     #    gone before its cost centre will release.
@@ -283,7 +283,7 @@ def run(confirm=None, wide=1, verbose=True):
                     log.append((table, n))
             except Exception as e:
                 print("  ! could not clear %s: %s"
-                      % (table, str(e).splitlines()[0][:80]))
+                      % (table, _why(e)))
 
     # 6. Buildings, now that their cost centres carry nothing.
     killed, failed = 0, []
@@ -354,12 +354,7 @@ def _report(doctype, failed, verbose=True):
 
 
 def _force_submitted(doctypes, verbose=True):
-    """Set docstatus to Cancelled in the database, then delete.
-
-    Ten Journal Entries refused to cancel through the ORM and then refused to
-    delete because they were still submitted. Correct behaviour for a live
-    ledger; wrong for a wipe whose entire purpose is to leave nothing behind.
-    """
+    """Belt and braces: anything still submitted after the main pass."""
     forced = 0
     for dt in doctypes:
         try:
@@ -367,24 +362,12 @@ def _force_submitted(doctypes, verbose=True):
         except Exception:
             continue
         for name in names:
-            try:
-                frappe.db.set_value(dt, name, "docstatus", 2,
-                                    update_modified=False)
-                frappe.db.commit()
-                frappe.delete_doc(dt, name, force=True,
-                                  ignore_permissions=True,
-                                  ignore_missing=True,
-                                  delete_permanently=True)
+            if _force_one(dt, name):
                 forced += 1
-            except Exception as e:
-                print("  ! %s %s will not go: %s"
-                      % (dt, name, str(e).splitlines()[0][:70]))
-                frappe.db.rollback()
     if forced:
         frappe.db.commit()
         if verbose:
-            print("  forced %d submitted document(s) that would not cancel"
-                  % forced)
+            print("  forced %d document(s) left submitted" % forced)
     return forced
 
 
@@ -508,20 +491,59 @@ def _diagnose(residue):
     return notes
 
 
-def _drop_submittable(doctype, name):
+def _why(e):
+    """Some Frappe exceptions carry no message at all.
+
+    DocumentLockedError is one of them, and the first version of this handler
+    did str(e).splitlines()[0] — which raises IndexError on an empty string.
+    So the code written to report a failure became the failure, and took the
+    whole run down with it. An error handler must not be able to throw.
+    """
     try:
-        doc = frappe.get_doc(doctype, name)
-        if doc.docstatus == 1:
-            doc.flags.ignore_permissions = True
-            doc.flags.ignore_links = True
-            doc.cancel()
+        text = (str(e) or "").strip() or type(e).__name__
+        lines = text.splitlines()
+        return (lines[0] if lines else type(e).__name__)[:100]
+    except Exception:
+        return "unreadable error"
+
+
+def _force_one(doctype, name):
+    """Mark cancelled in the database, then delete.
+
+    Deliberately not doc.cancel(). Cancelling a voucher writes reversing GL
+    entries — that is what took the ledger from 9,958 rows to 17,303 on the
+    first attempt. Every one of those rows is about to be deleted anyway, so
+    cancelling only inflates the table on the way past. And large journal
+    entries cancel through a background queue that locks the document, which
+    can never complete inside this request.
+    """
+    try:
+        frappe.db.set_value(doctype, name, "docstatus", 2,
+                            update_modified=False)
+        frappe.db.commit()
         frappe.delete_doc(doctype, name, force=True, ignore_permissions=True,
                           ignore_missing=True, delete_permanently=True)
         return True
     except Exception as e:
-        print("  ! could not remove %s %s: %s"
-              % (doctype, name, str(e).splitlines()[0][:80]))
+        print("  ! %s %s will not go: %s" % (doctype, name, _why(e)))
         frappe.db.rollback()
+        return False
+
+
+def _drop_submittable(doctype, name):
+    """A wipe does not need to argue with a document about its own state."""
+    try:
+        try:
+            frappe.get_doc(doctype, name).unlock()
+        except Exception:
+            pass                      # no lock held, or none to release
+        return _force_one(doctype, name)
+    except Exception as e:
+        print("  ! could not remove %s %s: %s" % (doctype, name, _why(e)))
+        try:
+            frappe.db.rollback()
+        except Exception:
+            pass
         return False
 
 
@@ -532,6 +554,6 @@ def _drop(doctype, name):
         return True
     except Exception as e:
         print("  ! could not remove %s %s: %s"
-              % (doctype, name, str(e).splitlines()[0][:80]))
+              % (doctype, name, _why(e)))
         frappe.db.rollback()
         return False
