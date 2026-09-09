@@ -6623,6 +6623,23 @@ ROUTES.data=()=>page('Data & demo',
      <div style="margin-top:12px"><button class="btn" onclick="dtPreview()">Count it</button></div>
    </div>
 
+   <div class="card" style="margin-top:14px"><h3>Stage 0 &mdash; Wipe</h3>
+     <p class="mt" style="max-width:64ch">The first step of the rebuild. This clears
+     <b>every</b> record the app owns &mdash; not the sixteen types the old purge knew about,
+     but all twenty-seven, read from the database so nothing is missed. The Company, chart of
+     accounts, bank accounts, users, roles and DBR Settings are kept.</p>
+     <p class="mt" style="max-width:64ch"><b>Check</b> counts what is there and writes nothing.
+     <b>Wipe</b> removes it and cannot be undone. <b>Gate</b> proves the site is empty
+     afterwards and must pass before Stage 1 may run.</p>
+     <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
+       <button class="btn" onclick="dtStart('stage0_check')">Check</button>
+       <button class="btn" id="dtWipe" disabled onclick="dtStart('stage0_run')">Wipe</button>
+       <button class="btn" onclick="dtStart('stage0_gate')">Gate</button>
+     </div>
+     <div class="note">The Wipe button unlocks once the confirmation phrase below is typed.
+     Take a backup first.</div>
+   </div>
+
    <div class="card" style="margin-top:14px"><h3>Rebuild</h3>
      <p class="mt" style="max-width:64ch">This removes every DarkBrown record and the ERPNext
      invoices, payments, tenants and landlords that came with them, then lays down three
@@ -6670,7 +6687,7 @@ window.dtCopy=async()=>{
 };
 window.dtLock=()=>{
   const ok=(document.getElementById('dtConfirm')||{}).value==='REMOVE ALL DARKBROWN DATA';
-  ['dtRebuild','dtPurge'].forEach(id=>{const b=document.getElementById(id);if(b)b.disabled=!ok});
+  ['dtRebuild','dtPurge','dtWipe'].forEach(id=>{const b=document.getElementById(id);if(b)b.disabled=!ok});
 };
 window.dtPreview=async()=>{
   const box=document.getElementById('dtCounts'); box.textContent='Counting\u2026';

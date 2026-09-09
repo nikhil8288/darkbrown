@@ -363,6 +363,86 @@ def t_no_validation_suppression():
 check("rent_invoicing no longer duplicates the invoice builder", t_one_invoice_builder)
 check("no code suppresses ERPNext due-date validation", t_no_validation_suppression)
 
+# ---- W. Stage 0 wipe
+
+def t_wipe_covers_every_doctype():
+    """The wipe must not carry a list that can go stale.
+
+    KNOWN_ORDER only fixes deletion order; anything missing from it is still
+    swept by the catch-all pass. But a doctype named there that no longer
+    exists is a sign the list has drifted, and drift is how Historical
+    Monthly PL and Expense Entry went uncounted for months.
+    """
+    import json as _json
+    from darkbrown.load import stage_00_wipe as w0
+    base = REPO + '/darkbrown/darkbrown/doctype'
+    owned = []
+    for d in sorted(os.listdir(base)):
+        f = os.path.join(base, d, d + '.json')
+        if not os.path.exists(f):
+            continue
+        j = _json.load(open(f))
+        if j.get('istable') or j.get('issingle'):
+            continue
+        owned.append(j['name'])
+    stale = [d for d in w0.KNOWN_ORDER if d not in owned]
+    assert not stale, "KNOWN_ORDER names doctypes that do not exist: %s" % stale
+    uncovered = [d for d in owned
+                 if d not in w0.KNOWN_ORDER and d not in w0.KEEP_DOCTYPES]
+    assert not uncovered, \
+        "doctypes with no explicit order: %s" % uncovered
+    print("        (%d doctypes owned, %d ordered, %d kept by design)"
+          % (len(owned), len(w0.KNOWN_ORDER), len(w0.KEEP_DOCTYPES)))
+
+def t_wipe_refuses_without_phrase():
+    from darkbrown.load import stage_00_wipe as w0
+    for bad in (None, "", "remove all darkbrown data", "REMOVE ALL DATA"):
+        try:
+            w0.run(confirm=bad)
+            assert False, "wipe ran on confirm=%r" % bad
+        except S.ValidationError:
+            pass
+
+def t_wipe_gate_tells_residue_from_ruin():
+    """Two different failures the gate must not confuse.
+
+    A site still holding records is a wipe that did not finish. A site with no
+    Company is a wipe that took the accounting foundation with it. Reporting
+    the second as the first would send somebody looking for stray records when
+    what they need is the backup.
+    """
+    from darkbrown.load import stage_00_wipe as w0
+
+    reset()
+
+    # Blind: the module's doctypes cannot be enumerated. Every count would
+    # come back zero, so the gate must refuse rather than report a clean site.
+    out = w0.gate()
+    assert out["pass"] is False and out.get("blind"), \
+        "gate passed while unable to see any doctype"
+
+    # Sighted, with a Building still on the site.
+    S.DB["DocType"] = [{"name": "Building", "module": "Darkbrown",
+                        "istable": 0, "issingle": 0}]
+    out = w0.gate()
+    assert out["pass"] is False, "gate passed a site still holding a Building"
+    assert not out.get("missing"), \
+        "gate cried ruin over a site whose foundation is intact"
+    assert "Building" in out["residue"], \
+        "gate missed the Building still on the site"
+
+    # Foundation gone. A different failure, and it must read differently.
+    S.DB["Company"] = []
+    out = w0.gate()
+    assert out["pass"] is False
+    assert "Company" in (out.get("missing") or []), \
+        "gate did not notice the Company was gone"
+    reset()
+
+check("wipe covers every doctype the module owns", t_wipe_covers_every_doctype)
+check("wipe refuses without the exact phrase", t_wipe_refuses_without_phrase)
+check("wipe gate refuses to pass blind or on residue", t_wipe_gate_tells_residue_from_ruin)
+
 # ---- P. patches.txt registers nothing that writes business records
 def t_patches_safe():
     import re

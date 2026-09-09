@@ -18,7 +18,10 @@ from frappe import _
 
 LOG_KEY = "darkbrown:demo:log"
 STATE_KEY = "darkbrown:demo:state"
-ACTIONS = ("purge", "seed", "verify", "rebuild")
+ACTIONS = ("purge", "seed", "verify", "rebuild",
+           # Stage 0 of the rebuild. check and gate write nothing; run is
+           # gated on the same confirmation phrase as purge.
+           "stage0_check", "stage0_run", "stage0_gate")
 
 
 # ------------------------------------------------------------------ guarding
@@ -104,7 +107,7 @@ def start(action, confirm=None, wide=0):
     if action not in ACTIONS:
         frappe.throw(_("{0} is not a data action.").format(action))
 
-    if action in ("purge", "rebuild"):
+    if action in ("purge", "rebuild", "stage0_run"):
         from darkbrown.demo import purge as purge_mod
         if confirm != purge_mod.CONFIRM:
             frappe.throw(_("Type the confirmation phrase exactly to go "
@@ -161,6 +164,14 @@ def execute(action, confirm=None, wide=0, user=None):
                 run_mod.verify()
             elif action == "rebuild":
                 run_mod.rebuild(confirm=confirm, wide=bool(wide))
+            elif action.startswith("stage0_"):
+                from darkbrown.load import stage_00_wipe as w0
+                if action == "stage0_check":
+                    w0.check(wide=int(wide or 1))
+                elif action == "stage0_run":
+                    w0.run(confirm=confirm, wide=int(wide or 1))
+                else:
+                    w0.gate()
         _append("\n\nDone.\n")
         _finish("done")
     except Exception:
