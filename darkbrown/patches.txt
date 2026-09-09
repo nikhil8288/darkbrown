@@ -22,16 +22,9 @@ darkbrown.patches.fix_workspace_cards
 darkbrown.patches.rename_document_types
 
 # ---------------------------------------------------------------------------
-# DELIBERATELY NOT REGISTERED
+# This file registers SCHEMA PATCHES ONLY.
 #
-# These write business records. A patch runs unattended during a deploy, so a
-# bad run is invisible until the numbers are wrong. All four are bench-execute
-# only and each has a dry_run that must be clean first:
-#
-#   darkbrown.patches.import_tenancies         the live tenancy book
-#   darkbrown.patches.seed_opening_arrears     opening tenant arrears
-#   darkbrown.patches.seed_pdc_outgoing        landlord PDC register
-#   darkbrown.patches.load_portfolio_history   historical monthly P&L
-#
-# darkbrown.patches.run_july_billing is not listed and should not be. See
-# DEPLOY.md - it is a test-phase artefact that submits a month of invoices.
+# Data loaders must never live in darkbrown/patches/. A patch runs unattended
+# during a deploy, so a data loader registered here would write business
+# records invisibly. The rebuild pipeline lives in darkbrown/load/ and is
+# bench-execute only; separation is by location, not by comment.

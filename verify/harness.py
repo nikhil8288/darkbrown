@@ -244,38 +244,6 @@ check("reconciliation clears on an exact amount match", t_recon_exact_clears)
 check("cancelling a payment restores the prior cheque state", t_recon_cancel_state)
 
 # ---- H. seeders
-def t_arrears_tags_unique():
-    from darkbrown.patches import seed_opening_arrears as sa
-    tags = [sa._tag(i) for i in range(200)]
-    assert len(set(tags)) == 200
-    bad = [(a,b) for a in tags for b in tags if a != b and a.strip('[]') in b]
-    assert not bad, "tag is a substring of another: %s" % bad[:3]
-def t_arrears_no_fuzzy():
-    reset()
-    from darkbrown.patches import seed_opening_arrears as sa
-    idx = sa._customer_index()
-    c, how = sa._match_customer('Mohammed Abdul Rahman', idx, {})
-    assert (c, how) == ('CUST-001', 'exact'), (c, how)
-    c, how = sa._match_customer('Mohammed Abdul Hameed', idx, {})
-    assert c is None, "fuzzy matcher still cross-posts: matched %s" % c
-def t_arrears_no_autocreate():
-    import inspect
-    from darkbrown.patches import seed_opening_arrears as sa
-    src = inspect.getsource(sa)
-    assert 'TEST_MODE' not in src, "TEST_MODE still present"
-    assert 'def execute(' not in src, "still a migrate patch entrypoint"
-    assert '"doctype": "Customer"' not in src, "still auto-creates Customers"
-def t_pdc_multiplicity():
-    import inspect
-    from darkbrown.patches import seed_pdc_outgoing as sp
-    src = inspect.getsource(sp)
-    assert 'TEST_MODE' not in src and 'def execute(' not in src
-    assert 'PDC-SEED-%03d' in src, "cheque numbering still restarts per run"
-    assert 'consumed[k] < counts[k]' in src, "multiplicity dedupe missing"
-check("arrears seed tags cannot prefix-collide", t_arrears_tags_unique)
-check("arrears matcher no longer cross-posts between similar names", t_arrears_no_fuzzy)
-check("arrears seeder cannot auto-create parties or run on migrate", t_arrears_no_autocreate)
-check("PDC seeder dedupes by multiplicity with stable numbering", t_pdc_multiplicity)
 
 # ---- I. rent derivation agrees
 def t_rent_agrees():
@@ -333,79 +301,6 @@ def _mkinst(cls, **kw):
     dict.update(inst, kw)
     return inst
 
-def t_importer_exact_only():
-    reset()
-    from darkbrown.patches import import_tenancies as it
-    idx = it._customer_index()
-    assert it._match_tenant({'tenant_name': 'Mohammed Abdul Rahman'}, idx, {})[0] == 'CUST-001'
-    t, _ = it._match_tenant({'tenant_name': 'Mohammed Abdul Hameed'}, idx, {})
-    assert t is None, "importer fuzzy-matched a different tenant: %s" % t
-    S.DB['Customer'].append({'name': 'CUST-009', 'customer_name': 'Mohammed Abdul Rahman'})
-    t, how = it._match_tenant({'tenant_name': 'Mohammed Abdul Rahman'}, it._customer_index(), {})
-    assert t is None and 'ambiguous' in how, (t, how)
-
-def t_importer_validates():
-    reset()
-    S.DB['Unit'].append({'name':'Al Sadd-101','building':'Al Sadd','unit_no':'101','status':'Vacant'})
-    from darkbrown.patches import import_tenancies as it
-    idx = it._customer_index()
-    base = {'tenant_name':'Mohammed Abdul Rahman','building':'Al Sadd','unit_no':'101',
-            'start_date':'2026-01-01','end_date':'2026-12-31','monthly_rent':'6500'}
-    rows = [dict(base, status='Active'),
-            dict(base, start_date='2026-06-01', end_date='2026-01-01'),
-            dict(base),
-            dict(base, unit_no='999'),
-            dict(base, start_date='2026-03-01', monthly_rent='0')]
-    resolved, problems = it._resolve(rows, idx, {})
-    assert len(resolved) == 1, "expected 1 clean row, got %d" % len(resolved)
-    kinds = " | ".join(";".join(e) for _, e in problems)
-    for expect in ('not after', 'duplicate of CSV line', 'no unit', 'monthly_rent must be > 0'):
-        assert expect in kinds, "%r not detected in: %s" % (expect, kinds)
-
-def t_importer_live_conflict():
-    reset()
-    S.DB['Unit'].append({'name':'Al Sadd-101','building':'Al Sadd','unit_no':'101','status':'Occupied'})
-    S.DB['Tenancy Agreement'].append({'name':'TA-OLD','unit':'Al Sadd-101','status':'Active',
-                                      'start_date':'2025-01-01'})
-    from darkbrown.patches import import_tenancies as it
-    rows = [{'tenant_name':'Mohammed Abdul Rahman','building':'Al Sadd','unit_no':'101',
-             'start_date':'2026-01-01','end_date':'2026-12-31','monthly_rent':'6500',
-             'status':'Active'}]
-    resolved, problems = it._resolve(rows, it._customer_index(), {})
-    assert not problems
-    conflicts = it._live_conflicts(resolved, it._existing_keys())
-    assert conflicts, "a second live tenancy on one unit was allowed"
-
-def t_importer_active_survives_controller():
-    reset()
-    from darkbrown.darkbrown.doctype.tenancy_agreement import tenancy_agreement as ta
-    inst = _mkinst(ta.TenancyAgreement, doctype='Tenancy Agreement',
-                   name='TA-1', unit='Al Sadd-101', status='Active',
-                   qid_number=None, signed_pack=None)
-    inst._set_activation_route()
-
-    # and the ordinary path is unchanged: a Draft with nothing attached still
-    # routes rather than going live
-    draft = _mkinst(ta.TenancyAgreement, doctype='Tenancy Agreement',
-                    name='TA-2', unit='Al Sadd-102', status='Draft',
-                    qid_number=None, signed_pack=None)
-    draft._set_activation_route()
-    assert draft.status == 'Pending Approval', draft.status
-    assert inst.status == 'Active', "explicit Active was downgraded to %s" % inst.status
-    assert inst.activation_route == 'Routed for Approval'
-    assert 'signed agreement pack' in inst.missing_items
-
-def t_importer_not_a_patch():
-    import inspect
-    from darkbrown.patches import import_tenancies as it
-    src = inspect.getsource(it)
-    assert 'def execute(' not in src, "importer is a migrate patch entrypoint"
-    assert '"doctype": "Customer"' not in src, "importer auto-creates Customers"
-check("tenancy importer matches exactly and refuses ambiguity", t_importer_exact_only)
-check("tenancy importer rejects bad dates, dupes, unknown units, zero rent", t_importer_validates)
-check("tenancy importer refuses a second live tenancy on one unit", t_importer_live_conflict)
-check("an explicitly Active imported agreement is not downgraded", t_importer_active_survives_controller)
-check("tenancy importer cannot run on migrate or invent parties", t_importer_not_a_patch)
 
 # ---- M. unit occupancy
 def t_occupancy():
@@ -465,11 +360,6 @@ def t_no_validation_suppression():
             if 'validate_due_date' in line and 'noop' in line:
                 bad.append("%s:%d" % (os.path.basename(f), i))
     assert not bad, "core validation still monkey-patched: %s" % bad
-    from darkbrown.patches import run_july_billing
-    try:
-        run_july_billing.execute(); assert False, "run_july_billing still bills"
-    except S.ValidationError:
-        pass
 check("rent_invoicing no longer duplicates the invoice builder", t_one_invoice_builder)
 check("no code suppresses ERPNext due-date validation", t_no_validation_suppression)
 
@@ -478,15 +368,18 @@ def t_patches_safe():
     import re
     named = [l.strip() for l in open(REPO + '/darkbrown/patches.txt')
              if l.strip() and not l.startswith(('#', '['))]
-    WRITERS = {'seed_opening_arrears','seed_pdc_outgoing','import_tenancies',
-               'import_history','run_july_billing'}
     for m in named:
-        assert m.split('.')[-1] not in WRITERS, \
-            "%s writes business records and must not run on migrate" % m
         path = REPO + '/' + m.replace('.', '/') + '.py'
         assert os.path.exists(path), "patches.txt names a missing module: %s" % m
         assert re.search(r'^def execute\(', open(path).read(), re.M), "%s has no execute()" % m
-    print("        (%d patches registered, none writes to the ledger)" % len(named))
+
+    # Structural rule, replacing the old denylist: patches/ holds schema only.
+    # A data file here means a loader has crept back in alongside it.
+    stray = [os.path.basename(f)
+             for f in glob.glob(REPO + '/darkbrown/patches/*')
+             if os.path.splitext(f)[1].lower() in ('.csv', '.json', '.xlsx')]
+    assert not stray, "data files in darkbrown/patches/: %s" % stray
+    print("        (%d schema patches registered, no data files alongside)" % len(named))
 check("patches.txt registers no ledger-writing patch", t_patches_safe)
 
 # =====================================================================

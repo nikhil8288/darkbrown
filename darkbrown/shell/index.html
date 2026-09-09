@@ -6645,24 +6645,6 @@ ROUTES.data=()=>page('Data & demo',
      </div>
    </div>
 
-   <div class="card" style="margin-top:14px"><h3>Cutover load</h3>
-     <p class="mt" style="max-width:64ch">The real portfolio: 432 tenants, 23 buildings,
-     305 units, 23 head leases, 266 tenancies and 124,202 of opening arrears. Each step
-     is skipped where the records already exist, so a re-run after a failure is safe.</p>
-     <p class="mt" style="max-width:64ch"><b>Check first.</b> It writes nothing and prints
-     what is wrong if anything is. <b>Dry run</b> then rehearses all four steps without
-     writing. Only <b>Load</b> writes, and it stops at the first step that fails rather
-     than piling a second error on top of the first.</p>
-     <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
-       <button class="btn" onclick="dtStart('diagnose')">Check</button>
-       <button class="btn" onclick="dtStart('cutover_dry')">Dry run</button>
-       <button class="btn" onclick="dtStart('cutover_load')">Load for real</button>
-     </div>
-     <div class="note">Purge the test data before loading, not after &mdash; the purge
-     removes tenants too, so loading first would delete the work. Take a backup before
-     either.</div>
-   </div>
-
    <div class="card" style="margin-top:14px"><h3>Log <span class="tag" id="dtState">${DATA_STATE}</span>
        <button class="btn" style="float:right" onclick="dtCopy()">Copy log</button></h3>
      <pre id="dtLog" style="max-height:460px;overflow:auto;font:11.5px/1.55 var(--mono);
