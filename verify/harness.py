@@ -516,7 +516,40 @@ def t_wipe_does_not_cancel_before_deleting():
     assert "_force_one" in inspect.getsource(w0._drop_submittable), \
         "the submittable path no longer forces"
 
+def t_wipe_drop_result_read_correctly():
+    """_drop returns None on success and the reason on failure.
+
+    An earlier version returned True/False, and changing it left one caller
+    with `if _drop(...)` — which then counted every success as a failure and
+    every failure as a success. Nothing in the output would have looked wrong.
+    """
+    import ast, inspect, textwrap
+    from darkbrown.load import stage_00_wipe as w0
+    tree = ast.parse(textwrap.dedent(inspect.getsource(w0.run)))
+    for n in ast.walk(tree):
+        if isinstance(n, ast.If) and isinstance(n.test, ast.Call):
+            f = n.test.func
+            if isinstance(f, ast.Name) and f.id == "_drop":
+                assert False, ("_drop used as a bare truth value at line %d; "
+                               "it returns a reason string, so a failure "
+                               "reads as success" % n.lineno)
+
+def t_wipe_takes_cost_centres_before_buildings():
+    """Building.on_trash deletes the cost centre with force=False, which
+    ERPNext refuses. Doing it ourselves first, with force=True, is what makes
+    the building deletable."""
+    import inspect
+    from darkbrown.load import stage_00_wipe as w0
+    src = inspect.getsource(w0.run)
+    cc = src.index('_drop("Cost Center", cc)')
+    clear = src.index("set cost_center = NULL")
+    bldg = src.index('frappe.get_all("Building", pluck="name")')
+    assert cc < clear < bldg, \
+        "cost centres must go, then be unpointed, before buildings are deleted"
+
 check("wipe orders its passes around the guards", t_wipe_orders_for_the_guards)
+check("wipe reads its own delete result correctly", t_wipe_drop_result_read_correctly)
+check("wipe clears cost centres before buildings", t_wipe_takes_cost_centres_before_buildings)
 check("wipe error handler cannot itself throw", t_wipe_error_handler_cannot_throw)
 check("wipe forces rather than cancelling", t_wipe_does_not_cancel_before_deleting)
 check("wipe will not orphan ledger rows", t_wipe_will_not_orphan_the_ledger)

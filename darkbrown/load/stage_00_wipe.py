@@ -247,10 +247,11 @@ def run(confirm=None, wide=1, verbose=True):
             except Exception:
                 continue
             for name in names:
-                if _drop(dt, name):
+                why = _drop(dt, name)
+                if why is None:
                     killed += 1
                 else:
-                    failed.append(name)
+                    failed.append((name, why))
             if killed:
                 log.append((dt, killed))
             if attempt == 2:
@@ -285,40 +286,56 @@ def run(confirm=None, wide=1, verbose=True):
                 print("  ! could not clear %s: %s"
                       % (table, _why(e)))
 
-    # 6. Buildings, now that their cost centres carry nothing.
-    killed, failed = 0, []
-    for name in frappe.get_all("Building", pluck="name"):
-        if _drop("Building", name):
-            killed += 1
-        else:
-            failed.append(name)
-    if killed:
-        log.append(("Building", killed))
-    _report("Building", failed, verbose)
-    frappe.db.commit()
-
-    # 7. Parties this app created.
-    for dt, names in (("Customer", _tenants()), ("Supplier", _landlords())):
-        killed = 0
-        for name in names:
-            if _drop(dt, name):
-                killed += 1
-        if killed:
-            log.append(("%s (DarkBrown parties)" % dt, killed))
-        frappe.db.commit()
-
-    # 8. Any per-building cost centre the Building's own on_trash did not
-    #    take with it.
+    # 6. The per-building cost centres, deleted here rather than left to
+    #    Building.on_trash. That hook calls delete_doc with force=False and
+    #    ERPNext answers "you can disable this Cost Center instead of
+    #    deleting it", which failed all 22 buildings on the previous run —
+    #    while the very next phase then removed the same cost centres with
+    #    force=True without complaint. So do it first, properly.
     killed = 0
     for cc in cost_centers:
         if not frappe.db.exists("Cost Center", cc):
             continue
         if frappe.db.exists("GL Entry", {"cost_center": cc, "is_cancelled": 0}):
+            print("  ! cost centre %s still carries ledger, left in place" % cc)
             continue
-        if _drop("Cost Center", cc):
+        if _drop("Cost Center", cc) is None:
             killed += 1
     if killed:
         log.append(("Cost Center (buildings)", killed))
+    frappe.db.commit()
+
+    # 7. Unpoint the buildings from cost centres that are now gone, so
+    #    guard_cost_center_delete returns at its first line instead of trying
+    #    to delete a record that no longer exists.
+    try:
+        frappe.db.sql("update `tabBuilding` set cost_center = NULL")
+        frappe.db.commit()
+    except Exception as e:
+        print("  ! could not clear building cost centres: %s" % _why(e))
+
+    # 8. Buildings.
+    killed, failed = 0, []
+    for name in frappe.get_all("Building", pluck="name"):
+        why = _drop("Building", name)
+        if why is None:
+            killed += 1
+        else:
+            failed.append((name, why))
+    if killed:
+        log.append(("Building", killed))
+    _report("Building", failed, verbose)
+    frappe.db.commit()
+
+    # 8b. Parties this app created.
+    for dt, names in (("Customer", _tenants()), ("Supplier", _landlords())):
+        killed = 0
+        for name in names:
+            if _drop(dt, name) is None:
+                killed += 1
+        if killed:
+            log.append(("%s (DarkBrown parties)" % dt, killed))
+        frappe.db.commit()
 
     # 9. Naming counters, so the next load starts at 0001.
     series = _reset_series()
@@ -345,12 +362,18 @@ def _report(doctype, failed, verbose=True):
     """One line per reason, not one per record.
 
     The first run printed the same refusal 296 times and then again on the
-    retry, which buried the three lines that actually mattered.
+    retry, burying the three lines that actually mattered.
     """
     if not failed or not verbose:
         return
-    print("  ! %d %s could not be removed, e.g. %s"
-          % (len(failed), doctype, ", ".join(failed[:3])))
+    by_reason = {}
+    for item in failed:
+        name, why = item if isinstance(item, tuple) else (item, "")
+        by_reason.setdefault(why, []).append(name)
+    for why, names in by_reason.items():
+        print("  ! %d %s: %s (e.g. %s)"
+              % (len(names), doctype, why or "no reason given",
+                 ", ".join(names[:3])))
 
 
 def _force_submitted(doctypes, verbose=True):
@@ -476,8 +499,13 @@ def _diagnose(residue):
         notes.append("Unit: still flagged Occupied. Deleting a tenancy does "
                      "not clear that flag; re-run Wipe, which now clears it.")
     if residue.get("Building"):
-        notes.append("Building: its cost centre still carries ledger. Clear "
-                     "GL Entry first — re-run Wipe.")
+        if residue.get("GL Entry"):
+            notes.append("Building: its cost centre still carries ledger. "
+                         "Clear GL Entry first — re-run Wipe.")
+        else:
+            notes.append("Building: on_trash deletes the cost centre with "
+                         "force=False and ERPNext refuses. Re-run Wipe, "
+                         "which now removes cost centres first.")
     if residue.get("GL Entry") or residue.get("Payment Ledger Entry"):
         notes.append("Ledger rows outlive their voucher: cancelling writes "
                      "reversals and keeps the originals. Re-run Wipe, which "
@@ -548,12 +576,20 @@ def _drop_submittable(doctype, name):
 
 
 def _drop(doctype, name):
+    """None when it went, otherwise the reason it did not.
+
+    Returning the reason rather than printing it lets the caller collapse 296
+    identical refusals into one line. The first run printed each of them
+    twice and buried the three that mattered.
+    """
     try:
         frappe.delete_doc(doctype, name, force=True, ignore_permissions=True,
                           ignore_missing=True, delete_permanently=True)
-        return True
+        return None
     except Exception as e:
-        print("  ! could not remove %s %s: %s"
-              % (doctype, name, _why(e)))
-        frappe.db.rollback()
-        return False
+        why = _why(e)
+        try:
+            frappe.db.rollback()
+        except Exception:
+            pass
+        return why
