@@ -768,7 +768,44 @@ def t_tenant_folding_is_recorded_and_sane():
     print('        (%d of %d rows record a merge)' % (len(folded), len(rows)))
 
 check("load data matches its manifest", t_load_data_matches_its_manifest)
+def t_contact_details_never_lose_a_tenant():
+    """A phone number must not cost you a person.
+
+    A joint lease carries two people, so the worksheet holds
+    "55728528 / 66097515", and one cell reads "77101848 (handwritten
+    correction; printed 77652938)". Frappe validates the field and rejects the
+    lot — 33 tenants failed to load on the first run, each one lost to a
+    contact number nobody needed.
+    """
+    import csv as _csv, re as _re
+    from darkbrown.load import stage_04_tenants as s4
+
+    assert s4._numbers('55728528 / 66097515') == ['55728528', '66097515']
+    assert s4._numbers('77101848 (handwritten correction; printed 77652938)') \
+        == ['77101848', '77652938']
+    assert s4._numbers('') == [] and s4._numbers(None) == []
+    assert s4._first_id('29335651868 / 29435649449') == '29335651868'
+
+    # every number the worksheet holds must survive extraction cleanly
+    rows = list(_csv.DictReader(
+        open(REPO + '/darkbrown/load/data/tenants.csv', encoding='utf-8-sig')))
+    n = 0
+    for r in rows:
+        for phone in s4._numbers(r['mobile']):
+            assert _re.match(r'^\+?[0-9][0-9 -]{5,19}$', phone), \
+                'extracted %r, which Frappe would still reject' % phone
+            n += 1
+    assert n > 200, 'only %d numbers extracted, expected over 200' % n
+
+    # and the loader must fall back rather than drop the record
+    import inspect
+    src = inspect.getsource(s4.run)
+    assert 'stripped.append' in src, \
+        'a field-level failure no longer falls back to identity only'
+    print('        (%d phone numbers, all clean)' % n)
+
 check("tenants are people, not placeholders", t_tenants_are_people_not_placeholders)
+check("a bad phone number never loses a tenant", t_contact_details_never_lose_a_tenant)
 check("tenant folding is recorded and sane", t_tenant_folding_is_recorded_and_sane)
 def t_unit_key_folds_narrowly():
     """The unit fold must join what is the same and never join what is not.

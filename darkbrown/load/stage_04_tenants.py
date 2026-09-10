@@ -25,6 +25,8 @@ Everything folded is recorded in `name_variants` on the row, so any merge can
 be seen and undone rather than being taken on trust.
 """
 
+import re
+
 import frappe
 
 from darkbrown.load import common as C
@@ -33,6 +35,31 @@ STAGE = "4"
 SOURCE = "tenants.csv"
 
 CATEGORIES = ("", "Individual", "Company", "Staff Accommodation")
+
+_DIGITS = re.compile(r"\+?[0-9][0-9 -]{5,19}")
+
+
+def _numbers(value):
+    """Pull the phone numbers out of a cell that may hold several.
+
+    A joint lease carries two people, so the worksheet holds
+    "55728528 / 66097515", and one cell even reads
+    "77101848 (handwritten correction; printed 77652938)". Frappe validates
+    the field and rejects all of it, which cost 33 tenants their record on the
+    first run — a whole person lost to a phone number.
+    """
+    out = []
+    for m in _DIGITS.finditer(str(value or "")):
+        n = m.group(0).strip(" -")
+        if n and n not in out:
+            out.append(n)
+    return out
+
+
+def _first_id(value):
+    """The first QID from a cell that may hold two, for the same reason."""
+    m = re.search(r"[0-9]{6,15}", str(value or ""))
+    return m.group(0) if m else ""
 
 
 def _defaults():
@@ -123,7 +150,7 @@ def run():
 
     group, territory = _defaults()
     meta = frappe.get_meta("Customer")
-    made, failed = 0, []
+    made, failed, stripped = 0, [], []
     print("STAGE 4 RUN — tenants")
 
     for p in plan:
@@ -140,11 +167,17 @@ def run():
                                else "Individual")
             if meta.has_field("db_is_tenant"):
                 c.db_is_tenant = 1
-            for field, key in (("db_tenant_category", "tenant_category"),
-                               ("db_qid", "qid"),
-                               ("db_mobile", "mobile")):
-                if r.get(key) and meta.has_field(field):
-                    setattr(c, field, str(r[key])[:140])
+            if r.get("tenant_category") and meta.has_field("db_tenant_category"):
+                c.db_tenant_category = r["tenant_category"]
+            qid = _first_id(r.get("qid"))
+            if qid and meta.has_field("db_qid"):
+                c.db_qid = qid
+            phones = _numbers(r.get("mobile"))
+            if phones and meta.has_field("db_mobile"):
+                c.db_mobile = phones[0]
+                # the second number belongs to the co-tenant on a joint lease
+                if len(phones) > 1 and meta.has_field("db_alt_contact_mobile"):
+                    c.db_alt_contact_mobile = phones[1]
             # db_nationality links to Country, so only set it when the Country
             # actually exists — "Indian" is a nationality, "India" is a Country,
             # and the worksheet mixes the two.
@@ -161,9 +194,36 @@ def run():
         except Exception as e:
             frappe.db.rollback()
             text = (str(e) or "").strip() or type(e).__name__
-            lines = text.splitlines()
-            failed.append((p["name"], (lines[0] if lines else "?")[:90]))
+            first = (text.splitlines() or ["?"])[0][:90]
+            # A tenant must not be lost to a field that does not matter. Retry
+            # with the identity only, and record what was dropped.
+            try:
+                c = frappe.new_doc("Customer")
+                c.customer_name = p["name"]
+                c.customer_group = group
+                c.territory = territory
+                c.customer_type = ("Company"
+                                   if r.get("tenant_category") == "Company"
+                                   else "Individual")
+                if meta.has_field("db_is_tenant"):
+                    c.db_is_tenant = 1
+                c.flags.ignore_permissions = True
+                c.insert()
+                frappe.db.commit()
+                made += 1
+                stripped.append((p["name"], first))
+            except Exception as e2:
+                frappe.db.rollback()
+                t2 = (str(e2) or "").strip() or type(e2).__name__
+                failed.append((p["name"], (t2.splitlines() or ["?"])[0][:90]))
 
+    if stripped:
+        print("  %d tenant(s) loaded without their contact details:" % len(stripped))
+        print("      %s" % stripped[0][1])
+        for n, _ in stripped[:4]:
+            print("        %s" % n)
+        if len(stripped) > 4:
+            print("        ... and %d more" % (len(stripped) - 4))
     if failed:
         C.report([C.Problem(SOURCE, "-", "customer_name", n, "insert_failed", w)
                   for n, w in failed])
