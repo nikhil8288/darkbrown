@@ -6745,6 +6745,26 @@ ROUTES.data=()=>page('Data & demo',
      </div>
    </div>
 
+   <div class="card" style="margin-top:14px"><h3>Stage 7 &mdash; owner rent paid</h3>
+     <p class="mt" style="max-width:64ch">The cheque register, deduplicated. 388 cheques,
+     each with its own number, date, bank and amount. 288 of them are post-dated, some out
+     to 2028 &mdash; real commitments, but not cash that has moved, so they load as
+     Presented rather than Cleared.</p>
+     <p class="mt" style="max-width:64ch">One cheque is one record. 111 pay the ten Al
+     Adekhar villas together and the register never says which villas, so they carry no
+     building rather than a guessed one.</p>
+     <p class="mt" style="max-width:64ch">The transfers are different: they are booked owner
+     rent less the cheques that account for it, with no bank reference behind them. Every
+     one is flagged derived, and they should be replaced &mdash; not added to &mdash; when a
+     bank statement is loaded.</p>
+     <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
+       <button class="btn" onclick="dtStart('stage7_check')">Check 7</button>
+       <button class="btn" onclick="dtStart('stage7_run')">Run 7</button>
+       <button class="btn" onclick="dtStart('stage7_gate')">Gate 7</button>
+       <button class="btn" onclick="dtStart('stage7_reload')">Reload 7</button>
+     </div>
+   </div>
+
    <div class="card" style="margin-top:14px"><h3>Rebuild</h3>
      <p class="mt" style="max-width:64ch">This removes every DarkBrown record and the ERPNext
      invoices, payments, tenants and landlords that came with them, then lays down three

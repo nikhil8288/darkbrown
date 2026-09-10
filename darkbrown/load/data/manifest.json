@@ -18,7 +18,8 @@
     "Tenant names folded: VACANT/EMPTY excluded (125 rows), 158 short-vs-full name pairs merged on same-unit evidence, all Shamnadh Ponnakkatt Bavakutty variants folded to one tenant (he holds the flats from his agent days)",
     "14 superseded unit labels removed and mapped to their new label in unit_aliases.csv, so revenue history against the old number still reconciles",
     "Tenancies derived from Month_Wise_Rent_Revenue_V3 Revenue tab: start = first month rent was charged, end = last month charged for the 145 that ended; the 267 still charged in July 2026 are rolled forward 12 months from start past the current month. UG-180 rows folded to UG-169. Rent is the figure in force at the end of the run, so the live total reconciles to the July charge of 725,650.",
-    "Portfolio history built from three workbooks reconciled on building name: revenue V3, owner rent V4, expenses V3. TWAR-10 VILLAS on the owner-rent register expands to the ten Al Adekhar buildings; UMM GHUWAILINA-169/180 appears twice, once with a non-breaking space, and folds to UG-169. Aug-Oct 2025 is one lump period because owner rent was paid as a lump and the register never split it. 10 rent-free months (TV-20 five, UG-169 three, TV-66 and TV-27 one each) are recorded as such, not zero-filled."
+    "Portfolio history built from three workbooks reconciled on building name: revenue V3, owner rent V4, expenses V3. TWAR-10 VILLAS on the owner-rent register expands to the ten Al Adekhar buildings; UMM GHUWAILINA-169/180 appears twice, once with a non-breaking space, and folds to UG-169. Aug-Oct 2025 is one lump period because owner rent was paid as a lump and the register never split it. 10 rent-free months (TV-20 five, UG-169 three, TV-66 and TV-27 one each) are recorded as such, not zero-filled.",
+    "Owner-rent cheque register deduplicated: 230 rows collapsed. DAFNA VILLA confirmed as the same cheques as TWAR-10 VILLAS (Nikhil, 2026-09-10); THUMAMA NEW VILLA folds to TV-27 and MUGALINA to UG-20, both on payee evidence. 43 CANCELLED rows and 14 out-of-portfolio cheques dropped. Villa cheques split ten ways by largest remainder. Transfers are derived as booked owner rent less cheques dated in the period and are flagged as such - there is no bank reference for them in any source."
   ],
   "units.csv": {
     "sha256": "5cb6304705afa236",
@@ -50,5 +51,15 @@
     "sha256": "409fe495c98f36ea",
     "rows": 220,
     "bytes": 17141
+  },
+  "owner_cheques.csv": {
+    "sha256": "ae5adb7350b38bf5",
+    "rows": 388,
+    "bytes": 59450
+  },
+  "owner_transfers.csv": {
+    "sha256": "8cb3637a9a2969d5",
+    "rows": 48,
+    "bytes": 7599
   }
 }
