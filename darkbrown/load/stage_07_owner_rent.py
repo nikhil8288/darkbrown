@@ -111,6 +111,16 @@ def _resolve(rows, xrows):
         if date and date > CUTOFF and status == "Cleared":
             bad("status", status, "future_but_cleared",
                 "post-dated cheques are commitments, not cash that has moved")
+        # `cheque_date` is not mandatory on the doctype, because a security
+        # cheque genuinely has none. That makes it this loader's job to insist
+        # a blank date is explained, rather than let one through by accident.
+        if not date:
+            if not (r.get("undated_reason") or "").strip():
+                bad("cheque_date", date, "undated_without_reason",
+                    "a cheque with no date must say why it has none")
+            if status != "Received":
+                bad("status", status, "undated_not_received",
+                    "an undated cheque is held, not presented or cleared")
 
         lease = None
         for h in (leases.get(b) or []):
@@ -183,6 +193,10 @@ def check():
           % (len(future), q(total(future))))
     print("  undated / security     %3d   %s"
           % (len(undated), q(total(undated))))
+    for p in undated:
+        print("        %-9s %-9s %12s  %s"
+              % (p["no"], p["building"] or "(villas)", q(p["amount"]),
+                 p["raw"].get("undated_reason", "")))
     print("  %d cheque(s) pay the ten villas together and carry no building "
           "— the register never says which villas" % len(multi))
     print("  %s: %d derived transfer(s), %s"
@@ -290,6 +304,8 @@ def gate():
                                          "status": "Cleared"})
     presented = frappe.db.count("Cheque", {"direction": "Outgoing",
                                            "status": "Presented"})
+    held = frappe.db.count("Cheque", {"direction": "Outgoing",
+                                      "status": "Received"})
     site_total = round(sum(float(c.amount or 0) for c in frappe.get_all(
         "Cheque", filters={"direction": "Outgoing"}, fields=["amount"])), 2)
     want_total = round(sum(p["amount"] for p in plan), 2)
@@ -316,6 +332,8 @@ def gate():
          % (cleared, len(past), CUTOFF)),
         ("post-dated cheques are not Cleared", presented == len(future),
          "%d Presented vs %d post-dated" % (presented, len(future))),
+        ("undated cheques are held, not cleared", held == len(undated),
+         "%d Received vs %d undated" % (held, len(undated))),
         ("no cheque points at a landlord that is gone", not orphan,
          "%d orphan(s)" % orphan),
         ("the derived transfers are on their leases", xfer == len(xplan),
