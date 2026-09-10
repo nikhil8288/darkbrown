@@ -6707,6 +6707,26 @@ ROUTES.data=()=>page('Data & demo',
      </div>
    </div>
 
+   <div class="card" style="margin-top:14px"><h3>Stage 5 &mdash; tenancies</h3>
+     <p class="mt" style="max-width:64ch">This is the one the portfolio numbers come from.
+     It puts people in flats, and afterwards the occupancy figure is real for the first
+     time.</p>
+     <p class="mt" style="max-width:64ch">The test is not the row count. Nothing here sets
+     a unit's status &mdash; the units flip to <b>Occupied</b> on their own as each
+     agreement saves. A run that creates every row and leaves the portfolio Vacant has
+     failed, and Gate says so.</p>
+     <p class="mt" style="max-width:64ch">171 tenancies have no written agreement. Their
+     dates come from evidence: start is the first month rent was charged, end is the last
+     month charged for the ones that ended. The live ones are rolled forward, because an
+     end date already past empties a flat with somebody living in it.</p>
+     <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
+       <button class="btn" onclick="dtStart('stage5_check')">Check 5</button>
+       <button class="btn" onclick="dtStart('stage5_run')">Run 5</button>
+       <button class="btn" onclick="dtStart('stage5_gate')">Gate 5</button>
+       <button class="btn" onclick="dtStart('stage5_reload')">Reload 5</button>
+     </div>
+   </div>
+
    <div class="card" style="margin-top:14px"><h3>Rebuild</h3>
      <p class="mt" style="max-width:64ch">This removes every DarkBrown record and the ERPNext
      invoices, payments, tenants and landlords that came with them, then lays down three
