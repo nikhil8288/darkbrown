@@ -35,7 +35,8 @@ ACTIONS = ("purge", "seed", "verify", "rebuild",
            "stage6_check", "stage6_run", "stage6_gate", "stage6_reload",
            "stage7_check", "stage7_run", "stage7_gate", "stage7_reload",
            "stage8_check", "stage8_run", "stage8_gate", "stage8_reload",
-           "stage9_check", "stage9_run", "stage9_gate", "stage9_reload")
+           "stage9_check", "stage9_run", "stage9_gate", "stage9_reload",
+           "stage10_check", "stage10_run", "stage10_gate", "stage10_reload")
 
 
 # ------------------------------------------------------------------ guarding
@@ -187,7 +188,7 @@ def execute(action, confirm=None, wide=0, user=None):
                 else:
                     w0.gate()
             elif action.startswith(("stage1_", "stage2_", "stage3_",
-                                    "stage4_", "stage5_", "stage6_", "stage7_", "stage8_", "stage9_")):
+                                    "stage4_", "stage5_", "stage6_", "stage7_", "stage8_", "stage9_", "stage10_")):
                 from darkbrown.load import stage_01_landlords as s1
                 from darkbrown.load import stage_02_buildings as s2
                 from darkbrown.load import stage_03_units as s3
@@ -197,10 +198,12 @@ def execute(action, confirm=None, wide=0, user=None):
                 from darkbrown.load import stage_07_owner_rent as s7
                 from darkbrown.load import stage_08_opex as s8
                 from darkbrown.load import stage_09_key_money as s9
+                from darkbrown.load import stage_10_arrears as s10
                 mod = {"stage1": s1, "stage2": s2, "stage3": s3,
                        "stage4": s4, "stage5": s5,
                        "stage6": s6, "stage7": s7,
-                       "stage8": s8, "stage9": s9}[action.split("_", 1)[0]]
+                       "stage8": s8, "stage9": s9,
+                       "stage10": s10}[action.split("_", 1)[0]]
                 getattr(mod, action.split("_", 1)[1])()
         _append("\n\nDone.\n")
         _finish("done")

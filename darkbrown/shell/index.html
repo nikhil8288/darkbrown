@@ -6802,6 +6802,25 @@ ROUTES.data=()=>page('Data & demo',
      </div>
    </div>
 
+   <div class="card" style="margin-top:14px"><h3>Stage 10 &mdash; arrears</h3>
+     <p class="mt" style="max-width:64ch">44 collection cases, QAR 124,202 outstanding at
+     31 July 2026. One case per tenant per unit rather than one per unpaid month &mdash;
+     somebody four months behind is one problem, not four.</p>
+     <p class="mt" style="max-width:64ch">Stage 6 reports 468,314 uncollected and this
+     reports 124,202. Both are right: 240,250 of it is covered by advances already held,
+     and 103,862 was rent that was late and has since been paid. What is left is what
+     somebody still owes.</p>
+     <p class="mt" style="max-width:64ch">Each case is dated from the month the rent first
+     went unpaid, not from the cutover, so the age of the debt is honest. The oldest runs
+     back to October 2025.</p>
+     <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
+       <button class="btn" onclick="dtStart('stage10_check')">Check 10</button>
+       <button class="btn" onclick="dtStart('stage10_run')">Run 10</button>
+       <button class="btn" onclick="dtStart('stage10_gate')">Gate 10</button>
+       <button class="btn" onclick="dtStart('stage10_reload')">Reload 10</button>
+     </div>
+   </div>
+
    <div class="card" style="margin-top:14px"><h3>Rebuild</h3>
      <p class="mt" style="max-width:64ch">This removes every DarkBrown record and the ERPNext
      invoices, payments, tenants and landlords that came with them, then lays down three
