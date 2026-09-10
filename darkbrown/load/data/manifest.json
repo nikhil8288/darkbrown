@@ -16,7 +16,8 @@
     "TV-20 payment frequency Quarterly (confirmed 2026-09-10); the owner-rent register books 39,000 each quarter",
     "UG-180 loaded as UG-169 - the same building under its former name",
     "Tenant names folded: VACANT/EMPTY excluded (125 rows), 158 short-vs-full name pairs merged on same-unit evidence, all Shamnadh Ponnakkatt Bavakutty variants folded to one tenant (he holds the flats from his agent days)",
-    "14 superseded unit labels removed and mapped to their new label in unit_aliases.csv, so revenue history against the old number still reconciles"
+    "14 superseded unit labels removed and mapped to their new label in unit_aliases.csv, so revenue history against the old number still reconciles",
+    "Tenancies derived from Month_Wise_Rent_Revenue_V3 Revenue tab: start = first month rent was charged, end = last month charged for the 145 that ended; the 267 still charged in July 2026 are rolled forward 12 months from start past the current month. UG-180 rows folded to UG-169. Rent is the figure in force at the end of the run, so the live total reconciles to the July charge of 725,650."
   ],
   "units.csv": {
     "sha256": "5cb6304705afa236",
@@ -38,5 +39,10 @@
     "sha256": "e66a8a828f2e59ac",
     "rows": 14,
     "bytes": 694
+  },
+  "tenancies.csv": {
+    "sha256": "4b653b6a547c0bce",
+    "rows": 412,
+    "bytes": 98271
   }
 }

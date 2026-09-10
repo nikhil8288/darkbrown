@@ -152,10 +152,11 @@ def _resolve(rows):
                 "not one of the doctype's options")
 
         rent = _money(r.get("monthly_rent"))
+        free = str(r.get("rent_free") or "").strip() == "1"
         if rent is None:
             bad("monthly_rent", r.get("monthly_rent"), "rent_not_a_number",
                 "could not be read as an amount")
-        elif rent <= 0 and status in LIVE:
+        elif rent <= 0 and status in LIVE and not free:
             bad("monthly_rent", rent, "live_without_rent",
                 "a live tenancy charging nothing will not reconcile")
 
@@ -216,6 +217,14 @@ def check():
     print("  %d have an agreement on file, %d are on evidence alone"
           % (d["papers"], len(plan) - d["papers"]))
     print("  %d routed for approval" % routed)
+    free = [p for p in plan if str(p["raw"].get("rent_free") or "") == "1"]
+    if free:
+        print("  %d rent-free — charging nothing while occupied, awaiting "
+              "Anoop's treatment:" % len(free))
+        for p in free[:6]:
+            print("        %s %s from %s"
+                  % (p["raw"].get("building"), p["raw"].get("unit_no"),
+                     p["raw"].get("start_date")))
     C.report(problems)
     if problems:
         print("  %d problem(s). Fix these before Run." % len(problems))
