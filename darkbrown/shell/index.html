@@ -6727,6 +6727,24 @@ ROUTES.data=()=>page('Data & demo',
      </div>
    </div>
 
+   <div class="card" style="margin-top:14px"><h3>Stage 6 &mdash; portfolio history</h3>
+     <p class="mt" style="max-width:64ch">One row per building per period: what was
+     received, what the landlord was paid, what electricity and wifi cost. This is the
+     record the spread is read off, and the first stage whose output goes in front of the
+     MD.</p>
+     <p class="mt" style="max-width:64ch">Nothing here touches the ledger. The cash that
+     produced these figures is loaded later through the cutover control account.</p>
+     <p class="mt" style="max-width:64ch">August to October 2025 is a single period, because
+     owner rent was paid as a lump and the register never split it. Splitting it into three
+     equal months would put a figure against August that no cheque supports.</p>
+     <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
+       <button class="btn" onclick="dtStart('stage6_check')">Check 6</button>
+       <button class="btn" onclick="dtStart('stage6_run')">Run 6</button>
+       <button class="btn" onclick="dtStart('stage6_gate')">Gate 6</button>
+       <button class="btn" onclick="dtStart('stage6_reload')">Reload 6</button>
+     </div>
+   </div>
+
    <div class="card" style="margin-top:14px"><h3>Rebuild</h3>
      <p class="mt" style="max-width:64ch">This removes every DarkBrown record and the ERPNext
      invoices, payments, tenants and landlords that came with them, then lays down three
