@@ -83,10 +83,35 @@ def _defaults():
     return group, territory
 
 
-def _resolve(rows):
-    existing = {}
+def _keymap(rows):
+    """norm(customer_name) -> match_key.
+
+    A folded row is created under its short name — `AISHA` — but planned under
+    its match_key, `aisha sophia marie arciga flores`. 61 of the 380 rows are
+    like this. Indexing the site by norm(customer_name) alone means those 61
+    never match what the plan is looking for, so every run creates them again
+    and every gate reports them missing. The worksheet's own name column is
+    what turns a Customer back into its key.
+    """
+    out = {}
+    for r in rows:
+        n = C.norm(r.get("customer_name"))
+        if n:
+            out[n] = (r.get("match_key") or "").strip() or n
+    return out
+
+
+def _site_index(rows):
+    keymap = _keymap(rows)
+    index = {}
     for c in frappe.get_all("Customer", fields=["name", "customer_name"]):
-        existing.setdefault(C.norm(c.customer_name or c.name), []).append(c.name)
+        n = C.norm(c.customer_name or c.name)
+        index.setdefault(keymap.get(n, n), []).append(c.name)
+    return index
+
+
+def _resolve(rows):
+    existing = _site_index(rows)
 
     plan, problems, seen = [], [], {}
     for i, r in enumerate(rows, start=2):
@@ -253,9 +278,7 @@ def gate():
     want = {(r.get("match_key") or C.norm(r["customer_name"])): r["customer_name"]
             for r in rows if r.get("customer_name")}
 
-    on_site = {}
-    for c in frappe.get_all("Customer", fields=["name", "customer_name"]):
-        on_site.setdefault(C.norm(c.customer_name or c.name), []).append(c.name)
+    on_site = _site_index(rows)
 
     missing = sorted(k for k in want if k not in on_site)
     doubled = sorted(k for k in want if len(on_site.get(k, [])) > 1)
@@ -276,7 +299,7 @@ def gate():
         ("none created twice", not doubled,
          "no duplicates" if not doubled
          else "duplicated: %s" % ", ".join(doubled[:3])),
-        ("flagged as tenants", flagged >= len(want),
+        ("flagged as tenants", flagged == len(want),
          "%d flagged db_is_tenant" % flagged),
         ("no customer called VACANT or EMPTY", not ghosts,
          "none" if not ghosts else "found %s" % ", ".join(ghosts)),
