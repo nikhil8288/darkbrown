@@ -20,7 +20,8 @@
     "Tenancies derived from Month_Wise_Rent_Revenue_V3 Revenue tab: start = first month rent was charged, end = last month charged for the 145 that ended; the 267 still charged in July 2026 are rolled forward 12 months from start past the current month. UG-180 rows folded to UG-169. Rent is the figure in force at the end of the run, so the live total reconciles to the July charge of 725,650.",
     "Portfolio history built from three workbooks reconciled on building name: revenue V3, owner rent V4, expenses V3. TWAR-10 VILLAS on the owner-rent register expands to the ten Al Adekhar buildings; UMM GHUWAILINA-169/180 appears twice, once with a non-breaking space, and folds to UG-169. Aug-Oct 2025 is one lump period because owner rent was paid as a lump and the register never split it. 10 rent-free months (TV-20 five, UG-169 three, TV-66 and TV-27 one each) are recorded as such, not zero-filled.",
     "Owner-rent cheque register deduplicated: 230 rows collapsed. DAFNA VILLA confirmed as the same cheques as TWAR-10 VILLAS (Nikhil, 2026-09-10); THUMAMA NEW VILLA folds to TV-27 and MUGALINA to UG-20, both on payee evidence. 43 CANCELLED rows and 14 out-of-portfolio cheques dropped. Villa cheques split ten ways by largest remainder. Transfers are derived as booked owner rent less cheques dated in the period and are flagged as such - there is no bank reference for them in any source.",
-    "Opex from V3 expense workbook, Oct 2025 - Jul 2026. Building-level heads from the Building tab, company-level from the Segregate tab. Two workbook spellings normalised to the chart (Maintanance -> Maintenance). Depreciation collapsed from per-building to one common row a month: the chart carries it as a common cost and ExpenseEntry.validate would strip the building anyway. Key money is excluded here - it is stage 9's, from its own workbook - which is why the total is 1,790,008 against the master tab's 3,209,553."
+    "Opex from V3 expense workbook, Oct 2025 - Jul 2026. Building-level heads from the Building tab, company-level from the Segregate tab. Two workbook spellings normalised to the chart (Maintanance -> Maintenance). Depreciation collapsed from per-building to one common row a month: the chart carries it as a common cost and ExpenseEntry.validate would strip the building anyway. Key money is excluded here - it is stage 9's, from its own workbook - which is why the total is 1,790,008 against the master tab's 3,209,553.",
+    "Key money from V3_KEY_MONEY: 1,212,250 on properties held, per building per month, plus 207,301 on properties bid for and not won, taken from the expense workbook's segregate tab because the key money workbook does not carry it. Together 1,419,551, which is exactly what stage 8 left out of the master tab. UG-169 has no key money column - it paid none."
   ],
   "units.csv": {
     "sha256": "5cb6304705afa236",
@@ -67,5 +68,10 @@
     "sha256": "6c081c5b9958baaf",
     "rows": 2784,
     "bytes": 212969
+  },
+  "key_money.csv": {
+    "sha256": "59b315dc216eb17f",
+    "rows": 66,
+    "bytes": 5738
   }
 }

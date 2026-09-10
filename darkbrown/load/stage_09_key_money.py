@@ -1,35 +1,29 @@
-"""Stage 8 — operating costs.
+"""Stage 9 — key money.
 
-2,784 cost lines from October 2025 to July 2026, one per head per building per
-month where there was an amount. Building costs carry their building; company
-costs carry none and reach the buildings through the allocation, not through
-the ledger.
+The premium paid to take a building on, and the premium paid on buildings that
+were bid for and lost. 1,419,551 across the two, which is exactly the amount
+stage 8 left out of the expense workbook's master tab — key money appears in
+both workbooks and loading it from each would have doubled it.
 
-**These load as drafts and post nothing.** `ExpenseEntry.on_submit` writes a
-Journal Entry, and submitting 2,784 of them would put a year of vouchers into
-periods that closed before the system existed. Every stage so far has kept
-history out of the ledger, and this one does the same. When Anoop decides the
-opening position, submitting them is one pass over `docstatus = 0`; until then
-the detail is on the site and the GL is untouched.
+**The two halves come from different places, because only one of them is in the
+key money workbook.** `Key Money` is there, 1,212,250, laid out per building per
+month. `Key Money - Other` is not; its 207,301 sits in the expense workbook's
+segregate tab. They are separate heads in the chart for a good reason: money
+paid on a building that was won attaches to that building, and money paid on one
+that was lost has no building to attach to. The second is a Common cost, reaching
+the buildings through the allocation rather than the ledger.
 
-That is also why `validate` is bypassed on insert. It exists to stop someone
-keying a cost without saying where the money came from, which is right for a
-cost being paid today and meaningless for one that was paid a year ago through
-a bank account this system never saw. The checks it would have made are made
-here instead, against the same chart: the head has to be one the app knows, a
-building cost has to name its building, and the building has to have a cost
-centre. `basis` and `cost_center` are written the way `validate` would write
-them, so a submitted entry lands exactly where it should.
+**It stays in cost of sales.** Both heads sit above gross margin at the
+accountant's direction, not below it — that decision is recorded in
+`chart_of_accounts` and this stage does not revisit it.
 
-**The workbook and the chart disagree about depreciation.** The workbook
-spreads it across buildings; `chart_of_accounts` carries it as a common cost,
-and `validate` would strip the building off anyway. It is collapsed to one row
-a month against Overhead — 244,920 over the ten months.
+**The first period runs July to October 2025.** The key money workbook lumps
+those four months where the owner-rent register lumped three, so the labels do
+not line up with stage 6's. They are not meant to: this is when a premium was
+paid, not when rent accrued.
 
-**Key money is not here.** The master tab carries 1,419,551 of it, which is why
-this stage totals 1,790,008 rather than the 3,209,553 on that tab. Key money
-has its own workbook and its own stage, and loading it twice would overstate
-cost of sales by the whole amount.
+Like stage 8, these load as drafts and post nothing. UG-169 has no key money
+column in the workbook — it paid none.
 """
 
 import frappe
@@ -38,8 +32,8 @@ from darkbrown.load import common as C
 from darkbrown.utils.chart_of_accounts import (BUILDING, COMMON, basis_of,
                                                ensure_overhead_cost_center)
 
-STAGE = "8"
-SOURCE = "opex.csv"
+STAGE = "9"
+SOURCE = "key_money.csv"
 
 
 def _money(value):
@@ -165,13 +159,15 @@ def check():
     def q(v):
         return frappe.utils.fmt_money(v, currency="QAR")
 
-    print("STAGE 8 CHECK — operating costs")
+    print("STAGE 9 CHECK — key money")
     print("  %s: %d rows, %d to create" % (SOURCE, len(rows), len(fresh)))
     print("  %d head(s) across %d month(s)"
           % (len(heads), len({p["date"] for p in plan})))
-    print("  building costs  %s" % q(t.get("Building", 0)))
-    print("  common costs    %s" % q(t.get("Common", 0)))
-    print("  total           %s" % q(sum(t.values())))
+    print("  on buildings held   %s" % q(t.get("Building", 0)))
+    print("  on buildings lost   %s" % q(t.get("Common", 0)))
+    print("  total               %s" % q(sum(t.values())))
+    print("  %d building(s) paid key money"
+          % len({p["building"] for p in plan if p["building"]}))
     print("  these load as drafts. Nothing posts to the ledger until somebody "
           "decides to submit them.")
     C.report(problems)
@@ -187,12 +183,12 @@ def run():
     if problems:
         C.report(problems)
         C.write_exceptions(STAGE, problems)
-        frappe.throw("Stage 8 refused: %d problem(s). Run Check."
+        frappe.throw("Stage 9 refused: %d problem(s). Run Check."
                      % len(problems))
 
     company = C.company()
     made, failed = 0, []
-    print("STAGE 8 RUN — operating costs")
+    print("STAGE 9 RUN — key money")
     for p in plan:
         if p["existing"]:
             continue
@@ -206,6 +202,7 @@ def run():
             e.cost_center = p["centre"]
             e.payment_mode = "Unpaid"
             e.description = (p["raw"].get("description") or p["head"])[:140]
+            e.reference = (p["raw"].get("period_label") or "").strip()[:140]
             e.company = company
             e.notes = ("Loaded from the July 2026 cutover. Left as a draft: "
                        "submitting would post a journal into a closed period.")
@@ -235,7 +232,7 @@ def run():
 
 
 def reload():
-    print("STAGE 8 RELOAD — operating costs")
+    print("STAGE 9 RELOAD — key money")
     return run()
 
 
@@ -262,7 +259,7 @@ def gate():
     journals = len([s for s in site if s.get("docstatus") == 1])
 
     checks = [
-        ("every cost line in the worksheet exists", on_site == len(plan),
+        ("every key money line in the worksheet exists", on_site == len(plan),
          "%d on site vs %d expected" % (on_site, len(plan))),
         ("the amounts reconcile", abs(site_total - want_total) < 1.0,
          "%s on site vs %s expected"

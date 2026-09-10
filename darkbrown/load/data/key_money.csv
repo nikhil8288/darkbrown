@@ -1,0 +1,67 @@
+﻿expense_date,period_label,is_lump_period,expense_head,basis,building,amount,description
+2025-10-31,Jul-Oct 2025,1,Key Money,Building,MR-130,27000.00,Key money paid on MR-130
+2025-10-31,Jul-Oct 2025,1,Key Money,Building,TV-20,6500.00,Key money paid on TV-20
+2025-10-31,Jul-Oct 2025,1,Key Money,Building,TV-66,7000.00,Key money paid on TV-66
+2025-10-31,Jul-Oct 2025,1,Key Money,Building,TV-68,7000.00,Key money paid on TV-68
+2025-10-31,Oct 2025,0,Key Money - Other,Common,,20730.10,Key money on properties bid for and not won
+2025-11-30,Nov 2025,0,Key Money,Building,AK-12,92950.00,Key money paid on AK-12
+2025-11-30,Nov 2025,0,Key Money,Building,DAJ-21,92950.00,Key money paid on DAJ-21
+2025-11-30,Nov 2025,0,Key Money,Building,MQ-56,92950.00,Key money paid on MQ-56
+2025-11-30,Nov 2025,0,Key Money,Building,MR-130,25000.00,Key money paid on MR-130
+2025-11-30,Nov 2025,0,Key Money,Building,MT-21,92950.00,Key money paid on MT-21
+2025-11-30,Nov 2025,0,Key Money,Building,OG-48,92950.00,Key money paid on OG-48
+2025-11-30,Nov 2025,0,Key Money - Other,Common,,20730.10,Key money on properties bid for and not won
+2025-12-31,Dec 2025,0,Key Money,Building,MR-130,2000.00,Key money paid on MR-130
+2025-12-31,Dec 2025,0,Key Money,Building,UG-20,18000.00,Key money paid on UG-20
+2025-12-31,Dec 2025,0,Key Money - Other,Common,,20730.10,Key money on properties bid for and not won
+2026-01-31,Jan 2026,0,Key Money,Building,MR-130,5000.00,Key money paid on MR-130
+2026-01-31,Jan 2026,0,Key Money,Building,TV-27,12500.00,Key money paid on TV-27
+2026-01-31,Jan 2026,0,Key Money - Other,Common,,20730.10,Key money on properties bid for and not won
+2026-02-28,Feb 2026,0,Key Money,Building,TWR-12,1000.00,Key money paid on TWR-12
+2026-02-28,Feb 2026,0,Key Money,Building,TWR-16,1000.00,Key money paid on TWR-16
+2026-02-28,Feb 2026,0,Key Money,Building,TWR-17,1000.00,Key money paid on TWR-17
+2026-02-28,Feb 2026,0,Key Money,Building,TWR-19,1000.00,Key money paid on TWR-19
+2026-02-28,Feb 2026,0,Key Money,Building,TWR-20,1000.00,Key money paid on TWR-20
+2026-02-28,Feb 2026,0,Key Money,Building,TWR-35,1000.00,Key money paid on TWR-35
+2026-02-28,Feb 2026,0,Key Money,Building,TWR-37,1000.00,Key money paid on TWR-37
+2026-02-28,Feb 2026,0,Key Money,Building,TWR-39,1000.00,Key money paid on TWR-39
+2026-02-28,Feb 2026,0,Key Money,Building,TWR-45,1000.00,Key money paid on TWR-45
+2026-02-28,Feb 2026,0,Key Money,Building,TWR-58,1000.00,Key money paid on TWR-58
+2026-02-28,Feb 2026,0,Key Money,Building,UG-20,14000.00,Key money paid on UG-20
+2026-02-28,Feb 2026,0,Key Money - Other,Common,,20730.10,Key money on properties bid for and not won
+2026-03-31,Mar 2026,0,Key Money,Building,OG-48,3500.00,Key money paid on OG-48
+2026-03-31,Mar 2026,0,Key Money,Building,TWR-12,20000.00,Key money paid on TWR-12
+2026-03-31,Mar 2026,0,Key Money,Building,TWR-16,20000.00,Key money paid on TWR-16
+2026-03-31,Mar 2026,0,Key Money,Building,TWR-17,20000.00,Key money paid on TWR-17
+2026-03-31,Mar 2026,0,Key Money,Building,TWR-19,20000.00,Key money paid on TWR-19
+2026-03-31,Mar 2026,0,Key Money,Building,TWR-20,20000.00,Key money paid on TWR-20
+2026-03-31,Mar 2026,0,Key Money,Building,TWR-35,20000.00,Key money paid on TWR-35
+2026-03-31,Mar 2026,0,Key Money,Building,TWR-37,20000.00,Key money paid on TWR-37
+2026-03-31,Mar 2026,0,Key Money,Building,TWR-39,20000.00,Key money paid on TWR-39
+2026-03-31,Mar 2026,0,Key Money,Building,TWR-45,20000.00,Key money paid on TWR-45
+2026-03-31,Mar 2026,0,Key Money,Building,TWR-58,20000.00,Key money paid on TWR-58
+2026-03-31,Mar 2026,0,Key Money - Other,Common,,20730.10,Key money on properties bid for and not won
+2026-04-30,Apr 2026,0,Key Money,Building,TWR-12,31000.00,Key money paid on TWR-12
+2026-04-30,Apr 2026,0,Key Money,Building,TWR-16,31000.00,Key money paid on TWR-16
+2026-04-30,Apr 2026,0,Key Money,Building,TWR-17,31000.00,Key money paid on TWR-17
+2026-04-30,Apr 2026,0,Key Money,Building,TWR-19,31000.00,Key money paid on TWR-19
+2026-04-30,Apr 2026,0,Key Money,Building,TWR-20,31000.00,Key money paid on TWR-20
+2026-04-30,Apr 2026,0,Key Money,Building,TWR-35,31000.00,Key money paid on TWR-35
+2026-04-30,Apr 2026,0,Key Money,Building,TWR-37,31000.00,Key money paid on TWR-37
+2026-04-30,Apr 2026,0,Key Money,Building,TWR-39,31000.00,Key money paid on TWR-39
+2026-04-30,Apr 2026,0,Key Money,Building,TWR-45,31000.00,Key money paid on TWR-45
+2026-04-30,Apr 2026,0,Key Money,Building,TWR-58,31000.00,Key money paid on TWR-58
+2026-04-30,Apr 2026,0,Key Money - Other,Common,,20730.10,Key money on properties bid for and not won
+2026-05-31,May 2026,0,Key Money,Building,TWR-12,10000.00,Key money paid on TWR-12
+2026-05-31,May 2026,0,Key Money,Building,TWR-16,10000.00,Key money paid on TWR-16
+2026-05-31,May 2026,0,Key Money,Building,TWR-17,10000.00,Key money paid on TWR-17
+2026-05-31,May 2026,0,Key Money,Building,TWR-19,10000.00,Key money paid on TWR-19
+2026-05-31,May 2026,0,Key Money,Building,TWR-20,10000.00,Key money paid on TWR-20
+2026-05-31,May 2026,0,Key Money,Building,TWR-35,10000.00,Key money paid on TWR-35
+2026-05-31,May 2026,0,Key Money,Building,TWR-37,10000.00,Key money paid on TWR-37
+2026-05-31,May 2026,0,Key Money,Building,TWR-39,10000.00,Key money paid on TWR-39
+2026-05-31,May 2026,0,Key Money,Building,TWR-45,10000.00,Key money paid on TWR-45
+2026-05-31,May 2026,0,Key Money,Building,TWR-58,10000.00,Key money paid on TWR-58
+2026-05-31,May 2026,0,Key Money - Other,Common,,20730.10,Key money on properties bid for and not won
+2026-06-30,Jun 2026,0,Key Money - Other,Common,,20730.10,Key money on properties bid for and not won
+2026-07-31,Jul 2026,0,Key Money - Other,Common,,20730.10,Key money on properties bid for and not won

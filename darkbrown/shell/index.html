@@ -6784,6 +6784,24 @@ ROUTES.data=()=>page('Data & demo',
      </div>
    </div>
 
+   <div class="card" style="margin-top:14px"><h3>Stage 9 &mdash; key money</h3>
+     <p class="mt" style="max-width:64ch">The premium paid to take a building on, and the
+     premium paid on buildings that were bid for and lost. QAR 1,419,551 across the two
+     &mdash; exactly what stage 8 left out, because key money appears in both workbooks and
+     loading it from each would have doubled it.</p>
+     <p class="mt" style="max-width:64ch">Money paid on a building that was won attaches to
+     that building. Money paid on one that was lost has no building to attach to, so it
+     reaches them through the allocation instead. Both stay in cost of sales, above gross
+     margin, at the accountant&rsquo;s direction.</p>
+     <p class="mt" style="max-width:64ch">Drafts, like stage 8. Nothing posts.</p>
+     <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
+       <button class="btn" onclick="dtStart('stage9_check')">Check 9</button>
+       <button class="btn" onclick="dtStart('stage9_run')">Run 9</button>
+       <button class="btn" onclick="dtStart('stage9_gate')">Gate 9</button>
+       <button class="btn" onclick="dtStart('stage9_reload')">Reload 9</button>
+     </div>
+   </div>
+
    <div class="card" style="margin-top:14px"><h3>Rebuild</h3>
      <p class="mt" style="max-width:64ch">This removes every DarkBrown record and the ERPNext
      invoices, payments, tenants and landlords that came with them, then lays down three
