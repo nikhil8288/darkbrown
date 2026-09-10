@@ -6821,6 +6821,27 @@ ROUTES.data=()=>page('Data & demo',
      </div>
    </div>
 
+   <div class="card" style="margin-top:14px"><h3>Stage 11 &mdash; the ledger</h3>
+     <p class="mt" style="max-width:64ch"><b>This stage posts.</b> Everything before it
+     left the GL empty on purpose. This turns twelve months of records into journals so
+     ERPNext can produce a P&amp;L.</p>
+     <p class="mt" style="max-width:64ch">Revenue 5,306,783 less head lease rent 3,669,500
+     is a gross spread of 1,637,283, 30.9%. Operating costs take it to &minus;152,725 and
+     key money to <b>&minus;1,572,276</b>. That loss is the answer, not a fault: 1,419,551
+     of lease premium is charged to cost of sales in ten months, at the
+     accountant&rsquo;s direction.</p>
+     <p class="mt" style="max-width:64ch">Every posting contras to <b>Historical Cutover
+     Control</b>, so no real bank account is touched. Cancelling in ERPNext writes
+     reversing entries and keeps the originals, so this refuses to post the same voucher
+     twice.</p>
+     <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
+       <button class="btn" onclick="dtStart('stage11_check')">Check 11</button>
+       <button class="btn" onclick="dtStart('stage11_run')">Run 11</button>
+       <button class="btn" onclick="dtStart('stage11_gate')">Gate 11</button>
+       <button class="btn" onclick="dtStart('stage11_reload')">Reload 11</button>
+     </div>
+   </div>
+
    <div class="card" style="margin-top:14px"><h3>Rebuild</h3>
      <p class="mt" style="max-width:64ch">This removes every DarkBrown record and the ERPNext
      invoices, payments, tenants and landlords that came with them, then lays down three
