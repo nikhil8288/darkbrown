@@ -26,7 +26,10 @@ ACTIONS = ("purge", "seed", "verify", "rebuild",
            # refused unless check came back clean.
            "stage1_check", "stage1_run", "stage1_gate",
            "stage2_check", "stage2_run", "stage2_gate",
-           "stage3_check", "stage3_run", "stage3_gate")
+           "stage3_check", "stage3_run", "stage3_gate",
+           # Reload replaces a stage's records from a corrected worksheet.
+           # Each refuses once a later stage depends on what it would remove.
+           "stage1_reload", "stage2_reload", "stage3_reload")
 
 
 # ------------------------------------------------------------------ guarding

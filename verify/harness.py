@@ -612,13 +612,19 @@ def t_load_select_values_are_legal():
     for r in rows:
         assert r['status'] in opts[('Building', 'status')], \
             'Building.status %r is not a valid option' % r['status']
+    leases = list(_csv.DictReader(
+        open(REPO + '/darkbrown/load/data/head_leases.csv', encoding='utf-8-sig')))
+    for r in leases:
         assert r['payment_frequency'] in opts[('Head Lease', 'payment_frequency')], \
             'Head Lease.payment_frequency %r is not a valid option' % r['payment_frequency']
+        assert r['status'] in opts[('Head Lease', 'status')], \
+            'Head Lease.status %r is not a valid option' % r['status']
     from darkbrown.load import stage_02_buildings as s2
     for f in s2.FREQ:
         assert f in opts[('Head Lease', 'payment_frequency')], \
             'the loader would accept %r, which the doctype rejects' % f
-    print('        (%d rows, every Select value legal)' % len(rows))
+    print('        (%d buildings, %d leases, every Select value legal)'
+          % (len(rows), len(leases)))
 
 def t_load_stages_expose_check_run_gate():
     from darkbrown.load import stage_01_landlords as s1
@@ -709,10 +715,82 @@ def t_unit_list_comes_from_revenue_not_tenancies():
     assert 'UG-180' not in per, 'UG-180 is not a building'
 
 check("load data matches its manifest", t_load_data_matches_its_manifest)
+def t_unit_key_folds_narrowly():
+    """The unit fold must join what is the same and never join what is not.
+
+    The Tenancy Master writes 23 flats as F01 where Revenue writes F-01. An
+    earlier fold stripped every separator to catch that, which also turned
+    F-03/1 into F-31 — two different flats in TWR-20 collapsed into one, with
+    nothing in the output to show it had happened.
+    """
+    from darkbrown.load import common as LC
+    assert LC.unit_key('F01') == LC.unit_key('F-01') == 'F-01'
+    assert LC.unit_key('F-1') == 'F-01'
+    assert LC.unit_key('F-03/1') != LC.unit_key('F-31'), \
+        'the fold merges two different flats'
+    for verbatim in ('F-03/1', 'F-O/1', 'G-01A', 'G-01/GF', 'CABIN', 'VILLA'):
+        assert LC.unit_key(verbatim) == verbatim, \
+            '%s should be left alone' % verbatim
+
+    import csv as _csv
+    from collections import defaultdict
+    rows = list(_csv.DictReader(
+        open(REPO + '/darkbrown/load/data/units.csv', encoding='utf-8-sig')))
+    seen = defaultdict(list)
+    for r in rows:
+        seen[(r['building'], LC.unit_key(r['unit_no']))].append(r['unit_no'])
+    clash = {k: v for k, v in seen.items() if len(v) > 1}
+    assert not clash, 'the fold collides on real units: %s' % list(clash.items())[:3]
+    print('        (296 units, no collisions)')
+
 check("units all load Vacant, never Not Ready", t_units_never_load_not_ready)
+check("unit-number fold joins only what is the same", t_unit_key_folds_narrowly)
 check("unit list covers all 22 buildings", t_unit_list_comes_from_revenue_not_tenancies)
 check("checksum guards the data, not the line endings", t_load_digest_survives_line_endings)
+def t_one_active_lease_per_building():
+    """Two active leases on one building doubles its monthly cost.
+
+    DAJ-21 now carries two periods — 28,000 for Sep-Oct 2025 when only 8 flats
+    were under agreement, and 78,000 from November when the whole building was
+    taken on. Only the second is Active. If both were, the portfolio cost would
+    read 557,000 a month instead of 529,000 and nothing would look wrong.
+    """
+    import csv as _csv
+    from collections import Counter
+    leases = list(_csv.DictReader(
+        open(REPO + '/darkbrown/load/data/head_leases.csv', encoding='utf-8-sig')))
+    active = Counter(r['building_code'] for r in leases if r['status'] == 'Active')
+    doubled = [b for b, n in active.items() if n > 1]
+    assert not doubled, 'more than one active lease on %s' % doubled
+
+    buildings = {r['building_code'] for r in _csv.DictReader(
+        open(REPO + '/darkbrown/load/data/buildings.csv', encoding='utf-8-sig'))}
+    unleased = sorted(buildings - set(active))
+    assert not unleased, 'no active lease for %s' % unleased
+
+    total = sum(int(float(r['annual_rent'])) for r in leases
+                if r['status'] == 'Active')
+    assert total == 6348000, \
+        'active annual rent is %d, expected 6,348,000 (529,000 a month)' % total
+    print('        (%d leases, %d buildings, QAR %s a month)'
+          % (len(leases), len(buildings), format(total // 12, ',')))
+
+def t_daj21_carries_both_periods():
+    """The correction that mattered most, pinned so it cannot quietly revert."""
+    import csv as _csv
+    leases = [r for r in _csv.DictReader(
+        open(REPO + '/darkbrown/load/data/head_leases.csv', encoding='utf-8-sig'))
+        if r['building_code'] == 'DAJ-21']
+    assert len(leases) == 2, 'DAJ-21 should carry two lease periods, found %d' % len(leases)
+    early = [r for r in leases if r['hl_start'] == '2025-09-01'][0]
+    late = [r for r in leases if r['hl_start'] == '2025-11-01'][0]
+    assert int(early['annual_rent']) == 336000 and early['status'] == 'Expired'
+    assert int(late['annual_rent']) == 936000 and late['status'] == 'Active', \
+        'the 78,000 period is not the active one'
+
 check("every Select value in the data is legal", t_load_select_values_are_legal)
+check("one active head lease per building", t_one_active_lease_per_building)
+check("DAJ-21 carries both lease periods", t_daj21_carries_both_periods)
 check("each stage exposes check, run and gate", t_load_stages_expose_check_run_gate)
 check("name folding merges the case variants", t_load_normalise_folds_the_case_variants)
 check("data lives outside patches/", t_load_data_lives_outside_patches)

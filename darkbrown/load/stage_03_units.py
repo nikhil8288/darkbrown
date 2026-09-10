@@ -149,6 +149,44 @@ def run():
     return {"created": made, "failed": len(failed)}
 
 
+def reload():
+    """Replace the units from a corrected worksheet.
+
+    Refuses once a tenancy exists. A Unit is named `{building}-{unit_no}`, and
+    every Tenancy Agreement points at that name — removing the units first
+    would leave the tenancies pointing at nothing, and Stage 5 would have to be
+    run again anyway.
+    """
+    live = frappe.db.count("Tenancy Agreement")
+    if live:
+        frappe.throw("%d tenancy agreement(s) point at these units. Reloading "
+                     "would orphan them — reload Stage 5 first, or correct the "
+                     "unit by hand." % live)
+
+    rows = C.rows(SOURCE)
+    plan, problems = _resolve(rows)
+    if problems:
+        C.report(problems)
+        C.write_exceptions(STAGE, problems)
+        frappe.throw("Stage 3 reload refused: %d problem(s)." % len(problems))
+
+    print("STAGE 3 RELOAD — replacing the units")
+    dropped = 0
+    for name in frappe.get_all("Unit", pluck="name"):
+        try:
+            frappe.db.set_value("Unit", name, "status", "Vacant",
+                                update_modified=False)
+            frappe.delete_doc("Unit", name, force=True,
+                              ignore_permissions=True, delete_permanently=True)
+            dropped += 1
+        except Exception as e:
+            text = (str(e) or "").strip() or type(e).__name__
+            print("  ! could not remove %s: %s" % (name, text.splitlines()[0][:80]))
+    frappe.db.commit()
+    print("  removed %d existing unit(s)" % dropped)
+    return run()
+
+
 def gate():
     rows = C.rows(SOURCE)
     want = {}

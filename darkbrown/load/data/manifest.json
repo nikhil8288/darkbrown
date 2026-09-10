@@ -5,18 +5,26 @@
     "bytes": 958
   },
   "buildings.csv": {
-    "sha256": "45b6c9eb4a13b1b4",
+    "sha256": "17019bf2259b4ebf",
     "rows": 22,
-    "bytes": 3868
+    "bytes": 2661
   },
   "_source": "DarkBrown_Owner_Agreements_Building_Level_v2.xlsx",
   "_corrections": [
-    "TWR-16 -> TWR-39 (Building No. 39, street 913, meters 1178352/1112048; confirmed against AGREEMENT 35_39.pdf)"
+    "TWR-16 -> TWR-39 (Building No. 39, street 913, meters 1178352/1112048; confirmed against AGREEMENT 35_39.pdf)",
+    "DAJ-21 split into two lease periods: 28,000/mo Sep-Oct 2025 (8 flats), 78,000/mo from Nov 2025 (whole building), per the owner-rent register",
+    "TV-20 payment frequency Quarterly (confirmed 2026-09-10); the owner-rent register books 39,000 each quarter",
+    "UG-180 loaded as UG-169 - the same building under its former name"
   ],
   "units.csv": {
     "sha256": "e5bde20a7a1f5265",
     "rows": 296,
     "bytes": 7987
   },
-  "_note": "sha256 is of the content with line endings normalised to LF, so a Windows-to-Linux checkout does not look like an edit"
+  "_note": "sha256 is of the content with line endings normalised to LF, so a Windows-to-Linux checkout does not look like an edit",
+  "head_leases.csv": {
+    "sha256": "0e5e7b3ea7924c53",
+    "rows": 23,
+    "bytes": 2695
+  }
 }

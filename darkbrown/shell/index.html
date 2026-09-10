@@ -6652,6 +6652,7 @@ ROUTES.data=()=>page('Data & demo',
        <button class="btn" onclick="dtStart('stage1_check')">Check 1</button>
        <button class="btn" onclick="dtStart('stage1_run')">Run 1</button>
        <button class="btn" onclick="dtStart('stage1_gate')">Gate 1</button>
+       <button class="btn" onclick="dtStart('stage1_reload')">Reload 1</button>
      </div>
    </div>
 
@@ -6665,6 +6666,7 @@ ROUTES.data=()=>page('Data & demo',
        <button class="btn" onclick="dtStart('stage2_check')">Check 2</button>
        <button class="btn" onclick="dtStart('stage2_run')">Run 2</button>
        <button class="btn" onclick="dtStart('stage2_gate')">Gate 2</button>
+       <button class="btn" onclick="dtStart('stage2_reload')">Reload 2</button>
      </div>
    </div>
 
@@ -6681,7 +6683,10 @@ ROUTES.data=()=>page('Data & demo',
        <button class="btn" onclick="dtStart('stage3_check')">Check 3</button>
        <button class="btn" onclick="dtStart('stage3_run')">Run 3</button>
        <button class="btn" onclick="dtStart('stage3_gate')">Gate 3</button>
+       <button class="btn" onclick="dtStart('stage3_reload')">Reload 3</button>
      </div>
+     <div class="note">Reload replaces this stage from a corrected worksheet. It refuses once a later stage depends on what it would remove &mdash; before the ledger a correction is a rewrite, after it, cancelling leaves reversing entries behind.</div>
+
    </div>
 
    <div class="card" style="margin-top:14px"><h3>Rebuild</h3>

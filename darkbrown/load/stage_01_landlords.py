@@ -116,6 +116,24 @@ def run():
     return {"created": made, "failed": len(failed)}
 
 
+def reload():
+    """Re-read the worksheet. Landlords already present are left alone.
+
+    A Supplier cannot simply be replaced: buildings point at it, and later the
+    cheques and payables will too. So this adds what is missing and reports
+    what differs, rather than deleting and recreating.
+    """
+    rows = C.rows(SOURCE)
+    plan, problems = _resolve(rows)
+    if problems:
+        C.report(problems)
+        frappe.throw("Stage 1 reload refused: %d problem(s)." % len(problems))
+    print("STAGE 1 RELOAD — landlords")
+    already = [p for p in plan if p["existing"]]
+    print("  %d already on the site and left as they are" % len(already))
+    return run()
+
+
 def _looks_corporate(name):
     low = name.lower()
     return any(w in low for w in (" w.l.l", " wll", " llc", " company", " co.",
