@@ -111,9 +111,11 @@ def _resolve(rows, xrows):
         if date and date > CUTOFF and status == "Cleared":
             bad("status", status, "future_but_cleared",
                 "post-dated cheques are commitments, not cash that has moved")
-        # `cheque_date` is not mandatory on the doctype, because a security
-        # cheque genuinely has none. That makes it this loader's job to insist
-        # a blank date is explained, rather than let one through by accident.
+        # `cheque_date` is mandatory on the doctype, and for a cheque that
+        # will be presented it should be. A security cheque genuinely has
+        # none, so those are inserted with `ignore_mandatory` rather than the
+        # doctype being loosened for every cheque in the system. The rules
+        # below are what replaces the field-level check for those rows.
         if not date:
             if not (r.get("undated_reason") or "").strip():
                 bad("cheque_date", date, "undated_without_reason",
@@ -247,6 +249,10 @@ def run():
             if p["date"] and p["date"] <= CUTOFF:
                 c.cleared_on = p["date"]
             c.flags.ignore_permissions = True
+            if not p["date"]:
+                # held undated, with the reason recorded on the row. Checked
+                # above; nothing else is allowed through without a date.
+                c.flags.ignore_mandatory = True
             c.insert()
             frappe.db.commit()
             made += 1
