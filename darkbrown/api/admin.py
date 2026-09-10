@@ -21,7 +21,11 @@ STATE_KEY = "darkbrown:demo:state"
 ACTIONS = ("purge", "seed", "verify", "rebuild",
            # Stage 0 of the rebuild. check and gate write nothing; run is
            # gated on the same confirmation phrase as purge.
-           "stage0_check", "stage0_run", "stage0_gate")
+           "stage0_check", "stage0_run", "stage0_gate",
+           # Stages 1 and 2. check and gate write nothing; run writes but is
+           # refused unless check came back clean.
+           "stage1_check", "stage1_run", "stage1_gate",
+           "stage2_check", "stage2_run", "stage2_gate")
 
 
 # ------------------------------------------------------------------ guarding
@@ -172,6 +176,11 @@ def execute(action, confirm=None, wide=0, user=None):
                     w0.run(confirm=confirm, wide=int(wide or 1))
                 else:
                     w0.gate()
+            elif action.startswith(("stage1_", "stage2_")):
+                from darkbrown.load import stage_01_landlords as s1
+                from darkbrown.load import stage_02_buildings as s2
+                mod = s1 if action.startswith("stage1_") else s2
+                getattr(mod, action.split("_", 1)[1])()
         _append("\n\nDone.\n")
         _finish("done")
     except Exception:

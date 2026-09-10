@@ -23,6 +23,18 @@ const STATES = {
       units:[{id:'Al Sadd-101',b:'Al Sadd',bn:'Al Sadd',type:'2BR',floor:1,sqm:90,
               rent:6.5,llRent:5,st:'Occupied',vd:0}],
   }),
+  // Stage 2 exactly: buildings loaded, units and tenants not yet. This is the
+  // state the live site was in when every page went blank — buildings() returns
+  // units:0 because total_units is 0 until Stage 3, so the shell built UNITS as
+  // empty, kept its DEMO tenants because the old guard ignored an empty array,
+  // and then indexed those tenants into a zero-length UNITS.
+  'mid-load: buildings in, units not': Object.assign(
+      Object.fromEntries(KEYS.map(k => [k, []])), {
+      buildings:[{id:'AK-12',n:'AK-12',units:0,rev:0,cost:18,m:-18,mp:0,arr:0,
+                  vd:0,om:0,ex:0,occ:0,d:0,ll:'Al Madar Real Estate W.L.L.',
+                  hlEnd:'2026-11-30',hlRent:18,area:'Ain Khalid',floors:0,
+                  st:'Active',ho:null,nr:0}],
+  }),
   // OLD behaviour, keys omitted entirely for empty panels
   'old  keys-omitted  {buildings only}': {
       buildings:[{id:'Al Sadd',n:'Al Sadd',units:12,rev:180,cost:140,m:40,mp:22,arr:0,

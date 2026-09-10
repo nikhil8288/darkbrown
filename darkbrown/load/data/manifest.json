@@ -1,0 +1,16 @@
+{
+  "landlords.csv": {
+    "sha256": "fd01d2783c9d7452",
+    "rows": 12,
+    "bytes": 958
+  },
+  "buildings.csv": {
+    "sha256": "44725e22103cd5aa",
+    "rows": 22,
+    "bytes": 3868
+  },
+  "_source": "DarkBrown_Owner_Agreements_Building_Level_v2.xlsx",
+  "_corrections": [
+    "TWR-16 -> TWR-39 (Building No. 39, street 913, meters 1178352/1112048; confirmed against AGREEMENT 35_39.pdf)"
+  ]
+}

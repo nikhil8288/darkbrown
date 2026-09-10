@@ -556,6 +556,97 @@ check("wipe will not orphan ledger rows", t_wipe_will_not_orphan_the_ledger)
 check("wipe refuses without the exact phrase", t_wipe_refuses_without_phrase)
 check("wipe gate refuses to pass blind or on residue", t_wipe_gate_tells_residue_from_ruin)
 
+# ---- L. the load pipeline
+
+def t_load_data_matches_its_manifest():
+    """A file and its manifest must not drift apart.
+
+    opening_arrears.csv shipped as a header row and nothing else last time.
+    The loader read it, found no rows, and reported a clean run. The site went
+    live with no opening arrears and nothing said so.
+    """
+    import csv as _csv, hashlib, json as _json, os as _os
+    d = REPO + '/darkbrown/load/data'
+    man = _json.load(open(_os.path.join(d, 'manifest.json'), encoding='utf-8'))
+    for name, m in man.items():
+        if name.startswith('_'):
+            continue
+        path = _os.path.join(d, name)
+        assert _os.path.exists(path), 'manifest names a missing file: %s' % name
+        raw = open(path, 'rb').read()
+        got = hashlib.sha256(raw).hexdigest()[:16]
+        assert got == m['sha256'], '%s checksum %s, manifest says %s' % (name, got, m['sha256'])
+        rows = list(_csv.DictReader(raw.decode('utf-8-sig').splitlines()))
+        assert len(rows) == m['rows'], '%s has %d rows, manifest says %d' % (name, len(rows), m['rows'])
+        assert rows, '%s is empty' % name
+    print('        (%d data files match the manifest)'
+          % len([k for k in man if not k.startswith('_')]))
+
+def t_load_select_values_are_legal():
+    """Every Select value in the data must exist in the doctype.
+
+    FREQ was written from memory as 'Annually'. The doctype says 'Annual'.
+    Nothing in today's data uses it, so nothing would have failed until the
+    first annual lease arrived months from now.
+    """
+    import csv as _csv, glob as _glob, json as _json
+    opts = {}
+    for f in _glob.glob(REPO + '/darkbrown/darkbrown/doctype/*/*.json'):
+        d = _json.load(open(f, encoding='utf-8'))
+        if d.get('doctype') != 'DocType':
+            continue
+        for fld in d.get('fields', []):
+            if fld.get('fieldtype') == 'Select':
+                opts[(d['name'], fld['fieldname'])] = set(
+                    (fld.get('options') or '').split('\n'))
+    rows = list(_csv.DictReader(
+        open(REPO + '/darkbrown/load/data/buildings.csv', encoding='utf-8-sig')))
+    for r in rows:
+        assert r['status'] in opts[('Building', 'status')], \
+            'Building.status %r is not a valid option' % r['status']
+        assert r['payment_frequency'] in opts[('Head Lease', 'payment_frequency')], \
+            'Head Lease.payment_frequency %r is not a valid option' % r['payment_frequency']
+    from darkbrown.load import stage_02_buildings as s2
+    for f in s2.FREQ:
+        assert f in opts[('Head Lease', 'payment_frequency')], \
+            'the loader would accept %r, which the doctype rejects' % f
+    print('        (%d rows, every Select value legal)' % len(rows))
+
+def t_load_stages_expose_check_run_gate():
+    from darkbrown.load import stage_01_landlords as s1
+    from darkbrown.load import stage_02_buildings as s2
+    from darkbrown.load import stage_00_wipe as s0
+    for mod in (s0, s1, s2):
+        for fn in ('check', 'run', 'gate'):
+            assert callable(getattr(mod, fn, None)), \
+                '%s has no %s()' % (mod.__name__, fn)
+
+def t_load_normalise_folds_the_case_variants():
+    """488 tenant names in the revenue worksheet fold to 435. The 53 that
+    collapse are the same person typed twice, which is how the previous load
+    produced 547 customers against 441 tenancies."""
+    from darkbrown.load import common as LC
+    assert LC.norm('HAMED HRAIZ') == LC.norm('Hamed Hraiz')
+    assert LC.norm('Al Adekhar Real Estate Company WLL') == \
+           LC.norm('AL ADEKHAR REAL ESTATE COMPANY  W.L.L.').replace('w l l', 'wll')
+    assert LC.norm('  Spaced   Out  ') == 'spaced out'
+    assert LC.norm(None) == ''
+
+def t_load_data_lives_outside_patches():
+    """patches/ is schema only. This is the rule that stops a loader creeping
+    back in beside the migrations."""
+    import glob as _glob, os as _os
+    stray = [_os.path.basename(f) for f in _glob.glob(REPO + '/darkbrown/patches/*')
+             if _os.path.splitext(f)[1].lower() in ('.csv', '.json', '.xlsx')]
+    assert not stray, 'data files in patches/: %s' % stray
+    assert _os.path.isdir(REPO + '/darkbrown/load/data'), 'load/data is missing'
+
+check("load data matches its manifest", t_load_data_matches_its_manifest)
+check("every Select value in the data is legal", t_load_select_values_are_legal)
+check("each stage exposes check, run and gate", t_load_stages_expose_check_run_gate)
+check("name folding merges the case variants", t_load_normalise_folds_the_case_variants)
+check("data lives outside patches/", t_load_data_lives_outside_patches)
+
 # ---- P. patches.txt registers nothing that writes business records
 def t_patches_safe():
     import re

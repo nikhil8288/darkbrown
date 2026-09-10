@@ -1,0 +1,23 @@
+building_code,building_name,landlord,status,area_name,municipality,zone_no,street_no,building_no,kahramaa_account_no,hl_start,hl_end,annual_rent,payment_frequency,security_deposit,rent_free_days,notice_period_days,auto_renew,source_file
+AK-12,AK-12,Al Madar Real Estate W.L.L.,Active,Ain Khalid,,56,224,12,1024870,2025-12-01,2026-11-30,216000,Monthly,18000,0,60,0,OWNER AGREEMENT 2026.pdf
+DAJ-21,DAJ-21,Hassan Bin Hassan Al Jufairy,Active,Doha Al Jadeed / Al-Mabrouka,,,,,1108208,2025-09-01,2027-08-31,336000,Monthly,0,0,30,0,NEW 08 FLATS AGRMRNT.pdf + NEW 08 FLAT AGREEMENT 02.pdf
+MQ-56,MQ-56,Jassim Ali A A Shams,Active,Matar Qadeem,,45,703,56,119238,2025-12-01,2028-03-31,180000,Monthly,15000,0,60,0,AGREEMENT MQ56.pdf
+MR-130,MR-130,Ahmed Abdulrahman Ahmadi Al-Shaibi,Active,Mansoura,,25,850,130,,2025-11-01,2028-10-31,408000,Monthly,0,0,60,1,AGREEMENT(7).pdf
+MT-21,MT-21,Aisha Mahmoud Abdulmohsen Al Mahmoud,Active,Muaither,,53,716,21,89171,2025-08-01,2026-07-31,240000,Monthly,0,0,60,0,AGREEMENT 2025-26.pdf
+OG-48,OG-48,Sultan Ghanem Sultan Al Ghanem / Shahin Khaled Ghanem Al Ghanem,Active,Al Ghanim Al Ateeq,,6,109,48,,2026-02-01,2027-01-31,624000,Monthly,52000,0,60,0,AGRMNT(3).pdf
+TV-20,TV-20,Jamal Jassim Mohsen Al Haddad,Active,Al Thumama,,46,806,20,1102990,2025-11-01,2027-08-31,156000,Quarterly,0,0,60,0,OWNER AGREEMENT - NEW.pdf
+TV-27,TV-27,Nassir Ali Mohamed Al-Saadi,Active,Al Thumama,,47,966,27,1174604,2026-01-01,2028-02-29,300000,Monthly,25000,60,60,0,AGREEMENT SIGNED.pdf
+TV-66,TV-66,Abdulaziz Ibrahim A H Al-Ajail,Active,Al Thumama,,46,968,66,1176326,2025-09-01,2027-09-30,168000,Monthly,14000,30,60,0,TV-66 - AGREEMENT  - NEW.pdf
+TV-68,TV-68,Abdulaziz Ibrahim A H Al-Ajail,Active,Al Thumama,,46,968,68,1178446,2025-09-01,2027-09-30,168000,Monthly,14000,30,60,0,TV-68 - AGREEMENT - NEW.pdf
+TWR-12,TWR-12,Al Adekhar Real Estate Company WLL,Active,Umm Lakhba (Duhail),,31,917,12,1180144,2026-03-01,2028-07-31,192000,Monthly,32000,60,60,1,"AGREEMENT,12.pdf"
+TWR-16,TWR-16,Al Adekhar Real Estate Company WLL,Active,Umm Lakhba (Duhail),,31,917,16,1180132,2026-03-01,2028-04-30,192000,Monthly,32000,60,60,1,"AGREEMENT, 20,16,45,58.pdf"
+TWR-17,TWR-17,Al Adekhar Real Estate Company WLL,Active,Umm Lakhba (Duhail),,31,917,17,1178346,2026-03-01,2029-01-31,192000,Monthly,32000,60,60,1,"AGREEMENT, 17,19,37.pdf"
+TWR-19,TWR-19,Al Adekhar Real Estate Company WLL,Active,Umm Lakhba (Duhail),,31,917,19,1178347,2026-03-01,2029-01-31,192000,Monthly,32000,60,60,1,"AGREEMENT, 17,19,37.pdf"
+TWR-20,TWR-20,Al Adekhar Real Estate Company WLL,Active,Umm Lakhba (Duhail),,31,917,20,1180131,2026-03-01,2028-04-30,192000,Monthly,32000,60,60,1,"AGREEMENT, 20,16,45,58.pdf"
+TWR-35,TWR-35,Al Adekhar Real Estate Company WLL,Active,Umm Lakhba (Duhail),,31,913,35,1178349,2026-03-01,2028-09-30,192000,Monthly,32000,60,60,1,"AGREEMENT, 35,39.pdf"
+TWR-37,TWR-37,Al Adekhar Real Estate Company WLL,Active,Umm Lakhba (Duhail),,31,913,37,1178348,2026-03-01,2029-01-31,192000,Monthly,32000,60,60,1,"AGREEMENT, 17,19,37.pdf"
+TWR-39,TWR-39,Al Adekhar Real Estate Company WLL,Active,Umm Lakhba (Duhail),,31,913,39,1178352,2026-03-01,2028-09-30,192000,Monthly,32000,60,60,1,"AGREEMENT, 35,39.pdf"
+TWR-45,TWR-45,Al Adekhar Real Estate Company WLL,Active,Umm Lakhba (Duhail),,31,913,45,1178354,2026-03-01,2028-04-30,192000,Monthly,32000,60,60,1,"AGREEMENT, 20,16,45,58.pdf"
+TWR-58,TWR-58,Al Adekhar Real Estate Company WLL,Active,Umm Lakhba (Duhail),,31,913,58,1172349,2026-03-01,2028-04-30,192000,Monthly,32000,60,60,1,"AGREEMENT, 20,16,45,58.pdf"
+UG-169,UG-169,Mohd Ibrahim A E Al-Naemi,Active,Umm Guwailina,,27,810,169,88644,2026-01-01,2028-12-31,360000,Monthly,30000,0,60,0,AGREEMENT NEW UG169.pdf
+UG-20,UG-20,Adel Mohammed Ali Mohammed Al-Mutawa,Active,Umm Guwailina,,27,895,20,1271166,2026-02-01,2028-01-31,672000,Monthly,56000,0,60,0,AGREEMENT-ENG-UG20.pdf
