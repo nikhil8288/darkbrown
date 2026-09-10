@@ -109,7 +109,7 @@ def rows(filename):
     raw = open(path, "rb").read()
     man = manifest().get(filename)
     if man:
-        got = hashlib.sha256(raw).hexdigest()[:16]
+        got = digest(raw)
         if got != man["sha256"]:
             frappe.throw("%s does not match the manifest (%s, expected %s). "
                          "Either the file or the manifest was edited alone."
@@ -123,6 +123,24 @@ def rows(filename):
         frappe.throw("%s is empty. Refusing to report a clean load of nothing."
                      % filename)
     return out
+
+
+def digest(raw):
+    """Checksum the content, not the encoding.
+
+    The first version hashed the bytes as read. Git on Windows commits CRLF as
+    LF and the Linux server checks it out as LF, so a file that left here
+    hashing fd01d278 arrived hashing 070c3584 without a character changing.
+    The guard fired on the line endings and blocked a load that was correct.
+
+    Normalising first means the checksum still catches a real edit — a changed
+    figure, a dropped row, a renamed column — and stops caring about how the
+    lines happen to end.
+    """
+    if isinstance(raw, str):
+        raw = raw.encode("utf-8")
+    return hashlib.sha256(
+        raw.replace(b"\r\n", b"\n").replace(b"\r", b"\n")).hexdigest()[:16]
 
 
 def manifest():

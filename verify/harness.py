@@ -565,7 +565,8 @@ def t_load_data_matches_its_manifest():
     The loader read it, found no rows, and reported a clean run. The site went
     live with no opening arrears and nothing said so.
     """
-    import csv as _csv, hashlib, json as _json, os as _os
+    import csv as _csv, json as _json, os as _os
+    from darkbrown.load import common as LC
     d = REPO + '/darkbrown/load/data'
     man = _json.load(open(_os.path.join(d, 'manifest.json'), encoding='utf-8'))
     for name, m in man.items():
@@ -574,7 +575,7 @@ def t_load_data_matches_its_manifest():
         path = _os.path.join(d, name)
         assert _os.path.exists(path), 'manifest names a missing file: %s' % name
         raw = open(path, 'rb').read()
-        got = hashlib.sha256(raw).hexdigest()[:16]
+        got = LC.digest(raw)   # the same function the loader uses, not a copy
         assert got == m['sha256'], '%s checksum %s, manifest says %s' % (name, got, m['sha256'])
         rows = list(_csv.DictReader(raw.decode('utf-8-sig').splitlines()))
         assert len(rows) == m['rows'], '%s has %d rows, manifest says %d' % (name, len(rows), m['rows'])
@@ -641,7 +642,27 @@ def t_load_data_lives_outside_patches():
     assert not stray, 'data files in patches/: %s' % stray
     assert _os.path.isdir(REPO + '/darkbrown/load/data'), 'load/data is missing'
 
+def t_load_digest_survives_line_endings():
+    """A checksum must guard the data, not the encoding.
+
+    Git on Windows commits CRLF as LF, and the Linux server checks it out as
+    LF. The first version hashed the raw bytes, so landlords.csv left here as
+    fd01d278 and arrived as 070c3584 without one character changing. The guard
+    blocked a load that was entirely correct.
+    """
+    from darkbrown.load import common as LC
+    lf = b'a,b\n1,2\n3,4\n'
+    crlf = b'a,b\r\n1,2\r\n3,4\r\n'
+    cr = b'a,b\r1,2\r3,4\r'
+    assert LC.digest(lf) == LC.digest(crlf) == LC.digest(cr), \
+        'the checksum still depends on how the lines end'
+    assert LC.digest(lf) != LC.digest(b'a,b\n1,2\n3,5\n'), \
+        'the checksum no longer notices a changed figure'
+    assert LC.digest(lf) != LC.digest(b'a,b\n1,2\n'), \
+        'the checksum no longer notices a dropped row'
+
 check("load data matches its manifest", t_load_data_matches_its_manifest)
+check("checksum guards the data, not the line endings", t_load_digest_survives_line_endings)
 check("every Select value in the data is legal", t_load_select_values_are_legal)
 check("each stage exposes check, run and gate", t_load_stages_expose_check_run_gate)
 check("name folding merges the case variants", t_load_normalise_folds_the_case_variants)

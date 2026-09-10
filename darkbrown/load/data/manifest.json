@@ -1,16 +1,17 @@
 {
   "landlords.csv": {
-    "sha256": "fd01d2783c9d7452",
+    "sha256": "070c3584fe1326b4",
     "rows": 12,
     "bytes": 958
   },
   "buildings.csv": {
-    "sha256": "44725e22103cd5aa",
+    "sha256": "45b6c9eb4a13b1b4",
     "rows": 22,
     "bytes": 3868
   },
   "_source": "DarkBrown_Owner_Agreements_Building_Level_v2.xlsx",
   "_corrections": [
     "TWR-16 -> TWR-39 (Building No. 39, street 913, meters 1178352/1112048; confirmed against AGREEMENT 35_39.pdf)"
-  ]
+  ],
+  "_note": "sha256 is of the content with line endings normalised to LF, so a Windows-to-Linux checkout does not look like an edit"
 }
