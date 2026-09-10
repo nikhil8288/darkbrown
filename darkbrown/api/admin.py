@@ -25,7 +25,8 @@ ACTIONS = ("purge", "seed", "verify", "rebuild",
            # Stages 1 and 2. check and gate write nothing; run writes but is
            # refused unless check came back clean.
            "stage1_check", "stage1_run", "stage1_gate",
-           "stage2_check", "stage2_run", "stage2_gate")
+           "stage2_check", "stage2_run", "stage2_gate",
+           "stage3_check", "stage3_run", "stage3_gate")
 
 
 # ------------------------------------------------------------------ guarding
@@ -176,10 +177,12 @@ def execute(action, confirm=None, wide=0, user=None):
                     w0.run(confirm=confirm, wide=int(wide or 1))
                 else:
                     w0.gate()
-            elif action.startswith(("stage1_", "stage2_")):
+            elif action.startswith(("stage1_", "stage2_", "stage3_")):
                 from darkbrown.load import stage_01_landlords as s1
                 from darkbrown.load import stage_02_buildings as s2
-                mod = s1 if action.startswith("stage1_") else s2
+                from darkbrown.load import stage_03_units as s3
+                mod = {"stage1": s1, "stage2": s2,
+                       "stage3": s3}[action.split("_", 1)[0]]
                 getattr(mod, action.split("_", 1)[1])()
         _append("\n\nDone.\n")
         _finish("done")

@@ -13,5 +13,10 @@
   "_corrections": [
     "TWR-16 -> TWR-39 (Building No. 39, street 913, meters 1178352/1112048; confirmed against AGREEMENT 35_39.pdf)"
   ],
+  "units.csv": {
+    "sha256": "e5bde20a7a1f5265",
+    "rows": 296,
+    "bytes": 7987
+  },
   "_note": "sha256 is of the content with line endings normalised to LF, so a Windows-to-Linux checkout does not look like an edit"
 }

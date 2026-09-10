@@ -6637,9 +6637,9 @@ ROUTES.data=()=>page('Data & demo',
      <b>Wipe</b> removes it and cannot be undone. <b>Gate</b> proves the site is empty
      afterwards and must pass before Stage 1 may run.</p>
      <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
-       <button class="btn" onclick="dtStart('stage0_check')">Check</button>
-       <button class="btn" id="dtWipe" disabled onclick="dtStart('stage0_run')">Wipe</button>
-       <button class="btn" onclick="dtStart('stage0_gate')">Gate</button>
+       <button class="btn" onclick="dtStart('stage0_check')">Check 0</button>
+       <button class="btn" id="dtWipe" disabled onclick="dtStart('stage0_run')">Wipe 0</button>
+       <button class="btn" onclick="dtStart('stage0_gate')">Gate 0</button>
      </div>
      <div class="note">The Wipe button unlocks once the confirmation phrase below is typed.
      Take a backup first.</div>
@@ -6649,9 +6649,9 @@ ROUTES.data=()=>page('Data & demo',
      <p class="mt" style="max-width:64ch">Twelve landlords from the owner agreements.
      These come before the buildings because a Building cannot be saved without one.</p>
      <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
-       <button class="btn" onclick="dtStart('stage1_check')">Check</button>
-       <button class="btn" onclick="dtStart('stage1_run')">Run</button>
-       <button class="btn" onclick="dtStart('stage1_gate')">Gate</button>
+       <button class="btn" onclick="dtStart('stage1_check')">Check 1</button>
+       <button class="btn" onclick="dtStart('stage1_run')">Run 1</button>
+       <button class="btn" onclick="dtStart('stage1_gate')">Gate 1</button>
      </div>
    </div>
 
@@ -6662,9 +6662,25 @@ ROUTES.data=()=>page('Data & demo',
      <div class="note">Stage 1 must pass first. Run Stage 0's Gate again if you are
      unsure the site is clean.</div>
      <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
-       <button class="btn" onclick="dtStart('stage2_check')">Check</button>
-       <button class="btn" onclick="dtStart('stage2_run')">Run</button>
-       <button class="btn" onclick="dtStart('stage2_gate')">Gate</button>
+       <button class="btn" onclick="dtStart('stage2_check')">Check 2</button>
+       <button class="btn" onclick="dtStart('stage2_run')">Run 2</button>
+       <button class="btn" onclick="dtStart('stage2_gate')">Gate 2</button>
+     </div>
+   </div>
+
+   <div class="card" style="margin-top:14px"><h3>Stage 3 &mdash; Units</h3>
+     <p class="mt" style="max-width:64ch">296 units, taken from the Revenue worksheet
+     because that records every flat ever charged rent &mdash; including the ones whose
+     agreements were never written up. The Tenancy Master knows only the ones with
+     paperwork and would have dropped a third of the portfolio.</p>
+     <p class="mt" style="max-width:64ch">Every unit loads <b>Vacant</b>. A unit left
+     &ldquo;Not Ready&rdquo; can never be marked Occupied by a tenancy, so the portfolio
+     would read empty with 296 flats let. Stage 5 flips the occupied ones; the genuinely
+     empty flats stay Vacant because nothing touches them.</p>
+     <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
+       <button class="btn" onclick="dtStart('stage3_check')">Check 3</button>
+       <button class="btn" onclick="dtStart('stage3_run')">Run 3</button>
+       <button class="btn" onclick="dtStart('stage3_gate')">Gate 3</button>
      </div>
    </div>
 

@@ -580,8 +580,15 @@ def t_load_data_matches_its_manifest():
         rows = list(_csv.DictReader(raw.decode('utf-8-sig').splitlines()))
         assert len(rows) == m['rows'], '%s has %d rows, manifest says %d' % (name, len(rows), m['rows'])
         assert rows, '%s is empty' % name
-    print('        (%d data files match the manifest)'
-          % len([k for k in man if not k.startswith('_')]))
+    # every CSV present must also be *named* in the manifest. Twice now a
+    # stale manifest has been copied over a corrected one, and a file the
+    # manifest does not mention would load with no checksum at all.
+    on_disk = {f for f in _os.listdir(d) if f.endswith('.csv')}
+    named = {k for k in man if not k.startswith('_')}
+    assert on_disk == named, \
+        'manifest and directory disagree: only on disk %s, only in manifest %s' \
+        % (sorted(on_disk - named), sorted(named - on_disk))
+    print('        (%d data files match the manifest)' % len(named))
 
 def t_load_select_values_are_legal():
     """Every Select value in the data must exist in the doctype.
@@ -661,7 +668,49 @@ def t_load_digest_survives_line_endings():
     assert LC.digest(lf) != LC.digest(b'a,b\n1,2\n'), \
         'the checksum no longer notices a dropped row'
 
+def t_units_never_load_not_ready():
+    """Every unit must load Vacant.
+
+    _sync_unit_occupancy returns early when the unit reads "Not Ready", so a
+    unit left at the doctype default can never be marked Occupied however many
+    live tenancies point at it. The portfolio would read empty with 296 flats
+    let, and nothing would look broken.
+    """
+    import csv as _csv
+    rows = list(_csv.DictReader(
+        open(REPO + '/darkbrown/load/data/units.csv', encoding='utf-8-sig')))
+    bad = [r for r in rows if r['status'] != 'Vacant']
+    assert not bad, "%d unit rows are not Vacant, e.g. %s" % (
+        len(bad), bad[0])
+    from darkbrown.load import stage_03_units as s3
+    import inspect
+    src = inspect.getsource(s3.run)
+    assert 'u.status = "Vacant"' in src, \
+        "the loader no longer forces Vacant"
+    print('        (%d units, all Vacant)' % len(rows))
+
+def t_unit_list_comes_from_revenue_not_tenancies():
+    """The Revenue sheet is the authoritative unit list.
+
+    It records every flat ever charged rent, including the 98 whose agreements
+    were never written up. The Tenancy Master knows only the ones with
+    paperwork, and taking that list would silently drop a third of the
+    portfolio.
+    """
+    import csv as _csv
+    rows = list(_csv.DictReader(
+        open(REPO + '/darkbrown/load/data/units.csv', encoding='utf-8-sig')))
+    assert len(rows) == 296, 'expected 296 units, found %d' % len(rows)
+    per = {}
+    for r in rows:
+        per[r['building']] = per.get(r['building'], 0) + 1
+    assert len(per) == 22, 'expected all 22 buildings, found %d' % len(per)
+    assert per.get('TWR-39'), 'TWR-39 has no units — the correction was lost'
+    assert 'UG-180' not in per, 'UG-180 is not a building'
+
 check("load data matches its manifest", t_load_data_matches_its_manifest)
+check("units all load Vacant, never Not Ready", t_units_never_load_not_ready)
+check("unit list covers all 22 buildings", t_unit_list_comes_from_revenue_not_tenancies)
 check("checksum guards the data, not the line endings", t_load_digest_survives_line_endings)
 check("every Select value in the data is legal", t_load_select_values_are_legal)
 check("each stage exposes check, run and gate", t_load_stages_expose_check_run_gate)

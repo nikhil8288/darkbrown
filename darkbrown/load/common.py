@@ -30,6 +30,25 @@ def norm(value):
     return re.sub(r"[^a-z0-9]+", " ", str(value or "").lower()).strip()
 
 
+def unit_key(value):
+    """Fold a unit number so the same flat written two ways matches.
+
+    The Tenancy Master writes 23 DAJ-21 and MQ-56 flats as F01, F02, F06 while
+    the Revenue sheet writes them F-01, F-02, F-06. Without folding, those 23
+    tenancies would find no unit and fail at Stage 5 — and the failure would
+    read as "23 units missing" rather than "one sheet omits a hyphen".
+
+    Deliberately narrow. An earlier version stripped every separator, which
+    turned F-03/1 into F-31 — a real flat in TWR-20 and a different real flat
+    that does not exist yet. Two homes, one record, and no way to notice.
+    Only the missing hyphen is folded; slashes and letter suffixes are left
+    exactly as written.
+    """
+    s = str(value or "").strip().upper()
+    m = re.match(r"^([A-Z]+)-?(\d+)$", s)
+    return "%s-%02d" % (m.group(1), int(m.group(2))) if m else s
+
+
 # --------------------------------------------------------------- the problem
 
 class Problem(object):
