@@ -65,7 +65,19 @@ def _control_account(company, create=False):
     """
     hit = frappe.db.get_value("Account", {"company": company,
                                           "account_name": CONTROL}, "name")
-    if hit or not create:
+    if hit:
+        # ERPNext drops account_type on insert here, and the first live run
+        # created it with a blank one — which made `validate` refuse every
+        # expense entry while the revenue journals posted happily, since a
+        # journal does not care what the contra account is typed as. Repair it
+        # in place rather than only setting it on creation.
+        if create and frappe.db.get_value("Account", hit,
+                                          "account_type") != "Cash":
+            frappe.db.set_value("Account", hit, "account_type", "Cash")
+            frappe.db.commit()
+            print("  set %s to account_type Cash — it was blank" % hit)
+        return hit
+    if not create:
         return hit
     parent = None
     for candidate in ("Current Assets", "Cash In Hand", "Application of Funds "
@@ -87,6 +99,10 @@ def _control_account(company, create=False):
                           "root_type": "Asset"})
     doc.flags.ignore_permissions = True
     doc.insert()
+    # belt and braces: ERPNext has been seen to blank this on insert
+    if frappe.db.get_value("Account", doc.name, "account_type") != "Cash":
+        frappe.db.set_value("Account", doc.name, "account_type", "Cash")
+    frappe.db.commit()
     return doc.name
 
 
@@ -191,6 +207,12 @@ def check():
     print("  this stage POSTS. Everything before it left the GL empty.")
     print("  contra account   %s" % (ctx["control"] or
                                      "%s — Run will create it" % CONTROL))
+    if ctx["control"]:
+        atype = frappe.db.get_value("Account", ctx["control"], "account_type")
+        if atype != "Cash":
+            print("      its account_type is %r, not Cash. Every expense "
+                  "entry will be refused until Run repairs it."
+                  % (atype or ""))
     print("  income account   %s" % (ctx["income"] or "NONE FOUND"))
     if ctx["rivals"]:
         print("      note: %s also exists. Nothing posts to it; if it holds a "
