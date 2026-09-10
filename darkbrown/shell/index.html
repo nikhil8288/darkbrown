@@ -6765,6 +6765,25 @@ ROUTES.data=()=>page('Data & demo',
      </div>
    </div>
 
+   <div class="card" style="margin-top:14px"><h3>Stage 8 &mdash; operating costs</h3>
+     <p class="mt" style="max-width:64ch">2,784 cost lines from October 2025 to July 2026.
+     Building costs carry their building; company costs carry none and reach the buildings
+     through the allocation, not through the ledger.</p>
+     <p class="mt" style="max-width:64ch">These load as <b>drafts and post nothing</b>.
+     Submitting them would write a year of journals into periods that closed before the
+     system existed. The detail is on the site; the ledger stays untouched until somebody
+     decides otherwise.</p>
+     <p class="mt" style="max-width:64ch">Key money is not here &mdash; it has its own
+     workbook and its own stage, and loading it twice would overstate cost of sales by
+     1,419,551.</p>
+     <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
+       <button class="btn" onclick="dtStart('stage8_check')">Check 8</button>
+       <button class="btn" onclick="dtStart('stage8_run')">Run 8</button>
+       <button class="btn" onclick="dtStart('stage8_gate')">Gate 8</button>
+       <button class="btn" onclick="dtStart('stage8_reload')">Reload 8</button>
+     </div>
+   </div>
+
    <div class="card" style="margin-top:14px"><h3>Rebuild</h3>
      <p class="mt" style="max-width:64ch">This removes every DarkBrown record and the ERPNext
      invoices, payments, tenants and landlords that came with them, then lays down three

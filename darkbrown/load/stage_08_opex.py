@@ -1,0 +1,279 @@
+"""Stage 8 — operating costs.
+
+2,784 cost lines from October 2025 to July 2026, one per head per building per
+month where there was an amount. Building costs carry their building; company
+costs carry none and reach the buildings through the allocation, not through
+the ledger.
+
+**These load as drafts and post nothing.** `ExpenseEntry.on_submit` writes a
+Journal Entry, and submitting 2,784 of them would put a year of vouchers into
+periods that closed before the system existed. Every stage so far has kept
+history out of the ledger, and this one does the same. When Anoop decides the
+opening position, submitting them is one pass over `docstatus = 0`; until then
+the detail is on the site and the GL is untouched.
+
+That is also why `validate` is bypassed on insert. It exists to stop someone
+keying a cost without saying where the money came from, which is right for a
+cost being paid today and meaningless for one that was paid a year ago through
+a bank account this system never saw. The checks it would have made are made
+here instead, against the same chart: the head has to be one the app knows, a
+building cost has to name its building, and the building has to have a cost
+centre. `basis` and `cost_center` are written the way `validate` would write
+them, so a submitted entry lands exactly where it should.
+
+**The workbook and the chart disagree about depreciation.** The workbook
+spreads it across buildings; `chart_of_accounts` carries it as a common cost,
+and `validate` would strip the building off anyway. It is collapsed to one row
+a month against Overhead — 244,920 over the ten months.
+
+**Key money is not here.** The master tab carries 1,419,551 of it, which is why
+this stage totals 1,790,008 rather than the 3,209,553 on that tab. Key money
+has its own workbook and its own stage, and loading it twice would overstate
+cost of sales by the whole amount.
+"""
+
+import frappe
+
+from darkbrown.load import common as C
+from darkbrown.utils.chart_of_accounts import (BUILDING, COMMON, basis_of,
+                                               ensure_overhead_cost_center)
+
+STAGE = "8"
+SOURCE = "opex.csv"
+
+
+def _money(value):
+    text = str(value or "").strip().replace(",", "")
+    if not text:
+        return None
+    try:
+        return round(float(text), 2)
+    except ValueError:
+        return None
+
+
+def _account(head, company):
+    """The docname of an expense head on this company's chart.
+
+    Accounts are named "Salary - DBR". The chart module works in bare names,
+    so the two have to be introduced to each other.
+    """
+    for name in (head, "%s - %s" % (head, frappe.db.get_value(
+            "Company", company, "abbr") or "")):
+        if frappe.db.exists("Account", name):
+            return name
+    hit = frappe.db.get_value("Account", {"company": company, "is_group": 0,
+                                          "account_name": head}, "name")
+    return hit
+
+
+def _resolve(rows):
+    company = C.company()
+    centres = {b["name"]: b["cost_center"] for b in frappe.get_all(
+        "Building", fields=["name", "cost_center"])}
+    overhead = ensure_overhead_cost_center(company)
+
+    existing = set()
+    for e in frappe.get_all("Expense Entry",
+                            fields=["expense_date", "expense_head", "amount",
+                                    "building"]):
+        existing.add((str(e.expense_date), e.expense_head,
+                      round(float(e.amount or 0), 2), e.building or ""))
+
+    plan, problems, seen = [], [], {}
+    for i, r in enumerate(rows, start=2):
+        head = (r.get("expense_head") or "").strip()
+        b = (r.get("building") or "").strip()
+        date = (r.get("expense_date") or "").strip()
+        amount = _money(r.get("amount"))
+
+        def bad(column, value, rule, message):
+            problems.append(C.Problem(SOURCE, i, column, value, rule, message))
+
+        key = (date, head, amount, b)
+        if key in seen:
+            bad("expense_head", head, "duplicate_in_file",
+                "same cost as row %d" % seen[key])
+            continue
+        seen[key] = i
+
+        if amount is None or amount <= 0:
+            bad("amount", r.get("amount"), "amount_required",
+                "an expense is always a positive amount")
+        basis = basis_of(head)
+        if not basis:
+            bad("expense_head", head, "head_not_in_chart",
+                "not a head this app knows — add it to "
+                "utils.chart_of_accounts first")
+        elif basis != (r.get("basis") or "").strip():
+            bad("basis", r.get("basis"), "basis_disagrees_with_chart",
+                "the chart says %s" % basis)
+
+        account = _account(head, company)
+        if head and not account:
+            bad("expense_head", head, "account_missing",
+                "no Account on this company's chart — run Ensure Chart")
+
+        centre = None
+        if basis == BUILDING:
+            if not b:
+                bad("building", b, "building_required",
+                    "a building cost has to name its building")
+            elif b not in centres:
+                bad("building", b, "building_unresolved",
+                    "no Building on the site")
+            elif not centres.get(b):
+                bad("building", b, "no_cost_center",
+                    "the building has no cost centre, so the cost would not "
+                    "reach its P&L")
+            else:
+                centre = centres[b]
+        elif basis == COMMON:
+            if b:
+                bad("building", b, "common_cost_with_building",
+                    "a common cost does not post to a building")
+            centre = overhead
+            if not centre:
+                bad("building", b, "no_overhead_centre",
+                    "there is no Overhead cost centre on the company")
+
+        # the site stores the account docname, "Salary - DBR", not the bare
+        # head. Comparing the two is how stage 4 came to reload itself.
+        plan.append({"row": i, "raw": r, "head": head, "account": account,
+                     "basis": basis, "building": b, "date": date,
+                     "amount": amount, "centre": centre,
+                     "existing": (date, account, amount, b) in existing})
+    return plan, problems
+
+
+def _totals(plan):
+    out = {"Building": 0.0, "Common": 0.0}
+    for p in plan:
+        if p["amount"]:
+            out[p["basis"] or "Common"] = out.get(p["basis"] or "Common",
+                                                  0.0) + p["amount"]
+    return out
+
+
+def check():
+    rows = C.rows(SOURCE)
+    plan, problems = _resolve(rows)
+    t = _totals(plan)
+    fresh = [p for p in plan if not p["existing"]]
+    heads = sorted({p["head"] for p in plan})
+
+    def q(v):
+        return frappe.utils.fmt_money(v, currency="QAR")
+
+    print("STAGE 8 CHECK — operating costs")
+    print("  %s: %d rows, %d to create" % (SOURCE, len(rows), len(fresh)))
+    print("  %d head(s) across %d month(s)"
+          % (len(heads), len({p["date"] for p in plan})))
+    print("  building costs  %s" % q(t.get("Building", 0)))
+    print("  common costs    %s" % q(t.get("Common", 0)))
+    print("  total           %s" % q(sum(t.values())))
+    print("  these load as drafts. Nothing posts to the ledger until somebody "
+          "decides to submit them.")
+    C.report(problems)
+    if problems:
+        print("  %d problem(s). Fix these before Run." % len(problems))
+    return {"create": len(fresh), "problems": len(problems),
+            "clean": not problems}
+
+
+def run():
+    rows = C.rows(SOURCE)
+    plan, problems = _resolve(rows)
+    if problems:
+        C.report(problems)
+        C.write_exceptions(STAGE, problems)
+        frappe.throw("Stage 8 refused: %d problem(s). Run Check."
+                     % len(problems))
+
+    company = C.company()
+    made, failed = 0, []
+    print("STAGE 8 RUN — operating costs")
+    for p in plan:
+        if p["existing"]:
+            continue
+        try:
+            e = frappe.new_doc("Expense Entry")
+            e.expense_date = p["date"]
+            e.expense_head = p["account"]
+            e.amount = p["amount"]
+            e.basis = p["basis"]
+            e.building = p["building"] or None
+            e.cost_center = p["centre"]
+            e.payment_mode = "Unpaid"
+            e.description = (p["raw"].get("description") or p["head"])[:140]
+            e.company = company
+            e.notes = ("Loaded from the July 2026 cutover. Left as a draft: "
+                       "submitting would post a journal into a closed period.")
+            e.flags.ignore_permissions = True
+            # see the module docstring — the checks validate would make have
+            # already been made in _resolve, against the same chart
+            e.flags.ignore_validate = True
+            e.flags.ignore_mandatory = True
+            e.insert()
+            made += 1
+            if made % 200 == 0:
+                frappe.db.commit()
+                print("      %d..." % made)
+        except Exception as ex:
+            frappe.db.rollback()
+            text = (str(ex) or "").strip() or type(ex).__name__
+            failed.append(("%s %s %s" % (p["date"], p["head"], p["building"]),
+                           (text.splitlines() or ["?"])[0][:90]))
+    frappe.db.commit()
+
+    if failed:
+        C.report([C.Problem(SOURCE, "-", "expense_head", n, "insert_failed", w)
+                  for n, w in failed])
+    print("  created %d cost line(s), all as drafts" % made)
+    print("  Now press Gate.")
+    return {"created": made, "failed": len(failed)}
+
+
+def reload():
+    print("STAGE 8 RELOAD — operating costs")
+    return run()
+
+
+def gate():
+    rows = C.rows(SOURCE)
+    plan, problems = _resolve(rows)
+    t = _totals(plan)
+
+    site = frappe.get_all("Expense Entry",
+                          fields=["name", "amount", "basis", "building",
+                                  "cost_center", "docstatus"])
+    on_site = len(site)
+    submitted = len([s for s in site if s.get("docstatus") == 1])
+    site_total = round(sum(float(s.get("amount") or 0) for s in site), 2)
+    want_total = round(sum(t.values()), 2)
+    no_centre = len([s for s in site if not s.get("cost_center")])
+    stray = len([s for s in site
+                 if s.get("basis") == COMMON and s.get("building")])
+    journals = len([s for s in site if s.get("docstatus") == 1])
+
+    checks = [
+        ("every cost line in the worksheet exists", on_site == len(plan),
+         "%d on site vs %d expected" % (on_site, len(plan))),
+        ("the amounts reconcile", abs(site_total - want_total) < 1.0,
+         "%s on site vs %s expected"
+         % (frappe.utils.fmt_money(site_total, currency="QAR"),
+            frappe.utils.fmt_money(want_total, currency="QAR"))),
+        ("nothing was submitted", not submitted,
+         "all %d are drafts" % on_site if not submitted
+         else "%d submitted — a journal has been posted" % submitted),
+        ("every line has a cost centre", not no_centre,
+         "none missing" if not no_centre else "%d without one" % no_centre),
+        ("no common cost sits on a building", not stray,
+         "none" if not stray else "%d would post to the wrong centre" % stray),
+        ("the ledger is untouched", not journals,
+         "no journals from this stage"),
+        ("the worksheet still resolves cleanly", not problems,
+         "no unresolved rows" if not problems
+         else "%d row(s) no longer resolve" % len(problems)),
+    ]
+    return C.gate_result(STAGE, checks)
