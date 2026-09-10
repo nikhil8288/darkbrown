@@ -14,17 +14,29 @@
     "TWR-16 -> TWR-39 (Building No. 39, street 913, meters 1178352/1112048; confirmed against AGREEMENT 35_39.pdf)",
     "DAJ-21 split into two lease periods: 28,000/mo Sep-Oct 2025 (8 flats), 78,000/mo from Nov 2025 (whole building), per the owner-rent register",
     "TV-20 payment frequency Quarterly (confirmed 2026-09-10); the owner-rent register books 39,000 each quarter",
-    "UG-180 loaded as UG-169 - the same building under its former name"
+    "UG-180 loaded as UG-169 - the same building under its former name",
+    "Tenant names folded: VACANT/EMPTY excluded (125 rows), 158 short-vs-full name pairs merged on same-unit evidence, all Shamnadh Ponnakkatt Bavakutty variants folded to one tenant (he holds the flats from his agent days)",
+    "14 superseded unit labels removed and mapped to their new label in unit_aliases.csv, so revenue history against the old number still reconciles"
   ],
   "units.csv": {
-    "sha256": "e5bde20a7a1f5265",
-    "rows": 296,
-    "bytes": 7987
+    "sha256": "5cb6304705afa236",
+    "rows": 282,
+    "bytes": 7621
   },
   "_note": "sha256 is of the content with line endings normalised to LF, so a Windows-to-Linux checkout does not look like an edit",
   "head_leases.csv": {
     "sha256": "0e5e7b3ea7924c53",
     "rows": 23,
     "bytes": 2695
+  },
+  "tenants.csv": {
+    "sha256": "d04cf69cae5c4feb",
+    "rows": 380,
+    "bytes": 37923
+  },
+  "unit_aliases.csv": {
+    "sha256": "e66a8a828f2e59ac",
+    "rows": 14,
+    "bytes": 694
   }
 }

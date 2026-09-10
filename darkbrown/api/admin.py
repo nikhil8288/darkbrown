@@ -29,7 +29,8 @@ ACTIONS = ("purge", "seed", "verify", "rebuild",
            "stage3_check", "stage3_run", "stage3_gate",
            # Reload replaces a stage's records from a corrected worksheet.
            # Each refuses once a later stage depends on what it would remove.
-           "stage1_reload", "stage2_reload", "stage3_reload")
+           "stage1_reload", "stage2_reload", "stage3_reload",
+           "stage4_check", "stage4_run", "stage4_gate", "stage4_reload")
 
 
 # ------------------------------------------------------------------ guarding
@@ -180,12 +181,14 @@ def execute(action, confirm=None, wide=0, user=None):
                     w0.run(confirm=confirm, wide=int(wide or 1))
                 else:
                     w0.gate()
-            elif action.startswith(("stage1_", "stage2_", "stage3_")):
+            elif action.startswith(("stage1_", "stage2_", "stage3_",
+                                    "stage4_")):
                 from darkbrown.load import stage_01_landlords as s1
                 from darkbrown.load import stage_02_buildings as s2
                 from darkbrown.load import stage_03_units as s3
-                mod = {"stage1": s1, "stage2": s2,
-                       "stage3": s3}[action.split("_", 1)[0]]
+                from darkbrown.load import stage_04_tenants as s4
+                mod = {"stage1": s1, "stage2": s2, "stage3": s3,
+                       "stage4": s4}[action.split("_", 1)[0]]
                 getattr(mod, action.split("_", 1)[1])()
         _append("\n\nDone.\n")
         _finish("done")

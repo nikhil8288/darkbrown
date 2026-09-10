@@ -6689,6 +6689,24 @@ ROUTES.data=()=>page('Data & demo',
 
    </div>
 
+   <div class="card" style="margin-top:14px"><h3>Stage 4 &mdash; Tenants</h3>
+     <p class="mt" style="max-width:64ch">547 distinct names appear across the worksheets
+     and the previous load created 547 customers from them. This creates <b>382</b>.</p>
+     <p class="mt" style="max-width:64ch">VACANT and EMPTY are not people &mdash; 125 rows
+     use them to mean the flat stood empty. A short name and a full name on the same unit
+     are one person: <i>ali</i> and <i>ali saqlain haji ahmed</i> both appear against
+     MQ-56 F-02. And Shamnadh Ponnakkatt Bavakutty is one tenant, not ten &mdash; he holds
+     the OG-48 flats from his agent days, with the occupants named inside compound names.</p>
+     <p class="mt" style="max-width:64ch">Every merge is recorded against the row, so it
+     can be seen and undone rather than taken on trust.</p>
+     <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
+       <button class="btn" onclick="dtStart('stage4_check')">Check 4</button>
+       <button class="btn" onclick="dtStart('stage4_run')">Run 4</button>
+       <button class="btn" onclick="dtStart('stage4_gate')">Gate 4</button>
+       <button class="btn" onclick="dtStart('stage4_reload')">Reload 4</button>
+     </div>
+   </div>
+
    <div class="card" style="margin-top:14px"><h3>Rebuild</h3>
      <p class="mt" style="max-width:64ch">This removes every DarkBrown record and the ERPNext
      invoices, payments, tenants and landlords that came with them, then lays down three

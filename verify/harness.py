@@ -706,7 +706,7 @@ def t_unit_list_comes_from_revenue_not_tenancies():
     import csv as _csv
     rows = list(_csv.DictReader(
         open(REPO + '/darkbrown/load/data/units.csv', encoding='utf-8-sig')))
-    assert len(rows) == 296, 'expected 296 units, found %d' % len(rows)
+    assert len(rows) == 282, 'expected 282 units, found %d' % len(rows)
     per = {}
     for r in rows:
         per[r['building']] = per.get(r['building'], 0) + 1
@@ -714,7 +714,62 @@ def t_unit_list_comes_from_revenue_not_tenancies():
     assert per.get('TWR-39'), 'TWR-39 has no units — the correction was lost'
     assert 'UG-180' not in per, 'UG-180 is not a building'
 
+def t_tenants_are_people_not_placeholders():
+    """VACANT and EMPTY mean the flat stood empty, not that someone rented it.
+
+    125 revenue rows carry one or the other in the tenant column. Loaded
+    literally they become two customers who between them rented 125
+    flat-months, and every occupancy figure built on top is wrong.
+    """
+    import csv as _csv, re as _re
+    rows = list(_csv.DictReader(
+        open(REPO + '/darkbrown/load/data/tenants.csv', encoding='utf-8-sig')))
+    bad = [r['customer_name'] for r in rows
+           if _re.match(r'^(vacant|empty|n/?a|unoccupied|not let|-+)$',
+                        r['customer_name'].strip(), _re.I)]
+    assert not bad, 'placeholders loaded as tenants: %s' % bad
+    print('        (%d tenants, no placeholders)' % len(rows))
+
+def t_tenant_folding_is_recorded_and_sane():
+    """547 names became 382 people. Every merge must be visible.
+
+    A fold that cannot be inspected is indistinguishable from losing data, so
+    each merged row carries the spellings it absorbed.
+    """
+    import csv as _csv
+    rows = list(_csv.DictReader(
+        open(REPO + '/darkbrown/load/data/tenants.csv', encoding='utf-8-sig')))
+    assert len(rows) == 380, 'expected 380 tenants, found %d' % len(rows)
+
+    keys = [r['match_key'] for r in rows]
+    assert len(keys) == len(set(keys)), 'the folded list still holds duplicates'
+
+    folded = [r for r in rows if r['name_variants']]
+    for r in folded:
+        assert ';' in r['name_variants'], \
+            '%s claims a merge but records one spelling' % r['customer_name']
+
+    # Shamnadh's surname is spelled four ways across the sheets. Chasing each
+    # by hand missed two, so the fold squashes doubled letters instead:
+    # ponnakkatt, poonakkatt and poonakkat all reduce to the same letters.
+    import re as _re
+    squash = lambda k: _re.sub(r'(.)\1+', r'\1', k)
+    sham = [r for r in rows if squash(r['match_key']).startswith('shamnadh ponakat')]
+    assert len(sham) == 1, \
+        'Shamnadh should be one tenant, found %d: %s' % (
+            len(sham), [r['match_key'] for r in sham])
+    assert len(sham[0]['name_variants'].split(';')) >= 8, \
+        'the Shamnadh fold absorbed only %d spellings' % len(
+            sham[0]['name_variants'].split(';'))
+    # the joint name is a different tenancy and must not be swallowed
+    joint = [r for r in rows if r['match_key'].startswith('thasmeer')]
+    assert joint, 'the Thasmeer/Shamnadh joint name was folded away'
+    assert len(sham[0]['name_variants'].split(';')) >= 8
+    print('        (%d of %d rows record a merge)' % (len(folded), len(rows)))
+
 check("load data matches its manifest", t_load_data_matches_its_manifest)
+check("tenants are people, not placeholders", t_tenants_are_people_not_placeholders)
+check("tenant folding is recorded and sane", t_tenant_folding_is_recorded_and_sane)
 def t_unit_key_folds_narrowly():
     """The unit fold must join what is the same and never join what is not.
 
@@ -741,11 +796,44 @@ def t_unit_key_folds_narrowly():
         seen[(r['building'], LC.unit_key(r['unit_no']))].append(r['unit_no'])
     clash = {k: v for k, v in seen.items() if len(v) > 1}
     assert not clash, 'the fold collides on real units: %s' % list(clash.items())[:3]
-    print('        (296 units, no collisions)')
+    print('        (%d units, no collisions)' % len(rows))
 
 check("units all load Vacant, never Not Ready", t_units_never_load_not_ready)
 check("unit-number fold joins only what is the same", t_unit_key_folds_narrowly)
+def t_superseded_units_are_mapped_not_dropped():
+    """A retired unit label must still resolve, or its history is orphaned.
+
+    14 flats were renumbered — UG-169's F-01/S became F-01/FB with the same
+    tenant on the same rent, TWR-20's F-12 became F-O/1. Loading both labels
+    would show 14 phantom empty flats and put occupancy at 90.2% instead of
+    94.7%. Dropping the old label without a map would strand the revenue
+    booked against it.
+    """
+    import csv as _csv
+    d = REPO + '/darkbrown/load/data/'
+    units = list(_csv.DictReader(open(d + 'units.csv', encoding='utf-8-sig')))
+    alias = list(_csv.DictReader(open(d + 'unit_aliases.csv', encoding='utf-8-sig')))
+    live = {(u['building'], u['unit_no']) for u in units}
+
+    for a in alias:
+        assert (a['building'], a['old_unit_no']) not in live, \
+            '%s %s is both a live unit and a superseded label' % (
+                a['building'], a['old_unit_no'])
+        assert (a['building'], a['unit_no']) in live, \
+            '%s %s points at a unit that was not loaded' % (
+                a['building'], a['unit_no'])
+        assert a['evidence'], 'no evidence recorded for %s %s' % (
+            a['building'], a['old_unit_no'])
+
+    targets = [(a['building'], a['unit_no']) for a in alias]
+    assert len(targets) == len(set(targets)), \
+        'two old labels map to the same unit: %s' % [
+            t for t in targets if targets.count(t) > 1][:2]
+    print('        (%d live units, %d superseded labels mapped)'
+          % (len(units), len(alias)))
+
 check("unit list covers all 22 buildings", t_unit_list_comes_from_revenue_not_tenancies)
+check("superseded unit labels are mapped, not dropped", t_superseded_units_are_mapped_not_dropped)
 check("checksum guards the data, not the line endings", t_load_digest_survives_line_endings)
 def t_one_active_lease_per_building():
     """Two active leases on one building doubles its monthly cost.

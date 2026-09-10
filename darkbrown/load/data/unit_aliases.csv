@@ -1,0 +1,15 @@
+building,old_unit_no,unit_no,evidence
+TWR-17,F-02,F-02/1,same tenant carried across
+TWR-19,F-02,F-02/1,same tenant carried across
+TWR-20,F-03,F-03/1,same tenant carried across
+TWR-20,F-12,F-O/1,same tenant carried across
+TWR-20,F-13,F-O/2,same tenant carried across
+TWR-20,F-14,F-O/3,empty before and after
+TWR-20,F-15,F-O/4,same tenant carried across
+TWR-20,F-16,F-O/5,empty before and after
+TWR-20,F-17,F-O/6,same tenant carried across
+TWR-20,F-18,F-O/7,same tenant carried across
+UG-169,F-01/S,F-01/FB,same tenant carried across
+UG-169,F-02/T,F-02/SF,same tenant carried across
+UG-169,G-01/F,G-01/GF,same tenant carried across
+UG-169,G-01/G,F-01/FF,same tenant carried across

@@ -35,8 +35,26 @@ TYPES = ("", "Studio", "1BR", "2BR", "3BR", "4BR", "Penthouse", "Villa",
          "Shop", "Office", "Warehouse", "Labour Accommodation")
 
 
+def _aliases():
+    """Old unit labels and what they became.
+
+    14 flats were renumbered. UG-169's F-01/S became F-01/FB with the same
+    tenant on the same rent; TWR-20's F-12 became F-O/1. The old labels are
+    not loaded as units — doing so would put 14 phantom empty flats on the
+    buildings screen and read occupancy as 90.2% instead of 94.7%. They are
+    kept here so Stage 6 can still find the right unit for revenue booked
+    against the old number.
+    """
+    try:
+        return {(r["building"], r["old_unit_no"]): r["unit_no"]
+                for r in C.rows("unit_aliases.csv")}
+    except Exception:
+        return {}
+
+
 def _resolve(rows):
     buildings = set(frappe.get_all("Building", pluck="name"))
+    superseded = _aliases()
     plan, problems, seen = [], [], {}
 
     for i, r in enumerate(rows, start=2):
@@ -52,6 +70,13 @@ def _resolve(rows):
             problems.append(C.Problem(
                 SOURCE, i, "building", code, "building_missing",
                 "no Building with that code — has Stage 2 run?"))
+            continue
+
+        if (code, unit) in superseded:
+            problems.append(C.Problem(
+                SOURCE, i, "unit_no", unit, "superseded_label",
+                "renumbered to %s — loading both would show a phantom empty "
+                "flat" % superseded[(code, unit)]))
             continue
 
         key = (code, unit)
@@ -96,6 +121,13 @@ def check():
     print("  per building:")
     for code in sorted(per):
         print("      %-9s %3d" % (code, per[code]))
+    alias = _aliases()
+    if alias:
+        print("  %d superseded label(s) are mapped rather than loaded:" % len(alias))
+        for (b, o), n in sorted(alias.items())[:5]:
+            print("      %-9s %-9s -> %s" % (b, o, n))
+        if len(alias) > 5:
+            print("      ... and %d more" % (len(alias) - 5))
     typed = len([p for p in plan if p["type"]])
     print("  %d unit(s) carry a type, %d do not — the worksheet leaves most blank"
           % (typed, len(plan) - typed))
