@@ -2,14 +2,14 @@
 
 | Step | Status | Evidence | Next gate |
 | --- | --- | --- | --- |
-| T00 baseline | BLOCKED | `CONTEXT.md` reconstructed because the requested launch files were absent from all visible repository branches | Confirm deployed SHA, exact Frappe/ERPNext versions, staging access, workers and backup/restore proof |
-| Step 1 / T01 security | BLOCKED | `evidence/01-security.md` — source repairs and synthetic tests pass | Owner containment decision plus real staging role, browser and private-download tests |
+| T00 baseline | PARTIAL | `CONTEXT.md` reconstructed; deployed app SHA `d4284b7`, successful deploy/migrate and active pre-live site confirmed | Record exact Frappe/ERPNext versions, workers and backup/restore proof |
+| Step 1 / T01 security | PARTIALLY VERIFIED | `evidence/01-security.md` — source tests and available five-role pre-live runtime checks pass | Owner containment decision plus bench/API write, refresh, byte-read and OCR instrumentation |
 
 ## Step 1 finding disposition
 
 | Finding | Current disposition |
 | --- | --- |
 | DB-01 | Current checkout/distribution repaired; BLOCKED on public history containment and owner decision |
-| DB-02 | Source repair passes inert serialization/static tests; BLOCKED on real-browser staging validation |
-| DB-03 | Role/field matrix and explicit building boundary implemented; BLOCKED on real-Frappe staging validation |
-| DB-20 | File/attachment checks precede byte reads and OCR is server/UI disabled; VERIFIED-DEFERRED for OCR, but private-download runtime behavior remains BLOCKED |
+| DB-02 | Real pre-live browser confirms the synthetic closing-script marker remains inert; broader legacy interpolation remains backlog |
+| DB-03 | Five actual Frappe sessions confirm boot field/section/building scope and cross-building detail denial; direct write/refresh API runtime instrumentation remains outstanding |
+| DB-20 | Scoped direct private-file request is forbidden at runtime; zero-read ordering remains source/stub evidence. OCR is server/UI disabled and VERIFIED-DEFERRED |
