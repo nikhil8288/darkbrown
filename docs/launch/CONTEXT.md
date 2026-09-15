@@ -27,7 +27,8 @@ source of truth.
 
 - Repository baseline: `00dfc36` on `main`.
 - Task branch: `launch/step-01-security`.
-- Runtime: source checkout only; no bench, staging site, workers or database
-  are available in this workspace.
+- Runtime: commit `d4284b7` is deployed to the explicitly authorized pre-live
+  Frappe Cloud production site. No separate staging site was available; all
+  boundary checks used isolated `SEC-T01` synthetic records and users.
 - Fast verification: `verify/harness.py`, `verify/files_api.py`,
   `verify/notes_api.py`, and `verify/security_boundaries.py`.
