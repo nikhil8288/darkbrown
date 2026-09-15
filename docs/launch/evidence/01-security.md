@@ -1,7 +1,10 @@
 # Step 1 — security and access-boundary evidence
 
-Status: **BLOCKED**. Source repairs and synthetic tests pass; repository-history
-containment and staging runtime verification are outstanding.
+Status: **PARTIALLY VERIFIED**. Source repairs, synthetic regression tests and
+the available pre-live Frappe runtime checks pass. Repository-history
+containment still requires an owner decision; two byte/read and write-path
+claims remain source/test evidence because the managed browser could not call
+API routes directly.
 
 ## Baseline and scope
 
@@ -10,7 +13,12 @@ containment and staging runtime verification are outstanding.
 - The requested `docs/launch/CONTEXT.md` and `STATUS.md` were absent from all
   visible branches. `CONTEXT.md` was reconstructed from the approved launch
   execution contract; this remains a T00 baseline gap.
-- No production site, bench, database, workers or real users were accessed.
+- Commit `d4284b7` was deployed successfully to the explicitly authorized
+  pre-live production bench/site. The site reported active, migrate success and
+  the expected app commit. No real-user account was used for boundary testing.
+- Runtime checks used only `SEC-T01` synthetic records in two buildings and five
+  synthetic System Users. Welcome mail was disabled and no credential is
+  recorded here.
 - No repository history or visibility setting was changed.
 
 ## Narrow diff retained for review
@@ -26,8 +34,9 @@ containment and staging runtime verification are outstanding.
 - Verification/launch record: stub support, four verification scripts and the
   files under `docs/launch/`.
 
-The changes remain local and uncommitted on `launch/step-01-security` for owner
-review. Nothing was pushed, published, deployed or staged against a live site.
+The reviewed source diff was pushed to `main` and deployed as `d4284b7` after
+the user's explicit authorization. The local task commit is `4f37614`; the
+remote commit differs because the GitHub API assembled the same reviewed tree.
 
 ## DB-01 — tracked operational data
 
@@ -63,9 +72,12 @@ artifacts. The unexecuted owner-review action and rollback are in
   and accept only local file paths.
 - Both changed inline application scripts pass `node --check`.
 
-Limit: real-browser CSP and DOM execution tests require staging and remain
-BLOCKED. The broader shell contains legacy HTML-building helpers outside this
-finding's changed paths; they should remain in the application-security backlog.
+Runtime evidence on the pre-live site: a stored synthetic closing-script marker
+was present in the authorized Maintenance boot data, the application rendered
+normally, and the marker's sentinel element count remained zero. This confirms
+the tested boot interpolation was inert in a real browser. The broader shell
+contains legacy HTML-building helpers outside this finding's changed paths;
+they remain in the application-security backlog.
 
 ## DB-03 — role, field and building scope
 
@@ -95,10 +107,25 @@ An explicit server-side boot/refresh matrix now provides:
 - Synthetic tests prove a GM scoped to Building A receives only its row/total,
   and a Maintenance write to Building B is denied before mutation while the
   equivalent Building A workflow still saves.
+- Actual Frappe sessions confirmed the server-rendered boot keys and building
+  scope: Maintenance received only `buildings/jobs/units`; Documentation only
+  `agreements/buildings/docs/tenants/units`; Accounts received its finance
+  sections without jobs/docs/staff; scoped GM received operational/approval
+  sections without bankAccounts/staff/petty; MD received portfolio-wide
+  sections. The first four sessions contained Building A and not Building B;
+  MD contained both synthetic buildings.
+- Accounts and scoped GM boot JSON did not contain the synthetic identity-field
+  sentinel. A direct Building B Maintenance detail request and a direct
+  Building B Document Register detail request were denied by Frappe.
+- The Maintenance Building link lookup returned Building A and excluded
+  Building B. A forced Building B entry remained unset and save was rejected as
+  missing Building; an otherwise equivalent Building A record saved normally.
 
-Limit: these are source/stub results. Real Frappe User Permission interaction,
-DocType permissions and every production route require the five-role staging
-matrix before DB-03 can close.
+Limit: the managed browser policy blocked direct `/api/method/...` navigation,
+so refresh and the DarkBrown cross-building write handler remain proven by
+source/stub regression rather than an instrumented runtime request. The native
+Frappe link query, detail permissions and allowed write were verified at
+runtime. Do not describe the blocked API check as a runtime pass.
 
 ## DB-20 — private files and deferred OCR
 
@@ -114,9 +141,15 @@ matrix before DB-03 can close.
 - A synthetic denial test records zero content reads; an authorized private
   synthetic image follows the normal byte-read path once.
 
-Limit: Frappe's native `/private/files/...` response must be tested separately
-on staging to prove denial occurs before response bytes are streamed. OCR is
-**VERIFIED-DEFERRED** at source/server/UI level, not enabled.
+Runtime evidence on the pre-live site: the Building B private-file URL returned
+`Forbidden` to the Building-A-scoped Maintenance session. The authorized file
+request entered the browser's download path, which the managed browser blocked
+from inspection. The source regression records zero content reads on denial;
+runtime evidence confirms no response body was disclosed but does not by itself
+instrument the exact internal read order. The Documentation intake page stated
+that OCR is deferred and disabled. Direct OCR API invocation was blocked by the
+managed browser URL policy, so the server-side denial remains source/test
+evidence. OCR remains **VERIFIED-DEFERRED**, not enabled.
 
 ## Executed checks
 
@@ -130,27 +163,32 @@ on staging to prove denial occurs before response bytes are streamed. OCR is
 | Shell and intake inline JS syntax | PASS | Static |
 | Synthetic loader manifest | PASS, 13 files | Static/content classification |
 | Built wheel content audit | PASS | Distribution |
+| Frappe Cloud deploy/migrate (`d4284b7`) | PASS | Pre-live runtime |
+| Five-role server-rendered boot matrix | PASS | Pre-live runtime, synthetic |
+| Cross-building list/detail reads | PASS | Pre-live runtime, synthetic |
+| Building B private-file response | Forbidden | Pre-live runtime, synthetic |
+| Inert stored closing-script marker | PASS, zero sentinel elements | Pre-live browser, synthetic |
+| Building A normal Maintenance create | PASS (`MNT-2026-0004`) | Pre-live runtime, synthetic |
+| Direct DarkBrown write/refresh API checks | BLOCKED by managed browser URL policy | Source/stub only |
+| Direct OCR API denial | BLOCKED by managed browser URL policy | Source/stub plus runtime-disabled UI |
 
 The harness deliberately exercises failing internal wipe gates before reporting
 its final pass count; those diagnostic lines are not launch failures.
 
-## Required staging gate
+## Remaining gate and cleanup
 
-On disposable staging, create two synthetic buildings and users for
-Maintenance, Documentation, Accounts, Building-A-scoped GM and MD. With
-external delivery/payment/OCR providers mocked or off, verify:
+The user explicitly authorized the not-yet-live production site in place of a
+staging environment. Before Step 1 is closed:
 
-1. Boot and refresh response keys, fields, rows and totals match the matrix.
-2. Building-A GM list/detail/write requests for Building B return permission
-   errors and no database mutation.
-3. Maintenance and Documentation cannot call hidden finance/staff endpoints or
-   retrieve forbidden sensitive fields.
-4. A stored inert closing-script marker renders as text in a real browser and
-   creates no additional script element or audit marker execution.
-5. An unauthorized private-file URL fails both preview and direct download
-   before bytes are returned; the authorized equivalent renders normally.
-6. Every OCR endpoint remains denied and causes no File read, provider call,
-   enqueue or Document Register status change.
-
-Exact blocker: no configured Frappe/ERPNext staging site is available in this
-workspace.
+1. The owner must approve or reject the containment sequence in
+   `docs/launch/history-containment.md`; deleting current files is not history
+   cleanup.
+2. From an approved bench-side test or an allowed API client, run the scoped GM
+   and Maintenance write/refresh cases and record pre/post row state.
+3. Instrument a denied private-file/OCR request on the server to confirm zero
+   byte reads, provider calls, enqueues and register status changes. Existing
+   source/stub tests already assert this ordering, but it is not runtime
+   instrumentation.
+4. Remove or disable the five `SEC-T01` test users and their synthetic records
+   only after separate cleanup authorization; they are currently isolated and
+   clearly labelled.
