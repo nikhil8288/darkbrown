@@ -1,23 +1,3 @@
 building_code,building_name,landlord,status,area_name,municipality,zone_no,street_no,building_no,kahramaa_account_no,source_file
-AK-12,AK-12,Al Madar Real Estate W.L.L.,Active,Ain Khalid,,56,224,12,1024870,OWNER AGREEMENT 2026.pdf
-DAJ-21,DAJ-21,Hassan Bin Hassan Al Jufairy,Active,Doha Al Jadeed / Al-Mabrouka,,,,,1108208,NEW 08 FLATS AGRMRNT.pdf + NEW 08 FLAT AGREEMENT 02.pdf
-MQ-56,MQ-56,Jassim Ali A A Shams,Active,Matar Qadeem,,45,703,56,119238,AGREEMENT MQ56.pdf
-MR-130,MR-130,Ahmed Abdulrahman Ahmadi Al-Shaibi,Active,Mansoura,,25,850,130,,AGREEMENT(7).pdf
-MT-21,MT-21,Aisha Mahmoud Abdulmohsen Al Mahmoud,Active,Muaither,,53,716,21,89171,AGREEMENT 2025-26.pdf
-OG-48,OG-48,Sultan Ghanem Sultan Al Ghanem / Shahin Khaled Ghanem Al Ghanem,Active,Al Ghanim Al Ateeq,,6,109,48,,AGRMNT(3).pdf
-TV-20,TV-20,Jamal Jassim Mohsen Al Haddad,Active,Al Thumama,,46,806,20,1102990,OWNER AGREEMENT - NEW.pdf
-TV-27,TV-27,Nassir Ali Mohamed Al-Saadi,Active,Al Thumama,,47,966,27,1174604,AGREEMENT SIGNED.pdf
-TV-66,TV-66,Abdulaziz Ibrahim A H Al-Ajail,Active,Al Thumama,,46,968,66,1176326,TV-66 - AGREEMENT  - NEW.pdf
-TV-68,TV-68,Abdulaziz Ibrahim A H Al-Ajail,Active,Al Thumama,,46,968,68,1178446,TV-68 - AGREEMENT - NEW.pdf
-TWR-12,TWR-12,Al Adekhar Real Estate Company WLL,Active,Umm Lakhba (Duhail),,31,917,12,1180144,"AGREEMENT,12.pdf"
-TWR-16,TWR-16,Al Adekhar Real Estate Company WLL,Active,Umm Lakhba (Duhail),,31,917,16,1180132,"AGREEMENT, 20,16,45,58.pdf"
-TWR-17,TWR-17,Al Adekhar Real Estate Company WLL,Active,Umm Lakhba (Duhail),,31,917,17,1178346,"AGREEMENT, 17,19,37.pdf"
-TWR-19,TWR-19,Al Adekhar Real Estate Company WLL,Active,Umm Lakhba (Duhail),,31,917,19,1178347,"AGREEMENT, 17,19,37.pdf"
-TWR-20,TWR-20,Al Adekhar Real Estate Company WLL,Active,Umm Lakhba (Duhail),,31,917,20,1180131,"AGREEMENT, 20,16,45,58.pdf"
-TWR-35,TWR-35,Al Adekhar Real Estate Company WLL,Active,Umm Lakhba (Duhail),,31,913,35,1178349,"AGREEMENT, 35,39.pdf"
-TWR-37,TWR-37,Al Adekhar Real Estate Company WLL,Active,Umm Lakhba (Duhail),,31,913,37,1178348,"AGREEMENT, 17,19,37.pdf"
-TWR-39,TWR-39,Al Adekhar Real Estate Company WLL,Active,Umm Lakhba (Duhail),,31,913,39,1178352,"AGREEMENT, 35,39.pdf"
-TWR-45,TWR-45,Al Adekhar Real Estate Company WLL,Active,Umm Lakhba (Duhail),,31,913,45,1178354,"AGREEMENT, 20,16,45,58.pdf"
-TWR-58,TWR-58,Al Adekhar Real Estate Company WLL,Active,Umm Lakhba (Duhail),,31,913,58,1172349,"AGREEMENT, 20,16,45,58.pdf"
-UG-169,UG-169,Mohd Ibrahim A E Al-Naemi,Active,Umm Guwailina,,27,810,169,88644,AGREEMENT NEW UG169.pdf
-UG-20,UG-20,Adel Mohammed Ali Mohammed Al-Mutawa,Active,Umm Guwailina,,27,895,20,1271166,AGREEMENT-ENG-UG20.pdf
+SYN-A,Synthetic Building A,Synthetic Landlord Alpha LLC,Active,Test District A,Test Municipality,900,9001,A-01,SYN-KM-A,synthetic-fixture
+SYN-B,Synthetic Building B,Synthetic Landlord Beta LLC,Active,Test District B,Test Municipality,901,9002,B-01,SYN-KM-B,synthetic-fixture

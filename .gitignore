@@ -4,3 +4,7 @@ __pycache__/
 .DS_Store
 *.egg-info/
 node_modules/
+# Access-controlled operational imports belong outside Git. This local path is
+# only a convenience mount point and must never be committed.
+private/imports/
+operational-imports/

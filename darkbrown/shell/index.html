@@ -609,7 +609,7 @@ body.focus main{max-width:none}
     <div class="nv" data-r="maint">Maintenance</div>
     <div class="nv" data-r="utilities">Utilities</div>
     <div class="grp">Documents</div>
-    <div class="nv" data-r="intake">Intake &amp; OCR <span class="b" id="nbIntake">2</span></div>
+    <div class="nv" data-r="intake" style="display:none">Intake &amp; OCR</div>
     <div class="nv" data-r="vault">Vault</div>
     <div class="grp">Finance</div>
     <div class="nv" data-r="invoices">Invoices</div>
@@ -4684,8 +4684,7 @@ ROUTES.utilities=()=>{
    foot:['One consolidated recovery invoice per tenant per month','B09 +38% vs trailing average — flagged in intake']})}</div>`)};
 
 /* ---------------- Document intake / OCR (2F) ---------------- */
-ROUTES.intake=()=>page('Document intake','AI extraction → review queue → push to vault',
- fbtn('Upload documents','upload-docs'),
+ROUTES.intake=()=>page('Document intake','Deferred for launch','',
  /* Queue and flagged counts come off the register. "Validated today" and the
     average confidence were fixed strings sitting beside them, which is how a
     prototype figure gets read as a measurement. They are withheld on a live
@@ -4694,8 +4693,8 @@ ROUTES.intake=()=>page('Document intake','AI extraction → review queue → pus
   ['Flagged',DOCS.filter(d=>d.st==='Flagged').length,'','r'],
   ['Validated today',window.DB_LIVE?'\u2014':2,window.DB_LIVE?'not read yet':''],
   ['Avg confidence',window.DB_LIVE?'\u2014':'82%',window.DB_LIVE?'not read yet':'']])+
- `<div class="card"><h3>Intake pipeline — workflow 2F</h3>
-  ${steps(['Upload','AI extraction','Human review','Validation','Push to vault'],2)}</div>
+ `<div class="card"><h3>OCR is disabled</h3>
+  <p>Attach private files through the normal record workflow. Automated extraction will be released only after its security and provider controls are verified.</p></div>
  <div class="card">${tbl([
   {h:'Doc',v:d=>d.id},{h:'Type',v:d=>d.ty},{h:'File',v:d=>d.f},{h:'Extracted',v:d=>d.ext},
   {h:'Confidence',r:1,mono:1,v:d=>d.conf+'%',style:d=>d.conf<75?'color:var(--red)':d.conf<90?'color:var(--amber)':'color:var(--em)'},
@@ -5512,6 +5511,7 @@ window.FEXTRACT=null;
    goes into the field and is listed as needing a look. The threshold comes
    back from the server so it is tunable there rather than here. */
 async function dbExtract(kind){
+  if(!window.DB_OCR_ENABLED){toast('Document OCR is disabled for this release');return;}
   collect();
   const files=(window.FFILES&&FFILES.doc)||[];
   const btn=document.getElementById('exbtn');
@@ -5646,7 +5646,7 @@ function docStep(label,hint,note,kind){
      :'Attach the paperwork now and it is filed against the record when you save it. Nothing is read off the document here \u2014 the values go in by hand on the steps that follow.'}</p>
    <div class="fg">${fld({k:'doc',l:label,t:'file',multi:1,
      hint:hint||'PDF, JPG or PNG \u00b7 several at once'},d.doc)}</div>
-   ${kind?`<div style="display:flex;gap:12px;align-items:center;margin:12px 0">
+   ${kind&&window.DB_OCR_ENABLED?`<div style="display:flex;gap:12px;align-items:center;margin:12px 0">
       <button type="button" class="btn pri" id="exbtn" onclick="dbExtract('${kind}')"${n?'':' disabled'}>
         ${window.FEXTRACT?'Read again':'Read the documents'}</button>
       <span class="fh">${n?n+' file'+(n===1?'':'s')+' ready':'choose the files first'}</span></div>

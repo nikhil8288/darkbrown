@@ -36,6 +36,11 @@ from darkbrown.api.doc_intake_prompts import (
 from darkbrown.api import id_validation
 from darkbrown.api.party_documents import append_party_document
 from darkbrown.guards import guard, ACC, DOC, MD
+from darkbrown.permissions import (
+	require_file_access,
+	require_record_access,
+	scoped_filters,
+)
 
 ANTHROPIC_URL = "https://api.anthropic.com/v1/messages"
 
@@ -49,6 +54,10 @@ RENDER_DPI = 150
 MAX_PAGES = 15        # rasterised pages, fallback path only
 MAX_PDF_PAGES = 100   # the API's own limit on a native PDF
 MAX_PDF_BYTES = 30 * 1024 * 1024
+
+# OCR/extraction is a post-launch capability. Keep the denial in the server,
+# not only behind a hidden button, until the feature is explicitly released.
+OCR_ENABLED = False
 
 # Register document_type -> Party Document document_type
 PARTY_DOC_TYPE_MAP = {
@@ -112,6 +121,17 @@ def _get_model(escalate=False):
 	return ESCALATION_MODEL if escalate else DEFAULT_MODEL
 
 
+def _require_ocr_enabled():
+	if not OCR_ENABLED:
+		frappe.throw(_("Document OCR is disabled for this release."),
+		             frappe.PermissionError)
+
+
+def _authorized_file(file_url):
+	"""Resolve a File and prove access before any bytes or metadata are used."""
+	return require_file_access(file_url)
+
+
 # ---------------------------------------------------------------------------
 # PDF / image rendering
 # ---------------------------------------------------------------------------
@@ -157,7 +177,7 @@ def _rasterise_pdf(content):
 	return out
 
 
-def _file_to_blocks(file_url):
+def _file_to_blocks(file_url, file_doc=None):
 	"""Return (content_blocks, page_count) for the source file.
 
 	PDFs go to the API as PDFs. The model reads a native PDF's own text layer
@@ -166,7 +186,7 @@ def _file_to_blocks(file_url):
 	native module is what stopped every PDF here from being read at all.
 	Images are passed through as before.
 	"""
-	file_doc = frappe.get_doc("File", {"file_url": file_url})
+	file_doc = file_doc or _authorized_file(file_url)
 	content = file_doc.get_content()  # bytes
 	fname = (file_doc.file_name or "").lower()
 
@@ -476,6 +496,7 @@ def _find_duplicate(file_url):
 	whose source file has the same content hash (true duplicate even if the
 	filename differs), else None."""
 	try:
+		_authorized_file(file_url)
 		this_hash = frappe.db.get_value("File", {"file_url": file_url}, "content_hash")
 		if not this_hash:
 			return None
@@ -501,6 +522,7 @@ def create_intake(file_url):
 	guard(MD, DOC)
 	if not frappe.has_permission("Document Register", "create"):
 		frappe.throw(_("Not permitted"), frappe.PermissionError)
+	_authorized_file(file_url)
 
 	reg = frappe.new_doc("Document Register")
 	reg.source_file = file_url
@@ -518,24 +540,24 @@ def extract_document(docname, escalate=0):
 	"""Run extraction on a Document Register record and save the result.
 	Returns the updated doc as a dict for the UI to render."""
 	guard(MD, DOC)
+	_require_ocr_enabled()
 	reg = frappe.get_doc("Document Register", docname)
-	if not reg.has_permission("write"):
-		frappe.throw(_("Not permitted"), frappe.PermissionError)
+	require_record_access(reg, "write")
 
 	if not reg.source_file:
 		frappe.throw(_("No source file attached."))
 
+	file_doc = _authorized_file(reg.source_file)
 	reg.db_set("status", "Extracting", commit=True)
 
 	try:
-		blocks, pages = _file_to_blocks(reg.source_file)
+		blocks, pages = _file_to_blocks(reg.source_file, file_doc=file_doc)
 		model = _get_model(escalate=int(escalate or 0))
 		try:
 			result = _call_claude(blocks, model)
 		except _PdfRefused:
 			# The model would not take the PDF whole. Fall back to pictures of
 			# the pages, which is what this used to do for every PDF.
-			file_doc = frappe.get_doc("File", {"file_url": reg.source_file})
 			blocks = _rasterise_pdf(file_doc.get_content())
 			pages = len(blocks)
 			result = _call_claude(blocks, model)
@@ -561,6 +583,8 @@ def extract_from_upload(file_url, escalate=0, skip_duplicate_check=0):
 	Duplicate files (same content hash as an existing non-rejected register
 	entry) are skipped BEFORE any API spend, unless explicitly overridden."""
 	guard(MD, DOC)
+	_require_ocr_enabled()
+	_authorized_file(file_url)
 	if not int(skip_duplicate_check or 0):
 		twin = _find_duplicate(file_url)
 		if twin:
@@ -573,8 +597,7 @@ def extract_from_upload(file_url, escalate=0, skip_duplicate_check=0):
 def reject_document(docname, reason=None):
 	guard(MD, DOC)
 	reg = frappe.get_doc("Document Register", docname)
-	if not reg.has_permission("write"):
-		frappe.throw(_("Not permitted"), frappe.PermissionError)
+	require_record_access(reg, "write")
 	reg.status = "Rejected"
 	if reason:
 		reg.extraction_notes = (reg.extraction_notes or "") + f"\n[Rejected] {reason}"
@@ -592,8 +615,7 @@ def get_document(docname):
 	"""Fetch one register record for the review UI."""
 	guard(MD, DOC, ACC)
 	reg = _rehydrate(frappe.get_doc("Document Register", docname))
-	if not reg.has_permission("read"):
-		frappe.throw(_("Not permitted"), frappe.PermissionError)
+	require_record_access(reg, "read")
 	return reg.as_dict()
 
 
@@ -605,7 +627,7 @@ def list_queue(limit=30):
 		frappe.throw(_("Not permitted"), frappe.PermissionError)
 	return frappe.get_all(
 		"Document Register",
-		filters={"status": ["in", ["Draft", "Needs Review"]]},
+		filters=scoped_filters({"status": ["in", ["Draft", "Needs Review"]]}),
 		fields=["name", "status", "document_type", "party", "document_no",
 		        "extraction_confidence", "source_file", "modified"],
 		order_by="modified desc",
@@ -619,8 +641,7 @@ def save_edits(docname, updates):
 	optional 'cheques' list that replaces the child rows wholesale."""
 	guard(MD, DOC)
 	reg = _rehydrate(frappe.get_doc("Document Register", docname))
-	if not reg.has_permission("write"):
-		frappe.throw(_("Not permitted"), frappe.PermissionError)
+	require_record_access(reg, "write")
 
 	data = json.loads(updates) if isinstance(updates, str) else (updates or {})
 
@@ -665,8 +686,7 @@ def validate_id(docname):
 	"""Run the two-check identity validation for the review UI."""
 	guard(MD, DOC)
 	reg = _rehydrate(frappe.get_doc("Document Register", docname))
-	if not reg.has_permission("read"):
-		frappe.throw(_("Not permitted"), frappe.PermissionError)
+	require_record_access(reg, "read")
 	is_qid = reg.document_type != "Passport"
 	return id_validation.validate_identity(
 		reg.id_number, holder_name=reg.party_name,
@@ -825,8 +845,7 @@ def confirm_and_push(docname):
 	matched party, push confirmed cheques. Status -> Pushed."""
 	guard(MD, DOC)
 	reg = _rehydrate(frappe.get_doc("Document Register", docname))
-	if not reg.has_permission("write"):
-		frappe.throw(_("Not permitted"), frappe.PermissionError)
+	require_record_access(reg, "write")
 	if reg.status not in ("Needs Review", "Confirmed"):
 		frappe.throw(_("Only records in Needs Review can be pushed."))
 	if reg.document_type == "Cheque Batch" and not any(
@@ -1086,8 +1105,7 @@ def match_statement(docname):
 	date window (weak). Suggestions are saved onto the lines."""
 	guard(MD, DOC, ACC)
 	reg = _rehydrate(frappe.get_doc("Document Register", docname))
-	if not reg.has_permission("write"):
-		frappe.throw(_("Not permitted"), frappe.PermissionError)
+	require_record_access(reg, "write")
 	if not reg.meta.has_field("statement_lines"):
 		frappe.throw(_("Statement fields not deployed yet (run the Phase-3 migrate)."))
 	if not frappe.db.exists("DocType", "Cheque"):
@@ -1164,8 +1182,7 @@ def apply_statement_line(docname, line_name, pdc=None):
 	guard(MD, DOC, ACC)
 	from darkbrown.api import finance
 	reg = frappe.get_doc("Document Register", docname)
-	if not reg.has_permission("write"):
-		frappe.throw(_("Not permitted"), frappe.PermissionError)
+	require_record_access(reg, "write")
 	line = next((l for l in reg.statement_lines or [] if l.name == line_name), None)
 	if not line:
 		frappe.throw(_("Statement line not found."))
@@ -1192,8 +1209,7 @@ def ignore_statement_line(docname, line_name, note=None):
 	"""Line is not a cheque event we track (bank charges, transfers, etc.)."""
 	guard(MD, DOC, ACC)
 	reg = frappe.get_doc("Document Register", docname)
-	if not reg.has_permission("write"):
-		frappe.throw(_("Not permitted"), frappe.PermissionError)
+	require_record_access(reg, "write")
 	line = next((l for l in reg.statement_lines or [] if l.name == line_name), None)
 	if not line:
 		frappe.throw(_("Statement line not found."))
@@ -1725,6 +1741,7 @@ def extract_for_wizard(file_urls, kind="building", escalate=0):
 	  notes   things worth telling the user that are not field values
 	"""
 	guard(MD, DOC)
+	_require_ocr_enabled()
 
 	fold = _WIZARD_FOLD.get(kind)
 	if not fold:

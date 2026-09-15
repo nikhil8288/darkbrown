@@ -90,4 +90,11 @@ fixtures = [
 permission_query_conditions = {
     "Building": "darkbrown.permissions.building_query",
     "Unit": "darkbrown.permissions.unit_query",
+    "Document Register": "darkbrown.permissions.document_register_query",
+    "Document Archive": "darkbrown.permissions.document_archive_query",
+    "Tenancy Agreement": "darkbrown.permissions.tenancy_query",
+    "Maintenance Request": "darkbrown.permissions.maintenance_query",
+    "Collection Case": "darkbrown.permissions.collection_query",
+    "Move Out Case": "darkbrown.permissions.moveout_query",
+    "Invoice Run": "darkbrown.permissions.invoice_run_query",
 }

@@ -3,8 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="csrf-token" content="{{ csrf_token | e }}">
 <title>Document Intake · DarkBrown</title>
-<script>window.frappe = window.frappe || {}; frappe.csrf_token = "{{ csrf_token }}";</script>
+<script>window.frappe=window.frappe||{};frappe.csrf_token=document.querySelector('meta[name="csrf-token"]').content;</script>
 {% raw %}
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Mulish:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -62,17 +63,17 @@ tr.st-no input,tr.st-no select{opacity:.55}
   <div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:10px">
     <div>
       <h1>Document Intake</h1>
-      <div class="sub">Upload &rarr; AI extraction &rarr; review &rarr; push to ERP</div>
+      <div class="sub">OCR is deferred for the launch release</div>
     </div>
     <a href="/app/document-register" class="btn btn-ghost" style="text-decoration:none">Open Register list</a>
   </div>
 
   <!-- UPLOAD -->
   <div id="upload_zone" style="margin-top:18px">
-    <div id="drop">Drop scanned PDFs / images here (up to 10 at once), or click to choose<br>
-      <span style="font-size:11px">Cheque batches, contracts, QID, passport, utility docs &mdash; duplicates are detected and skipped</span>
+    <div id="drop" aria-disabled="true">Document OCR is currently disabled.<br>
+      <span style="font-size:11px">Use the normal private-file workflow to attach documents without extraction.</span>
     </div>
-    <input type="file" id="file_input" accept=".pdf,.png,.jpg,.jpeg" multiple style="display:none">
+    <input type="file" id="file_input" accept=".pdf,.png,.jpg,.jpeg" multiple disabled style="display:none">
     <div id="batch_panel" class="card" style="margin-top:10px;display:none"></div>
     <div style="margin-top:10px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
       <label style="font-size:12px;color:#6B5648;display:flex;align-items:center;gap:6px">
@@ -135,7 +136,7 @@ tr.st-no input,tr.st-no select{opacity:.55}
 
         <div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap">
           <button class="btn btn-ghost" onclick="saveEdits()">Save edits</button>
-          <button class="btn btn-ghost" onclick="reExtract()">Re-extract with Sonnet</button>
+          <button class="btn btn-ghost" disabled>OCR disabled</button>
           <button class="btn btn-green" onclick="confirmPush()">Confirm &amp; Push</button>
           <button class="btn btn-red" onclick="rejectDoc()">Reject</button>
           <button class="btn btn-ghost" onclick="closeReview()" style="margin-left:auto">Close</button>
@@ -149,7 +150,12 @@ tr.st-no input,tr.st-no select{opacity:.55}
 <script>
 function _csrf(){ return (window.frappe && frappe.csrf_token) || ''; }
 const API = 'darkbrown.api.doc_intake.';
+const OCR_ENABLED = false;
 let CUR = null;
+
+function esc(value){return String(value==null?'':value).replace(/[&<>"']/g,c=>({
+  '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+const escA=esc;
 
 const FLAT_FIELDS = [
   ['party_name','Party name'],['party_name_ar','Party name (Arabic)'],
@@ -189,6 +195,7 @@ fi.onchange=()=>{if(fi.files.length)handleBatch([...fi.files]);};
 
 let BUSY=false;
 async function handleBatch(files){
+  if(!OCR_ENABLED){toast('Document OCR is disabled for this release');return;}
   if(BUSY){toast('A batch is already processing \u2014 wait for it to finish');return;}
   if(files.length>10){toast('Max 10 files per batch \u2014 taking the first 10');files=files.slice(0,10);}
   fi.value='';
@@ -202,7 +209,7 @@ async function handleBatch(files){
       :s.st==='dup'?'<span style="color:#8A6A34">&#9888;</span>'
       :s.st==='fail'?'<span style="color:#A3452F">&#10005;</span>'
       :s.st==='working'?'<span class="spin"></span>':'&#8226;';
-    return `<div style="display:flex;gap:8px;align-items:center;font-size:12px;padding:3px 0">${icon}<b>${s.name}</b><span style="color:#857260">${s.info}</span></div>`;
+    return `<div style="display:flex;gap:8px;align-items:center;font-size:12px;padding:3px 0">${icon}<b>${esc(s.name)}</b><span style="color:#857260">${esc(s.info)}</span></div>`;
   }).join('');};
   paint();
   const single=files.length===1;
@@ -238,15 +245,16 @@ async function loadQueue(){
     const rows=await call('list_queue',{limit:30});
     if(!rows.length){q.innerHTML='<span style="font-size:12px;color:#857260">Nothing pending. Upload a document above.</span>';return;}
     q.innerHTML=rows.map(r=>`
-      <div class="queue-item" onclick="openByName('${r.name}')">
+      <div class="queue-item" data-doc="${escA(r.name)}">
         <div>
-          <span style="font-weight:700;font-size:12.5px">${r.name}</span>
-          <span class="badge ${r.status==='Needs Review'?'b-warm':'b-grey'}" style="margin-left:8px">${r.status}</span>
-          <div style="font-size:11.5px;color:#857260;margin-top:2px">${r.document_type||'—'} · ${r.party_name||''} ${r.id_number?('· '+r.id_number):''}</div>
+          <span style="font-weight:700;font-size:12.5px">${esc(r.name)}</span>
+          <span class="badge ${r.status==='Needs Review'?'b-warm':'b-grey'}" style="margin-left:8px">${esc(r.status)}</span>
+          <div style="font-size:11.5px;color:#857260;margin-top:2px">${esc(r.document_type||'—')} · ${esc(r.party_name||'')} ${r.id_number?('· '+esc(r.id_number)):''}</div>
         </div>
         <span style="font-size:11px;color:#9A8775">${r.extraction_confidence?Math.round(r.extraction_confidence*100)+'%':''}</span>
       </div>`).join('');
-  }catch(e){q.innerHTML='<span class="flag">'+e.message+'</span>';}
+    q.querySelectorAll('[data-doc]').forEach(el=>el.addEventListener('click',()=>openByName(el.dataset.doc)));
+  }catch(e){q.innerHTML='<span class="flag">'+esc(e.message)+'</span>';}
 }
 async function openByName(name){ openReview(await call('get_document',{docname:name})); }
 
@@ -265,9 +273,11 @@ function openReview(doc){
   // preview
   const p=document.getElementById('preview');
   const u=doc.source_file||'';
-  p.innerHTML = u.toLowerCase().endsWith('.pdf')
-    ? `<iframe src="${u}"></iframe>`
-    : `<img src="${u}" alt="document">`;
+  p.replaceChildren();
+  if(/^\/(private\/)?files\//.test(u)){
+    const media=document.createElement(u.toLowerCase().endsWith('.pdf')?'iframe':'img');
+    media.src=u;if(media.tagName==='IMG')media.alt='document';p.appendChild(media);
+  }else{p.textContent='Preview unavailable: invalid file location.';}
 
   document.getElementById('f_document_type').value=doc.document_type||'Unknown';
 
@@ -275,12 +285,12 @@ function openReview(doc){
   document.getElementById('fields').innerHTML=FLAT_FIELDS.map(([f,label])=>{
     const type=DATE_F.has(f)?'date':NUM_F.has(f)?'number':'text';
     const val=doc[f]==null?'':doc[f];
-    return `<div><label class="lbl">${label}</label><input class="inp" type="${type}" id="f_${f}" value="${String(val).replace(/"/g,'&quot;')}"></div>`;
+    return `<div><label class="lbl">${label}</label><input class="inp" type="${type}" id="f_${f}" value="${escA(val)}"></div>`;
   }).join('');
 
   // notes
   document.getElementById('notes_box').innerHTML=doc.extraction_notes
-    ? `<span class="lbl">Extractor notes</span><div style="font-size:12px;color:#6B5648;white-space:pre-wrap">${doc.extraction_notes}</div>`:'';
+    ? `<span class="lbl">Extractor notes</span><div style="font-size:12px;color:#6B5648;white-space:pre-wrap">${esc(doc.extraction_notes)}</div>`:'';
 
   // cheques
   const cc=document.getElementById('cheque_card');
@@ -304,11 +314,11 @@ function openReview(doc){
             <option ${(ch.cheque_type||'Rent')==='Rent'?'selected':''}>Rent</option>
             <option ${ch.cheque_type==='Security Deposit'?'selected':''}>Security Deposit</option>
             <option ${ch.cheque_type==='Other'?'selected':''}>Other</option></select></td>
-          <td><input class="inp" id="cq_no_${i}" value="${ch.cheque_number||''}" style="min-width:90px"></td>
-          <td><input class="inp" type="date" id="cq_dt_${i}" value="${ch.cheque_date||''}"></td>
-          <td><input class="inp" type="number" id="cq_amt_${i}" value="${ch.amount||''}" style="min-width:90px"></td>
-          <td><input class="inp" id="cq_pay_${i}" value="${(ch.payee||'').replace(/"/g,'&quot;')}" style="min-width:130px"></td>
-          <td><input class="inp" id="cq_bank_${i}" value="${(ch.bank_name||'').replace(/"/g,'&quot;')}" style="min-width:100px"></td>
+          <td><input class="inp" id="cq_no_${i}" value="${escA(ch.cheque_number||'')}" style="min-width:90px"></td>
+          <td><input class="inp" type="date" id="cq_dt_${i}" value="${escA(ch.cheque_date||'')}"></td>
+          <td><input class="inp" type="number" id="cq_amt_${i}" value="${escA(ch.amount||'')}" style="min-width:90px"></td>
+          <td><input class="inp" id="cq_pay_${i}" value="${escA(ch.payee||'')}" style="min-width:130px"></td>
+          <td><input class="inp" id="cq_bank_${i}" value="${escA(ch.bank_name||'')}" style="min-width:100px"></td>
           <td style="font-size:11px;color:#9A8775">${ch.row_confidence?Math.round(ch.row_confidence*100)+'%':''}</td>
           <td><div class="rvw">
             <button class="y" id="cq_y_${i}" title="Verified — push this cheque" onclick="setRow(${i},1)">&#10003;</button>
@@ -340,7 +350,7 @@ function renderStatement(doc){
   const counts={Applied:0,Suggested:0,Ignored:0,Unmatched:0};
   lines.forEach(l=>counts[l.line_status||'Unmatched']=(counts[l.line_status||'Unmatched']||0)+1);
   document.getElementById('stmt_summary').innerHTML=
-    `<b>${doc.statement_bank||''}</b> ${doc.statement_account_no||''} · ${doc.statement_from||''} &rarr; ${doc.statement_to||''}<br>`+
+    `<b>${esc(doc.statement_bank||'')}</b> ${esc(doc.statement_account_no||'')} · ${esc(doc.statement_from||'')} &rarr; ${esc(doc.statement_to||'')}<br>`+
     `${lines.length} lines: ${counts.Applied} applied · ${counts.Suggested} suggested · ${counts.Unmatched} unmatched · ${counts.Ignored} ignored<br>${bal}`;
   document.getElementById('stmt_table').innerHTML=
     '<tr><th>Date</th><th>Description</th><th>Ref</th><th>Out</th><th>In</th><th>Match</th><th style="text-align:right">Action</th></tr>'+
@@ -349,15 +359,15 @@ function renderStatement(doc){
         :l.line_status==='Suggested'?'<span class="badge b-warm">Suggested</span>'
         :l.line_status==='Ignored'?'<span class="badge b-grey">Ignored</span>'
         :'<span class="badge b-red">Unmatched</span>';
-      const match=l.match_pdc?`<b>${l.match_pdc}</b><div style="font-size:10.5px;color:#857260">${l.match_note||''}</div>`:(l.match_note||'—');
+      const match=l.match_pdc?`<b>${esc(l.match_pdc)}</b><div style="font-size:10.5px;color:#857260">${esc(l.match_note||'')}</div>`:esc(l.match_note||'—');
       const act=l.line_status==='Applied'?'':l.line_status==='Ignored'?'':
         `<div style="display:flex;gap:6px;justify-content:flex-end">`+
         (l.match_pdc?`<button class="btn btn-green" style="padding:4px 10px;font-size:11px" onclick="applyLine('${l.name}')">Apply</button>`:'')+
         `<button class="btn btn-ghost" style="padding:4px 10px;font-size:11px" onclick="ignoreLine('${l.name}')">Ignore</button></div>`;
       return `<tr>
-        <td style="white-space:nowrap">${l.txn_date||''}</td>
-        <td style="max-width:260px;font-size:11px">${(l.description||'').slice(0,120)}</td>
-        <td>${l.ref_no||''}</td>
+        <td style="white-space:nowrap">${esc(l.txn_date||'')}</td>
+        <td style="max-width:260px;font-size:11px">${esc((l.description||'').slice(0,120))}</td>
+        <td>${esc(l.ref_no||'')}</td>
         <td style="color:#A3452F">${l.debit?fmt(l.debit):''}</td>
         <td style="color:#2E6B57">${l.credit?fmt(l.credit):''}</td>
         <td>${chip}<div style="font-size:11px">${match}</div></td>
@@ -393,8 +403,8 @@ async function runIdCheck(){
   try{
     const v=await call('validate_id',{docname:CUR.name});
     let html='<span class="lbl">Identity checks</span>';
-    if(v.db_match) html+=`<div class="ok">&#10003; Matched ${v.db_match.party_type} <b>${v.db_match.party_name}</b> via ${v.db_match.via} (name score ${v.name_score})</div>`;
-    (v.flags||[]).forEach(f=>html+=`<div class="flag">&#9888; ${f}</div>`);
+    if(v.db_match) html+=`<div class="ok">&#10003; Matched ${esc(v.db_match.party_type)} <b>${esc(v.db_match.party_name)}</b> via ${esc(v.db_match.via)} (name score ${esc(v.name_score)})</div>`;
+    (v.flags||[]).forEach(f=>html+=`<div class="flag">&#9888; ${esc(f)}</div>`);
     if(v.verified) html+='<div class="ok"><b>Both checks passed — will link as Verified.</b></div>';
     box.innerHTML=html;
   }catch(e){/* silent */}
@@ -471,8 +481,8 @@ async function confirmPush(){
   try{
     await call('save_edits',{docname:CUR.name,updates:JSON.stringify(collectEdits())},true);
     const res=await call('confirm_and_push',{docname:CUR.name},true);
-    let html='<span class="lbl">Pushed</span>'+res.refs.map(r=>`<div class="ok">&#10003; ${r}</div>`).join('');
-    (res.warnings||[]).forEach(w=>html+=`<div class="flag">&#9888; ${w}</div>`);
+    let html='<span class="lbl">Pushed</span>'+res.refs.map(r=>`<div class="ok">&#10003; ${esc(r)}</div>`).join('');
+    (res.warnings||[]).forEach(w=>html+=`<div class="flag">&#9888; ${esc(w)}</div>`);
     document.getElementById('push_result').innerHTML=html;
     document.getElementById('r_status').textContent='Pushed';
     toast('Document pushed');loadQueue();

@@ -13,6 +13,12 @@ import frappe
 from frappe import _
 from frappe.utils import flt, today, getdate, date_diff, add_days
 from darkbrown.guards import guard, ACC, DOC, GM, MD
+from darkbrown.permissions import (
+    require_building_access,
+    require_file_access,
+    require_record_access,
+    scoped_filters,
+)
 
 PARTY_FIELD = {"Customer": "db_documents", "Supplier": "db_documents"}
 
@@ -22,6 +28,10 @@ def register(payload):
     """File a document. It lands needing review unless it arrives confirmed."""
     guard(MD, GM, ACC, DOC)
     data = frappe.parse_json(payload)
+    require_building_access(data.get("building") or (
+        frappe.db.get_value("Unit", data.get("unit"), "building")
+        if data.get("unit") else None))
+    require_file_access(data.get("file"))
 
     doc = frappe.get_doc({
         "doctype": "Document Register",
@@ -63,6 +73,7 @@ def review(document, decision, payload=None):
     guard(MD, GM, DOC)
     data = frappe.parse_json(payload) if payload else {}
     doc = frappe.get_doc("Document Register", document)
+    require_record_access(doc, "write")
 
     if doc.status in ("Confirmed", "Superseded"):
         frappe.throw(_("{0} is already {1}.").format(document, doc.status))
@@ -290,6 +301,7 @@ def vault(q=None, ty=None, ent=None, st=None, limit=None):
 
     reg = frappe.get_all(
         "Document Register",
+        filters=scoped_filters(),
         fields=["name", "source_file", "document_type", "status", "party",
                 "party_type", "building", "unit", "document_no", "expiry_date",
                 "owner", "modified", "creation"],
@@ -297,6 +309,7 @@ def vault(q=None, ty=None, ent=None, st=None, limit=None):
 
     arch = frappe.get_all(
         "Document Archive",
+        filters=scoped_filters(),
         fields=["name", "file", "document_type", "archive_title", "party",
                 "party_type", "building", "unit", "id_number", "archived_on",
                 "archived_by", "original_filename", "source_register",
@@ -385,9 +398,12 @@ def preview(document):
     for doctype, field in (("Document Register", "source_file"),
                            ("Document Archive", "file")):
         if frappe.db.exists(doctype, document):
-            url = frappe.db.get_value(doctype, document, field)
+            source = require_record_access(frappe.get_doc(doctype, document),
+                                           "read")
+            url = source.get(field)
             if not url:
                 frappe.throw(_("No file is attached to that record."))
+            require_file_access(url)
             return {"url": url, "doctype": doctype, "name": document}
     frappe.throw(_("That document is not on the register."))
 
@@ -487,11 +503,13 @@ def save_files(payload):
     else:
         frappe.throw(_("A file is filed against a building or a unit. This "
                        "one named neither."))
+    require_building_access(building)
 
     # The manual path may only write what the manual form offers.
     known = _form_types()
     created, kinds = [], []
     for url, kind in pairs:
+        require_file_access(url)
         kind = (kind or "Other").strip()
         if kind not in known:
             kind = "Other"
@@ -550,8 +568,10 @@ def files(building=None, unit=None):
         frappe.throw(_("Which building or unit?"))
 
     if unit:
+        require_building_access(frappe.db.get_value("Unit", unit, "building"))
         or_filters = {"unit": unit}
     else:
+        require_building_access(building)
         units = frappe.get_all("Unit", filters={"building": building},
                                pluck="name")
         or_filters = {"building": building}
@@ -560,12 +580,14 @@ def files(building=None, unit=None):
 
     reg = frappe.get_all(
         "Document Register", or_filters=or_filters,
+        filters=scoped_filters(),
         fields=["name", "source_file", "document_type", "status", "building",
                 "unit", "owner", "modified"],
         order_by="modified desc", limit=VAULT_LIMIT)
 
     arch = frappe.get_all(
         "Document Archive", or_filters=or_filters,
+        filters=scoped_filters(),
         fields=["name", "file", "document_type", "building", "unit",
                 "archived_on", "archived_by", "source_register", "owner",
                 "modified"],

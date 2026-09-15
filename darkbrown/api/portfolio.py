@@ -10,12 +10,21 @@ import frappe
 from frappe import _
 from frappe.utils import flt, cint, getdate, today
 from darkbrown.guards import guard, GM, MD, MNT
+from darkbrown.permissions import (
+    allowed_buildings,
+    require_building_access,
+    require_record_access,
+)
 
 @frappe.whitelist()
 def onboard_building(payload):
     """One atomic pass. Raises before anything commits if any part fails."""
     guard(MD, GM)
     data = frappe.parse_json(payload)
+    if allowed_buildings() is not None:
+        frappe.throw(_("A building-scoped user cannot create a portfolio-wide "
+                       "building. Ask the Managing Director."),
+                     frappe.PermissionError)
 
     name = (data.get("building_name") or "").strip()
     if not name:
@@ -167,6 +176,7 @@ def record_handover(building, handover_date=None, ready_units=1):
         frappe.throw(_("No building called {0}.").format(building))
 
     doc = frappe.get_doc("Building", building)
+    require_record_access(doc, "write")
     if doc.status not in ("Onboarding", "Active"):
         frappe.throw(_("{0} is {1}. Handover is recorded on a building that "
                        "is still onboarding.").format(building, doc.status))
@@ -205,6 +215,7 @@ def set_unit_status(unit, status):
     guard(MD, GM, MNT)
     if not frappe.db.exists("Unit", unit):
         frappe.throw(_("No unit called {0}.").format(unit))
+    require_record_access(frappe.get_doc("Unit", unit), "write")
     allowed = frappe.get_meta("Unit").get_field("status").options.split("\n")
     if status not in allowed:
         frappe.throw(_("{0} is not a unit status.").format(status))
@@ -239,6 +250,7 @@ def add_unit(data):
         frappe.throw(_("Which building is the unit in?"))
     if not frappe.db.exists("Building", building):
         frappe.throw(_("No building called {0}.").format(building))
+    require_building_access(building)
 
     unit_no = str(data.get("unit_no") or "").strip()
     if not unit_no:

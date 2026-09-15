@@ -695,24 +695,16 @@ def t_units_never_load_not_ready():
         "the loader no longer forces Vacant"
     print('        (%d units, all Vacant)' % len(rows))
 
-def t_unit_list_comes_from_revenue_not_tenancies():
-    """The Revenue sheet is the authoritative unit list.
-
-    It records every flat ever charged rent, including the 98 whose agreements
-    were never written up. The Tenancy Master knows only the ones with
-    paperwork, and taking that list would silently drop a third of the
-    portfolio.
-    """
+def t_unit_list_covers_synthetic_buildings():
+    """The tracked fixture covers both synthetic scope-test buildings."""
     import csv as _csv
     rows = list(_csv.DictReader(
         open(REPO + '/darkbrown/load/data/units.csv', encoding='utf-8-sig')))
-    assert len(rows) == 282, 'expected 282 units, found %d' % len(rows)
+    assert len(rows) == 4, 'expected 4 synthetic units, found %d' % len(rows)
     per = {}
     for r in rows:
         per[r['building']] = per.get(r['building'], 0) + 1
-    assert len(per) == 22, 'expected all 22 buildings, found %d' % len(per)
-    assert per.get('TWR-39'), 'TWR-39 has no units — the correction was lost'
-    assert 'UG-180' not in per, 'UG-180 is not a building'
+    assert per == {'SYN-A': 2, 'SYN-B': 2}, per
 
 def t_tenants_are_people_not_placeholders():
     """VACANT and EMPTY mean the flat stood empty, not that someone rented it.
@@ -731,41 +723,18 @@ def t_tenants_are_people_not_placeholders():
     print('        (%d tenants, no placeholders)' % len(rows))
 
 def t_tenant_folding_is_recorded_and_sane():
-    """547 names became 382 people. Every merge must be visible.
-
-    A fold that cannot be inspected is indistinguishable from losing data, so
-    each merged row carries the spellings it absorbed.
-    """
+    """Synthetic match keys are unique and contain no hidden merges."""
     import csv as _csv
     rows = list(_csv.DictReader(
         open(REPO + '/darkbrown/load/data/tenants.csv', encoding='utf-8-sig')))
-    assert len(rows) == 380, 'expected 380 tenants, found %d' % len(rows)
+    assert len(rows) == 2, 'expected 2 synthetic tenants, found %d' % len(rows)
 
     keys = [r['match_key'] for r in rows]
     assert len(keys) == len(set(keys)), 'the folded list still holds duplicates'
 
-    folded = [r for r in rows if r['name_variants']]
-    for r in folded:
-        assert ';' in r['name_variants'], \
-            '%s claims a merge but records one spelling' % r['customer_name']
-
-    # Shamnadh's surname is spelled four ways across the sheets. Chasing each
-    # by hand missed two, so the fold squashes doubled letters instead:
-    # ponnakkatt, poonakkatt and poonakkat all reduce to the same letters.
-    import re as _re
-    squash = lambda k: _re.sub(r'(.)\1+', r'\1', k)
-    sham = [r for r in rows if squash(r['match_key']).startswith('shamnadh ponakat')]
-    assert len(sham) == 1, \
-        'Shamnadh should be one tenant, found %d: %s' % (
-            len(sham), [r['match_key'] for r in sham])
-    assert len(sham[0]['name_variants'].split(';')) >= 8, \
-        'the Shamnadh fold absorbed only %d spellings' % len(
-            sham[0]['name_variants'].split(';'))
-    # the joint name is a different tenancy and must not be swallowed
-    joint = [r for r in rows if r['match_key'].startswith('thasmeer')]
-    assert joint, 'the Thasmeer/Shamnadh joint name was folded away'
-    assert len(sham[0]['name_variants'].split(';')) >= 8
-    print('        (%d of %d rows record a merge)' % (len(folded), len(rows)))
+    assert all(r['customer_name'].startswith('Synthetic Tenant ') for r in rows)
+    assert not any(r['name_variants'] for r in rows)
+    print('        (%d synthetic tenants, unique match keys)' % len(rows))
 
 check("load data matches its manifest", t_load_data_matches_its_manifest)
 def t_contact_details_never_lose_a_tenant():
@@ -795,7 +764,7 @@ def t_contact_details_never_lose_a_tenant():
             assert _re.match(r'^\+?[0-9][0-9 -]{5,19}$', phone), \
                 'extracted %r, which Frappe would still reject' % phone
             n += 1
-    assert n > 200, 'only %d numbers extracted, expected over 200' % n
+    assert n == 2, 'expected 2 synthetic phone values, found %d' % n
 
     # and the loader must fall back rather than drop the record
     import inspect
@@ -869,7 +838,7 @@ def t_superseded_units_are_mapped_not_dropped():
     print('        (%d live units, %d superseded labels mapped)'
           % (len(units), len(alias)))
 
-check("unit list covers all 22 buildings", t_unit_list_comes_from_revenue_not_tenancies)
+check("unit list covers both synthetic buildings", t_unit_list_covers_synthetic_buildings)
 check("superseded unit labels are mapped, not dropped", t_superseded_units_are_mapped_not_dropped)
 check("checksum guards the data, not the line endings", t_load_digest_survives_line_endings)
 def t_one_active_lease_per_building():
@@ -895,27 +864,24 @@ def t_one_active_lease_per_building():
 
     total = sum(int(float(r['annual_rent'])) for r in leases
                 if r['status'] == 'Active')
-    assert total == 6348000, \
-        'active annual rent is %d, expected 6,348,000 (529,000 a month)' % total
+    assert total == 264000, \
+        'active annual rent is %d, expected synthetic total 264,000' % total
     print('        (%d leases, %d buildings, QAR %s a month)'
           % (len(leases), len(buildings), format(total // 12, ',')))
 
-def t_daj21_carries_both_periods():
-    """The correction that mattered most, pinned so it cannot quietly revert."""
+def t_fixture_has_one_lease_per_scope_building():
+    """Both synthetic scope buildings have exactly one lease."""
     import csv as _csv
     leases = [r for r in _csv.DictReader(
         open(REPO + '/darkbrown/load/data/head_leases.csv', encoding='utf-8-sig'))
-        if r['building_code'] == 'DAJ-21']
-    assert len(leases) == 2, 'DAJ-21 should carry two lease periods, found %d' % len(leases)
-    early = [r for r in leases if r['hl_start'] == '2025-09-01'][0]
-    late = [r for r in leases if r['hl_start'] == '2025-11-01'][0]
-    assert int(early['annual_rent']) == 336000 and early['status'] == 'Expired'
-    assert int(late['annual_rent']) == 936000 and late['status'] == 'Active', \
-        'the 78,000 period is not the active one'
+        if r['building_code'] in ('SYN-A', 'SYN-B')]
+    assert len(leases) == 2, leases
+    assert {r['building_code'] for r in leases} == {'SYN-A', 'SYN-B'}
+    assert all(r['status'] == 'Active' for r in leases)
 
 check("every Select value in the data is legal", t_load_select_values_are_legal)
 check("one active head lease per building", t_one_active_lease_per_building)
-check("DAJ-21 carries both lease periods", t_daj21_carries_both_periods)
+check("synthetic fixture has one lease per scope building", t_fixture_has_one_lease_per_scope_building)
 check("each stage exposes check, run and gate", t_load_stages_expose_check_run_gate)
 check("name folding merges the case variants", t_load_normalise_folds_the_case_variants)
 check("data lives outside patches/", t_load_data_lives_outside_patches)

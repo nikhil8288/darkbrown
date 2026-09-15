@@ -15,6 +15,12 @@ import frappe
 from frappe import _
 from frappe.utils import flt, today, getdate, add_days, add_months, date_diff
 from darkbrown.guards import guard, ACC, GM, MD
+from darkbrown.permissions import (
+    allowed_buildings,
+    require_building_access,
+    require_record_access,
+    require_tenant_access,
+)
 
 def _settings():
     return frappe.get_single("DBR Settings")
@@ -39,6 +45,12 @@ def log_cheque(payload):
     data = frappe.parse_json(payload)
     agreement = data.get("tenancy_agreement")
     ta = frappe.get_doc("Tenancy Agreement", agreement) if agreement else None
+    if ta:
+        require_record_access(ta, "read")
+    else:
+        require_building_access(data.get("building") or (
+            frappe.db.get_value("Unit", data.get("unit"), "building")
+            if data.get("unit") else None))
 
     count = int(data.get("count") or 1)
     if count < 1:
@@ -161,6 +173,7 @@ def present_cheque(cheque, bank_account=None, on=None):
     """Send a cheque to the bank. It is out of our hands from here."""
     guard(MD, ACC)
     doc = frappe.get_doc("Cheque", cheque)
+    require_record_access(doc, "write")
     if doc.status not in ("Received", "Deposited"):
         frappe.throw(_("{0} is {1} and cannot be presented.").format(
             cheque, doc.status))
@@ -176,6 +189,7 @@ def clear_cheque(cheque, on=None):
     """The cheque cleared. That is a receipt, so the ledger gets one."""
     guard(MD, ACC)
     doc = frappe.get_doc("Cheque", cheque)
+    require_record_access(doc, "write")
     if doc.status == "Cleared":
         return {"cheque": doc.name, "status": doc.status,
                 "payment_entry": doc.payment_entry}
@@ -208,6 +222,7 @@ def return_cheque(cheque, reason, charge=None, notes=None, on=None):
     nobody chases."""
     guard(MD, ACC)
     doc = frappe.get_doc("Cheque", cheque)
+    require_record_access(doc, "write")
     if doc.status == "Returned":
         frappe.throw(_("{0} is already recorded as returned.").format(cheque))
 
@@ -289,6 +304,7 @@ def replace_cheque(cheque, payload):
     guard(MD, ACC)
     data = frappe.parse_json(payload)
     old = frappe.get_doc("Cheque", cheque)
+    require_record_access(old, "write")
     data.setdefault("party", old.party)
     data.setdefault("tenancy_agreement", old.tenancy_agreement)
     data.setdefault("amount", flt(old.amount))
@@ -311,6 +327,7 @@ def build_invoice_run(building, period_start=None):
     then does it go anywhere.
     """
     guard(MD, GM, ACC)
+    require_building_access(building)
     start = getdate(period_start or today()).replace(day=1)
     end = add_days(add_months(start, 1), -1)
 
@@ -377,6 +394,7 @@ def invoice_run(run):
     """
     guard(MD, GM, ACC)
     doc = frappe.get_doc("Invoice Run", run)
+    require_record_access(doc, "read")
     tenants = {}
     for t in {l.tenant for l in doc.lines if l.tenant}:
         tenants[t] = frappe.db.get_value("Customer", t, "customer_name") or t
@@ -409,6 +427,7 @@ def submit_invoice_run(run):
     """Send a drafted run for approval."""
     guard(MD, GM, ACC)
     doc = frappe.get_doc("Invoice Run", run)
+    require_record_access(doc, "write")
     if doc.status != "Draft":
         frappe.throw(_("{0} is {1}.").format(run, doc.status))
     doc.status = "Pending GM"
@@ -422,6 +441,7 @@ def issue_invoice_run(run):
     so it is one transaction: every line becomes an invoice or none does."""
     guard(MD, GM, ACC)
     doc = frappe.get_doc("Invoice Run", run)
+    require_record_access(doc, "write")
     if doc.status not in ("Draft", "Pending GM"):
         frappe.throw(_("{0} is {1} and cannot be issued.").format(
             run, doc.status))
@@ -511,6 +531,7 @@ def record_receipt(payload):
     amount = flt(data.get("amount"))
     if not tenant or not amount:
         frappe.throw(_("A receipt needs a tenant and an amount."))
+    require_tenant_access(tenant)
 
     pe, applied, on_account = _receipt(
         tenant, amount, data.get("on") or today(),
@@ -637,6 +658,12 @@ def create_deposit_batch(payload):
     lines = data.get("lines") or []
     if not lines:
         frappe.throw(_("A deposit needs at least one line."))
+    for line in lines:
+        if line.get("unit"):
+            require_building_access(frappe.db.get_value(
+                "Unit", line.get("unit"), "building"))
+        elif line.get("tenant"):
+            require_tenant_access(line.get("tenant"))
 
     doc = frappe.get_doc({
         "doctype": "Deposit Batch",
@@ -681,6 +708,12 @@ def deposit_batch(batch, on=None, reason=None):
     """
     guard(MD, GM, ACC)
     doc = frappe.get_doc("Deposit Batch", batch)
+    for line in doc.lines:
+        if line.unit:
+            require_building_access(frappe.db.get_value("Unit", line.unit,
+                                                        "building"))
+        elif line.tenant:
+            require_tenant_access(line.tenant)
     if doc.status != "Draft":
         frappe.throw(_("{0} is {1}.").format(batch, doc.status))
     if reason:
@@ -707,6 +740,7 @@ def pay_head_lease(head_lease, row, payload=None):
     guard(MD, ACC)
     data = frappe.parse_json(payload) if payload else {}
     hl = frappe.get_doc("Head Lease", head_lease)
+    require_record_access(hl, "write")
     line = None
     for p in hl.payments:
         if p.name == row:
@@ -813,6 +847,12 @@ def receipts(q=None, limit=None):
                 "mode_of_payment", "reference_no", "paid_to", "docstatus",
                 "unallocated_amount", "owner"],
         order_by="posting_date desc, creation desc", limit=limit)
+    allowed = allowed_buildings()
+    if allowed is not None:
+        tenants = set(frappe.get_all(
+            "Tenancy Agreement", filters={"building": ["in", sorted(allowed)]},
+            pluck="tenant"))
+        rows = [row for row in rows if row.party in tenants]
     if not rows:
         return {"rows": [], "total": 0, "value": 0, "unallocated": 0,
                 "capped": False}
@@ -852,6 +892,7 @@ def receipt(name):
     pe = frappe.get_doc("Payment Entry", name)
     if pe.payment_type != "Receive":
         frappe.throw(_("{0} is a payment, not a receipt.").format(name))
+    require_tenant_access(pe.party)
 
     customer = (frappe.db.get_value("Customer", pe.party, "customer_name")
                 if pe.party else None)

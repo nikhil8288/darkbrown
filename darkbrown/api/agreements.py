@@ -14,6 +14,7 @@ import frappe
 from frappe import _
 from frappe.utils import flt, today, getdate, add_days, date_diff
 from darkbrown.guards import guard, ACC, DOC, GM, MD
+from darkbrown.permissions import require_building_access, require_record_access
 
 def _settings():
     return frappe.get_single("DBR Settings")
@@ -36,6 +37,7 @@ def create_agreement(payload):
         frappe.throw(_("A tenancy needs a unit."))
     if not frappe.db.exists("Unit", unit):
         frappe.throw(_("Unit {0} does not exist.").format(unit))
+    require_record_access(frappe.get_doc("Unit", unit), "read")
 
     live = frappe.get_all(
         "Tenancy Agreement",
@@ -188,6 +190,7 @@ def activate(agreement, note=None):
     the missing paperwork, so the reason is kept."""
     guard(MD, GM)
     doc = frappe.get_doc("Tenancy Agreement", agreement)
+    require_record_access(doc, "write")
     if doc.status != "Pending Approval":
         frappe.throw(_("Only an agreement pending approval can be activated. "
                        "{0} is {1}.").format(agreement, doc.status))
@@ -210,6 +213,7 @@ def activate(agreement, note=None):
 def terminate(agreement, reason):
     guard(MD, GM)
     doc = frappe.get_doc("Tenancy Agreement", agreement)
+    require_record_access(doc, "write")
     doc.status = "Terminated"
     doc.notes = (doc.notes or "") + f"\n\nTerminated: {reason}"
     doc.save(ignore_permissions=True)
@@ -292,6 +296,8 @@ def request_amendment(payload):
     agreement = data.get("agreement")
     if not agreement:
         frappe.throw(_("An amendment needs an agreement."))
+    require_record_access(frappe.get_doc(
+        data.get("agreement_type") or "Tenancy Agreement", agreement), "read")
 
     reason = (data.get("reason") or "").strip()
     if not reason:
@@ -333,6 +339,7 @@ def decide_amendment(amendment, decision, note=None):
     """
     guard(MD, GM)
     doc = frappe.get_doc("Agreement Amendment", amendment)
+    require_record_access(doc, "write")
     if doc.status not in ("Pending GM", "Pending MD"):
         frappe.throw(_("{0} is already {1}.").format(amendment, doc.status))
 
@@ -379,6 +386,7 @@ def renew(agreement, payload):
     guard(MD, GM, ACC, DOC)
     data = frappe.parse_json(payload)
     old = frappe.get_doc("Tenancy Agreement", agreement)
+    require_record_access(old, "write")
 
     data.setdefault("unit", old.unit)
     data.setdefault("tenant", old.tenant)

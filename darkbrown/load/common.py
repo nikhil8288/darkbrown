@@ -14,7 +14,26 @@ import re
 
 import frappe
 
-DATA = os.path.join(os.path.dirname(__file__), "data")
+BUNDLED_DATA = os.path.join(os.path.dirname(__file__), "data")
+
+
+def data_dir():
+    """Data root: bundled synthetic fixtures or an explicit external import.
+
+    Operational imports must live outside the application checkout and are
+    selected only by deployment configuration. They are never a package-data
+    fallback.
+    """
+    configured = (os.environ.get("DARKBROWN_IMPORT_DATA_DIR")
+                  or getattr(frappe.conf, "darkbrown_import_data_dir", None))
+    if not configured:
+        return BUNDLED_DATA
+    configured = os.path.realpath(os.path.expanduser(configured))
+    package_root = os.path.realpath(os.path.join(os.path.dirname(__file__), ".."))
+    if configured == package_root or configured.startswith(package_root + os.sep):
+        frappe.throw("Operational import data must be outside the DarkBrown "
+                     "application directory.")
+    return configured
 
 
 # ----------------------------------------------------------------- normalise
@@ -22,10 +41,9 @@ DATA = os.path.join(os.path.dirname(__file__), "data")
 def norm(value):
     """Fold a name for matching: case, punctuation and runs of space.
 
-    The revenue worksheet holds 488 tenant names that collapse to 435 under
-    this. "HAMED HRAIZ" and "Hamed Hraiz" are one person, and treating them as
-    two is how the previous load ended up with 547 customers against 441
-    tenancies.
+    Operational sources can spell or capitalize the same tenant differently.
+    Folding those variants prevents duplicate parties during an external
+    import without embedding any operational examples in the application.
     """
     return re.sub(r"[^a-z0-9]+", " ", str(value or "").lower()).strip()
 
@@ -33,16 +51,11 @@ def norm(value):
 def unit_key(value):
     """Fold a unit number so the same flat written two ways matches.
 
-    The Tenancy Master writes 23 DAJ-21 and MQ-56 flats as F01, F02, F06 while
-    the Revenue sheet writes them F-01, F-02, F-06. Without folding, those 23
-    tenancies would find no unit and fail at Stage 5 — and the failure would
-    read as "23 units missing" rather than "one sheet omits a hyphen".
+    External workbooks sometimes omit the hyphen in otherwise identical unit
+    labels. Without folding, those tenancies would fail to match their units.
 
-    Deliberately narrow. An earlier version stripped every separator, which
-    turned F-03/1 into F-31 — a real flat in TWR-20 and a different real flat
-    that does not exist yet. Two homes, one record, and no way to notice.
-    Only the missing hyphen is folded; slashes and letter suffixes are left
-    exactly as written.
+    Deliberately narrow: only the missing hyphen is folded; slashes and letter
+    suffixes are left exactly as written so distinct units cannot collapse.
     """
     s = str(value or "").strip().upper()
     m = re.match(r"^([A-Z]+)-?(\d+)$", s)
@@ -121,7 +134,7 @@ def rows(filename):
     unexpectedly empty is a failure, not a clean run — so the row count is
     checked before a single row is used.
     """
-    path = os.path.join(DATA, filename)
+    path = os.path.join(data_dir(), filename)
     if not os.path.exists(path):
         frappe.throw("Data file missing: %s" % filename)
 
@@ -163,7 +176,7 @@ def digest(raw):
 
 
 def manifest():
-    path = os.path.join(DATA, "manifest.json")
+    path = os.path.join(data_dir(), "manifest.json")
     if not os.path.exists(path):
         return {}
     return json.load(open(path, encoding="utf-8"))

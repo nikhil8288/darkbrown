@@ -4,6 +4,7 @@ import frappe
 from frappe import _
 from frappe.utils import flt, cint, today
 from darkbrown.guards import guard, ACC, GM, MD, MNT
+from darkbrown.permissions import require_building_access, require_record_access
 
 STAGE_STATUS = {
     "Reminder sent": "Contacted",
@@ -21,6 +22,7 @@ def log_contact(case, method, outcome, notes=None, promised_amount=None,
     one. The stage follows from the outcome."""
     guard(MD, GM, ACC)
     doc = frappe.get_doc("Collection Case", case)
+    require_record_access(doc, "write")
     doc.append("actions", {
         "action_on": frappe.utils.now(),
         "method": method,
@@ -45,6 +47,7 @@ def log_contact(case, method, outcome, notes=None, promised_amount=None,
 def escalate(case, reason=None):
     guard(MD, GM, ACC)
     doc = frappe.get_doc("Collection Case", case)
+    require_record_access(doc, "write")
     if doc.status in ("Resolved", "Closed"):
         frappe.throw(_("That case is already closed."))
     doc.status = "Legal" if doc.status == "Escalated" else "Escalated"
@@ -64,6 +67,8 @@ def escalate(case, reason=None):
 @frappe.whitelist()
 def open_case(tenancy_agreement, reason):
     guard(MD, GM, ACC)
+    require_record_access(frappe.get_doc("Tenancy Agreement", tenancy_agreement),
+                          "read")
     from darkbrown.utils.collections_case import open_manual
     return open_manual(tenancy_agreement, reason)
 
@@ -76,6 +81,7 @@ def raise_job(payload):
     data = frappe.parse_json(payload)
     if not data.get("building"):
         frappe.throw(_("A job needs a building."))
+    require_building_access(data.get("building"))
     doc = frappe.get_doc({
         "doctype": "Maintenance Request",
         "building": data.get("building"),
@@ -96,6 +102,7 @@ def raise_job(payload):
 def advance_job(job, status, cost=None, notes=None, assigned_to=None):
     guard(MD, GM, MNT)
     doc = frappe.get_doc("Maintenance Request", job)
+    require_record_access(doc, "write")
     doc.status = status
     if assigned_to:
         doc.assigned_to = assigned_to
@@ -125,6 +132,7 @@ def open_moveout(payload):
     ta = data.get("tenancy_agreement")
     if not ta:
         frappe.throw(_("A move-out hangs off a tenancy."))
+    require_record_access(frappe.get_doc("Tenancy Agreement", ta), "read")
     if frappe.db.exists("Move Out Case",
                         {"tenancy_agreement": ta,
                          "status": ["not in", ("Closed", "Cancelled")]}):
@@ -158,6 +166,7 @@ def advance_moveout(case, payload):
     guard(MD, GM, ACC)
     data = frappe.parse_json(payload)
     doc = frappe.get_doc("Move Out Case", case)
+    require_record_access(doc, "write")
     step = data.get("step")
 
     if step == "inspection":

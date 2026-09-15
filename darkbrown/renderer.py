@@ -55,9 +55,25 @@ def _boot():
     }
     return (
         "<script>\n"
-        f"window.DB_SEED={json.dumps(payload['seed'])};\n"
-        f"window.DB_ROLE={json.dumps(payload['role'])};\n"
-        f"window.DB_USER={json.dumps(payload['user'])};\n"
-        f"window.DB_CSRF={json.dumps(payload['csrf'])};\n"
+        f"window.DB_SEED={_script_json(payload['seed'])};\n"
+        f"window.DB_ROLE={_script_json(payload['role'])};\n"
+        f"window.DB_USER={_script_json(payload['user'])};\n"
+        f"window.DB_CSRF={_script_json(payload['csrf'])};\n"
+        "window.DB_OCR_ENABLED=false;\n"
         "</script>"
     )
+
+
+def _script_json(value):
+    """Serialize JSON that cannot terminate its containing script element.
+
+    JSON string escaping alone does not treat ``</script>`` specially because
+    the HTML parser runs before JavaScript. Escaping HTML delimiters and the
+    two JavaScript line separators keeps stored text data-only in this context.
+    """
+    return (json.dumps(value, ensure_ascii=False, separators=(",", ":"))
+            .replace("&", "\\u0026")
+            .replace("<", "\\u003c")
+            .replace(">", "\\u003e")
+            .replace("\u2028", "\\u2028")
+            .replace("\u2029", "\\u2029"))

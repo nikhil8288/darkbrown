@@ -14,6 +14,39 @@ formatters expect. One place converts, here.
 import frappe
 from frappe.utils import flt, getdate, today, date_diff, add_days
 from darkbrown.guards import guard, APP
+from darkbrown.permissions import allowed_buildings
+
+
+SECTIONS_BY_ROLE = {
+    "Managing Director": None,
+    "System Manager": None,
+    "General Manager": {
+        "buildings", "units", "cases", "jobs", "moveouts", "tenants",
+        "agreements", "invoices", "cheques", "docs", "approvals",
+        "landlords", "billruns",
+    },
+    "Accounts": {
+        "buildings", "units", "cases", "tenants", "agreements", "invoices",
+        "cheques", "landlords", "billruns", "batches", "closing",
+        "bankAccounts", "petty",
+    },
+    "Documentation": {"buildings", "units", "tenants", "agreements", "docs"},
+    "Maintenance": {"buildings", "units", "jobs"},
+}
+
+FIELD_DENY_BY_ROLE = {
+    # GM needs operational/approval context, not identity documents or bank
+    # instruments in the boot payload. Detail workflows may authorize those
+    # separately where required.
+    "General Manager": {
+        "tenants": {"qid"},
+        "landlords": {"idno", "phone", "email", "bank"},
+        "cheques": {"bank", "no"},
+    },
+    # Accounts needs payment contacts and instruments, but not QID/CR values
+    # merely to render its initial tenant list.
+    "Accounts": {"tenants": {"qid"}},
+}
 
 def _k(v):
     """Money crosses to the shell in whole riyals. No scaling anywhere."""
@@ -202,7 +235,7 @@ def cases():
     rows = frappe.get_all(
         "Collection Case",
         filters={"status": ["in", list(CASE_STAGE)]},
-        fields=["name", "tenant", "status", "outstanding_amount", "opened_on",
+        fields=["name", "tenant", "building", "status", "outstanding_amount", "opened_on",
                 "promised_date", "owner", "days_past_due"],
         order_by="outstanding_amount desc")
     if not rows:
@@ -212,6 +245,7 @@ def cases():
     for c in rows:
         out.append({
             "id": c.name,
+            "b": c.building,
             "t": c.tenant,
             "tn": tnames.get(c.tenant, c.tenant),
             "amt": _k(c.outstanding_amount),
@@ -280,7 +314,7 @@ def moveouts():
     rows = frappe.get_all(
         "Move Out Case",
         filters={"status": ["!=", "Cancelled"]},
-        fields=["name", "tenant", "unit", "status", "deposit_held",
+        fields=["name", "tenant", "unit", "building", "status", "deposit_held",
                 "notice_received_on", "planned_move_out", "outstanding_rent",
                 "utilities_due", "damages_charged"],
         order_by="planned_move_out asc")
@@ -298,6 +332,7 @@ def moveouts():
             ded.append(["Damages", _k(m.damages_charged)])
         out.append({
             "id": m.name,
+            "b": m.building,
             "t": m.tenant,
             "tn": tnames.get(m.tenant, m.tenant),
             "u": m.unit,
@@ -350,6 +385,73 @@ def role_code(user=None):
         if name in roles:
             return code
     return "ACC"
+
+
+def _role_name(user=None):
+    roles = set(frappe.get_roles(user or frappe.session.user))
+    for role in ("Managing Director", "System Manager", "General Manager",
+                 "Accounts", "Documentation", "Maintenance"):
+        if role in roles:
+            return role
+    return None
+
+
+def _allowed_sections(user=None):
+    role = _role_name(user)
+    return SECTIONS_BY_ROLE.get(role, set())
+
+
+def _scope_section(key, value, user=None):
+    """Apply explicit Building User Permissions to every returned section."""
+    allowed = allowed_buildings(user)
+    if allowed is None or not isinstance(value, list):
+        return value
+    units = set(frappe.get_all("Unit", filters={"building": ["in", sorted(allowed)]},
+                               pluck="name"))
+    tenancies = frappe.get_all(
+        "Tenancy Agreement", filters={"building": ["in", sorted(allowed)]},
+        fields=["name", "tenant"])
+    agreement_ids = {row.name for row in tenancies}
+    tenant_ids = {row.tenant for row in tenancies if row.tenant}
+
+    def in_scope(row):
+        building = row.get("b")
+        if key == "buildings":
+            building = row.get("id")
+        if key == "units":
+            building = row.get("b")
+        if building and building != "—":
+            return building in allowed
+        if row.get("u") and row.get("u") != "—":
+            return row.get("u") in units
+        if key in ("tenants", "cases"):
+            return row.get("id" if key == "tenants" else "t") in tenant_ids
+        if key == "landlords":
+            visible = [b for b in row.get("buildings", []) if b in allowed]
+            row["buildings"] = visible
+            return bool(visible)
+        if key == "batches":
+            lines = [line for line in row.get("lines", [])
+                     if line.get("u") in units or line.get("t") in tenant_ids]
+            row["lines"] = lines
+            row["count"] = len(lines)
+            row["total"] = _k(sum(flt(line.get("amt")) for line in lines))
+            return bool(lines)
+        if row.get("a") and row.get("a") != "—":
+            return row.get("a") in agreement_ids
+        return False
+
+    return [row for row in value if in_scope(row)]
+
+
+def _filter_section_fields(key, value, user=None):
+    if not isinstance(value, list):
+        return value
+    denied = FIELD_DENY_BY_ROLE.get(_role_name(user), {}).get(key, set())
+    if not denied:
+        return value
+    return [{field: field_value for field, field_value in row.items()
+             if field not in denied} for row in value]
 
 
 def _health():
@@ -413,6 +515,7 @@ def seed():
     data = {}
     failed = []
     errors = {}
+    allowed_sections = _allowed_sections()
     for key, fn in (("buildings", buildings), ("units", units),
                     ("cases", cases), ("jobs", jobs),
                     ("moveouts", moveouts), ("tenants", tenants),
@@ -429,8 +532,10 @@ def seed():
                     ("bankAccounts", bank_accounts),
                     ("staff", _staff_seed),
                     ("petty", _petty_seed)):
+        if allowed_sections is not None and key not in allowed_sections:
+            continue
         try:
-            rows = fn()
+            rows = _filter_section_fields(key, _scope_section(key, fn()))
         except Exception as e:
             frappe.log_error(frappe.get_traceback(), f"darkbrown seed: {key}")
             failed.append(key)
@@ -928,7 +1033,7 @@ def cheques():
         "Cheque",
         filters={"direction": "Incoming", "status": ["!=", "Cancelled"]},
         fields=["name", "party", "amount", "bank", "cheque_no", "cheque_date",
-                "status", "return_reason", "replaced_by", "unit"],
+                "status", "return_reason", "replaced_by", "building", "unit"],
         order_by="cheque_date asc", limit=400)
     if not rows:
         return []
@@ -943,6 +1048,8 @@ def cheques():
             act = ""
         out.append({
             "id": c.name,
+            "b": c.building or (frappe.db.get_value("Unit", c.unit, "building")
+                                  if c.unit else None),
             "t": c.party,
             "tn": tnames.get(c.party, c.party or "—"),
             "amt": _k(c.amount),
@@ -987,6 +1094,7 @@ def docs():
             bits.append("expiry " + _fdate(d.expiry_date))
         out.append({
             "id": d.name,
+            "b": d.building,
             "ty": d.document_type or "Unknown",
             "f": (d.source_file or "").split("/")[-1] or "—",
             "st": DOC_STATE.get(d.status, d.status),
@@ -1021,6 +1129,7 @@ def approvals():
                     "requested_on", "status"]):
         out.append({
             "id": a.name,
+            "b": frappe.db.get_value("Tenancy Agreement", a.agreement, "building"),
             "ty": "Amendment",
             "ref": f"{a.agreement} · {_short_name(a.requested_by)}",
             "amt": _k(a.value_impact),
@@ -1038,6 +1147,7 @@ def approvals():
                     "missing_items", "creation", "owner"]):
         out.append({
             "id": t.name,
+            "b": t.building,
             "ty": "Tenancy activation",
             "ref": f"{t.unit or t.building} · {_short_name(t.owner)}",
             "amt": _k(t.monthly_rent),
@@ -1059,6 +1169,7 @@ def approvals():
                     "reported_on", "issue"]):
         out.append({
             "id": m.name,
+            "b": m.building,
             "ty": "Emergency maint.",
             "ref": f"{m.building} · {m.category or 'Maintenance'}",
             "amt": _k(m.cost),
@@ -1078,6 +1189,8 @@ def approvals():
         refund = flt(s.amount) - flt(s.deductions)
         out.append({
             "id": s.name,
+            "b": frappe.db.get_value("Move Out Case", s.move_out_case,
+                                      "building"),
             "ty": "Deposit release",
             "ref": f"{s.tenancy_agreement} · {s.move_out_case}",
             "amt": _k(refund),
@@ -1095,6 +1208,7 @@ def approvals():
                     "variance_reason", "generated_on"]):
         out.append({
             "id": r.name,
+            "b": r.building,
             "ty": "Invoice run",
             "ref": str(r.building),
             "amt": _k(r.total_amount),

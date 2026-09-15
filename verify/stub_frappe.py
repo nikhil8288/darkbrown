@@ -47,7 +47,10 @@ class Doc(dict):
             self._changed.add(k)
     def set(self, k, v): self[k] = v
     def get(self, k, default=None): return dict.get(self, k, default)
-    def has_permission(self, p="read"): return True
+    def has_permission(self, p="read"): return not self.get("_deny_%s" % p, False)
+    def get_content(self):
+        hook = self.get("_content_hook")
+        return hook() if hook else self.get("content", b"")
     def has_value_changed(self, f): return f in self._changed
     def _controller(self):
         """The real doctype controller class, if this app defines one. Running
@@ -154,9 +157,11 @@ frappe.conf = {}
 frappe.utils_password = None
 frappe.msgprint = lambda *a, **k: None
 frappe.get_roles = lambda u=None: SESSION["roles"]
+frappe.has_permission = lambda *a, **k: True
 frappe.get_doc = lambda dt, name=None, **kw: (
     Doc(dt["doctype"], dt) if isinstance(dt, dict)
-    else Doc(dt, dict(_find(dt, name) or {"name": name})))
+    else Doc(dt, dict((_find_filters(dt, name) if isinstance(name, dict)
+                       else _find(dt, name)) or {"name": name})))
 frappe.new_doc = lambda dt: Doc(dt, _defaults(dt))
 frappe.get_meta = lambda dt: _Meta(dt)
 frappe.get_single = lambda dt: Doc(dt, DB.get(dt, [{}])[0])
@@ -187,6 +192,9 @@ def _find(dt, name):
     for r in DB.get(dt, []):
         if r.get("name") == name: return r
     return None
+
+def _find_filters(dt, filters):
+    return next((r for r in DB.get(dt, []) if _match(r, filters)), None)
 
 def _match(row, filters):
     if not filters: return True
@@ -264,6 +272,7 @@ class _DB:
     def sql(self, q, vals=None, as_dict=False): return [[0]]
     def commit(self): CALLS.append(("commit",))
     def rollback(self): pass
+    def escape(self, value): return "'%s'" % str(value).replace("'", "''")
 frappe.db = _DB()
 
 # frappe.utils
