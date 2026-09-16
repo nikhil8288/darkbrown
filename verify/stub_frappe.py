@@ -48,6 +48,8 @@ class Doc(dict):
     def set(self, k, v): self[k] = v
     def get(self, k, default=None): return dict.get(self, k, default)
     def has_permission(self, p="read"): return not self.get("_deny_%s" % p, False)
+    def get_doc_before_save(self):
+        return getattr(self.flags, "before_save", None)
     def get_content(self):
         hook = self.get("_content_hook")
         return hook() if hook else self.get("content", b"")
@@ -87,6 +89,9 @@ class Doc(dict):
         dict.update(self, c)
 
     def save(self, ignore_permissions=False):
+        previous = next((r for r in DB.get(self["doctype"], [])
+                         if r.get("name") == self.get("name")), None)
+        self.flags.before_save = Doc(self["doctype"], previous) if previous else None
         self._run_controller("validate", "before_save")
         _validate_selects(self)
         # persist, so a test can assert on the stored row and not just the call

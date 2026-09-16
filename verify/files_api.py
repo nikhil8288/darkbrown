@@ -324,9 +324,16 @@ def t_no_retired_spelling_left():
             if not fn.endswith(('.py', '.html', '.js')) or fn in EXCLUDE:
                 continue
             path = os.path.join(root, fn)
-            for i, line in enumerate(open(path, errors='ignore'), 1):
+            lines = list(open(path, errors='ignore'))
+            for i, line in enumerate(lines, 1):
                 if re.search(r'document_type.{0,40}"(Head Lease|Tenancy Agreement)"', line) \
                    or re.search(r"document_type.{0,40}'(Head Lease|Tenancy Agreement)'", line):
+                    # Notification Log.document_type is a Link to DocType and
+                    # therefore must use the real DocType name. The retired
+                    # vocabulary check applies only to Document Register data.
+                    context = "".join(lines[max(0, i - 10):i])
+                    if '"doctype": "Notification Log"' in context:
+                        continue
                     bad.append("%s:%d" % (os.path.relpath(path, REPO), i))
     assert not bad, "the retired spelling is still written at: %s" % bad
 check("nothing outside the rename patch still writes Head Lease or Tenancy Agreement",

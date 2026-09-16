@@ -154,6 +154,68 @@ def tenancy_query(user=None):
     return _query("Tenancy Agreement", "building", user)
 
 
+def head_lease_query(user=None):
+    return _query("Head Lease", "building", user)
+
+
+def amendment_query(user=None):
+    user = user or frappe.session.user
+    allowed = allowed_buildings(user)
+    if allowed is None:
+        return ""
+    if not allowed:
+        return "1=0"
+    names = ", ".join(frappe.db.escape(a) for a in sorted(allowed))
+    return ("exists (select 1 from `tabTenancy Agreement` ta where "
+            "`tabAgreement Amendment`.`agreement_type`='Tenancy Agreement' "
+            "and ta.name=`tabAgreement Amendment`.`agreement` and "
+            f"ta.building in ({names})) or exists (select 1 from `tabHead Lease` hl where "
+            "`tabAgreement Amendment`.`agreement_type`='Head Lease' "
+            "and hl.name=`tabAgreement Amendment`.`agreement` and "
+            f"hl.building in ({names}))")
+
+
+def supplier_query(user=None):
+    user = user or frappe.session.user
+    allowed = allowed_buildings(user)
+    if allowed is None:
+        return ""
+    if not allowed:
+        return "1=0"
+    names = ", ".join(frappe.db.escape(a) for a in sorted(allowed))
+    return ("ifnull(`tabSupplier`.`db_is_landlord`, 0)=0 or "
+            "exists (select 1 from `tabBuilding` b where b.landlord=`tabSupplier`.name "
+            f"and b.name in ({names}))")
+
+
+def customer_query(user=None):
+    user = user or frappe.session.user
+    allowed = allowed_buildings(user)
+    if allowed is None:
+        return ""
+    if not allowed:
+        return "1=0"
+    names = ", ".join(frappe.db.escape(a) for a in sorted(allowed))
+    return ("ifnull(`tabCustomer`.`db_is_tenant`, 0)=0 or "
+            "exists (select 1 from `tabTenancy Agreement` ta where "
+            "ta.tenant=`tabCustomer`.name " + f"and ta.building in ({names}))")
+
+
+def party_has_permission(doc, user=None, permission_type=None):
+    """Restrict tenant/landlord detail access to buildings assigned to a user."""
+    user = user or frappe.session.user
+    allowed = allowed_buildings(user)
+    if allowed is None:
+        return None
+    if doc.doctype == "Supplier" and doc.get("db_is_landlord"):
+        return bool(frappe.db.exists("Building", {"landlord": doc.name,
+                                                  "name": ["in", sorted(allowed)]}))
+    if doc.doctype == "Customer" and doc.get("db_is_tenant"):
+        return bool(frappe.db.exists("Tenancy Agreement", {"tenant": doc.name,
+                                                            "building": ["in", sorted(allowed)]}))
+    return None
+
+
 def maintenance_query(user=None):
     return _query("Maintenance Request", "building", user)
 

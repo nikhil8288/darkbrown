@@ -254,7 +254,10 @@ def run():
             t.unit = p["unit"]
             t.building = (r.get("building") or "").strip()
             t.company = company
-            t.status = p["status"]
+            # Imported status is never treated as approval. The controller
+            # routes incomplete records to Pending Approval; complete records
+            # remain Draft until a GM/MD activates them explicitly.
+            t.status = "Draft"
             t.start_date = p["start"]
             t.end_date = p["end"]
             t.monthly_rent = p["rent"]
@@ -316,7 +319,8 @@ def gate():
     d = _describe(plan)
 
     on_site = frappe.db.count("Tenancy Agreement")
-    live_site = frappe.db.count("Tenancy Agreement", {"status": ["in", LIVE]})
+    review_site = frappe.db.count("Tenancy Agreement", {
+        "status": ["in", ("Draft", "Pending Approval")]})
     units = frappe.db.count("Unit")
     occupied = frappe.db.count("Unit", {"status": "Occupied"})
     not_ready = frappe.db.count("Unit", {"status": "Not Ready"})
@@ -334,12 +338,11 @@ def gate():
     checks = [
         ("every tenancy in the worksheet exists", on_site == len(plan),
          "%d on site vs %d expected" % (on_site, len(plan))),
-        ("the live ones match the worksheet", live_site == d["live"],
-         "%d live vs %d expected" % (live_site, d["live"])),
-        ("units flipped to Occupied on their own",
-         occupied == d["units_live"],
-         "%d of %d Occupied, expected %d"
-         % (occupied, units, d["units_live"])),
+        ("every imported tenancy awaits controlled approval",
+         review_site == len(plan),
+         "%d awaiting review vs %d expected" % (review_site, len(plan))),
+        ("imports did not claim units before approval", occupied == 0,
+         "%d of %d Occupied before activation" % (occupied, units)),
         ("no tenancy points at a tenant that is gone", not orphan_tenant,
          "%d orphan(s)" % orphan_tenant),
         ("no tenancy points at a unit that is gone", not orphan_unit,

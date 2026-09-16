@@ -93,8 +93,17 @@ permission_query_conditions = {
     "Document Register": "darkbrown.permissions.document_register_query",
     "Document Archive": "darkbrown.permissions.document_archive_query",
     "Tenancy Agreement": "darkbrown.permissions.tenancy_query",
+    "Head Lease": "darkbrown.permissions.head_lease_query",
+    "Agreement Amendment": "darkbrown.permissions.amendment_query",
+    "Supplier": "darkbrown.permissions.supplier_query",
+    "Customer": "darkbrown.permissions.customer_query",
     "Maintenance Request": "darkbrown.permissions.maintenance_query",
     "Collection Case": "darkbrown.permissions.collection_query",
     "Move Out Case": "darkbrown.permissions.moveout_query",
     "Invoice Run": "darkbrown.permissions.invoice_run_query",
+}
+
+has_permission = {
+    "Supplier": "darkbrown.permissions.party_has_permission",
+    "Customer": "darkbrown.permissions.party_has_permission",
 }

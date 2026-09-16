@@ -90,13 +90,15 @@ def onboard_building(payload):
 
     head_lease = None
     hl = data.get("head_lease") or {}
-    if hl.get("annual_rent") and hl.get("start_date"):
+    if hl:
+        if not (hl.get("annual_rent") and hl.get("start_date") and hl.get("end_date")):
+            frappe.throw(_("A Head Lease requires start date, end date and annual rent."))
         head_lease = frappe.get_doc({
             "doctype": "Head Lease",
             "building": building.name,
             "landlord": landlord,
             "company": company,
-            "status": "Active",
+            "status": "Draft",
             "start_date": hl.get("start_date"),
             "end_date": hl.get("end_date"),
             "annual_rent": flt(hl.get("annual_rent")),
@@ -117,7 +119,8 @@ def _landlord(data):
     if not name:
         frappe.throw(_("The building needs a landlord."))
     if frappe.db.exists("Supplier", name):
-        frappe.db.set_value("Supplier", name, "db_is_landlord", 1)
+        if not frappe.db.get_value("Supplier", name, "db_is_landlord"):
+            frappe.throw(_("An existing Supplier must be explicitly classified as a DarkBrown landlord before use."))
         return name
     group = (frappe.db.get_value("Supplier Group", {"supplier_group_name": "Services"}, "name")
              or frappe.db.get_value("Supplier Group", {"is_group": 0}, "name"))

@@ -2767,8 +2767,8 @@ function fld(f,v){
   if(f.t==='file'){
     /* A real picker. Clicking used to attach a file nobody had chosen — a
        fixed sample name written straight into the form — and on the tenancy
-       wizard that fabricated attachment was enough to self-activate the
-       agreement. Nothing is attached now until a file is actually selected,
+       wizard that fabricated attachment could falsely satisfy a document
+       prerequisite. Nothing is attached now until a file is actually selected,
        and what is shown is that file's own name and size. */
     const picked=(window.FFILES&&FFILES[f.k])||[];
     const has=picked.length>0;
@@ -4015,7 +4015,7 @@ function homeDOC(){
        {h:'Status',v:a=>chip(a.st,stChip(a.st))},{h:'Missing',v:a=>esc(a.missing)}],
       short.slice(0,15).map(a=>({...a,__id:a.id})),{id:'hdm',click:'openA'})
       :empty('No agreement is short of its pack'),
-      'An agreement short of its pack cannot self-activate \u2014 it routes to the General Manager instead.')}
+      'Every agreement requires an authorized activation; missing paperwork remains visible in that review.')}
     ${panel('Expiring documents','docs',()=>{
       /* documents.expiring is a live endpoint; the boot payload does not carry
          it, so it is read here rather than filtered out of DOCS, which has no
@@ -4497,23 +4497,16 @@ ROUTES.agreement=id=>{const a=id?A(id):AGR[0]; if(!a) return notFound('Agreement
      .map(r=>`<div><span>${r[0]}</span><b>${r[1]}</b></div>`).join('')}</div></div>
    ${agrDocs(a)}</div>`)};
 
-/* The chain shows where this agreement actually is. Activation is
-   self-approving: a complete pack needs no approver, so drawing four ticks on
-   an agreement that is still waiting on the GM is not a cosmetic problem — it
-   tells the MD a decision was taken that nobody took. */
+/* The chain shows where this agreement actually is. Complete paperwork is a
+   prerequisite, not approval: a GM/MD still performs explicit activation. */
 function agrChain(a){
   const routed=a.route==='Routed for Approval'||a.st==='Pending';
   const active=a.st==='Active'||a.st==='Expiring';
-  if(!routed&&active) return `<div class="card"><h3>Activation — workflow 2E</h3>
-    ${steps(['Drafted','Pack complete','Active — self approved'],3)}
-    <div class="note">The QID was on file and the signed pack was attached, so this
-     activated without an approver. ${a.apby?'Recorded by '+esc(a.apby)+(a.apon?' on '+esc(a.apon):'')+'.':''}</div></div>`;
   return `<div class="card"><h3>Approval chain — workflow 2E</h3>
    ${steps(['Drafted','GM approval','Active'],active?3:1)}
    ${active
     ? `<div class="note">Routed rather than self-approved${a.missing?' \u2014 '+esc(a.missing):''}, and
-       approved${a.apby?' by '+esc(a.apby):''}${a.apon?' on '+esc(a.apon):''}. The approver stood in
-       for what was missing; it is not evidence the paperwork arrived.</div>`
+       approved${a.apby?' by '+esc(a.apby):''}${a.apon?' on '+esc(a.apon):''}.</div>`
     : a.missing
       ? `<div class="note" style="border-left-color:var(--amber)">
          <b>Waiting on the General Manager.</b> Routed because: ${esc(a.missing)}.</div>`
@@ -5781,7 +5774,6 @@ FORMS['onboard-building']={t:'Onboard a building',s:'Workflow 2A · property, la
   WZU.forEach(u=>{const no=(u.no||'').trim(); if(!no)return;
    UNITS.push({id:id+'-'+no,b:id,bn:d.name,no,type:u.type||'2BR',floor:+u.floor||1,sqm:+u.sqm||0,
     rent:+u.rent||0,llRent:+(cost/Math.max(1,WZU.length)).toFixed(1),st:'Vacant',vd:0,tn:''})});
-  addJrn('Journal','Head-lease commenced — '+d.name,id,[['1200',cost,0],['2010',0,cost]]);
   const n=WZU.length;
   return{title:'Building onboarded',msg:d.name+' created as '+id,
    detail:d.ll+' filed as '+llid+' · '+n+' unit'+(n===1?'':'s')+' created · '+(d.nchq||1)+
@@ -5792,7 +5784,7 @@ FORMS['add-tenant']={t:'Add tenant',s:'Workflow 2B · tenancy onboarding',cta:'C
  init:()=>({type:'Individual',freq:'Quarterly'}),
  steps:[
   docStep('Tenant documents \u2014 QID and signed contract','both together, several files at once',
-   'The QID copy and the signed contract are what let this tenancy activate without going to approval. Attaching them here files them against the agreement.',
+   'The QID copy and signed contract are required before an authorized GM/MD can activate the tenancy.',
    'tenant'),
   {n:'Tenant',body:d=>`<div class="fg">
     ${fld({k:'type',l:'Tenant type',t:'sel',o:['Individual','Corporate'],req:1},d.type)}
@@ -5834,9 +5826,8 @@ FORMS['add-tenant']={t:'Add tenant',s:'Workflow 2B · tenancy onboarding',cta:'C
      ['Unit',d.unit],['Building',d.building],['Rent',n0(d.rent||0)+' per month'],['Payment',d.freq+' · '+(d.method||'')],
      ['Term',(d.months||12)+' months from '+(d.start||'—')],['Deposit',n0(d.dep||0)+' by '+(d.depmethod||'—')]]
     .map(r=>`<div><span>${r[0]}</span><b>${r[1]||'—'}</b></div>`).join('')}</div>
-   ${d.qid&&d.doc?`<div class="note" style="border-left-color:var(--em)"><b>This tenancy activates on submission.</b>
-     The QID number is recorded and the signed pack is attached, so there is nothing left for an approver to check.
-     A notification goes to the General Manager and the Managing Director — neither of them has to act on it.</div>`
+   ${d.qid&&d.doc?`<div class="note" style="border-left-color:var(--em)"><b>Ready for approval.</b>
+     The QID number is recorded and the signed pack is attached. A General Manager or Managing Director must still activate it.</div>`
     :`<div class="note" style="border-left-color:var(--amber)"><b>This one needs approval.</b>
       ${!d.doc?'No signed agreement or QID copy is attached. ':''}${!d.qid?'The QID number is missing. ':''}
       It will be created and routed Documentation → Legal → GM before it can activate.</div>`}
@@ -5848,25 +5839,17 @@ FORMS['add-tenant']={t:'Add tenant',s:'Workflow 2B · tenancy onboarding',cta:'C
   const aid='TA-'+String(AGR.length+201).padStart(4,'0');
   const u=U(d.unit)||UNITS[0];
   AGR.push({id:aid,t:id,tn:d.name,u:d.unit,b:u.b,bn:u.bn,rent:+(+d.rent||0).toFixed(1),dep:+(+d.dep||0).toFixed(1),
-    start:d.start,end:d.start,endD:300,st:'Active',ren:'—',freq:d.freq});
-  if(u){u.st='Occupied';u.vd=0}
+    start:d.start,end:d.start,endD:300,st:'Pending approval',ren:'Awaiting GM',freq:d.freq});
   const per={'Monthly':1,'Quarterly':3,'Half Yearly':6,'Annual':12}[d.freq||'Quarterly'];
   if(d.method!=='Bank transfer'&&d.chqfrom){[...Array(Math.round(12/per))].map((_,i)=>{
     CHQ.push({id:'CHQ-'+String(3100+CHQ.length),t:id,tn:d.name,amt:+((+d.rent||0)*per).toFixed(1),
       bank:d.bank||'QNB',no:String(+d.chqfrom+i),mat:d.start,matD:30*per*(i+1),st:'On hand',reason:'',act:''})})}
-  addJrn('Receipt','Security deposit received — '+d.name,aid,[['1010',+d.dep||0,0],['2100',0,+d.dep||0]]);
-  const auto=!!(d.qid&&d.doc);
-  const ag=AGR[AGR.length-1]; ag.st=auto?'Active':'Pending approval'; ag.ren=auto?'—':'Awaiting Legal';
-  if(auto){ALERTS.unshift({ty:'Tenancy activated',t:d.name+' · '+(d.unit||'')+' · '+aid+' · no approval was required',
-    w:'just now',s:'g',go:'#/agreement/'+aid});
-   addNote(aid,'System','Workflow','Activated on creation. QID number recorded and signed pack attached, so the approval queue was skipped. GM and MD notified.');}
-  else{APPR.push({id:'APR-0'+(108+APPR.length),ty:'Tenancy approval',ref:aid+' · raised by '+roleInfo(ROLEV)[0],
+  APPR.push({id:'APR-0'+(108+APPR.length),ty:'Tenancy approval',ref:aid+' · raised by '+roleInfo(ROLEV)[0],
     amt:+(+d.rent||0).toFixed(1),age:0,res:0,st:'Pending',
-    why:(!d.doc?'No signed agreement or QID copy attached. ':'')+(!d.qid?'QID number missing. ':'')+'The tenancy cannot self-activate without both.'});}
-  return{title:auto?'Tenant created · tenancy active':'Tenant created · approval needed',
+    why:(!d.doc?'No signed agreement or QID copy attached. ':'')+(!d.qid?'QID number missing. ':'')+'Explicit activation is required.'});
+  return{title:'Tenant created · approval needed',
    msg:d.name+' added as '+id,
-   detail:(auto?'Agreement '+aid+' is active and the GM and MD have been notified'
-     :'Agreement '+aid+' raised and sent for Legal review')+' · '+
+   detail:'Agreement '+aid+' raised for controlled activation · '+
     (payTakesCheques(d.method)?Math.round(12/per)+' cheques logged'
       :d.method==='Cash'?'cash collection schedule recorded':'transfer schedule recorded'),
    goto:'#/tenant/'+id}}};
@@ -9486,8 +9469,8 @@ const WIRE={
    qid:d.qid,mobile:d.phone,deposit_method:d.depmethod}}),
  attach:r=>({doctype:'Tenancy Agreement',docname:r.agreement}),
  ok:r=>({title:'Tenancy created',msg:r.agreement+' \u00b7 '+r.status,
-   detail:r.status==='Active'?'QID and signed pack were both present, so it activated without an approval'
-     :'Waiting on approval \u2014 something the activation rule needs is missing',
+   detail:r.status==='Draft'?'Saved as draft; it has not changed occupancy or accounting'
+     :'Waiting for an authorized GM/MD to verify documents and activate',
    goto:'#/agreement/'+r.agreement})},
 
 'new-agreement':{
@@ -9506,7 +9489,7 @@ const WIRE={
  guard:d=>(d.__ctx&&d.__ctx.id)?null
   :'Open the agreement first \u2014 a renewal replaces a specific one, and this was opened without it.',
  ok:r=>({title:'Renewed',msg:'New agreement '+r.agreement,
-   detail:'The old one is now Expired and the new one points back at it',
+   detail:'The old agreement is preserved; the replacement points back to it and awaits approval',
    goto:'#/agreement/'+r.agreement})},
 
 'upload-docs':{

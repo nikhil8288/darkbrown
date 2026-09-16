@@ -89,6 +89,9 @@ def run():
     print("STAGE 1 RUN — landlords")
     for p in plan:
         if p["existing"]:
+            if frappe.get_meta("Supplier").has_field("db_is_landlord") and not \
+                    frappe.db.get_value("Supplier", p["existing"], "db_is_landlord"):
+                frappe.db.set_value("Supplier", p["existing"], "db_is_landlord", 1)
             continue
         try:
             doc = frappe.new_doc("Supplier")

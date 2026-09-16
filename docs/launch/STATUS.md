@@ -4,6 +4,7 @@
 | --- | --- | --- | --- |
 | T00 baseline | PARTIAL | `CONTEXT.md` reconstructed; deployed app SHA `d4284b7`, successful deploy/migrate and active pre-live site confirmed | Record exact Frappe/ERPNext versions, workers and backup/restore proof |
 | Step 1 / T01 security | PARTIALLY VERIFIED | `evidence/01-security.md` — source tests and available five-role pre-live runtime checks pass | Owner containment decision plus bench/API write, refresh, byte-read and OCR instrumentation |
+| Step 2 / tenancy + accounting foundation | SOURCE COMPLETE; RUNTIME BLOCKED | `evidence/02-tenancy-accounting-foundation.md` — narrow source repairs and 94 source/stub checks pass | Reactivate pre-live site; inspect accounting config; deploy/migrate; run synthetic two-Building/five-role runtime matrix |
 
 ## Step 1 finding disposition
 

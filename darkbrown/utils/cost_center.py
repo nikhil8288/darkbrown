@@ -37,8 +37,7 @@ def _cc_name(label, company):
 def create_building_cost_center(doc, method=None):
     company = _company(doc)
     if not company:
-        frappe.msgprint(_("No company set; cost centre not created."), alert=True)
-        return
+        frappe.throw(_("No company set; Building creation was cancelled."))
 
     label = _label(doc)
     name = _cc_name(label, company)
@@ -49,8 +48,7 @@ def create_building_cost_center(doc, method=None):
 
     root = _root_cost_center(company)
     if not root:
-        frappe.msgprint(_("No group cost centre found for {0}; skipping.").format(company), alert=True)
-        return
+        frappe.throw(_("No group Cost Center exists for {0}; Building creation was cancelled.").format(company))
 
     cc = frappe.get_doc({
         "doctype": "Cost Center",

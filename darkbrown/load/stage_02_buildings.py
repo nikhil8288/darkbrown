@@ -208,7 +208,9 @@ def _write(plan, leases, update_existing=False):
             h.building = l["code"]
             h.landlord = l["landlord"]
             h.company = company
-            h.status = r.get("status") or "Active"
+            # Imports establish obligations as Draft. A source status of
+            # Active is evidence to review, not authorization to activate.
+            h.status = "Draft"
             h.start_date = l["start"]
             h.end_date = l["end"]
             h.annual_rent = l["annual"]
@@ -329,8 +331,8 @@ def gate():
     two_active = sorted(b for b, hs in by_building.items()
                         if len([h for h in hs if h.status == "Active"]) > 1)
 
-    want_total = _active_total(leases)
-    got_total = sum(int(h.annual_rent or 0) for h in hl if h.status == "Active")
+    want_total = sum(l["annual"] for l in leases)
+    got_total = sum(int(h.annual_rent or 0) for h in hl)
 
     wrong = []
     for l in leases:
@@ -360,7 +362,7 @@ def gate():
          else "cost counted twice for %s" % ", ".join(two_active[:3])),
         ("every lease period matches the worksheet", not wrong,
          "all %d match" % len(leases) if not wrong else "; ".join(wrong[:3])),
-        ("active annual rent reconciles to the riyal", want_total == got_total,
+        ("imported annual obligations reconcile to the riyal", want_total == got_total,
          "QAR %s on site vs QAR %s in the worksheet"
          % (f"{got_total:,}", f"{want_total:,}")),
     ]

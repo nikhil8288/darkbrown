@@ -7,7 +7,43 @@ from darkbrown.guards import guard, GM, MD
 class Building(Document):
     def validate(self):
         self.set_company()
+        self.validate_master_links()
+        self.validate_unique_name()
         self.validate_exit()
+
+    def validate_master_links(self):
+        if not self.company or not frappe.db.exists("Company", self.company):
+            frappe.throw(_("Building must link to a valid Company."))
+        if frappe.db.get_value("Company", self.company, "default_currency") != "QAR":
+            frappe.throw(_("Launch Buildings must belong to a QAR company."))
+        if not self.landlord or not frappe.db.exists("Supplier", self.landlord):
+            frappe.throw(_("Building must link to a valid landlord Supplier."))
+        if frappe.get_meta("Supplier").has_field("db_is_landlord") and not \
+                frappe.db.get_value("Supplier", self.landlord, "db_is_landlord"):
+            frappe.throw(_("The selected Supplier is not classified as a DarkBrown landlord."))
+
+    def validate_unique_name(self):
+        label = (self.building_name or "").strip()
+        self.building_name = label
+        if not label:
+            frappe.throw(_("Building name is required."))
+        for row in frappe.get_all("Building", fields=["name", "building_name"]):
+            if row.name != self.get("name") and (row.building_name or "").strip().casefold() == label.casefold():
+                frappe.throw(_("A building with this name already exists."))
+
+    def before_save(self):
+        before = self.get_doc_before_save()
+        if before and before.company != self.company:
+            linked = (frappe.db.exists("Unit", {"building": self.name}) or
+                      frappe.db.exists("Head Lease", {"building": self.name}) or
+                      frappe.db.exists("Tenancy Agreement", {"building": self.name}))
+            if linked:
+                frappe.throw(_("Company cannot be changed after units or agreements exist."))
+
+    def on_trash(self):
+        for doctype in ("Unit", "Head Lease", "Tenancy Agreement"):
+            if frappe.db.exists(doctype, {"building": self.name}):
+                frappe.throw(_("A linked {0} prevents deleting this Building.").format(doctype))
 
     def set_company(self):
         if not self.company:

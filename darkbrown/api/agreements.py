@@ -1,10 +1,8 @@
 """Tenancy agreements and amendments.
 
-Activation is self-approving. An agreement that has a QID on file and a signed
-pack attached is complete, and a complete agreement does not need a second
-person to say so — it activates on the spot and records that it took the self
-approved route. Anything missing routes it for approval instead, and the
-missing items are written down so the approver sees why it arrived.
+Creation never activates a tenancy. Complete agreements enter the approval
+queue and an authorized GM/MD explicitly activates them. Draft and activation
+are operational events only: neither posts accounting entries.
 
 Amendments are the opposite: a change to a live agreement always goes to a
 human. Which human depends on the value at stake.
@@ -24,10 +22,10 @@ def _settings():
 
 @frappe.whitelist()
 def create_agreement(payload):
-    """Create a tenancy and settle its own activation in one pass.
+    """Create a tenancy without billing, deposit recognition or GL effects.
 
-    The unit is claimed here too. A unit already carrying a live tenancy is
-    refused rather than quietly double-let.
+    A unit already carrying an overlapping live or pending tenancy is refused
+    rather than quietly double-let.
     """
     guard(MD, GM, ACC, DOC)
     data = frappe.parse_json(payload)
@@ -38,15 +36,6 @@ def create_agreement(payload):
     if not frappe.db.exists("Unit", unit):
         frappe.throw(_("Unit {0} does not exist.").format(unit))
     require_record_access(frappe.get_doc("Unit", unit), "read")
-
-    live = frappe.get_all(
-        "Tenancy Agreement",
-        filters={"unit": unit, "status": ["in", ("Active", "Expiring",
-                                                 "Pending Approval")]},
-        pluck="name")
-    if live:
-        frappe.throw(_("Unit {0} already carries tenancy {1}.").format(
-            unit, live[0]))
 
     tenant = _tenant(data.get("tenant") or {})
     building = frappe.db.get_value("Unit", unit, "building")
@@ -91,23 +80,14 @@ def create_agreement(payload):
         })
 
     missing = _missing(doc)
-    if missing:
-        doc.status = "Pending Approval"
-        doc.activation_route = "Routed for Approval"
-        doc.missing_items = ", ".join(missing)
-    else:
-        doc.status = "Active"
-        doc.activation_route = "Self Approved"
-        doc.approved_by = frappe.session.user
-        doc.approved_on = frappe.utils.now()
+    doc.status = "Draft" if data.get("save_as_draft") else "Pending Approval"
+    doc.activation_route = "Routed for Approval"
+    doc.missing_items = ", ".join(missing)
 
     doc.flags.ignore_mandatory = True
     doc.insert(ignore_permissions=True)
 
-    if doc.status == "Active":
-        _claim_unit(unit)
-        _open_deposit(doc, data)
-    else:
+    if doc.status == "Pending Approval":
         _notify_gm(doc, missing)
 
     return {"agreement": doc.name, "status": doc.status,
@@ -139,7 +119,7 @@ def _notify_gm(doc, missing):
             "doctype": "Notification Log",
             "for_user": user,
             "type": "Alert",
-            "document_type": "Tenant Agreement",
+            "document_type": "Tenancy Agreement",
             "document_name": doc.name,
             "subject": subject,
             "email_content": body,
@@ -191,21 +171,19 @@ def activate(agreement, note=None):
     guard(MD, GM)
     doc = frappe.get_doc("Tenancy Agreement", agreement)
     require_record_access(doc, "write")
-    if doc.status != "Pending Approval":
+    if doc.status not in ("Draft", "Pending Approval"):
         frappe.throw(_("Only an agreement pending approval can be activated. "
                        "{0} is {1}.").format(agreement, doc.status))
+    missing = _missing(doc)
+    if missing:
+        frappe.throw(_("Agreement cannot be activated until required documentation is complete: {0}.").format(
+            ", ".join(missing)))
     doc.status = "Active"
     doc.approved_by = frappe.session.user
     doc.approved_on = frappe.utils.now()
     if note:
         doc.notes = (doc.notes or "") + f"\n\nActivated on override: {note}"
     doc.save(ignore_permissions=True)
-    _claim_unit(doc.unit)
-    # The self-approved route opens the deposit at creation. One that waited on
-    # an approver has to open it here, or the liability only ever exists for
-    # tenancies that happened to arrive complete.
-    if not frappe.db.exists("Security Deposit", {"tenancy_agreement": doc.name}):
-        _open_deposit(doc, {"deposit_method": doc.payment_mode})
     return {"agreement": doc.name, "status": doc.status}
 
 
@@ -214,11 +192,13 @@ def terminate(agreement, reason):
     guard(MD, GM)
     doc = frappe.get_doc("Tenancy Agreement", agreement)
     require_record_access(doc, "write")
+    if doc.status not in ("Draft", "Pending Approval", "Active", "Expiring"):
+        frappe.throw(_("Only a current agreement can be terminated."))
+    if not (reason or "").strip():
+        frappe.throw(_("Termination requires a reason."))
     doc.status = "Terminated"
     doc.notes = (doc.notes or "") + f"\n\nTerminated: {reason}"
     doc.save(ignore_permissions=True)
-    if doc.unit and frappe.db.get_value("Unit", doc.unit, "status") == "Occupied":
-        frappe.db.set_value("Unit", doc.unit, "status", "Vacant")
     return {"agreement": doc.name, "status": doc.status}
 
 
@@ -265,27 +245,15 @@ def _tenant(t):
     return doc.insert(ignore_permissions=True).name
 
 
-def _open_deposit(agreement, data):
-    """A deposit that was taken is a liability from the moment it is taken."""
-    amount = flt(agreement.security_deposit)
-    if not amount:
-        return
-    doc = frappe.get_doc({
-        "doctype": "Security Deposit",
-        "tenancy_agreement": agreement.name,
-        "tenant": agreement.tenant,
-        "unit": agreement.unit,
-        "company": agreement.company,
-        "status": "Held",
-        "amount": amount,
-        "received_on": data.get("deposit_received_on") or today(),
-        "receipt_method": data.get("deposit_method") or "Cheque",
-    })
-    doc.flags.ignore_mandatory = True
-    doc.insert(ignore_permissions=True)
-
-
 # ---------------------------------------------------------------- amendments
+
+AMENDABLE_FIELDS = {
+    "Tenancy Agreement": {"end_date", "monthly_rent", "security_deposit",
+                          "notice_days", "payment_mode", "payment_frequency",
+                          "auto_renew"},
+    "Head Lease": {"end_date", "annual_rent", "security_deposit",
+                   "notice_period_days", "payment_frequency", "auto_renew"},
+}
 
 @frappe.whitelist()
 def request_amendment(payload):
@@ -304,6 +272,12 @@ def request_amendment(payload):
         frappe.throw(_("An amendment needs a reason."))
 
     ty = data.get("agreement_type") or "Tenancy Agreement"
+    field = (data.get("field") or "").strip()
+    if ty not in AMENDABLE_FIELDS or field not in AMENDABLE_FIELDS[ty]:
+        frappe.throw(_("That field cannot be changed through an agreement amendment."))
+    current = frappe.db.get_value(ty, agreement, field)
+    if str(data.get("old_value") or "") and str(data.get("old_value")) != str(current or ""):
+        frappe.throw(_("Agreement changed after this amendment was prepared; refresh and try again."))
     impact = flt(data.get("value_impact"))
     threshold = flt(_settings().amendment_md_threshold or 0)
     status = "Pending MD" if threshold and abs(impact) >= threshold else "Pending GM"
@@ -314,8 +288,8 @@ def request_amendment(payload):
         "agreement": agreement,
         "status": status,
         "effective_from": data.get("effective_from") or today(),
-        "field_changed": data.get("field"),
-        "old_value": str(data.get("old_value") or ""),
+        "field_changed": field,
+        "old_value": str(current or ""),
         "new_value": str(data.get("new_value") or ""),
         "value_impact": impact,
         "reason": reason,
@@ -372,9 +346,11 @@ def _apply_amendment(doc):
     if not meta.get_field(field):
         return
     value = doc.new_value
-    if meta.get_field(field).fieldtype == "Currency":
+    if meta.get_field(field).fieldtype in ("Currency", "Float", "Int", "Check"):
         value = flt(value)
-    frappe.db.set_value(doc.agreement_type, doc.agreement, field, value)
+    target = frappe.get_doc(doc.agreement_type, doc.agreement)
+    target.set(field, value)
+    target.save(ignore_permissions=True)
 
 
 # ------------------------------------------------------------------- renewal
@@ -396,9 +372,6 @@ def renew(agreement, payload):
     data["renewal_of"] = old.name
     data.setdefault("qid", old.qid_number)
     data.setdefault("signed_pack", data.get("signed_pack"))
-
-    old.status = "Expired"
-    old.save(ignore_permissions=True)
 
     return create_agreement(frappe.as_json(data))
 
