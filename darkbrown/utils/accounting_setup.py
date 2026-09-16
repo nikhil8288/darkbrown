@@ -70,7 +70,13 @@ def _find_cash_account(company):
         }, "name")
         if account:
             return account
-    return None
+    # Localized charts often name the standard cash leaf differently.  Its
+    # ERPNext account_type is the stable semantic signal, so reuse it rather
+    # than creating a duplicate merely to obtain an English label.
+    return frappe.db.get_value("Account", {
+        "company": company, "account_type": "Cash", "is_group": 0,
+        "disabled": 0,
+    }, "name")
 
 
 def _map_mode(company, mode, account):

@@ -111,7 +111,8 @@ def main():
     setup = Path("darkbrown/utils/accounting_setup.py").read_text()
     assert '"doctype": "GL Entry"' not in setup
     assert '"doctype": "Bank Account"' not in setup
-    print("tenancy/accounting foundation checks: 11 passed")
+    assert '"account_type": "Cash"' in setup
+    print("tenancy/accounting foundation checks: 12 passed")
 
 
 if __name__ == "__main__":
