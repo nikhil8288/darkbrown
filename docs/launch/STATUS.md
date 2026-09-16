@@ -2,9 +2,9 @@
 
 | Step | Status | Evidence | Next gate |
 | --- | --- | --- | --- |
-| T00 baseline | PARTIAL | `CONTEXT.md` reconstructed; deployed app SHA `d4284b7`, successful deploy/migrate and active pre-live site confirmed | Record exact Frappe/ERPNext versions, workers and backup/restore proof |
+| T00 baseline | PARTIAL | Exact Frappe 15.120.1, ERPNext 15.121.2, backup status, successful deploy/migrate and active pre-live site confirmed | Confirm individual worker/scheduler state and restore proof |
 | Step 1 / T01 security | PARTIALLY VERIFIED | `evidence/01-security.md` — source tests and available five-role pre-live runtime checks pass | Owner containment decision plus bench/API write, refresh, byte-read and OCR instrumentation |
-| Step 2 / tenancy + accounting foundation | SOURCE PUSHED; RUNTIME BLOCKED | `evidence/02-tenancy-accounting-foundation.md` — implementation `8899844`; narrow source repairs and 94 source/stub checks pass | Reactivate pre-live site; inspect accounting config; deploy/migrate; run synthetic two-Building/five-role runtime matrix |
+| Step 2 / tenancy + accounting foundation | DEPLOYED; PARTIALLY RUNTIME VERIFIED | `evidence/02-tenancy-accounting-foundation.md` — code `4be2284` deployed/migrated; 99 source/stub checks and the documented synthetic owner-session matrix pass | Configure owner-approved Bank Account; restore private upload; prove activation, active Head Lease overlap, lifecycle services and five-role new-record matrix |
 
 ## Step 1 finding disposition
 
