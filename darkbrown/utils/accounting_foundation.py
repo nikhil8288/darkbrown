@@ -60,17 +60,26 @@ def audit(company=None):
         "company": company, "disabled": 0})
     modes = {mode: bool(frappe.db.exists("Mode of Payment", mode))
              for mode in ("Cash", "Cheque", "Bank Transfer")}
+    mode_accounts = {mode: bool(frappe.db.exists("Mode of Payment Account", {
+        "parent": mode, "company": company})) for mode in ("Cash", "Cheque")}
+    default_bank = bool(frappe.db.exists("Bank Account", {
+        "company": company, "is_default": 1}))
     missing = [role for role, account in accounts.items() if not account]
     if not fiscal_year:
         missing.append("current_fiscal_year")
     if not cost_center_root:
         missing.append("cost_center_hierarchy")
+    missing.extend("mode_of_payment_" + mode.lower()
+                   for mode, configured in mode_accounts.items()
+                   if not configured)
     return {
         "ok": company_row.default_currency == "QAR" and not missing,
         "company_configured": True,
         "currency": company_row.default_currency,
         "accounts": accounts,
         "modes_of_payment": modes,
+        "mode_accounts": mode_accounts,
+        "default_bank_account_configured": default_bank,
         "current_fiscal_year": bool(fiscal_year),
         "cost_center_hierarchy": bool(cost_center_root),
         "enabled_sales_tax_templates": tax_templates,

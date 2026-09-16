@@ -56,6 +56,7 @@ def after_migrate():
     reconcile_custom_fields()
     seed_document_requirements()
     seed_expense_chart()
+    seed_accounting_foundation()
     frappe.db.commit()
 
 
@@ -72,6 +73,16 @@ def seed_expense_chart():
         ensure_chart()
     except Exception:
         frappe.log_error(frappe.get_traceback(), "Expense chart not built")
+
+
+def seed_accounting_foundation():
+    """Install only the launch-specific, non-posting accounting configuration.
+
+    Bank Account records are deliberately excluded: they require owner-supplied
+    bank details and must never be manufactured during a migration.
+    """
+    from darkbrown.utils.accounting_setup import ensure_launch_foundation
+    ensure_launch_foundation()
 
 
 def create_roles():

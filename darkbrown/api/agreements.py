@@ -153,10 +153,12 @@ def _freq(value):
 def _missing(doc):
     """What stops this agreement from standing on its own."""
     out = []
-    if not doc.qid_number:
-        out.append("QID not captured")
+    if not (doc.qid_number or doc.passport_no):
+        out.append("tenant identity not captured")
     if not doc.signed_pack:
         out.append("signed agreement not attached")
+    if not doc.mobile_no:
+        out.append("tenant contact not captured")
     if not flt(doc.monthly_rent):
         out.append("rent not set")
     if doc.payment_mode == "Cheque" and not int(doc.cheques_held or 0):

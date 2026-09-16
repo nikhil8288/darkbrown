@@ -57,6 +57,7 @@ def payload(**overrides):
             "start_date": "2026-01-01", "end_date": "2026-12-31",
             "rent": 1500, "deposit": 1500, "payment_mode": "Cash",
             "payment_frequency": "Monthly", "qid": "SYN-ID",
+            "mobile": "+00000000000",
             "signed_pack": "/private/files/SYN-SIGNED.pdf"}
     data.update(overrides)
     return json.dumps(data)
@@ -86,6 +87,11 @@ def main():
         start_date="2026-06-01", end_date="2027-05-31")), "overlapping")
     expect_error(lambda: agreements.create_agreement(payload(rent=-1)), "negative")
 
+    incomplete = agreements.create_agreement(payload(
+        unit="SYN-B-B01", mobile=None, save_as_draft=True))
+    assert incomplete["status"] == "Draft"
+    expect_error(lambda: agreements.activate(incomplete["agreement"]), "contact")
+
     # Building is derived from Unit; no client value can move an agreement to B.
     draft = S.frappe.get_doc("Tenancy Agreement", name)
     draft["building"] = "SYN-B"
@@ -100,7 +106,12 @@ def main():
     source = Path("darkbrown/api/agreements.py").read_text()
     assert "Security Deposit" not in source
     assert "Self Approved" not in source
-    print("tenancy/accounting foundation checks: 8 passed")
+    controller = Path("darkbrown/darkbrown/doctype/tenancy_agreement/tenancy_agreement.py").read_text()
+    assert 'self.status = "Pending Approval"' not in controller
+    setup = Path("darkbrown/utils/accounting_setup.py").read_text()
+    assert '"doctype": "GL Entry"' not in setup
+    assert '"doctype": "Bank Account"' not in setup
+    print("tenancy/accounting foundation checks: 11 passed")
 
 
 if __name__ == "__main__":

@@ -63,8 +63,10 @@ class TenancyAgreement(Document):
 			roles = set(frappe.get_roles(frappe.session.user))
 			if not ({"Managing Director", "General Manager", "System Manager"} & roles) and frappe.session.user != "Administrator":
 				frappe.throw(_("Only an approval role may activate an agreement."), frappe.PermissionError)
-			if not self.signed_pack or not (self.qid_number or "").strip():
+			if not self.signed_pack or not ((self.qid_number or "").strip() or (self.passport_no or "").strip()):
 				frappe.throw(_("Activation requires the signed agreement pack and tenant identity reference."))
+			if not (self.mobile_no or "").strip():
+				frappe.throw(_("Activation requires a tenant contact number."))
 
 	def _validate_no_overlap(self):
 		if self.status not in BLOCKING_TENANCY or not self.start_date or not self.end_date:
@@ -80,17 +82,16 @@ class TenancyAgreement(Document):
 		MD are told, not asked. Either missing means it is created but routes, and
 		the approval item has to say what is missing."""
 		missing = []
-		if not (self.qid_number or "").strip():
-			missing.append(_("QID number"))
+		if not ((self.qid_number or "").strip() or (self.passport_no or "").strip()):
+			missing.append(_("tenant identity reference"))
 		if not self.signed_pack:
 			missing.append(_("signed agreement pack"))
+		if not (self.mobile_no or "").strip():
+			missing.append(_("tenant contact number"))
 		self.missing_items = ", ".join(missing)
 		if self.status in ("Expired", "Terminated"):
 			return
-		if missing and self.status == "Draft":
-			self.activation_route = "Routed for Approval"
-			self.status = "Pending Approval"
-		elif not missing and self.status in ("Draft", "Pending Approval"):
+		if self.status in ("Draft", "Pending Approval"):
 			self.activation_route = "Routed for Approval"
 
 	def on_update(self):
