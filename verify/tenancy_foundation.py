@@ -112,7 +112,8 @@ def main():
     assert '"doctype": "GL Entry"' not in setup
     assert '"doctype": "Bank Account"' not in setup
     assert '"account_type": "Cash"' in setup
-    print("tenancy/accounting foundation checks: 12 passed")
+    assert 'mapped.root_type == "Asset"' in setup
+    print("tenancy/accounting foundation checks: 13 passed")
 
 
 if __name__ == "__main__":

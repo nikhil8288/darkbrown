@@ -86,6 +86,14 @@ def _map_mode(company, mode, account):
         "parent": mode, "company": company,
     }, ["name", "default_account"], as_dict=True)
     if existing:
+        if mode == "Cash":
+            mapped = frappe.db.get_value("Account", existing.default_account,
+                                         ["root_type", "account_type", "is_group", "disabled"],
+                                         as_dict=True)
+            if mapped and mapped.root_type == "Asset" and \
+                    mapped.account_type == "Cash" and not mapped.is_group and \
+                    not mapped.disabled:
+                return False
         if existing.default_account != account:
             frappe.throw(
                 f"Mode of Payment {mode} is mapped to an unexpected account.")
