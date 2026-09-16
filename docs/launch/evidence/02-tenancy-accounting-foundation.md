@@ -1,6 +1,6 @@
 # Step 2 — tenancy and accounting foundation evidence
 
-Status: **SOURCE COMPLETE; RUNTIME/DEPLOYMENT BLOCKED**. The narrow Step 2
+Status: **SOURCE PUSHED; RUNTIME/DEPLOYMENT BLOCKED**. The narrow Step 2
 implementation and source/stub regressions pass. The pre-live site changed from
 Active to Suspended during execution, so no post-change deployment, migration,
 accounting configuration inspection or synthetic runtime matrix is claimed.
@@ -133,6 +133,7 @@ shows the resulting DarkBrown SHA and successful build/migrate/site update.
 
 ## Resulting SHAs
 
-- GitHub `main`: pending source commit/push.
+- GitHub Step 2 implementation: `88998448681e71d4b6e6c3becc4d505e15a0ebe4`
+  on `main`.
 - Deployed DarkBrown: `d4284b79d067abb1684aa36b4143ac8946ddcff5`
   (unchanged; Step 2 not deployed).
