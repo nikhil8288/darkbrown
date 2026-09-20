@@ -3,10 +3,9 @@
 Status: **DEPLOYED; PARTIALLY RUNTIME VERIFIED**. The Step 2 source is on
 `main`, the final code image is active, and an explicit in-place migration
 succeeded. The source/stub suite and the runtime checks listed as PASS below
-are complete. Step 2 is not marked complete because normal private-file upload
-failed in the managed browser, preventing a successful agreement activation,
-and no credentials were available for a fresh five-role run against the new
-synthetic records.
+are complete. Step 2 is not marked complete because the fresh five-role run,
+active-overlap, lifecycle-service and post-activation GL checks remain
+unverified against the new synthetic records.
 
 ## Baseline before runtime mutation
 
@@ -110,6 +109,9 @@ The pre-live site was used only with clearly labelled synthetic records.
 | Classified tenant Customer and draft tenancy created normally | PASS | Normal Desk UI; Building derived from Unit; initial status remained Draft |
 | Explicit Draft to Pending Approval transition | PASS | Normal Desk UI; version trail recorded the transition |
 | Activation requires approval documentation | PASS | Tenancy activation rejected without signed pack; Head Lease activation rejected without signed document |
+| Private synthetic attachment upload | PASS | Normal Desk private-file control uploaded and linked the labelled synthetic placeholder; no API or database bypass |
+| Successful tenancy activation and occupancy transition | PASS | Authorized normal Desk workflow activated the synthetic agreement; its linked Unit became Occupied |
+| Successful Head Lease activation | PASS | Authorized normal Desk workflow activated the synthetic Head Lease after linking the private placeholder |
 | Overlapping tenancy on one Unit | PASS | Duplicated overlapping Pending Approval agreement rejected before insert |
 | Negative monetary value | PASS | Negative monthly rent rejected before mutation |
 | Draft Head Lease | PASS | Created normally with landlord/Building/Company and derived Cost Center; remained Draft |
@@ -124,12 +126,9 @@ The pre-live site was used only with clearly labelled synthetic records.
 
 ## Claims not proved at runtime
 
-- Successful tenancy and Head Lease activation: **BLOCKED**. The normal Desk
-  upload dialog selected a private 99-byte synthetic document but returned an
-  XHR error before attachment. No direct API or database write was used to
-  bypass the UI. The documentation guards themselves were proved at runtime.
-- Overlapping active Head Leases: **SOURCE/STUB ONLY**, because creating an
-  active lease requires the blocked signed-document attachment.
+- Overlapping active Head Leases: **SOURCE/STUB ONLY**. The signed-document
+  transport and a successful activation are now proved, but no second
+  overlapping synthetic Head Lease was created during this controlled pass.
 - Invalid date, unsupported currency and mismatched Building mutation:
   **SOURCE/STUB ONLY**. The normal UI derives/locks Building and Company; the
   server validators are covered by the source/stub suite.
@@ -138,7 +137,14 @@ The pre-live site was used only with clearly labelled synthetic records.
   runtime evidence still covers five-role field and Building scope on the same
   deployed permission architecture.
 - Successful amendment, renewal and termination of an activated agreement:
-  **SOURCE/STUB ONLY**, because activation was blocked by attachment transport.
+  **SOURCE/STUB ONLY**. Activation is now proved; the three lifecycle services
+  still need their own controlled runtime pass.
+- Activated tenancy and Head Lease create no GL: **SOURCE/STUB ONLY for the
+  activated state**. The original sanitized read-only runtime query proves
+  draft/pending tenancy and draft Head Lease created zero GL rows; controller
+  and unit tests prove the activated transitions do not create accounting
+  documents, but the sanitized runtime GL query was not rerun after the two
+  successful activations.
 - Individual worker and scheduler processes: **UNVERIFIED**; the cloud process
   list exposed no rows.
 
@@ -160,9 +166,8 @@ The pre-live site was used only with clearly labelled synthetic records.
 
 1. Provide or configure the real default ERPNext Bank Account through an
    owner-approved operational process; do not invent bank details.
-2. Restore the normal private-file upload path, then run successful activation,
-   occupancy transition, active Head Lease overlap, amendment, renewal and
-   termination checks with synthetic records.
+2. Run the active Head Lease overlap, amendment, renewal, termination and
+   post-activation GL checks with synthetic records.
 3. Re-run the new-record matrix under Maintenance, Documentation, Accounts,
    Building-A-scoped General Manager and Managing Director sessions without
    changing the existing `SEC-T01` credentials.
