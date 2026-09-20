@@ -1,12 +1,14 @@
 import frappe
 from frappe import _
 from frappe.model.document import Document
+from frappe.utils import getdate
 
 
 class HeadLease(Document):
 	def validate(self):
 		self._validate_links()
-		if self.end_date and self.start_date and self.end_date <= self.start_date:
+		if self.end_date and self.start_date and \
+				getdate(self.end_date) <= getdate(self.start_date):
 			frappe.throw(_("End date must fall after the start date."))
 		for field in ("annual_rent", "security_deposit", "rent_free_days", "notice_period_days", "units_covered"):
 			if (getattr(self, field, 0) or 0) < 0:
@@ -61,7 +63,12 @@ class HeadLease(Document):
 		for row in frappe.get_all("Head Lease", filters={
 				"building": self.building, "status": ["in", ("Active", "Expiring")],
 				"name": ["!=", self.get("name")]}, fields=["name", "start_date", "end_date"]):
-			if row.start_date <= self.end_date and row.end_date >= self.start_date:
+			# Frappe returns database dates as ``datetime.date`` in some request
+			# paths while a form may still carry the incoming value as a string.
+			# Compare normalised dates so the intended overlap error, rather than a
+			# Python TypeError, reaches the user in either case.
+			if (getdate(row.start_date) <= getdate(self.end_date)
+					and getdate(row.end_date) >= getdate(self.start_date)):
 				frappe.throw(_("Head Lease overlaps active obligation {0}.").format(row.name))
 
 	def on_trash(self):
