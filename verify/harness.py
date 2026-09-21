@@ -1056,6 +1056,31 @@ def t_finance_ui_and_label_patch_are_wired():
 check("finance UI, cancellation hook and label patch are wired",
       t_finance_ui_and_label_patch_are_wired)
 
+def t_cancelled_run_recovery_is_explicit_and_scoped():
+    import inspect
+    from darkbrown.api import finance
+    src = inspect.getsource(finance.reopen_cancelled_invoice_run)
+    assert 'guard(MD, GM)' in src
+    assert 'doc.status != "Issued"' in src
+    assert '"docstatus") == 2' in src
+    assert 'line.db_set("sales_invoice", None' in src
+    assert 'doc.status = "Pending GM"' in src
+    shell = open(REPO + '/darkbrown/shell/index.html').read()
+    assert "finance.reopen_cancelled_invoice_run" in shell
+    assert 'Reopen ${GEN.repairable} cancelled invoice' in shell
+check("cancelled legacy invoice runs have a controlled recovery action",
+      t_cancelled_run_recovery_is_explicit_and_scoped)
+
+def t_existing_accrual_returns_truthful_summary():
+    import inspect
+    from darkbrown.api import finance
+    src = inspect.getsource(finance.build_head_lease_payable)
+    assert '["name", "grand_total"], as_dict=True' in src
+    assert '"amount": _kk(existing.grand_total)' in src
+    assert '"head_lease": lease.name' in src
+check("duplicate Head Lease accrual returns its amount and source",
+      t_existing_accrual_returns_truthful_summary)
+
 # =====================================================================
 print()
 for n in PASS: print("  PASS  %s" % n)

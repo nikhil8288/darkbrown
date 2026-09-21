@@ -8316,7 +8316,7 @@ async function genLoad(run){
  const d=await dbCall('finance.invoice_run',{run});
  Object.assign(GEN,{busy:0,err:'',run:d.run,st:d.status,lines:d.lines||[],
    total:d.total,varr:d.has_variance,vwhy:d.variance_reason,
-   period:d.period_start,due:d.period_end});
+   repairable:d.cancelled_invoices||0,period:d.period_start,due:d.period_end});
  router();
 }
 window.genOpenRun=async run=>{GEN={live:1,busy:1,lines:[],changes:[],
@@ -8339,6 +8339,15 @@ window.genIssueLive=async()=>{
    }
    await dbRefresh();
    const id=GEN.run;GEN=null;toast(msg);go('#/billrun/'+id);
+ }catch(e){GEN.err=e.message;router()}
+};
+window.genReopenCancelled=async()=>{
+ const btn=document.getElementById('genrepair');
+ if(btn){btn.disabled=true;btn.textContent='Reopening…'}
+ try{
+   const r=await dbCall('finance.reopen_cancelled_invoice_run',{run:GEN.run});
+   toast(r.reopened+' cancelled invoice'+(r.reopened===1?'':'s')+' ready to replace');
+   await genLoad(GEN.run);
  }catch(e){GEN.err=e.message;router()}
 };
 window.genCancel=()=>{GEN=null;router()};
@@ -8561,6 +8570,7 @@ function genLiveView(){
  const gm=canApproveChanges();
  const pending=GEN.st==='Pending GM';
  const waiting=GEN.varr&&!gm&&!pending;
+ const repairable=GEN.st==='Issued'&&(GEN.repairable||0)>0;
  return head+page('Generate invoices \u2014 '+(GEN.bn||''),
   GEN.run+' \u00b7 '+(GEN.period||'')+' to '+(GEN.due||'')+' \u00b7 '+GEN.st,
   `<button class="btn" onclick="genCancel()">Back</button>`,
@@ -8587,11 +8597,15 @@ function genLiveView(){
    Amending a drafted line is not built: correct the agreement or its charges, cancel this run, and draft again.</div>
   <div class="genbar">
    <span class="mini">${pending?'waiting on the General Manager'
+     :repairable?'cancelled invoice needs controlled replacement'
+     :GEN.st==='Issued'?'this run is fully issued'
      :waiting?'goes for approval before anything is raised':'ready to issue'}</span>
-   <button class="btn pri" id="genbtn" onclick="genIssueLive()" ${lines.length&&!(pending&&!gm)?'':'disabled'}>${
+   ${repairable?`<button class="btn pri" id="genrepair" onclick="genReopenCancelled()">Reopen ${GEN.repairable} cancelled invoice${GEN.repairable===1?'':'s'}</button>`:
+   `<button class="btn pri" id="genbtn" onclick="genIssueLive()" ${GEN.st!=='Issued'&&lines.length&&!(pending&&!gm)?'':'disabled'}>${
      pending?(gm?'Approve and issue':'Awaiting approval')
+      :GEN.st==='Issued'?'Already issued'
       :waiting?'Send to the General Manager'
-      :'Issue '+lines.length+' invoice'+(lines.length===1?'':'s')}</button></div>`);
+      :'Issue '+lines.length+' invoice'+(lines.length===1?'':'s')}</button>`}</div>`);
 }
 
 function genLanding(){
@@ -8610,8 +8624,8 @@ function genLanding(){
        r.st==='Issued'?'g':'a'):chip('Not yet','a')}},
    {h:'',v:b=>{const r=BILLRUNS.find(x=>x.b===b.id&&x.period===PERIODS[0]);
      return r?`<button class="btn" onclick="event.stopPropagation();${
-       window.DB_LIVE&&r.st!=='Issued'?`genOpenRun('${r.id}')`:`go('#/billrun/${r.id}')`}">${
-       window.DB_LIVE&&r.st!=='Issued'?'Continue the run':'Open the run'}</button>`
+       window.DB_LIVE?`genOpenRun('${r.id}')`:`go('#/billrun/${r.id}')`}">${
+       window.DB_LIVE?'Review the run':'Open the run'}</button>`
       :`<button class="btn" onclick="event.stopPropagation();genStart('${b.n}')">Generate</button>`}}],
    BUILDINGS.map(b=>({...b,__id:b.id})),{id:'bst',
     foot:['a building can only be generated once for a period','type to filter, click a header to sort']})}</div>`+

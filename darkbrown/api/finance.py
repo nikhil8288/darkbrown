@@ -500,6 +500,15 @@ def invoice_run(run):
     for t in {l.tenant for l in doc.lines if l.tenant}:
         tenants[t] = frappe.db.get_value("Customer", t, "customer_name") or t
 
+    cancelled = set()
+    invoice_names = [l.sales_invoice for l in doc.lines if l.sales_invoice]
+    if invoice_names:
+        cancelled = set(frappe.get_all(
+            "Sales Invoice",
+            filters={"name": ["in", invoice_names], "docstatus": 2},
+            pluck="name",
+        ))
+
     return {
         "run": doc.name,
         "building": doc.building,
@@ -509,6 +518,7 @@ def invoice_run(run):
         "total": _kk(doc.total_amount),
         "has_variance": 1 if doc.has_variance else 0,
         "variance_reason": doc.variance_reason or "",
+        "cancelled_invoices": len(cancelled),
         "lines": [{
             "a": l.tenancy_agreement,
             "t": l.tenant,
@@ -519,8 +529,43 @@ def invoice_run(run):
             "variance": _kk(l.variance),
             "reason": l.reason or "",
             "invoice": l.sales_invoice,
+            "invoice_cancelled": 1 if l.sales_invoice in cancelled else 0,
         } for l in doc.lines],
     }
+
+
+@frappe.whitelist()
+def reopen_cancelled_invoice_run(run):
+    """Return only cancelled lines of an issued run to GM review.
+
+    This is the explicit recovery path for invoices cancelled before the
+    Sales Invoice cancellation hook was installed, or if that hook was
+    temporarily unavailable.  Live invoices remain linked and cannot be
+    duplicated.
+    """
+    guard(MD, GM)
+    doc = frappe.get_doc("Invoice Run", run)
+    require_record_access(doc, "write")
+    if doc.status != "Issued":
+        frappe.throw(_("{0} is {1}; only an issued run can be reopened.").format(
+            run, doc.status))
+
+    reopened = 0
+    for line in doc.lines:
+        if not line.sales_invoice:
+            continue
+        if frappe.db.get_value("Sales Invoice", line.sales_invoice,
+                               "docstatus") == 2:
+            line.db_set("sales_invoice", None, update_modified=False)
+            reopened += 1
+    if not reopened:
+        frappe.throw(_("{0} has no cancelled invoices to replace.").format(run))
+
+    doc.status = "Pending GM"
+    doc.approved_by = None
+    doc.issued_on = None
+    doc.save(ignore_permissions=True)
+    return {"run": doc.name, "status": doc.status, "reopened": reopened}
 
 
 @frappe.whitelist()
@@ -715,9 +760,11 @@ def build_head_lease_payable(building, period_start=None):
         "Purchase Invoice",
         {"custom_landlord_contract": lease.name,
          "custom_billing_period": period,
-         "docstatus": ["<", 2]}, "name")
+         "docstatus": ["<", 2]}, ["name", "grand_total"], as_dict=True)
     if existing:
-        return {"invoice": existing, "created": False, "status": "Draft"}
+        return {"invoice": existing.name, "created": False,
+                "status": "Draft", "amount": _kk(existing.grand_total),
+                "head_lease": lease.name}
 
     company = lease.company or _company()
     monthly = flt(lease.monthly_rent or flt(lease.annual_rent) / 12, 2)
