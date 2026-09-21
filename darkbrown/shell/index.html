@@ -3663,7 +3663,7 @@ const FORMS={
   {n:'Notice',body:d=>`<div class="fg">
     ${fld({k:'tenant',l:'Tenant',t:'sel',o:TENANTS.slice(0,20).map(t=>t.n),req:1,live:1},d.tenant)}
     ${fld({k:'unit',l:'Unit',t:'sel',o:UNITS.filter(u=>u.st==='Occupied').slice(0,20).map(u=>u.id),req:1},d.unit)}
-    ${fld({k:'given',l:'Notice given on',t:'date',d:'2026-07-27',req:1},d.given)}
+    ${fld({k:'given',l:'Notice given on',t:'date',d:ISO(TODAY),req:1},d.given)}
     ${fld({k:'out',l:'Intended handover date',t:'date',d:'2026-08-31',req:1},d.out)}
     ${fld({k:'reason',l:'Reason',t:'sel',o:['End of term','Early termination','Leaving Qatar','Non-payment','Transfer to another unit','Landlord requirement'],req:1,live:1},d.reason)}
     ${fld({k:'channel',l:'How notice was received',t:'sel',o:['Written letter','Email','WhatsApp','In person'],req:1},d.channel)}
@@ -6114,7 +6114,7 @@ FORMS['create-batch']={t:'Create deposit batch',s:'Cheques and cash · two-perso
     const tot=items.reduce((a,i)=>a+i.amt,0);
     return `<div class="fg">
       ${fld({k:'bank',l:'Deposit to',t:'sel',o:['QNB — 0021 4478','Doha Bank — 7741 2200','CBQ — 3390 8871'],req:1},d.bank)}
-      ${fld({k:'date',l:'Deposit date',t:'date',d:'2026-07-27',req:1},d.date)}
+      ${fld({k:'date',l:'Deposit date',t:'date',d:ISO(TODAY),req:1},d.date)}
       ${fld({k:'slip',l:'Deposit slip number',t:'txt',p:'DS-88214'},d.slip)}
       ${fld({k:'recon',l:'Reconciled by',t:'sel',o:['Yusuf K.','Anoop M.','Aisha R.'],req:1,live:1},d.recon)}</div>
      ${stat([['Items',items.length],['Total',n0(tot)],['Created by','Managing Director'],['Account',(d.bank||'').split(' — ')[0]]])}
@@ -8732,7 +8732,7 @@ FORMS['cheque-action']={t:'Update the cheque',s:'Every change is kept on the che
        ['Date on the cheque',c.mat],['Status now',c.st]].map(r=>`<div><span>${r[0]}</span><b>${r[1]}</b></div>`).join('')}</div>
    <div class="fg">
     ${fld({k:'act',l:'What happened',t:'sel',o:['Choose one'].concat(opts),req:1,live:1},d.act)}
-    ${fld({k:'date',l:'When',t:'date',d:'2026-07-27',req:1},d.date)}
+    ${fld({k:'date',l:'When',t:'date',d:ISO(TODAY),req:1},d.date)}
     ${ret?fld({k:'reason',l:'Reason given by the bank',t:'sel',o:RETURNREASON,req:1},d.reason):''}
     ${ret?fld({k:'next',l:'What happens now',t:'sel',
       o:['Ask for a replacement','Re-present on an agreed date','Open a collection case','Escalate to legal'],req:1},d.next):''}
