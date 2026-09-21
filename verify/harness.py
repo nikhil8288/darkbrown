@@ -1047,7 +1047,9 @@ def t_finance_ui_and_label_patch_are_wired():
         REPO + '/darkbrown/patches/normalize_invoice_reference_labels.py').read()
     assert 'Draft landlord accrual' in shell
     assert "finance.build_head_lease_payable" in shell
-    assert 'period_start:period.trim()' in shell
+    assert "'head-lease-accrual'" in shell
+    assert 'period_start:d.period' in shell
+    assert "t:'date'" in shell
     assert 'utils.invoice_run.on_sales_invoice_cancel' in hooks
     assert 'darkbrown.patches.normalize_invoice_reference_labels' in patches
     assert '"Tenancy Agreement", "Tenancy Agreement"' in label_patch
