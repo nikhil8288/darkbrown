@@ -8315,10 +8315,11 @@ window.genIssueLive=async()=>{
  const gm=canApproveChanges();
  try{
    let msg;
-   if(GEN.varr&&!gm&&GEN.st==='Draft'){
+   if(GEN.st==='Draft'){
      await dbCall('finance.submit_invoice_run',{run:GEN.run});
-     msg='Sent to the General Manager';
-   }else{
+     if(!gm){msg='Sent to the General Manager'}
+   }
+   if(gm){
      const r=await dbCall('finance.issue_invoice_run',{run:GEN.run});
      msg=r.invoices+' invoice'+(r.invoices===1?'':'s')+' raised';
    }
@@ -8573,7 +8574,7 @@ function genLiveView(){
   <div class="genbar">
    <span class="mini">${pending?'waiting on the General Manager'
      :waiting?'goes for approval before anything is raised':'ready to issue'}</span>
-   <button class="btn pri" id="genbtn" onclick="genIssueLive()" ${lines.length?'':'disabled'}>${
+   <button class="btn pri" id="genbtn" onclick="genIssueLive()" ${lines.length&&!(pending&&!gm)?'':'disabled'}>${
      pending?(gm?'Approve and issue':'Awaiting approval')
       :waiting?'Send to the General Manager'
       :'Issue '+lines.length+' invoice'+(lines.length===1?'':'s')}</button></div>`);

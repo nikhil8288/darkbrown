@@ -13,6 +13,7 @@
   "invoice_amount",
   "variance",
   "reason",
+  "charge_snapshot",
   "sales_invoice"
  ],
  "fields": [
@@ -72,6 +73,13 @@
    "fieldname": "reason",
    "fieldtype": "Small Text",
    "label": "Reason for Variance"
+  },
+  {
+   "fieldname": "charge_snapshot",
+   "fieldtype": "Long Text",
+   "label": "Charge Snapshot",
+   "read_only": 1,
+   "hidden": 1
   },
   {
    "fieldname": "sales_invoice",

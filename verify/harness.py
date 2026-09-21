@@ -19,6 +19,12 @@ for core, fields in {
         'outstanding_amount':('Currency',None,None),'grand_total':('Currency',None,None),
         'docstatus':('Int',None,None),'remarks':('Text',None,None),'due_date':('Date',None,None),
         'posting_date':('Date',None,None)},
+    'Purchase Invoice': {'name':('Data',None,None),'supplier':('Link',None,None),
+        'outstanding_amount':('Currency',None,None),'grand_total':('Currency',None,None),
+        'docstatus':('Int',None,None),'remarks':('Text',None,None),
+        'due_date':('Date',None,None),'posting_date':('Date',None,None),
+        'custom_landlord_contract':('Link','Head Lease',None),
+        'custom_billing_period':('Data',None,None)},
     'Payment Entry': {'name':('Data',None,None),'docstatus':('Int',None,None),
         'reference_no':('Data',None,None),'party':('Link',None,None),
         'paid_amount':('Currency',None,None),'posting_date':('Date',None,None),
@@ -75,7 +81,8 @@ def reset():
         'Supplier':[{'name':'SUP-001','supplier_name':'Al Adekhar Real Estate LLC'}],
         'Unit':[], 'Building':[{'name':'Al Sadd'}],
         'Cheque':[], 'Security Deposit':[], 'Head Lease Payment':[],
-        'Collection Case':[], 'Sales Invoice':[], 'Payment Entry':[],
+        'Collection Case':[], 'Sales Invoice':[], 'Purchase Invoice':[],
+        'Payment Entry':[],
         'Tenancy Agreement':[], 'Head Lease':[], 'Building':[{'name':'Al Sadd'}],
         'Has Role':[{'parent':'acc@darkbrown.qa','role':'Accounts','parenttype':'User'}],
         'User':[{'name':'acc@darkbrown.qa','enabled':1}],
@@ -362,6 +369,94 @@ def t_no_validation_suppression():
     assert not bad, "core validation still monkey-patched: %s" % bad
 check("rent_invoicing no longer duplicates the invoice builder", t_one_invoice_builder)
 check("no code suppresses ERPNext due-date validation", t_no_validation_suppression)
+
+# ---- P. launch-safe billing periods and approval
+def _agreement(**kw):
+    base = dict(name='TA-1', start_date='2026-01-15', end_date='2026-12-31',
+                payment_frequency='Monthly')
+    base.update(kw)
+    return S.types.SimpleNamespace(**base)
+
+def t_partial_month_billing():
+    from darkbrown.api import finance
+    a = _agreement()
+    window = finance._billing_window(a, '2026-01-01')
+    assert tuple(map(str, window)) == ('2026-01-15', '2026-01-31'), window
+    assert finance._prorated_monthly(3100, *window) == 1700, window
+
+def t_frequency_cycle_billing():
+    from darkbrown.api import finance
+    a = _agreement(payment_frequency='Quarterly')
+    assert finance._billing_window(a, '2026-02-01') is None
+    window = finance._billing_window(a, '2026-01-01')
+    assert tuple(map(str, window)) == ('2026-01-15', '2026-03-31'), window
+    assert finance._prorated_monthly(3100, *window) == 7900, window
+
+def t_final_partial_cycle():
+    from darkbrown.api import finance
+    a = _agreement(start_date='2026-01-01', end_date='2026-03-10',
+                   payment_frequency='Quarterly')
+    window = finance._billing_window(a, '2026-01-01')
+    assert tuple(map(str, window)) == ('2026-01-01', '2026-03-10'), window
+    assert finance._prorated_monthly(3100, *window) == 7200, window
+
+def t_issue_requires_approval_and_manager():
+    import inspect
+    from darkbrown.api import finance
+    src = inspect.getsource(finance.issue_invoice_run)
+    assert 'guard(MD, GM)' in src and 'guard(MD, GM, ACC)' not in src
+    assert 'doc.status != "Pending GM"' in src
+
+def t_invoice_carries_idempotency_keys():
+    import inspect
+    from darkbrown.api import finance
+    src = inspect.getsource(finance._rent_invoice)
+    assert 'custom_rental_agreement' in src
+    assert 'custom_billing_period' in src
+    assert 'docstatus' in src
+    schema = S.SCHEMA['Invoice Run Line']
+    assert schema['charge_snapshot'][0] == 'Long Text'
+
+def t_head_lease_rent_free_accrual():
+    from darkbrown.api import finance
+    lease = S.types.SimpleNamespace(start_date='2026-01-01',
+                                    end_date='2026-12-31',
+                                    rent_free_days=14)
+    window = finance._head_lease_accrual_window(lease, '2026-01-01')
+    assert tuple(map(str, window)) == ('2026-01-15', '2026-01-31'), window
+    assert finance._prorated_monthly(3100, *window) == 1700
+
+def t_head_lease_accrues_monthly():
+    from darkbrown.api import finance
+    lease = S.types.SimpleNamespace(start_date='2026-01-01',
+                                    end_date='2026-03-10',
+                                    rent_free_days=0,
+                                    payment_frequency='Quarterly')
+    feb = finance._head_lease_accrual_window(lease, '2026-02-01')
+    mar = finance._head_lease_accrual_window(lease, '2026-03-01')
+    assert finance._prorated_monthly(3100, *feb) == 3100
+    assert finance._prorated_monthly(3100, *mar) == 1000
+
+def t_head_lease_payable_is_draft_and_approved():
+    import inspect
+    from darkbrown.api import finance
+    build = inspect.getsource(finance.build_head_lease_payable)
+    issue = inspect.getsource(finance.issue_head_lease_payable)
+    assert '.submit()' not in build
+    assert 'custom_landlord_contract' in build
+    assert 'custom_billing_period' in build
+    assert 'expense_account' in build and 'cost_center' in build
+    assert 'guard(MD, GM)' in issue and 'guard(MD, GM, ACC)' not in issue
+    assert 'pi.submit()' in issue
+
+check("partial first month follows signed agreement dates", t_partial_month_billing)
+check("quarterly rent bills only at the contract cycle", t_frequency_cycle_billing)
+check("final billing cycle stops at the agreement end", t_final_partial_cycle)
+check("only GM or MD can issue an approved run", t_issue_requires_approval_and_manager)
+check("rent invoices carry persisted idempotency keys", t_invoice_carries_idempotency_keys)
+check("Head Lease rent-free days reduce the first accrual", t_head_lease_rent_free_accrual)
+check("Head Lease cost accrues monthly despite quarterly payment", t_head_lease_accrues_monthly)
+check("Head Lease payable stays draft until GM or MD approval", t_head_lease_payable_is_draft_and_approved)
 
 # ---- W. Stage 0 wipe
 

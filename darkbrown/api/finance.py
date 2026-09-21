@@ -11,6 +11,8 @@ payment, reopens what it settled, and leaves a record of why — because the
 question asked later is always "what happened", not "what is it now".
 """
 
+import calendar
+
 import frappe
 from frappe import _
 from frappe.utils import flt, today, getdate, add_days, add_months, date_diff
@@ -21,6 +23,14 @@ from darkbrown.permissions import (
     require_record_access,
     require_tenant_access,
 )
+
+
+_FREQUENCY_MONTHS = {
+    "Monthly": 1,
+    "Quarterly": 3,
+    "Half Yearly": 6,
+    "Annual": 12,
+}
 
 def _settings():
     return frappe.get_single("DBR Settings")
@@ -318,6 +328,80 @@ def replace_cheque(cheque, payload):
 
 # -------------------------------------------------------------- invoice runs
 
+def _months_between(left, right):
+    return (right.year - left.year) * 12 + right.month - left.month
+
+
+def _month_end(value):
+    value = getdate(value)
+    return value.replace(day=calendar.monthrange(value.year, value.month)[1])
+
+
+def _add_months_first(value, months):
+    value = getdate(value).replace(day=1)
+    index = value.year * 12 + value.month - 1 + months
+    return value.replace(year=index // 12, month=index % 12 + 1)
+
+
+def _prorated_monthly(monthly_amount, start, end):
+    """Calendar-day accrual for a monthly amount, inclusive at both ends."""
+    start, end = getdate(start), getdate(end)
+    if end < start:
+        return 0
+    total, cursor = 0.0, start
+    while cursor <= end:
+        last = min(_month_end(cursor), end)
+        days = (last - cursor).days + 1
+        total += flt(monthly_amount) * days / calendar.monthrange(
+            cursor.year, cursor.month)[1]
+        cursor = getdate(add_days(last, 1))
+    return flt(total, 2)
+
+
+def _billing_window(agreement, period_start):
+    """Return the contract window billed by this monthly run, or ``None``.
+
+    The payment frequency controls when a bill falls due, not the monthly
+    economics. Quarterly, half-yearly and annual bills therefore collect the
+    calendar-day accrual for their whole forward cycle in the cycle's first
+    month. Partial first and final months follow the signed contract dates.
+    """
+    period_start = getdate(period_start).replace(day=1)
+    contract_start, contract_end = (getdate(agreement.start_date),
+                                    getdate(agreement.end_date))
+    if contract_end < period_start:
+        return None
+    months = _FREQUENCY_MONTHS.get(agreement.payment_frequency)
+    if not months:
+        frappe.throw(_("Unsupported payment frequency on {0}: {1}").format(
+            agreement.name, agreement.payment_frequency))
+    first_cycle = contract_start.replace(day=1)
+    offset = _months_between(first_cycle, period_start)
+    if offset < 0 or offset % months:
+        return None
+    cycle_end = getdate(add_days(_add_months_first(period_start, months), -1))
+    start = max(period_start, contract_start)
+    end = min(cycle_end, contract_end)
+    return (start, end) if start <= end else None
+
+
+def _charge_amount(charge, agreement, period_start, window):
+    frequency = charge.frequency or "Monthly"
+    if frequency == "One Time":
+        return flt(charge.amount, 2) if getdate(period_start).replace(
+            day=1) == getdate(agreement.start_date).replace(day=1) else 0
+    months = _FREQUENCY_MONTHS.get(frequency)
+    if not months:
+        frappe.throw(_("Unsupported recurring-charge frequency: {0}").format(
+            frequency))
+    offset = _months_between(getdate(agreement.start_date).replace(day=1),
+                             getdate(period_start).replace(day=1))
+    if offset < 0 or offset % months:
+        return 0
+    if frequency == "Monthly":
+        return _prorated_monthly(charge.amount, window[0], window[1])
+    return flt(charge.amount, 2)
+
 @frappe.whitelist()
 def build_invoice_run(building, period_start=None):
     """Draft a month of rent for one building.
@@ -341,7 +425,8 @@ def build_invoice_run(building, period_start=None):
         "Tenancy Agreement",
         filters={"building": building,
                  "status": ["in", ("Active", "Expiring")]},
-        fields=["name", "tenant", "unit", "monthly_rent"])
+        fields=["name", "tenant", "unit", "monthly_rent", "start_date",
+                "end_date", "payment_frequency"])
     if not agreements:
         frappe.throw(_("{0} has no live tenancies to invoice.").format(building))
 
@@ -358,23 +443,39 @@ def build_invoice_run(building, period_start=None):
 
     total, variance_seen = 0, False
     for a in agreements:
-        charges = sum(flt(c.amount) for c in frappe.get_all(
-            "Tenancy Charge", filters={"parent": a.name},
-            fields=["amount"]))
-        amount = flt(a.monthly_rent) + charges
-        variance = amount - flt(a.monthly_rent)
+        window = _billing_window(a, start)
+        if not window:
+            continue
+        agreed = _prorated_monthly(a.monthly_rent, *window)
+        snapshots = []
+        for charge in frappe.get_all(
+                "Tenancy Charge", filters={"parent": a.name},
+                fields=["charge_type", "amount", "frequency",
+                        "income_account", "remarks"]):
+            charge_amount = _charge_amount(charge, a, start, window)
+            if charge_amount:
+                snapshots.append({"type": charge.charge_type,
+                                  "amount": charge_amount,
+                                  "income_account": charge.income_account,
+                                  "remarks": charge.remarks})
+        amount = flt(agreed + sum(x["amount"] for x in snapshots), 2)
+        variance = flt(amount - agreed, 2)
         if variance:
             variance_seen = True
         run.append("lines", {
             "tenancy_agreement": a.name,
             "tenant": a.tenant,
             "unit": a.unit,
-            "agreement_amount": flt(a.monthly_rent),
+            "agreement_amount": agreed,
             "invoice_amount": amount,
             "variance": variance,
             "reason": "Recurring charges on the agreement" if variance else None,
+            "charge_snapshot": frappe.as_json(snapshots),
         })
         total += amount
+
+    if not run.lines:
+        frappe.throw(_("{0} has no rent due in that period.").format(building))
 
     run.total_amount = total
     run.has_variance = 1 if variance_seen else 0
@@ -439,10 +540,10 @@ def submit_invoice_run(run):
 def issue_invoice_run(run):
     """Approve the run and raise the invoices. This is the point of no return,
     so it is one transaction: every line becomes an invoice or none does."""
-    guard(MD, GM, ACC)
+    guard(MD, GM)
     doc = frappe.get_doc("Invoice Run", run)
     require_record_access(doc, "write")
-    if doc.status not in ("Draft", "Pending GM"):
+    if doc.status != "Pending GM":
         frappe.throw(_("{0} is {1} and cannot be issued.").format(
             run, doc.status))
 
@@ -463,7 +564,34 @@ def issue_invoice_run(run):
 
 def _rent_invoice(run, line):
     """One month of rent as a Sales Invoice. ERPNext posts it."""
+    period = str(run.period_start)
+    existing = frappe.db.get_value(
+        "Sales Invoice",
+        {"custom_rental_agreement": line.tenancy_agreement,
+         "custom_billing_period": period,
+         "docstatus": ["<", 2]}, "name")
+    if existing:
+        return existing
     item = _rent_item()
+    items = [{
+        "item_code": item,
+        "item_name": f"Rent — {line.unit}",
+        "description": (f"Rent for {line.unit}, "
+                        f"{run.period_start} to {run.period_end}"),
+        "qty": 1,
+        "rate": flt(line.agreement_amount),
+        "cost_center": _cost_center(run.building),
+    }]
+    for charge in frappe.parse_json(line.charge_snapshot or "[]"):
+        items.append({
+            "item_code": item,
+            "item_name": charge.get("type") or "Tenancy charge",
+            "description": charge.get("remarks") or charge.get("type"),
+            "qty": 1,
+            "rate": flt(charge.get("amount")),
+            "income_account": charge.get("income_account"),
+            "cost_center": _cost_center(run.building),
+        })
     si = frappe.get_doc({
         "doctype": "Sales Invoice",
         "customer": line.tenant,
@@ -475,16 +603,11 @@ def _rent_invoice(run, line):
         "posting_date": run.period_start,
         "due_date": add_days(run.period_start,
                              int(_settings().grace_days or 0)),
+        "currency": "QAR",
         "cost_center": _cost_center(run.building),
-        "items": [{
-            "item_code": item,
-            "item_name": f"Rent — {line.unit}",
-            "description": (f"Rent for {line.unit}, "
-                            f"{run.period_start} to {run.period_end}"),
-            "qty": 1,
-            "rate": flt(line.invoice_amount),
-            "cost_center": _cost_center(run.building),
-        }],
+        "custom_rental_agreement": line.tenancy_agreement,
+        "custom_billing_period": period,
+        "items": items,
     })
     si.flags.ignore_mandatory = True
     # on flags, not just on insert: submit() saves again and checks
@@ -513,6 +636,145 @@ def _rent_item():
 
 def _cost_center(building):
     return frappe.db.get_value("Building", building, "cost_center") or None
+
+
+# ------------------------------------------------------ head-lease accruals
+
+def _head_lease_accrual_window(lease, period_start):
+    """Monthly economic accrual, independent of the landlord payment cycle."""
+    period_start = getdate(period_start).replace(day=1)
+    period_end = _month_end(period_start)
+    lease_start, lease_end = getdate(lease.start_date), getdate(lease.end_date)
+    billable_start = getdate(add_days(lease_start,
+                                      int(lease.rent_free_days or 0)))
+    start = max(period_start, billable_start)
+    end = min(period_end, lease_end)
+    return (start, end) if start <= end else None
+
+
+def _head_lease_expense_account(company):
+    for label in ("Head Lease Rent",):
+        account = frappe.db.get_value(
+            "Account", {"company": company, "account_name": label,
+                        "is_group": 0}, "name")
+        if account:
+            return account
+    frappe.throw(_(
+        "Configure the Head Lease Rent expense account before generating "
+        "landlord accruals."))
+
+
+def _landlord_rent_item():
+    name = "Landlord Rent"
+    if frappe.db.exists("Item", name):
+        return name
+    group = (frappe.db.get_value("Item Group", {"item_group_name": "Services"},
+                                 "name")
+             or frappe.db.get_value("Item Group", {"is_group": 0}, "name"))
+    doc = frappe.get_doc({
+        "doctype": "Item", "item_code": name, "item_name": name,
+        "item_group": group, "stock_uom": "Nos",
+        "is_stock_item": 0, "is_sales_item": 0, "is_purchase_item": 1,
+    })
+    doc.flags.ignore_mandatory = True
+    return doc.insert(ignore_permissions=True).name
+
+
+@frappe.whitelist()
+def build_head_lease_payable(building, period_start=None):
+    """Create one draft monthly landlord accrual for a Building.
+
+    Payment frequency belongs to the payment schedule. Expense recognition is
+    monthly under the launch accrual policy, including calendar-day proration
+    and rent-free days. This endpoint never submits or posts the invoice.
+    """
+    guard(MD, GM, ACC)
+    require_building_access(building)
+    start = getdate(period_start or today()).replace(day=1)
+    period = str(start)
+    leases = frappe.get_all(
+        "Head Lease",
+        filters={"building": building,
+                 "status": ["in", ("Active", "Expiring")]},
+        fields=["name", "landlord", "company", "start_date", "end_date",
+                "monthly_rent", "annual_rent", "rent_free_days",
+                "cost_center"])
+    eligible = [(lease, _head_lease_accrual_window(lease, start))
+                for lease in leases]
+    eligible = [(lease, window) for lease, window in eligible if window]
+    if not eligible:
+        frappe.throw(_("{0} has no Head Lease cost due in that period.").format(
+            building))
+    if len(eligible) != 1:
+        frappe.throw(_(
+            "{0} has multiple live Head Leases in that period; resolve the "
+            "overlap before generating payables.").format(building))
+
+    lease, window = eligible[0]
+    existing = frappe.db.get_value(
+        "Purchase Invoice",
+        {"custom_landlord_contract": lease.name,
+         "custom_billing_period": period,
+         "docstatus": ["<", 2]}, "name")
+    if existing:
+        return {"invoice": existing, "created": False, "status": "Draft"}
+
+    company = lease.company or _company()
+    monthly = flt(lease.monthly_rent or flt(lease.annual_rent) / 12, 2)
+    amount = _prorated_monthly(monthly, *window)
+    if amount <= 0:
+        frappe.throw(_("The Head Lease accrual amount must be positive."))
+    cost_center = lease.cost_center or _cost_center(building)
+    pi = frappe.get_doc({
+        "doctype": "Purchase Invoice",
+        "supplier": lease.landlord,
+        "company": company,
+        "set_posting_time": 1,
+        "posting_date": start,
+        "due_date": _month_end(start),
+        "bill_no": "DBR-{0}-{1}".format(lease.name, start.strftime("%Y-%m")),
+        "bill_date": start,
+        "currency": "QAR",
+        "custom_landlord_contract": lease.name,
+        "custom_billing_period": period,
+        "remarks": ("Monthly Head Lease accrual for {0}: {1} to {2}. "
+                    "Payment remains controlled by the lease schedule.").format(
+                        building, window[0], window[1]),
+        "items": [{
+            "item_code": _landlord_rent_item(),
+            "item_name": "Landlord Rent",
+            "description": "Head Lease rent for {0}, {1} to {2}".format(
+                building, window[0], window[1]),
+            "qty": 1,
+            "rate": amount,
+            "expense_account": _head_lease_expense_account(company),
+            "cost_center": cost_center,
+        }],
+    })
+    pi.flags.ignore_mandatory = True
+    pi.insert(ignore_permissions=True)
+    return {"invoice": pi.name, "created": True, "status": "Draft",
+            "amount": _kk(amount), "head_lease": lease.name}
+
+
+@frappe.whitelist()
+def issue_head_lease_payable(invoice):
+    """GM/MD approval boundary for a generated landlord accrual."""
+    guard(MD, GM)
+    pi = frappe.get_doc("Purchase Invoice", invoice)
+    lease_name = pi.get("custom_landlord_contract")
+    if not lease_name:
+        frappe.throw(_("{0} is not a generated Head Lease payable.").format(
+            invoice))
+    lease = frappe.get_doc("Head Lease", lease_name)
+    require_record_access(lease, "read")
+    if pi.docstatus == 1:
+        return {"invoice": pi.name, "status": "Submitted"}
+    if pi.docstatus != 0:
+        frappe.throw(_("{0} is cancelled and cannot be issued.").format(invoice))
+    pi.flags.ignore_permissions = True
+    pi.submit()
+    return {"invoice": pi.name, "status": "Submitted"}
 
 
 # ------------------------------------------------------------------- receipts

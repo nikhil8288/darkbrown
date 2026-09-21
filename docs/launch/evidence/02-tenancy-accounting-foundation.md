@@ -1,11 +1,11 @@
 # Step 2 — tenancy and accounting foundation evidence
 
-Status: **DEPLOYED; PARTIALLY RUNTIME VERIFIED**. The Step 2 source is on
-`main`, the final code image is active, and an explicit in-place migration
-succeeded. The source/stub suite and the runtime checks listed as PASS below
-are complete. Step 2 is not marked complete because the fresh five-role run,
-active-overlap, lifecycle-service and post-activation GL checks remain
-unverified against the new synthetic records.
+Status: **DEPLOYED; RUNTIME VERIFIED EXCEPT OWNER/ROLE GATES**. The Step 2
+source is on `main`, lifecycle safety commit `15d9a0d` is active, and the
+custom DarkBrown agreement UI is connected to the server lifecycle services.
+The source/stub suite and the runtime checks listed as PASS below are complete.
+Step 2 is not marked complete because the fresh five-role run still requires
+the separate role sessions and the default Bank Account requires owner input.
 
 ## Baseline before runtime mutation
 
@@ -90,13 +90,13 @@ Nothing in Step 2 implements these postings.
 
 | Check | Result |
 | --- | --- |
-| `verify/tenancy_foundation.py` | 13 passed |
+| `verify/tenancy_foundation.py` | 18 passed |
 | `verify/security_boundaries.py` | 8 passed |
 | `verify/harness.py` | 48 passed, 0 failed |
 | `verify/files_api.py` | 19 passed, 0 failed |
 | `verify/notes_api.py` | 11 passed, 0 failed |
 
-Total: **99 passed**. The harness intentionally exercises failing wipe gates
+Total: **104 passed**. The harness intentionally exercises failing wipe gates
 before its final PASS summary; those diagnostic lines are not failures.
 
 ## Actual Frappe runtime proof
@@ -112,11 +112,17 @@ The pre-live site was used only with clearly labelled synthetic records.
 | Private synthetic attachment upload | PASS | Normal Desk private-file control uploaded and linked the labelled synthetic placeholder; no API or database bypass |
 | Successful tenancy activation and occupancy transition | PASS | Authorized normal Desk workflow activated the synthetic agreement; its linked Unit became Occupied |
 | Successful Head Lease activation | PASS | Authorized normal Desk workflow activated the synthetic Head Lease after linking the private placeholder |
+| Overlapping active Head Lease | PASS | A second overlapping synthetic obligation was rejected with the existing Head Lease reference and was not saved |
 | Overlapping tenancy on one Unit | PASS | Duplicated overlapping Pending Approval agreement rejected before insert |
 | Negative monetary value | PASS | Negative monthly rent rejected before mutation |
 | Draft Head Lease | PASS | Created normally with landlord/Building/Company and derived Cost Center; remained Draft |
 | Non-active occupancy | PASS | Unit remained Vacant after draft/pending workflows |
 | Draft/pending tenancy and draft Head Lease create no GL | PASS | Sanitized read-only query returned PASS for zero GL rows tied to the synthetic parties/Cost Centers |
+| Activated and lifecycle agreement records create no GL | PASS | Read-only query returned zero GL rows for `TA-2026-0848`, renewal `TA-2026-0849` and `HL-2026-0025` |
+| Successful renewal | PASS | Created linked replacement `TA-2026-0849`, QAR 1,598/month, starting 01 October 2027 and waiting on GM approval; original retained |
+| Successful amendment request | PASS | Created `AMD-2026-0001` waiting on GM approval without changing the original agreement |
+| Successful termination | PASS | Terminated `TA-2026-0848`, retained its audit history and returned the Unit to Vacant |
+| Custom agreement lifecycle UI | PASS | Live custom UI exposed lifecycle actions for eligible agreements and hid Renew, Amend and Start move-out on pending renewal `TA-2026-0849` |
 | Cost Center and Unit linkage | PASS | Sanitized read-only query returned PASS for two distinct Building Cost Centers and two Unit/Building links |
 | QAR, fiscal year, hierarchy and control accounts | PASS | Sanitized read-only accounting audit |
 | Rent income, head-lease expense, deposit liability, tenant recharge, maintenance and Cash/Cheque holding | PASS | Sanitized read-only accounting audit |
@@ -126,9 +132,6 @@ The pre-live site was used only with clearly labelled synthetic records.
 
 ## Claims not proved at runtime
 
-- Overlapping active Head Leases: **SOURCE/STUB ONLY**. The signed-document
-  transport and a successful activation are now proved, but no second
-  overlapping synthetic Head Lease was created during this controlled pass.
 - Invalid date, unsupported currency and mismatched Building mutation:
   **SOURCE/STUB ONLY**. The normal UI derives/locks Building and Company; the
   server validators are covered by the source/stub suite.
@@ -136,15 +139,6 @@ The pre-live site was used only with clearly labelled synthetic records.
   existing `SEC-T01` credentials were not available and were not reset. Step 1
   runtime evidence still covers five-role field and Building scope on the same
   deployed permission architecture.
-- Successful amendment, renewal and termination of an activated agreement:
-  **SOURCE/STUB ONLY**. Activation is now proved; the three lifecycle services
-  still need their own controlled runtime pass.
-- Activated tenancy and Head Lease create no GL: **SOURCE/STUB ONLY for the
-  activated state**. The original sanitized read-only runtime query proves
-  draft/pending tenancy and draft Head Lease created zero GL rows; controller
-  and unit tests prove the activated transitions do not create accounting
-  documents, but the sanitized runtime GL query was not rerun after the two
-  successful activations.
 - Individual worker and scheduler processes: **UNVERIFIED**; the cloud process
   list exposed no rows.
 
@@ -156,8 +150,9 @@ The pre-live site was used only with clearly labelled synthetic records.
   The implementation was narrowed to reuse ERPNext's account type and preserve
   the valid mapping rather than create a duplicate or overwrite it.
 - Final deployed DarkBrown code SHA:
-  `4be2284b503c105081bb5cc3736a7df6fa73f010`.
-- Frappe and ERPNext stayed at the baseline versions; no upgrade was performed.
+  `15d9a0de47e104da0529ce757fb1ca386e4a001c`.
+- The live Apps view showed Frappe `4fa1b14` and ERPNext `26f0687` at the final
+  lifecycle verification.
 - Final in-place migration: Success, 16 September 2026 12:04, duration 8s,
   with skip-failing-patches disabled.
 - Site and bench returned Active after migration.
@@ -166,20 +161,18 @@ The pre-live site was used only with clearly labelled synthetic records.
 
 1. Provide or configure the real default ERPNext Bank Account through an
    owner-approved operational process; do not invent bank details.
-2. Run the active Head Lease overlap, amendment, renewal, termination and
-   post-activation GL checks with synthetic records.
-3. Re-run the new-record matrix under Maintenance, Documentation, Accounts,
+2. Re-run the new-record matrix under Maintenance, Documentation, Accounts,
    Building-A-scoped General Manager and Managing Director sessions without
    changing the existing `SEC-T01` credentials.
-4. Confirm worker and scheduler state through an available runtime surface.
-5. Repository history still contains prior operational CSV exposure. The
+3. Confirm worker and scheduler state through an available runtime surface.
+4. Repository history still contains prior operational CSV exposure. The
    owner decision in `docs/launch/history-containment.md` remains unexecuted.
-6. Existing `SEC-T01` and new `S2-*` synthetic records remain intentionally in
+5. Existing `SEC-T01` and new `S2-*` synthetic records remain intentionally in
    place pending separate cleanup authorization.
 
 ## Resulting SHAs
 
-- GitHub Step 2 code SHA: `4be2284b503c105081bb5cc3736a7df6fa73f010`.
-- Deployed DarkBrown code SHA: `4be2284b503c105081bb5cc3736a7df6fa73f010`.
-- A later evidence-only commit may make GitHub `main` newer than the deployed
-  code image; it does not change executable code.
+- GitHub Step 2 lifecycle-safety SHA:
+  `15d9a0de47e104da0529ce757fb1ca386e4a001c`.
+- Deployed DarkBrown code SHA:
+  `15d9a0de47e104da0529ce757fb1ca386e4a001c`.

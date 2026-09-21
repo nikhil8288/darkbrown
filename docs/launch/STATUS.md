@@ -4,7 +4,7 @@
 | --- | --- | --- | --- |
 | T00 baseline | PARTIAL | Exact Frappe 15.120.1, ERPNext 15.121.2, backup status, successful deploy/migrate and active pre-live site confirmed | Confirm individual worker/scheduler state and restore proof |
 | Step 1 / T01 security | PARTIALLY VERIFIED | `evidence/01-security.md` — source tests and available five-role pre-live runtime checks pass | Owner containment decision plus bench/API write, refresh, byte-read and OCR instrumentation |
-| Step 2 / tenancy + accounting foundation | DEPLOYED; PARTIALLY RUNTIME VERIFIED | `evidence/02-tenancy-accounting-foundation.md` — code `4be2284` deployed/migrated; 99 source/stub checks plus synthetic successful tenancy/Head Lease activation and occupancy transition pass | Configure owner-approved Bank Account; prove active Head Lease overlap, post-activation zero GL, lifecycle services and five-role new-record matrix |
+| Step 2 / tenancy + accounting foundation | DEPLOYED; RUNTIME VERIFIED EXCEPT OWNER/ROLE GATES | `evidence/02-tenancy-accounting-foundation.md` — lifecycle safety code `15d9a0d` deployed; 104 source/stub checks plus synthetic tenancy, Head Lease and custom-UI lifecycle checks pass | Configure owner-approved Bank Account and run the fresh five-role new-record matrix |
 
 ## Step 1 finding disposition
 
