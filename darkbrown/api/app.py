@@ -1039,13 +1039,23 @@ CHQ_STATE = {"Received": "On hand", "Deposited": "Deposited",
 def cheques():
     rows = frappe.get_all(
         "Cheque",
-        filters={"direction": "Incoming", "status": ["!=", "Cancelled"]},
+        filters={"status": ["!=", "Cancelled"]},
         fields=["name", "party", "amount", "bank", "cheque_no", "cheque_date",
-                "status", "return_reason", "replaced_by", "building", "unit"],
+                "direction", "status", "return_reason", "replaced_by",
+                "building", "unit"],
         order_by="cheque_date asc", limit=400)
     if not rows:
         return []
-    tnames = _customer_names([r.party for r in rows])
+    incoming = [r.party for r in rows if r.direction != "Outgoing"]
+    outgoing = [r.party for r in rows if r.direction == "Outgoing"]
+    party_names = _customer_names(incoming)
+    if outgoing:
+        party_names.update({
+            r.name: r.supplier_name or r.name
+            for r in frappe.get_all(
+                "Supplier", filters={"name": ["in", outgoing]},
+                fields=["name", "supplier_name"])
+        })
     out = []
     for c in rows:
         mat_d = date_diff(c.cheque_date, today()) if c.cheque_date else 0
@@ -1059,7 +1069,8 @@ def cheques():
             "b": c.building or (frappe.db.get_value("Unit", c.unit, "building")
                                   if c.unit else None),
             "t": c.party,
-            "tn": tnames.get(c.party, c.party or "—"),
+            "tn": party_names.get(c.party, c.party or "—"),
+            "dir": "out" if c.direction == "Outgoing" else "in",
             "amt": _k(c.amount),
             "bank": c.bank or "—",
             "no": c.cheque_no or "—",
