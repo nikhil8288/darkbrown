@@ -21,6 +21,7 @@ darkbrown.patches.migrate_building_documents
 darkbrown.patches.fix_workspace_cards
 darkbrown.patches.rename_document_types
 darkbrown.patches.repair_invoice_reference_links
+darkbrown.patches.normalize_invoice_reference_labels
 
 # ---------------------------------------------------------------------------
 # This file registers SCHEMA PATCHES ONLY.

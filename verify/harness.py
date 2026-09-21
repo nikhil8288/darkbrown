@@ -1011,6 +1011,49 @@ def t_patches_safe():
     print("        (%d schema patches registered, no data files alongside)" % len(named))
 check("patches.txt registers no ledger-writing patch", t_patches_safe)
 
+# ---- Q. finance deployment repairs
+def t_billrun_count_is_posted_count():
+    import inspect
+    from darkbrown.api import app
+    src = inspect.getsource(app.billruns)
+    assert '"count": issued,' in src
+    assert 'issued or drawn' not in src
+check("invoice-run count reports issued invoices only", t_billrun_count_is_posted_count)
+
+def t_cancelled_invoice_reopens_run():
+    reset()
+    S.DB['Invoice Run'] = [{
+        'name': 'INV-RUN-1', 'status': 'Issued',
+        'approved_by': 'gm@example.com', 'issued_on': '2026-09-21',
+    }]
+    S.DB['Invoice Run Line'] = [{
+        'name': 'INV-RUN-LINE-1', 'parent': 'INV-RUN-1',
+        'parenttype': 'Invoice Run', 'sales_invoice': 'SINV-1',
+    }]
+    from darkbrown.utils.invoice_run import on_sales_invoice_cancel
+    on_sales_invoice_cancel(S.Doc('Sales Invoice', {'name': 'SINV-1'}))
+    line = S.DB['Invoice Run Line'][0]
+    run = S.DB['Invoice Run'][0]
+    assert line['sales_invoice'] is None
+    assert run['status'] == 'Pending GM'
+    assert run['approved_by'] is None and run['issued_on'] is None
+check("cancelling a Sales Invoice reopens its run for GM", t_cancelled_invoice_reopens_run)
+
+def t_finance_ui_and_label_patch_are_wired():
+    shell = open(REPO + '/darkbrown/shell/index.html').read()
+    hooks = open(REPO + '/darkbrown/hooks.py').read()
+    patches = open(REPO + '/darkbrown/patches.txt').read()
+    label_patch = open(
+        REPO + '/darkbrown/patches/normalize_invoice_reference_labels.py').read()
+    assert 'Draft landlord accrual' in shell
+    assert "finance.build_head_lease_payable" in shell
+    assert 'period_start:period.trim()' in shell
+    assert 'utils.invoice_run.on_sales_invoice_cancel' in hooks
+    assert 'darkbrown.patches.normalize_invoice_reference_labels' in patches
+    assert '"Tenancy Agreement", "Tenancy Agreement"' in label_patch
+check("finance UI, cancellation hook and label patch are wired",
+      t_finance_ui_and_label_patch_are_wired)
+
 # =====================================================================
 print()
 for n in PASS: print("  PASS  %s" % n)

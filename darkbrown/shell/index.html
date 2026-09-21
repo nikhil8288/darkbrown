@@ -4133,6 +4133,22 @@ ROUTES.buildings=()=>{
 /* ---------- Landlords, now with everything the wizard captured ---------- */
 window.openB=id=>go('#/building/'+id);
 
+window.createHeadLeasePayable=async building=>{
+ if(!window.DB_LIVE){toast('Landlord accruals are available on the live site');return}
+ const suggested=periodStart();
+ const period=prompt('Accrual month (YYYY-MM-01)',suggested);
+ if(period===null)return;
+ if(!/^\d{4}-\d{2}-01$/.test(period.trim())){
+   toast('Use the first day of the month, for example 2026-10-01');return
+ }
+ try{
+   const r=await dbCall('finance.build_head_lease_payable',
+     {building,period_start:period.trim()});
+   toast(r.created?'Draft landlord accrual created':'That accrual already exists');
+   window.location.href='/app/purchase-invoice/'+encodeURIComponent(r.invoice);
+ }catch(e){toast(e.message)}
+};
+
 /* The tenancy a unit is actually living under. A unit can carry more than one
    non-terminated agreement — a renewal signed before the old one expires is
    the ordinary case — so a live one wins over an expired one rather than
@@ -4148,6 +4164,7 @@ ROUTES.building=id=>{const b=id?B(id):BUILDINGS[0]; if(!b) return notFound('Buil
   /* Handover is offered while the building is still onboarding. Once it is
      Active the button goes, because recording it twice is not a thing. */
   (b.st==='Onboarding'?fbtn('Record handover','record-handover',{b:b.id,bn:b.n}):'')
+   +`<button class="btn" onclick='createHeadLeasePayable(${JSON.stringify(b.id)})'>Draft landlord accrual</button>`
    +fbtn('New unit','add-unit',{b:b.id,bn:b.n})+fbtn('Log maintenance','raise-job',{bn:b.n}),
   (b.st==='Onboarding'?`<div class="note" style="border-left-color:var(--amber)">
     <b>This building is still onboarding.</b> It has no handover date, so vacant days

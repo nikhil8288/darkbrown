@@ -38,6 +38,9 @@ doc_events = {
         "on_submit": "darkbrown.utils.reconciliation.on_payment_submit",
         "on_cancel": "darkbrown.utils.reconciliation.on_payment_cancel",
     },
+    "Sales Invoice": {
+        "on_cancel": "darkbrown.utils.invoice_run.on_sales_invoice_cancel",
+    },
     # T1 and T5. utils.handoffs was written, then never referenced by anything:
     # not here, not in scheduler_events. A returned cheque raised no recovery
     # task and a new maintenance request assigned itself to nobody.

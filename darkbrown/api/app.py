@@ -750,7 +750,10 @@ def billruns():
             "by": users.get(r.get("generated_by"), r.get("generated_by") or "—"),
             "st": r.get("status"),
             "total": _k(r.get("total_amount")),
-            "count": issued or drawn,
+            # The screen labels this value "Invoices issued".  A reviewed run
+            # can contain lines without having posted a single invoice yet, so
+            # falling back to the line count overstates the books.
+            "count": issued,
             "issued": issued,
             "lines_drawn": drawn,
             "variance": 1 if r.get("has_variance") else 0,
