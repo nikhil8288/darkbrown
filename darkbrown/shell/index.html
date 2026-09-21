@@ -4484,7 +4484,11 @@ window.openA=id=>go('#/agreement/'+id);
 ROUTES.agreement=id=>{const a=id?A(id):AGR[0]; if(!a) return notFound('Agreement','#/agreements'); const t=T(a.t);
  return crumb([['Agreements','#/agreements'],[a.id,'']])+page(a.id,
   `${a.tn} · ${a.u} · ${a.bn}`,
-  fbtn('Renew','renew-agreement',{id:a.id,rent:a.rent})+fbtn('Start move-out','start-moveout',{agr:a.id,tn:a.tn,u:a.u})+fbtn('Send to tenant','send-doc'),
+  fbtn('Renew','renew-agreement',{id:a.id,rent:a.rent})
+   +fbtn('Amend terms','amend-agreement',{id:a.id,rent:a.rent,dep:a.dep})
+   +fbtn('Terminate','terminate-agreement',{id:a.id,tn:a.tn,u:a.u})
+   +fbtn('Start move-out','start-moveout',{agr:a.id,tn:a.tn,u:a.u})
+   +fbtn('Send to tenant','send-doc'),
   stat([['Status',chip(a.st,stChip(a.st))],['Rent',n0(a.rent)+' / mo'],['Payment',a.freq],
    ['Deposit held',n0(a.dep)],['Start',a.start],['End',a.end],['Renewal',chip(a.ren,stChip(a.ren))]])+
   agrChain(a)+
@@ -9321,7 +9325,7 @@ const WIRE={
 
 'approve-decision':{
  m:'approvals.decide',
- a:d=>{const a=AP(d.__ctx&&d.__ctx.ref)||{};
+ a:d=>{const a=AP(d.ref)||{};
    return {kind:a.ty,reference:a.id,
      decision:/approve/i.test(d.dec)?'approve':'reject',note:d.why}},
  guard:d=>/more information/i.test(d.dec||'')
@@ -9533,8 +9537,61 @@ const WIRE={
      ((d.__ctx&&d.__ctx.label)||r.unit||r.building),
    detail:'Filed as '+r.summary+' \u00b7 nothing was extracted, so nothing is waiting '
      +'on a review',
-   goto:(d.__ctx&&d.__ctx.scope)==='unit'?'#/unit/'+r.unit:'#/building/'+r.building})}
+    goto:(d.__ctx&&d.__ctx.scope)==='unit'?'#/unit/'+r.unit:'#/building/'+r.building})}
 };
+
+/* Agreement lifecycle actions use the same guarded services as Desk.  The
+   V2 screen gathers only the business decision; it never writes a doctype
+   directly or tries to imitate a state transition in the browser. */
+Object.assign(FORMS, {
+ 'amend-agreement': {
+  t:'Request agreement amendment',
+  s:'The current agreement stays in force until an authorized decision is recorded',
+  cta:'Send for approval',
+  init:c=>({field:'monthly_rent',new_value:c&&c.rent!==undefined?String(c.rent):'',
+    effective_from:new Date().toISOString().slice(0,10),reason:''}),
+  steps:[{n:'Change',body:d=>`<div class="fg">
+    ${fld({k:'field',l:'Term to change',t:'sel',o:['monthly_rent','security_deposit','end_date','notice_days','payment_mode','payment_frequency','auto_renew'],req:1,live:1},d.field)}
+    ${fld({k:'new_value',l:'New value',t:'txt',req:1,full:1,
+      p:'Use QAR for money, YYYY-MM-DD for a date, or the exact option for a payment term'},d.new_value)}
+    ${fld({k:'effective_from',l:'Effective from',t:'date',req:1},d.effective_from)}
+    ${fld({k:'value_impact',l:'Monthly value impact (QAR)',t:'num',step:'1',
+      hint:'Use zero when the change is not a rent change'},d.value_impact)}
+    ${fld({k:'reason',l:'Reason for change',t:'ta',req:1,full:1,
+      p:'This becomes part of the approval record'},d.reason)}</div>
+    <div class="note">The live agreement is not overwritten by this request. Approval applies the recorded change; rejection leaves it untouched.</div>`,
+    fields:[{k:'field',req:1},{k:'new_value',req:1},{k:'effective_from',req:1},{k:'reason',req:1}]}]
+ },
+ 'terminate-agreement': {
+  t:'Terminate agreement',
+  s:'Preserves the agreement history and releases occupancy only through the server workflow',
+  cta:'Terminate agreement',
+  init:()=>({reason:''}),
+  steps:[{n:'Reason',body:d=>`<div class="fg">${fld({k:'reason',l:'Termination reason',t:'ta',req:1,full:1,
+    p:'For example: mutual surrender, documented breach, or signed replacement'},d.reason)}</div>
+    <div class="note">This is an operational lifecycle action, not a deletion. The agreement remains in the audit trail and Step 2 creates no invoice, receipt, deposit record or GL entry.</div>`,
+    fields:[{k:'reason',req:1}]}]
+ }
+});
+
+Object.assign(WIRE, {
+ 'amend-agreement': {
+  m:'agreements.request_amendment',
+  guard:d=>(d.__ctx&&d.__ctx.id)?null:'Open the agreement first — an amendment belongs to one agreement.',
+  a:d=>({payload:{agreement:d.__ctx.id,agreement_type:'Tenancy Agreement',field:d.field,
+    new_value:d.new_value,effective_from:d.effective_from,
+    value_impact:wNum(d.value_impact),reason:d.reason}}),
+  ok:(r,d)=>({title:'Amendment requested',msg:r.amendment+' · '+r.status,
+    detail:'Routed to '+r.routed_to+'; '+(d.__ctx&&d.__ctx.id)+' is unchanged until approval',goto:'#/approvals'})
+ },
+ 'terminate-agreement': {
+  m:'agreements.terminate',
+  guard:d=>(d.__ctx&&d.__ctx.id)?null:'Open the agreement first — termination belongs to one agreement.',
+  a:d=>({agreement:d.__ctx.id,reason:d.reason}),
+  ok:(r,d)=>({title:'Agreement terminated',msg:r.agreement+' · '+r.status,
+    detail:'History is retained; the refreshed portfolio now reflects the authoritative server state',goto:'#/agreements'})
+ }
+});
 
 /* Forms with no server behind them. Each says what is missing, and refuses to
    open rather than printing a confirmation for a save that never happened. */
