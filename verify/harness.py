@@ -1202,6 +1202,12 @@ def t_deposit_batch_rejects_untrusted_cheque_lines():
 check("deposit batches reject outgoing and amount-tampered cheques",
       t_deposit_batch_rejects_untrusted_cheque_lines)
 
+def t_deposit_batch_picker_only_shows_incoming_cheques():
+    shell = open(REPO + '/darkbrown/shell/index.html').read()
+    assert "CHQ.filter(c=>c.dir==='in'&&c.st==='On hand')" in shell
+check("deposit batch picker excludes outgoing cheques",
+      t_deposit_batch_picker_only_shows_incoming_cheques)
+
 def t_deposit_batch_enforces_same_user_override():
     from darkbrown.api import finance
     reset()

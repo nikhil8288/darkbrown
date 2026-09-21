@@ -6061,7 +6061,10 @@ FORMS['create-batch']={t:'Create deposit batch',s:'Cheques and cash · two-perso
  init:()=>({sel:{},bank:'QNB — 0021 4478'}),
  steps:[
   {n:'Find payments',body:d=>{
-    const chq=CHQ.filter(c=>c.st==='On hand').slice(0,10);
+    /* A deposit slip is money coming into our bank. Outgoing landlord
+       cheques can also display as "On hand" while still in our custody, but
+       they must never appear in this picker. */
+    const chq=CHQ.filter(c=>c.dir==='in'&&c.st==='On hand').slice(0,10);
     const sel=d.sel||{};
     const tot=chq.filter(c=>sel['c_'+c.id]).reduce((a,c)=>a+c.amt,0)
       +CASH.filter(c=>sel['h_'+c.id]).reduce((a,c)=>a+c.amt,0);
