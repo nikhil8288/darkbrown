@@ -900,6 +900,11 @@ def agreements():
             "dep": _k(a.security_deposit),
             "start": _fdate(a.start_date),
             "end": _fdate(a.end_date),
+            # Keep the display date human-readable, but also give lifecycle
+            # forms an unambiguous machine date.  Parsing "30 Sep 27" in the
+            # browser is locale-dependent and previously encouraged a fixed
+            # renewal date in the shell.
+            "end_iso": str(a.end_date) if a.end_date else "",
             "endD": end_d,
             "st": TA_STATE.get(a.status, a.status),
             "ren": ("Renewed" if a.name in renewed

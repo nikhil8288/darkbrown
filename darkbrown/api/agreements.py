@@ -266,14 +266,16 @@ def request_amendment(payload):
     agreement = data.get("agreement")
     if not agreement:
         frappe.throw(_("An amendment needs an agreement."))
-    require_record_access(frappe.get_doc(
-        data.get("agreement_type") or "Tenancy Agreement", agreement), "read")
+    ty = data.get("agreement_type") or "Tenancy Agreement"
+    target = frappe.get_doc(ty, agreement)
+    require_record_access(target, "read")
+    if target.status not in ("Active", "Expiring"):
+        frappe.throw(_("Only an active or expiring agreement can be amended."))
 
     reason = (data.get("reason") or "").strip()
     if not reason:
         frappe.throw(_("An amendment needs a reason."))
 
-    ty = data.get("agreement_type") or "Tenancy Agreement"
     field = (data.get("field") or "").strip()
     if ty not in AMENDABLE_FIELDS or field not in AMENDABLE_FIELDS[ty]:
         frappe.throw(_("That field cannot be changed through an agreement amendment."))
@@ -365,6 +367,8 @@ def renew(agreement, payload):
     data = frappe.parse_json(payload)
     old = frappe.get_doc("Tenancy Agreement", agreement)
     require_record_access(old, "write")
+    if old.status not in ("Active", "Expiring"):
+        frappe.throw(_("Only an active or expiring agreement can be renewed."))
 
     data.setdefault("unit", old.unit)
     data.setdefault("tenant", old.tenant)

@@ -3624,18 +3624,22 @@ const FORMS={
   return{title:'Agreement raised',msg:id+' created for '+t.n,detail:'Sent for Legal review',goto:'#/agreement/'+id}}},
 
 'renew-agreement':{t:'Renew agreement',s:'Renewal is the main lever on spread',cta:'Send renewal offer',
+ init:c=>{const from=c&&c.end?ISO(new Date(c.end).getTime()+DAY):'';
+  return {newrent:String(Math.round((+(c&&c.rent)||0)*1.065)),months:'12',from,
+   deadline:from?ISO(new Date(from).getTime()-45*DAY):'',msg:''}},
  steps:[
   {n:'Terms',body:d=>{const cur=+(d.__ctx&&d.__ctx.rent)||6.8, ask=+d.newrent||+(cur*1.065).toFixed(1);
    return `<div class="fg">${fld({k:'newrent',l:'New rent (QAR)',t:'num',step:'100',req:1,live:1},d.newrent||String(Math.round(ask)))}
      ${fld({k:'months',l:'New term (months)',t:'sel',o:['12','24','36'],req:1},d.months)}
-     ${fld({k:'from',l:'Effective from',t:'date',d:'2026-09-01',req:1},d.from)}</div>
+     ${fld({k:'from',l:'Effective from',t:'date',req:1},d.from)}</div>
     ${stat([['Current rent',n0(cur)],['Proposed',n0(ask)],
       ['Uplift',(((ask-cur)/cur)*100).toFixed(1)+'%','','g'],['Asking benchmark','6.5%']])}`},
-   fields:[{k:'newrent',req:1}]},
-  {n:'Send',body:()=>`<p class="pp">The offer goes to the tenant with a response deadline. Unanswered offers appear
+   fields:[{k:'newrent',req:1},{k:'months',req:1},{k:'from',req:1}]},
+  {n:'Send',body:d=>`<p class="pp">The offer goes to the tenant with a response deadline. Unanswered offers appear
     in the expiry runway as "negotiating" until resolved.</p>
-   <div class="fg">${fld({k:'deadline',l:'Response deadline',t:'date',d:'2026-08-15',req:1})}
-    ${fld({k:'msg',l:'Message to tenant',t:'ta',p:'Optional covering note'})}</div>`}],
+   <div class="fg">${fld({k:'deadline',l:'Response deadline',t:'date',req:1},d.deadline)}
+    ${fld({k:'msg',l:'Message to tenant',t:'ta',p:'Optional covering note'},d.msg)}</div>`,
+   fields:[{k:'deadline',req:1}] }],
  submit:d=>({title:'Renewal offer sent',msg:'Offer at '+k(d.newrent)+' sent to the tenant',
    detail:'Tracked as negotiating until a response is received'})},
 
@@ -4482,12 +4486,14 @@ const CASERULES=[
 window.openA=id=>go('#/agreement/'+id);
 
 ROUTES.agreement=id=>{const a=id?A(id):AGR[0]; if(!a) return notFound('Agreement','#/agreements'); const t=T(a.t);
+ const live=a.st==='Active'||a.st==='Expiring';
+ const cancellable=['Draft','Pending','Active','Expiring'].includes(a.st);
  return crumb([['Agreements','#/agreements'],[a.id,'']])+page(a.id,
   `${a.tn} · ${a.u} · ${a.bn}`,
-  fbtn('Renew','renew-agreement',{id:a.id,rent:a.rent})
-   +fbtn('Amend terms','amend-agreement',{id:a.id,rent:a.rent,dep:a.dep})
-   +fbtn('Terminate','terminate-agreement',{id:a.id,tn:a.tn,u:a.u})
-   +fbtn('Start move-out','start-moveout',{agr:a.id,tn:a.tn,u:a.u})
+  (live?fbtn('Renew','renew-agreement',{id:a.id,rent:a.rent,end:a.end_iso}):'')
+   +(live?fbtn('Amend terms','amend-agreement',{id:a.id,rent:a.rent,dep:a.dep}):'')
+   +(cancellable?fbtn('Terminate','terminate-agreement',{id:a.id,tn:a.tn,u:a.u}):'')
+   +(live?fbtn('Start move-out','start-moveout',{agr:a.id,tn:a.tn,u:a.u}):'')
    +fbtn('Send to tenant','send-doc'),
   stat([['Status',chip(a.st,stChip(a.st))],['Rent',n0(a.rent)+' / mo'],['Payment',a.freq],
    ['Deposit held',n0(a.dep)],['Start',a.start],['End',a.end],['Renewal',chip(a.ren,stChip(a.ren))]])+

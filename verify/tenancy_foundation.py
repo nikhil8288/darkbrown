@@ -102,6 +102,14 @@ def main():
         start_date="2027-01-01", end_date="2027-12-31", save_as_draft=True))
     assert renewed["status"] == "Draft"
     assert S.frappe.db.get_value("Tenancy Agreement", name, "status") == old_status
+    expect_error(lambda: agreements.renew(renewed["agreement"], payload(
+        start_date="2028-01-01", end_date="2028-12-31")), "active or expiring")
+    expect_error(lambda: agreements.request_amendment(json.dumps({
+        "agreement": renewed["agreement"],
+        "agreement_type": "Tenancy Agreement",
+        "field": "monthly_rent", "new_value": "1600",
+        "reason": "synthetic non-live guard",
+    })), "active or expiring")
 
     source = Path("darkbrown/api/agreements.py").read_text()
     assert "Security Deposit" not in source
@@ -113,7 +121,11 @@ def main():
     assert '"doctype": "Bank Account"' not in setup
     assert '"account_type": "Cash"' in setup
     assert 'mapped.root_type == "Asset"' in setup
-    print("tenancy/accounting foundation checks: 13 passed")
+    shell = Path("darkbrown/shell/index.html").read_text()
+    assert "end:a.end_iso" in shell
+    assert "ISO(new Date(c.end).getTime()+DAY)" in shell
+    assert "const live=a.st==='Active'||a.st==='Expiring'" in shell
+    print("tenancy/accounting foundation checks: 18 passed")
 
 
 if __name__ == "__main__":
