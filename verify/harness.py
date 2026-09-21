@@ -267,6 +267,9 @@ def t_operational_forms_do_not_backdate():
     assert "d:'2026-07-27'" not in src, \
         "an operational form still defaults transactions to the prototype date"
     assert src.count("d:ISO(TODAY)") >= 3
+    cheque_form = src[src.index("FORMS['log-cheque']"):
+                      src.index("FORMS['cheque-action']")]
+    assert "l:'Date on the cheque',t:'date',d:ISO(TODAY)" in cheque_form
 check("operational forms default to the live date", t_operational_forms_do_not_backdate)
 
 # ---- E. return books the charge

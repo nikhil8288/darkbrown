@@ -8687,7 +8687,7 @@ FORMS['log-cheque']={t:'Log a cheque',s:'Money in or money out · the register i
     ${fld({k:'bank',l:'Drawn on',t:'sel',o:['QNB','Doha Bank','CBQ','Masraf Al Rayan','QIB','Ahli Bank'],req:1},d.bank)}
     ${fld({k:'no',l:'Cheque number',t:'txt',p:'482991',req:1},d.no)}
     ${fld({k:'amt',l:'Amount (QAR)',t:'num',step:'100',req:1},d.amt)}
-    ${fld({k:'mat',l:'Date on the cheque',t:'date',d:'2026-08-01',req:1},d.mat)}
+    ${fld({k:'mat',l:'Date on the cheque',t:'date',d:ISO(TODAY),req:1},d.mat)}
     ${inc?fld({k:'agr',l:'Against',t:'sel',o:['Allocate on clearing — oldest invoice first','A specific invoice','Deposit, not rent']},d.agr)
         :fld({k:'purpose',l:'For',t:'sel',o:['Head-lease rent','Deposit to landlord','Maintenance','Utilities','Other'],req:1},d.purpose)}
    </div>
