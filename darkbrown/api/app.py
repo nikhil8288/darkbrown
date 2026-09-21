@@ -1043,7 +1043,7 @@ def cheques():
         fields=["name", "party", "amount", "bank", "cheque_no", "cheque_date",
                 "direction", "status", "return_reason", "replaced_by",
                 "building", "unit", "creation", "owner", "presented_on",
-                "cleared_on", "returned_on"],
+                "cleared_on", "returned_on", "purpose", "notes"],
         order_by="cheque_date asc", limit=400)
     if not rows:
         return []
@@ -1070,7 +1070,7 @@ def cheques():
             owner = (frappe.db.get_value("User", c.owner, "full_name")
                      or c.owner or "ERPNext")
             hist.append({"d": _fdate(c.creation), "act": "Logged",
-                         "by": owner, "note": ""})
+                         "by": owner, "note": c.notes or ""})
         if c.presented_on:
             hist.append({"d": _fdate(c.presented_on), "act": "Presented",
                          "by": "ERPNext", "note": ""})
@@ -1095,6 +1095,7 @@ def cheques():
             "st": CHQ_STATE.get(c.status, c.status),
             "reason": c.return_reason or "",
             "act": act,
+            "purpose": c.purpose or "",
             "hist": hist,
         })
     return out

@@ -270,7 +270,34 @@ def t_operational_forms_do_not_backdate():
     cheque_form = src[src.index("FORMS['log-cheque']"):
                       src.index("FORMS['cheque-action']")]
     assert "l:'Date on the cheque',t:'date',d:ISO(TODAY)" in cheque_form
+    batch_form = src[src.index("'deposit-batch':{t:"):
+                     src.index("'start-close':{t:")]
+    assert "date:ISO(TODAY)" in batch_form
 check("operational forms default to the live date", t_operational_forms_do_not_backdate)
+
+def t_cheque_purpose_and_note_are_persisted():
+    import inspect
+    from darkbrown.api import app, finance
+    create_src = inspect.getsource(finance.log_cheque)
+    feed_src = inspect.getsource(app.cheques)
+    assert '"purpose": data.get("purpose")' in create_src
+    assert '"notes": data.get("notes")' in create_src
+    assert '"purpose", "notes"' in feed_src
+    shell = open(REPO + '/darkbrown/shell/index.html').read()
+    assert "d.agr==='Deposit, not rent'?'Deposit':'Rent'" in shell
+    assert "['Purpose',c.purpose||'Not recorded']" in shell
+    reset()
+    S.SCHEMA['Cheque'].setdefault('name', ('Data', None, None))
+    result = finance.log_cheque({
+        'direction': 'Incoming', 'party': 'CUST-001', 'building': 'Al Sadd',
+        'cheque_no': 'PURPOSE-1', 'cheque_date': '2026-09-21',
+        'amount': 100, 'purpose': 'Deposit', 'notes': 'Synthetic test',
+    })
+    saved = next(c for c in S.DB['Cheque'] if c['name'] == result['cheques'][0])
+    assert saved['purpose'] == 'Deposit'
+    assert saved['notes'] == 'Synthetic test'
+check("cheque purpose and note survive the live API round trip",
+      t_cheque_purpose_and_note_are_persisted)
 
 # ---- E. return books the charge
 def t_return_books_charge():

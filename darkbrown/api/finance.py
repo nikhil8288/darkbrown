@@ -106,6 +106,9 @@ def log_cheque(payload):
             "unit": ta.unit if ta else data.get("unit"),
             "tenancy_agreement": agreement,
             "head_lease": data.get("head_lease"),
+            "purpose": data.get("purpose") or (
+                "Rent" if direction == "Incoming" else "Other"),
+            "notes": data.get("notes"),
         })
         doc.flags.ignore_mandatory = True
         doc.insert(ignore_permissions=True)

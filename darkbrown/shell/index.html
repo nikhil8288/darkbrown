@@ -3518,7 +3518,7 @@ const FORMS={
 
 'deposit-batch':{t:'Mark the batch banked',s:'The slip went in · cheques presented, cash receipted',
  cta:'Confirm it was banked',
- init:ctx=>({id:(ctx&&ctx.id)||'',prepared:(ctx&&ctx.prepared)||'',date:''}),
+ init:ctx=>({id:(ctx&&ctx.id)||'',prepared:(ctx&&ctx.prepared)||'',date:ISO(TODAY)}),
  steps:[{n:'Confirm',body:d=>`<p class="pp">This presents every cheque in the slip and posts each cash line as a receipt
    against the tenant. It is not reversible from here.</p>
   <div class="fg">${fld({k:'id',l:'Batch',t:'ro'},d.id)}
@@ -8807,7 +8807,7 @@ ROUTES.cheque=id=>{const c=id?C(id):CHQ[0]; if(!c) return notFound('Cheque','#/c
     (c.hist||[]).map((h,i)=>({...h,__id:i})),{id:'chh',
      foot:['nothing is overwritten','a mistake is corrected by another entry, not by an edit']})}</div>
    <div class="card"><h3>Accounting</h3><div class="kv">
-    ${[['Party',c.party||c.tn],['Purpose',c.purpose||(inc?'Rent':'—')],
+    ${[['Party',c.party||c.tn],['Purpose',c.purpose||'Not recorded'],
        ['Allocated to',c.st==='Cleared'?(inc?'oldest open invoice':'oldest open supplier bill'):'not yet allocated'],
        ['Allocation rule',inc?'oldest invoice first · rent before recharge':'oldest supplier bill first'],
        ['Journal',c.st==='Cleared'?(inc?'Bank debited, receivable credited':'Payable debited, bank credited'):'—'],
@@ -9350,7 +9350,9 @@ const WIRE={
    return {payload:{direction:out?'Outgoing':'Incoming',
      tenancy_agreement:out?null:wAgrT(wTen(d.party)),
      party:wTen(d.party),cheque_no:d.no,cheque_date:d.mat,
-     amount:wNum(d.amt),count:1,bank:d.bank,notes:d.note}}},
+     amount:wNum(d.amt),count:1,bank:d.bank,
+     purpose:out?(d.purpose||'Other'):(d.agr==='Deposit, not rent'?'Deposit':'Rent'),
+     notes:d.note}}},
  ok:r=>({title:'Cheque logged',msg:(r.count||1)+' cheque'+((r.count||1)===1?'':'s')+' on the register',
    goto:'#/cheques'})},
 
@@ -9358,7 +9360,7 @@ const WIRE={
  m:'finance.log_cheque',
  a:d=>({payload:{direction:'Outgoing',party:(d.__ctx&&d.__ctx.ll)||null,
    cheque_no:d.no,cheque_date:d.date,amount:wNum(d.amt),count:1,
-   bank:d.bank,notes:d.note}}),
+   bank:d.bank,purpose:d.purpose||'Other',notes:d.note}}),
  ok:()=>({title:'Cheque recorded',msg:'Outgoing cheque on the register',goto:'#/cheques'})},
 
 'amend-invoice':{

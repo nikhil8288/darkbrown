@@ -27,6 +27,8 @@
   "cb_context",
   "tenancy_agreement",
   "head_lease",
+  "purpose",
+  "notes",
   "sec_banking",
   "bank_account",
   "deposit_batch",
@@ -178,6 +180,17 @@
    "fieldtype": "Link",
    "label": "Head Lease",
    "options": "Head Lease"
+  },
+  {
+   "fieldname": "purpose",
+   "fieldtype": "Select",
+   "label": "Purpose",
+   "options": "Rent\nDeposit\nHead-lease rent\nDeposit to landlord\nMaintenance\nUtilities\nOther"
+  },
+  {
+   "fieldname": "notes",
+   "fieldtype": "Small Text",
+   "label": "Notes"
   },
   {
    "fieldname": "sec_banking",
