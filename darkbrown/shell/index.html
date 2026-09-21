@@ -8789,11 +8789,14 @@ ROUTES.cheque=id=>{const c=id?C(id):CHQ[0]; if(!c) return notFound('Cheque','#/c
    ['Notice before presentation',(c.adv||14)+' days'],['Status',c.st,'',c.st==='Cleared'?'g':c.st==='Returned'?'r':'a'],
    ...(c.st==='Returned'?[['Reason',c.reason||'—'],['Now',c.act||'not decided']]:[])])+
   (c.st==='Returned'
-   ?`<div class="note" style="border-left-color:var(--red)"><b>Returned — ${c.reason||'no reason recorded'}.</b>
-      The invoice went back to unpaid and the arrears rose by ${k(c.amt)}. It stays in the MD exceptions feed until it is replaced,
-      re-presented, settled another way or written off.</div>
-     <div class="card"><h3>Exception workflow — 2G</h3>${steps(['Return recorded','Drawer notified','Replacement or re-presentation','Resolved'],
-      c.act?2:1)}</div>`
+   ?(inc
+     ?`<div class="note" style="border-left-color:var(--red)"><b>Returned — ${c.reason||'no reason recorded'}.</b>
+        The invoice went back to unpaid and the arrears rose by ${k(c.amt)}. It stays in the MD exceptions feed until it is replaced,
+        re-presented, settled another way or written off.</div>
+       <div class="card"><h3>Exception workflow — 2G</h3>${steps(['Return recorded','Drawer notified','Replacement or re-presentation','Resolved'],
+        c.act?2:1)}</div>`
+     :`<div class="note" style="border-left-color:var(--red)"><b>Returned — ${c.reason||'no reason recorded'}.</b>
+        The supplier payment was reversed and the payable reopened. Replace or re-present the cheque before marking the bill paid again.</div>`)
    :`<div class="card"><h3>Cheque lifecycle</h3>${steps(life,at)}</div>`)+
   `<div class="grid2">
    <div class="card"><h3>History</h3>${tbl([
@@ -8802,9 +8805,9 @@ ROUTES.cheque=id=>{const c=id?C(id):CHQ[0]; if(!c) return notFound('Cheque','#/c
      foot:['nothing is overwritten','a mistake is corrected by another entry, not by an edit']})}</div>
    <div class="card"><h3>Accounting</h3><div class="kv">
     ${[['Party',c.party||c.tn],['Purpose',c.purpose||(inc?'Rent':'—')],
-       ['Allocated to',c.st==='Cleared'?'oldest open invoice':'not yet allocated'],
-       ['Allocation rule','oldest invoice first · rent before recharge'],
-       ['Journal',c.st==='Cleared'?'Bank debited, cheques on hand credited':'—'],
+       ['Allocated to',c.st==='Cleared'?(inc?'oldest open invoice':'oldest open supplier bill'):'not yet allocated'],
+       ['Allocation rule',inc?'oldest invoice first · rent before recharge':'oldest supplier bill first'],
+       ['Journal',c.st==='Cleared'?(inc?'Bank debited, receivable credited':'Payable debited, bank credited'):'—'],
        ['Replaces',c.replaces||'—']].map(r=>`<div><span>${r[0]}</span><b>${r[1]}</b></div>`).join('')}</div></div></div>`)};
 
 
