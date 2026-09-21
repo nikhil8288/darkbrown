@@ -169,12 +169,105 @@ check("a security cheque cannot be cleared as income", t_security_refused)
 
 def t_headlease_marked():
     reset(); mkcheque(direction='Outgoing', party_type='Supplier',
-                      party='SUP-001', head_lease='HL-001')
+                      party='SUP-001', status='Issued', head_lease='HL-001')
     S.DB['Head Lease Payment'].append({'name':'HLP-1','cheque':'CHQ-001','status':'Due'})
     from darkbrown.api import finance
     finance.clear_cheque('CHQ-001')
     assert S.DB['Head Lease Payment'][0]['status'] == 'Cleared', S.DB['Head Lease Payment']
 check("clearing an outgoing cheque marks its Head Lease Payment", t_headlease_marked)
+
+def t_outgoing_clear_posts_supplier_payment():
+    reset(); mkcheque(direction='Outgoing', party_type='Supplier',
+                      party='SUP-001', status='Issued', head_lease='HL-001')
+    S.DB['Purchase Invoice'].append({'name':'PINV-1','supplier':'SUP-001',
+        'docstatus':1,'outstanding_amount':5000,'posting_date':'2026-07-01',
+        'custom_landlord_contract':'HL-001'})
+    from darkbrown.api import finance
+    r = finance.clear_cheque('CHQ-001')
+    assert r['payment_entry'], r
+    rows = [c for c in S.CALLS if c[0]=='insert' and c[1]=='Payment Entry']
+    assert rows and rows[0][2]['payment_type'] == 'Pay', rows
+    assert rows[0][2]['party_type'] == 'Supplier', rows[0][2]
+    assert rows[0][2]['references'][0]['reference_doctype'] == 'Purchase Invoice'
+check("clearing an outgoing cheque posts and allocates a supplier payment",
+      t_outgoing_clear_posts_supplier_payment)
+
+def t_money_amount_guards():
+    reset()
+    from darkbrown.api import finance
+    for payload in ({'tenant':'CUST-001','amount':-1},
+                    {'tenant':'CUST-001','amount':0}):
+        try:
+            finance.record_receipt(json.dumps(payload))
+            assert False, "non-positive receipt accepted"
+        except S.ValidationError:
+            pass
+    try:
+        finance.log_cheque(json.dumps({'party':'CUST-001','cheque_no':'1',
+                                       'amount':-10}))
+        assert False, "negative cheque accepted"
+    except S.ValidationError:
+        pass
+check("receipts and cheques reject non-positive amounts", t_money_amount_guards)
+
+def t_cheque_form_does_not_truncate_parties():
+    src = open(REPO + '/darkbrown/shell/index.html').read()
+    assert "TENANTS.slice(0,24)" not in src, \
+        "cheque drawer list still hides tenants after the first 24"
+    assert "LL.map(l=>l.n).slice(0,12)" not in src, \
+        "cheque payee list still hides landlords after the first 12"
+check("cheque form offers every live tenant and landlord",
+      t_cheque_form_does_not_truncate_parties)
+
+def t_cleared_cheque_can_be_returned():
+    src = open(REPO + '/darkbrown/shell/index.html').read()
+    assert "'Cleared':[['Mark returned'" in src, \
+        "cleared cheques cannot reach the server return/reversal workflow"
+    assert "'Cleared':[['Reverse'" not in src, \
+        "cleared cheque still offers the unsupported Reverse action"
+check("cleared cheque UI reaches the return and ledger-reversal workflow",
+      t_cleared_cheque_can_be_returned)
+
+def t_cheque_feed_includes_outgoing():
+    import inspect
+    from darkbrown.api import app
+    src = inspect.getsource(app.cheques)
+    assert '"direction": "Incoming"' not in src, \
+        "live cheque feed still filters outgoing cheques out"
+    assert '"dir": "out" if c.direction == "Outgoing" else "in"' in src, \
+        "outgoing cheque direction is not sent to the custom UI"
+    assert '"Supplier"' in src and 'supplier_name' in src, \
+        "outgoing cheque payees are not resolved from Supplier"
+check("custom cheque register includes outgoing supplier cheques",
+      t_cheque_feed_includes_outgoing)
+
+def t_outgoing_cheque_accounting_copy():
+    src = open(REPO + '/darkbrown/shell/index.html').read()
+    assert "Payable debited, bank credited" in src
+    assert "oldest open supplier bill" in src
+    assert "supplier payment was reversed and the payable reopened" in src
+check("outgoing cheque page describes supplier accounting correctly",
+      t_outgoing_cheque_accounting_copy)
+
+def t_cheque_history_uses_recorded_dates():
+    import inspect
+    from darkbrown.api import app
+    src = inspect.getsource(app.cheques)
+    for field in ('"creation"', '"presented_on"', '"cleared_on"',
+                  '"returned_on"'):
+        assert field in src, "cheque feed does not read %s" % field
+    assert '"hist": hist' in src
+    assert app.CHQ_STATE["Returned"] == "Returned", \
+        "server still asks the shell to synthesize a returned event"
+check("cheque history is built from persisted lifecycle dates",
+      t_cheque_history_uses_recorded_dates)
+
+def t_operational_forms_do_not_backdate():
+    src = open(REPO + '/darkbrown/shell/index.html').read()
+    assert "d:'2026-07-27'" not in src, \
+        "an operational form still defaults transactions to the prototype date"
+    assert src.count("d:ISO(TODAY)") >= 3
+check("operational forms default to the live date", t_operational_forms_do_not_backdate)
 
 # ---- E. return books the charge
 def t_return_books_charge():
@@ -1080,6 +1173,73 @@ def t_existing_accrual_returns_truthful_summary():
     assert '"head_lease": lease.name' in src
 check("duplicate Head Lease accrual returns its amount and source",
       t_existing_accrual_returns_truthful_summary)
+
+def t_deposit_batch_rejects_untrusted_cheque_lines():
+    from darkbrown.api import finance
+    reset()
+    mkcheque(name='CHQ-OUT', direction='Outgoing', status='Issued')
+    try:
+        finance.create_deposit_batch({
+            'bank_account': 'QNB Main',
+            'lines': [{'type': 'Cheque', 'cheque': 'CHQ-OUT',
+                       'amount': 5000}],
+        })
+        assert False, 'outgoing cheque was accepted into a deposit batch'
+    except S.ValidationError as exc:
+        assert 'incoming cheque on hand' in str(exc)
+
+    reset()
+    mkcheque(name='CHQ-IN', amount=5000)
+    try:
+        finance.create_deposit_batch({
+            'bank_account': 'QNB Main',
+            'lines': [{'type': 'Cheque', 'cheque': 'CHQ-IN',
+                       'amount': 4999}],
+        })
+        assert False, 'caller-controlled cheque amount was accepted'
+    except S.ValidationError as exc:
+        assert 'amount must match' in str(exc)
+check("deposit batches reject outgoing and amount-tampered cheques",
+      t_deposit_batch_rejects_untrusted_cheque_lines)
+
+def t_deposit_batch_enforces_same_user_override():
+    from darkbrown.api import finance
+    reset()
+    S.DB['Deposit Batch'] = [{
+        'name': 'DEP-1', 'status': 'Draft', 'prepared_by': S.SESSION['user'],
+        'bank_account': 'QNB Main', 'lines': [], 'override_reason': None,
+    }]
+    try:
+        finance.deposit_batch('DEP-1')
+        assert False, 'same-user deposit succeeded without an override reason'
+    except S.ValidationError as exc:
+        assert 'override reason' in str(exc)
+check("same-user deposit requires an auditable override reason",
+      t_deposit_batch_enforces_same_user_override)
+
+def t_deposit_batch_links_presented_cheque():
+    from darkbrown.api import finance
+    reset()
+    mkcheque(name='CHQ-IN', amount=5000)
+    line = S.Doc('Deposit Batch Line', {
+        'name': 'DEP-LINE-1', 'payment_type': 'Cheque',
+        'cheque': 'CHQ-IN', 'tenant': 'CUST-001', 'unit': None,
+        'amount': 5000,
+    })
+    S.DB['Deposit Batch'] = [{
+        'name': 'DEP-1', 'status': 'Draft', 'prepared_by': S.SESSION['user'],
+        'bank_account': 'QNB Main', 'lines': [line], 'override_reason': None,
+    }]
+    result = finance.deposit_batch(
+        'DEP-1', on='2026-09-21', reason='Synthetic single-operator test')
+    cheque = S.DB['Cheque'][0]
+    batch = S.DB['Deposit Batch'][0]
+    actual = (result['status'], cheque['status'], cheque['presented_on'],
+              cheque['deposit_batch'], batch['override_reason'])
+    assert actual == ('Deposited', 'Deposited', '2026-09-21', 'DEP-1',
+                      'Synthetic single-operator test'), actual
+check("depositing a batch validates and links each presented cheque",
+      t_deposit_batch_links_presented_cheque)
 
 # =====================================================================
 print()

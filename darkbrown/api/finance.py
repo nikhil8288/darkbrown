@@ -1052,17 +1052,68 @@ def create_deposit_batch(payload):
     lines = data.get("lines") or []
     if not lines:
         frappe.throw(_("A deposit needs at least one line."))
+    bank_account = (data.get("bank_account")
+                    or _settings().default_bank_account)
+    if not bank_account or not frappe.db.exists("Bank Account", bank_account):
+        frappe.throw(_("Choose a valid company Bank Account for the deposit."))
+
+    # Treat every browser value as untrusted.  In particular, a caller must
+    # not be able to deposit one of our outgoing cheques, reuse a cheque in
+    # two open slips, or change its amount/tenant while building the batch.
+    seen_cheques = set()
+    checked_lines = []
     for line in lines:
-        if line.get("unit"):
+        payment_type = line.get("type") or "Cash"
+        if payment_type not in ("Cash", "Cheque"):
+            frappe.throw(_("Deposit line type must be Cash or Cheque."))
+
+        checked = dict(line)
+        if payment_type == "Cheque":
+            cheque_name = line.get("cheque")
+            if not cheque_name:
+                frappe.throw(_("Every cheque line needs a cheque."))
+            if cheque_name in seen_cheques:
+                frappe.throw(_("{0} appears more than once in this batch.").format(
+                    cheque_name))
+            seen_cheques.add(cheque_name)
+
+            cheque = frappe.get_doc("Cheque", cheque_name)
+            require_record_access(cheque, "write")
+            if cheque.direction != "Incoming" or cheque.status != "Received":
+                frappe.throw(_(
+                    "{0} must be an incoming cheque on hand before it can be "
+                    "added to a deposit batch."
+                ).format(cheque_name))
+            if flt(line.get("amount")) != flt(cheque.amount):
+                frappe.throw(_("{0} amount must match the cheque register.").format(
+                    cheque_name))
+
+            other_line = frappe.db.get_value(
+                "Deposit Batch Line", {"cheque": cheque_name}, "parent")
+            if other_line:
+                other_status = frappe.db.get_value(
+                    "Deposit Batch", other_line, "status")
+                if other_status in ("Draft", "Deposited", "Reconciled"):
+                    frappe.throw(_("{0} is already in deposit batch {1}.").format(
+                        cheque_name, other_line))
+
+            # Copy identity from the controlled cheque record, not the request.
+            checked["tenant"] = cheque.party
+            checked["unit"] = cheque.unit
+            checked["amount"] = flt(cheque.amount)
+
+        if checked.get("unit"):
             require_building_access(frappe.db.get_value(
-                "Unit", line.get("unit"), "building"))
-        elif line.get("tenant"):
-            require_tenant_access(line.get("tenant"))
+                "Unit", checked.get("unit"), "building"))
+        elif checked.get("tenant"):
+            require_tenant_access(checked.get("tenant"))
+        checked["type"] = payment_type
+        checked_lines.append(checked)
 
     doc = frappe.get_doc({
         "doctype": "Deposit Batch",
         "deposit_date": data.get("date") or today(),
-        "bank_account": data.get("bank_account") or _settings().default_bank_account,
+        "bank_account": bank_account,
         "status": "Draft",
         "company": _company(),
         "slip_no": data.get("slip_no"),
@@ -1071,7 +1122,7 @@ def create_deposit_batch(payload):
     })
 
     total = 0
-    for l in lines:
+    for l in checked_lines:
         amount = flt(l.get("amount"))
         if amount <= 0:
             frappe.throw(_("Every deposit line needs an amount greater than zero."))
@@ -1112,12 +1163,26 @@ def deposit_batch(batch, on=None, reason=None):
             require_tenant_access(line.tenant)
     if doc.status != "Draft":
         frappe.throw(_("{0} is {1}.").format(batch, doc.status))
+    if doc.prepared_by == frappe.session.user and not (reason or "").strip():
+        frappe.throw(_(
+            "A same-user deposit needs an override reason for the audit trail."
+        ))
     if reason:
-        doc.override_reason = reason
+        doc.override_reason = reason.strip()
 
     for l in doc.lines:
         if l.cheque:
+            cheque = frappe.get_doc("Cheque", l.cheque)
+            if cheque.direction != "Incoming" or cheque.status != "Received":
+                frappe.throw(_(
+                    "{0} is no longer an incoming cheque on hand."
+                ).format(l.cheque))
+            if cheque.deposit_batch and cheque.deposit_batch != doc.name:
+                frappe.throw(_("{0} belongs to deposit batch {1}.").format(
+                    l.cheque, cheque.deposit_batch))
             present_cheque(l.cheque, doc.bank_account, on or today())
+            frappe.db.set_value("Cheque", l.cheque, "deposit_batch", doc.name,
+                                update_modified=False)
         elif l.tenant:
             _receipt(l.tenant, flt(l.amount), on or today(), doc.bank_account,
                      mode="Cash", reference=doc.slip_no or doc.name)
