@@ -84,7 +84,7 @@
    "fieldname": "status",
    "fieldtype": "Select",
    "label": "Status",
-   "options": "Received\nDeposited\nPresented\nCleared\nReturned\nReplaced\nCancelled",
+   "options": "Received\nIssued\nDeposited\nPresented\nCleared\nReturned\nReplaced\nCancelled",
    "default": "Received",
    "reqd": 1,
    "in_list_view": 1,

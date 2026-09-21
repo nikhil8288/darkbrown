@@ -73,8 +73,13 @@ def log_cheque(payload):
     amount = flt(data.get("amount"))
     if not amount and ta:
         amount = flt(ta.monthly_rent)
-    if not amount:
-        frappe.throw(_("A cheque needs an amount."))
+    if amount <= 0:
+        frappe.throw(_("A cheque amount must be greater than zero."))
+
+    direction = data.get("direction") or "Incoming"
+    party = data.get("party") or (ta.tenant if ta else None)
+    if not party:
+        frappe.throw(_("A cheque needs a party."))
 
     first_date = getdate(data.get("cheque_date") or today())
     every = int(data.get("months_apart") or 1)
@@ -86,11 +91,10 @@ def log_cheque(payload):
             first_no if count == 1 else f"{first_no}-{i + 1}")
         doc = frappe.get_doc({
             "doctype": "Cheque",
-            "direction": data.get("direction") or "Incoming",
-            "party_type": "Customer" if (data.get("direction") or
-                                         "Incoming") == "Incoming" else "Supplier",
-            "party": data.get("party") or (ta.tenant if ta else None),
-            "status": "Received",
+            "direction": direction,
+            "party_type": "Customer" if direction == "Incoming" else "Supplier",
+            "party": party,
+            "status": "Received" if direction == "Incoming" else "Issued",
             "company": _company(),
             "cheque_no": no,
             "bank": data.get("bank"),
@@ -184,7 +188,9 @@ def present_cheque(cheque, bank_account=None, on=None):
     guard(MD, ACC)
     doc = frappe.get_doc("Cheque", cheque)
     require_record_access(doc, "write")
-    if doc.status not in ("Received", "Deposited"):
+    allowed = (("Received", "Deposited") if doc.direction == "Incoming"
+               else ("Issued",))
+    if doc.status not in allowed:
         frappe.throw(_("{0} is {1} and cannot be presented.").format(
             cheque, doc.status))
     doc.status = "Presented"
@@ -203,7 +209,9 @@ def clear_cheque(cheque, on=None):
     if doc.status == "Cleared":
         return {"cheque": doc.name, "status": doc.status,
                 "payment_entry": doc.payment_entry}
-    if doc.status not in ("Presented", "Deposited", "Received"):
+    allowed = (("Presented", "Deposited", "Received")
+               if doc.direction == "Incoming" else ("Presented", "Issued"))
+    if doc.status not in allowed:
         frappe.throw(_("{0} is {1} and cannot clear.").format(
             cheque, doc.status))
     if is_security_cheque(doc.name):
@@ -215,10 +223,15 @@ def clear_cheque(cheque, on=None):
 
     doc.status = "Cleared"
     doc.cleared_on = on or today()
-    if doc.direction == "Incoming" and doc.party and not doc.payment_entry:
-        doc.payment_entry = _receipt(doc.party, flt(doc.amount),
-                                     doc.cleared_on, doc.bank_account,
-                                     reference=doc.name)[0]
+    if doc.party and not doc.payment_entry:
+        if doc.direction == "Incoming":
+            doc.payment_entry = _receipt(doc.party, flt(doc.amount),
+                                         doc.cleared_on, doc.bank_account,
+                                         reference=doc.name)[0]
+        else:
+            doc.payment_entry = _supplier_payment(
+                doc.party, flt(doc.amount), doc.cleared_on, doc.bank_account,
+                reference=doc.name, head_lease=doc.head_lease)[0]
     doc.save(ignore_permissions=True)
     _mark_headlease_payment(doc, "Cleared")
     return {"cheque": doc.name, "status": doc.status,
@@ -838,7 +851,7 @@ def record_receipt(payload):
     data = frappe.parse_json(payload)
     tenant = data.get("tenant")
     amount = flt(data.get("amount"))
-    if not tenant or not amount:
+    if not tenant or amount <= 0:
         frappe.throw(_("A receipt needs a tenant and an amount."))
     require_tenant_access(tenant)
 
@@ -893,6 +906,10 @@ def _receipt(customer, amount, on, bank_account=None, mode=None,
     company = _company()
     account = _paid_to(bank_account or _settings().default_bank_account,
                        company)
+    if not account:
+        frappe.throw(_(
+            "No bank or cash ledger is configured. Set the Default Bank "
+            "Account in DBR Settings or pass a valid Bank Account."))
 
     pe = frappe.new_doc("Payment Entry")
     pe.payment_type = "Receive"
@@ -951,6 +968,74 @@ def _receipt(customer, amount, on, bank_account=None, mode=None,
     return pe.name, applied, left
 
 
+def _supplier_payment(supplier, amount, on, bank_account=None, mode=None,
+                      reference=None, invoice=None, head_lease=None):
+    """Post an outgoing supplier payment, allocating the intended bill first.
+
+    A head-lease cheque is restricted to bills for that head lease. Other
+    supplier cheques settle the named bill first, then the oldest open bills.
+    Any excess stays unallocated on the Payment Entry for review.
+    """
+    if amount <= 0:
+        frappe.throw(_("A supplier payment amount must be greater than zero."))
+    company = _company()
+    account = _paid_to(bank_account or _settings().default_bank_account,
+                       company)
+    if not account:
+        frappe.throw(_(
+            "No bank ledger is configured. Set the Default Bank Account in "
+            "DBR Settings or pass a valid Bank Account."))
+
+    filters = {"supplier": supplier, "docstatus": 1,
+               "outstanding_amount": [">", 0]}
+    if head_lease:
+        filters["custom_landlord_contract"] = head_lease
+    open_invoices = frappe.get_all(
+        "Purchase Invoice", filters=filters,
+        fields=["name", "outstanding_amount", "posting_date"],
+        order_by="posting_date asc")
+    if invoice:
+        named = [pi for pi in open_invoices if pi.name == invoice]
+        if not named:
+            frappe.throw(_("{0} is not an open bill for {1}.").format(
+                invoice, supplier))
+        open_invoices = named + [pi for pi in open_invoices
+                                 if pi.name != invoice]
+
+    pe = frappe.new_doc("Payment Entry")
+    pe.payment_type = "Pay"
+    pe.company = company
+    pe.posting_date = on
+    pe.party_type = "Supplier"
+    pe.party = supplier
+    pe.paid_amount = amount
+    pe.received_amount = amount
+    pe.paid_from = account
+    pe.mode_of_payment = mode or "Cheque"
+    pe.reference_no = reference
+    pe.reference_date = on
+
+    left, applied = amount, []
+    for pi in open_invoices:
+        if left <= 0:
+            break
+        take = min(left, flt(pi.outstanding_amount))
+        pe.append("references", {
+            "reference_doctype": "Purchase Invoice",
+            "reference_name": pi.name,
+            "allocated_amount": take,
+        })
+        applied.append((pi.name, take))
+        left -= take
+    if left > 0:
+        pe.unallocated_amount = left
+    pe.flags.ignore_mandatory = True
+    pe.flags.ignore_permissions = True
+    pe.insert(ignore_permissions=True)
+    pe.submit()
+    return pe.name, applied, left
+
+
 # ------------------------------------------------------------- deposit batches
 
 @frappe.whitelist()
@@ -988,6 +1073,8 @@ def create_deposit_batch(payload):
     total = 0
     for l in lines:
         amount = flt(l.get("amount"))
+        if amount <= 0:
+            frappe.throw(_("Every deposit line needs an amount greater than zero."))
         doc.append("lines", {
             "payment_type": l.get("type") or "Cash",
             "collection_slip_no": l.get("slip_no"),
