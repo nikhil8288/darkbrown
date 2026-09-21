@@ -70,6 +70,11 @@ CLOSING_VOUCHER = "Period Closing Voucher"
 #: Account types that mean cash for the purposes of the cash flow.
 CASH_TYPES = ("Cash", "Bank")
 
+# The historical loader must use a Cash-typed clearing account because
+# Expense Entry validates paid_from by account type.  It is not money in a
+# till or bank and must never be presented as cash on a cash-flow statement.
+NON_CASH_CONTROLS = {"Historical Cutover Control"}
+
 #: Account types that make a movement investing rather than operating.
 INVESTING_TYPES = ("Fixed Asset", "Accumulated Depreciation",
                    "Capital Work in Progress")
@@ -248,51 +253,54 @@ def _section(nodes, root_type, label):
 def _expense_groups(nodes):
     """The five P&L groups, in order, each with the accounts beneath it.
 
-    Reads the group accounts by name off the chart rather than by walking the
-    tree from the expense root, because a site can carry expense accounts that
-    predate the grouping - the head-lease loaders create theirs under Direct
-    Expenses - and those must still appear. Anything not under one of the five
-    is collected into a final "Other" group instead of vanishing, which is the
-    only behaviour that keeps the statement adding up.
+    The named mapping is authoritative for known DarkBrown expense heads even
+    when a legacy site created the account before the five groups existed.
+    Unmapped leaves inherit a recognised group from their chart ancestry;
+    anything else is collected into "Other" instead of vanishing.  This keeps
+    both the management classification and the statement total honest without
+    silently reparenting an account that already has ledger entries.
     """
-    from darkbrown.utils.chart_of_accounts import GROUPS
+    from darkbrown.utils.chart_of_accounts import GROUPS, group_of
 
-    by_name = {}
+    labels = dict(GROUPS)
+    grouped = {key: [] for key, _label in GROUPS}
+    grouped["Other"] = []
+
+    def inherited_group(node):
+        parent = nodes.get(node.get("parent"))
+        seen = set()
+        while parent and parent["acc"] not in seen:
+            seen.add(parent["acc"])
+            if parent["label"] in labels:
+                return parent["label"]
+            parent = nodes.get(parent.get("parent"))
+        return None
+
     for n in nodes.values():
-        by_name.setdefault(n["label"], []).append(n)
+        if n["cls"] != "Expense" or n["group"]:
+            continue
+        own = round(_signed(n), 2)
+        if not own:
+            continue
+        key = group_of(n["label"]) or inherited_group(n) or "Other"
+        if key not in grouped:
+            key = "Other"
+        grouped[key].append({
+            "code": n["code"], "label": n["label"], "cls": n["cls"],
+            "type": n["type"], "acc": n["acc"], "depth": 0,
+            "group": False, "amount": own,
+        })
 
-    sections, claimed = [], set()
+    sections = []
     for key, label in GROUPS:
-        roots = [n for n in by_name.get(key, [])
-                 if n["cls"] == "Expense" and n["group"]]
-        rows, total = [], 0.0
-        for r in roots:
-            _rollup(r)
-            total += r["total"]
-            claimed.add(r["acc"])
-            for d in _descendants(r):
-                claimed.add(d["acc"])
-            _flatten(r, 0, rows)
+        rows = sorted(grouped[key], key=lambda r: str(r["code"]))
         sections.append({"key": key, "label": label, "rows": rows,
-                         "total": round(total, 2)})
-
-    # Expense accounts that never made it under a group.
-    stray, total = [], 0.0
-    for r in _roots(nodes, "Expense"):
-        _rollup(r)
-        for n in [r] + list(_descendants(r)):
-            if n["acc"] in claimed or n["group"]:
-                continue
-            own = round(_signed(n), 2)
-            if not own:
-                continue
-            total += own
-            stray.append({"code": n["code"], "label": n["label"],
-                          "cls": n["cls"], "type": n["type"], "acc": n["acc"],
-                          "depth": 0, "group": False, "amount": own})
+                         "total": round(sum(r["amount"] for r in rows), 2)})
+    stray = sorted(grouped["Other"], key=lambda r: str(r["code"]))
     if stray:
         sections.append({"key": "Other", "label": "Other expenses",
-                         "rows": stray, "total": round(total, 2)})
+                         "rows": stray,
+                         "total": round(sum(r["amount"] for r in stray), 2)})
     return sections
 
 
@@ -411,7 +419,14 @@ def _bucket(node):
 
 def _cash_accounts(nodes):
     return {n["acc"]: n for n in nodes.values()
-            if not n["group"] and n["type"] in CASH_TYPES}
+            if not n["group"] and n["type"] in CASH_TYPES
+            and n["label"] not in NON_CASH_CONTROLS}
+
+
+def _excluded_cash_controls(nodes):
+    return sorted(n["label"] for n in nodes.values()
+                  if not n["group"] and n["type"] in CASH_TYPES
+                  and n["label"] in NON_CASH_CONTROLS)
 
 
 def _chunked(seq):
@@ -439,10 +454,11 @@ def cash_flow(frm=None, to=None):
     frm, to = _window(frm, to)
     nodes = _tree(company)
     cash = _cash_accounts(nodes)
+    excluded = _excluded_cash_controls(nodes)
     if not cash:
         return {"buckets": [], "opening": 0.0, "closing": 0.0, "net": 0.0,
                 "reconciled": True, "difference": 0.0, "frm": frm, "to": to,
-                "company": company, "accounts": [],
+                "company": company, "accounts": [], "excluded": excluded,
                 "note": "No account on this company is typed Cash or Bank."}
 
     names = list(cash)
@@ -539,4 +555,5 @@ def cash_flow(frm=None, to=None):
             "reconciled": abs(difference) < 0.01,
             "vouchers": len(vouchers),
             "accounts": sorted(n["label"] for n in cash.values()),
+            "excluded": excluded,
             "frm": frm, "to": to, "company": company}

@@ -1409,6 +1409,51 @@ def t_weekly_close_returns_and_renders_the_recorded_snapshot():
 check("weekly close renders its immutable snapshot and honest manual status",
       t_weekly_close_returns_and_renders_the_recorded_snapshot)
 
+def _statement_node(acc, label, cls='Expense', parent=None, group=False,
+                    account_type='', dr=0, cr=0):
+    return {'acc': acc, 'code': label, 'label': label, 'cls': cls,
+            'nat': 'Dr' if cls in ('Asset', 'Expense') else 'Cr',
+            'type': account_type, 'group': group, 'parent': parent,
+            'lft': 0, 'kids': [], 'dr': dr, 'cr': cr}
+
+def t_profit_and_loss_honours_mapped_heads_on_legacy_chart():
+    from darkbrown.api import statements
+    root = _statement_node('EXP', 'Expenses', group=True)
+    nodes = {'EXP': root}
+    for acc, label, amount in (
+        ('HL', 'Head Lease Rent', 100),
+        ('SAL', 'Salary', 30),
+        ('DEP', 'Depreciation', 10),
+        ('ODD', 'Unmapped legacy expense', 5),
+    ):
+        nodes[acc] = _statement_node(acc, label, parent='EXP', dr=amount)
+        root['kids'].append(nodes[acc])
+    groups = {g['key']: g for g in statements._expense_groups(nodes)}
+    assert groups['Cost of Sales']['total'] == 100, groups
+    assert groups['Staff Cost']['total'] == 30, groups
+    assert groups['Depreciation and Amortisation']['total'] == 10, groups
+    assert groups['Other']['total'] == 5, groups
+    assert sum(g['total'] for g in groups.values()) == 145
+check("P&L mapping survives legacy account parentage without changing the ledger",
+      t_profit_and_loss_honours_mapped_heads_on_legacy_chart)
+
+def t_cash_flow_excludes_the_historical_cutover_control():
+    from darkbrown.api import statements
+    nodes = {
+        'BANK': _statement_node('BANK', 'Qatar National Bank', cls='Asset',
+                                account_type='Bank'),
+        'CONTROL': _statement_node('CONTROL', 'Historical Cutover Control',
+                                   cls='Asset', account_type='Cash'),
+    }
+    cash = statements._cash_accounts(nodes)
+    assert list(cash) == ['BANK'], cash
+    assert statements._excluded_cash_controls(nodes) == [
+        'Historical Cutover Control']
+    shell = open(REPO + '/darkbrown/shell/index.html').read()
+    assert 'legacy cutover clearing account, not money at bank' in shell
+check("cash flow excludes the non-cash historical cutover control",
+      t_cash_flow_excludes_the_historical_cutover_control)
+
 # =====================================================================
 print()
 for n in PASS: print("  PASS  %s" % n)

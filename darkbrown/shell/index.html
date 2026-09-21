@@ -6488,7 +6488,9 @@ function cfLive(d){
        ?' \u2014 '+d.accounts.map(esc).join(', '):''}. Transfers between two of
      them net to nothing and do not appear above. Each account sits in the
      bucket its type implies; if one belongs elsewhere, that is a setting on the
-     account rather than a change to this screen.</div></div>`)}
+     account rather than a change to this screen.${(d.excluded&&d.excluded.length)
+       ?' '+d.excluded.map(esc).join(', ')+' is excluded because it is a legacy cutover clearing account, not money at bank.'
+       :''}</div></div>`)}
 window.cfLive=cfLive;
 
 ROUTES.cf=()=>{
