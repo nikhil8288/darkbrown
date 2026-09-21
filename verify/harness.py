@@ -1277,6 +1277,46 @@ def t_deposit_batch_links_presented_cheque():
 check("depositing a batch validates and links each presented cheque",
       t_deposit_batch_links_presented_cheque)
 
+def t_statement_import_rejects_bad_scope_and_duplicates():
+    from darkbrown.api import cashdesk
+    base = {
+        'bank_account': 'QNB Main', 'from_date': '2026-09-01',
+        'to_date': '2026-09-30',
+        'lines': [{'date': '2026-09-21', 'ref': 'SYN-1',
+                   'narrative': 'Synthetic', 'amount': 100,
+                   'direction': 'Credit'}],
+    }
+    cases = [
+        dict(base, bank_account='NOT-A-BANK'),
+        dict(base, from_date='2026-10-01', to_date='2026-09-01'),
+        dict(base, lines=[dict(base['lines'][0], amount=-100)]),
+        dict(base, lines=[dict(base['lines'][0], date='2026-10-01')]),
+        dict(base, lines=base['lines'] + base['lines']),
+    ]
+    for payload in cases:
+        reset()
+        try:
+            cashdesk.import_statement(payload)
+            assert False, 'invalid statement import was accepted: %s' % payload
+        except S.ValidationError:
+            pass
+check("statement imports reject invalid banks, periods, amounts and duplicates",
+      t_statement_import_rejects_bad_scope_and_duplicates)
+
+def t_statement_matching_is_bank_and_state_scoped():
+    import inspect
+    from darkbrown.api import cashdesk
+    src = inspect.getsource(cashdesk.import_statement)
+    assert "status in ('Deposited', 'Reconciled')" in src
+    assert src.count('bank_account = %s') >= 3
+    assert "deposit_batch is null or deposit_batch = ''" in src
+    assert 'coalesce(presented_on, cheque_date)' in src
+    assert "hp.status = 'Cleared'" in src
+    assert 'coalesce(c.cleared_on, c.presented_on' in src
+    assert 'if len(candidates) != 1' in src
+check("statement matcher uses the correct bank and completed money state",
+      t_statement_matching_is_bank_and_state_scoped)
+
 # =====================================================================
 print()
 for n in PASS: print("  PASS  %s" % n)

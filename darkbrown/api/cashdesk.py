@@ -259,64 +259,129 @@ def import_statement(payload):
     lines = p.get("lines") or []
     if not lines:
         frappe.throw("The statement has no lines.")
+    if len(lines) > 5000:
+        frappe.throw("A statement import is limited to 5,000 lines.")
+
+    bank_account = p.get("bank_account")
+    if not bank_account or not frappe.db.exists("Bank Account", bank_account):
+        frappe.throw("Choose a valid company Bank Account.")
+    if not p.get("from_date") or not p.get("to_date"):
+        frappe.throw("The statement needs a period from and to date.")
+    period_from, period_to = (getdate(p.get("from_date")),
+                              getdate(p.get("to_date")))
+    if period_from > period_to:
+        frappe.throw("The statement period ends before it starts.")
+
+    normalized, seen = [], set()
+    for index, ln in enumerate(lines, 1):
+        amount = flt(ln.get("amount"))
+        direction = (ln.get("direction") or "").title()
+        raw_date = ln.get("date")
+        try:
+            txn_date = getdate(raw_date) if raw_date else None
+        except (TypeError, ValueError):
+            txn_date = None
+        if direction not in ("Credit", "Debit") or not txn_date or amount <= 0:
+            frappe.throw(
+                "Statement line {0} needs a valid date, positive amount, "
+                "and Credit or Debit direction.".format(index))
+        if txn_date < period_from or txn_date > period_to:
+            frappe.throw("Statement line {0} is outside the import period.".format(
+                index))
+        key = (str(txn_date), (ln.get("ref") or "").strip(), amount, direction)
+        if key in seen:
+            frappe.throw("Statement line {0} is duplicated in this import.".format(
+                index))
+        seen.add(key)
+        normalized.append({
+            "date": str(txn_date), "ref": key[1],
+            "narrative": (ln.get("narrative") or "").strip(),
+            "amount": amount, "direction": direction,
+        })
+
+    prior_imports = frappe.get_all(
+        "Bank Statement Import", filters={"bank_account": bank_account},
+        pluck="name")
+    if prior_imports:
+        prior_lines = frappe.get_all(
+            "Bank Statement Line", filters={"parent": ["in", prior_imports]},
+            fields=["txn_date", "bank_ref", "amount", "direction"])
+        prior_keys = {(str(r.txn_date), (r.bank_ref or "").strip(),
+                       flt(r.amount), r.direction) for r in prior_lines}
+        duplicate = next((key for key in seen if key in prior_keys), None)
+        if duplicate:
+            frappe.throw(
+                "This bank line was already imported for {0}: {1}, {2}, {3}."
+                .format(bank_account, duplicate[0], duplicate[1] or "no ref",
+                        duplicate[2]))
 
     used = {"Deposit Batch": _already_matched("Deposit Batch"),
             "Cheque": _already_matched("Cheque"),
             "Head Lease Payment": _already_matched("Head Lease Payment")}
 
     def take(kind, sql, args):
-        for name, in frappe.db.sql(sql, args):
-            if name not in used[kind]:
-                used[kind].add(name)
-                return name
-        return None
+        candidates = [name for name, in frappe.db.sql(sql, args)
+                      if name not in used[kind]]
+        # Amount/date proximity is not identity when two records fit.  An
+        # ambiguous line stays visible for a human instead of whichever row
+        # the database happened to return first being called a match.
+        if len(candidates) != 1:
+            return None
+        used[kind].add(candidates[0])
+        return candidates[0]
 
     doc = frappe.get_doc({
         "doctype": "Bank Statement Import",
-        "bank_account": p.get("bank_account"),
-        "from_date": p.get("from_date"),
-        "to_date": p.get("to_date"),
+        "bank_account": bank_account,
+        "from_date": str(period_from),
+        "to_date": str(period_to),
         "source": p.get("source") or "pasted",
         "status": "Posted",
     })
 
-    for ln in lines:
-        amt, d = flt(ln.get("amount")), ln.get("date")
-        direction = (ln.get("direction") or "").title()
-        if direction not in ("Credit", "Debit") or not d or not amt:
-            continue
+    for ln in normalized:
+        amt, d, direction = ln["amount"], ln["date"], ln["direction"]
         status, mtype, mref = "Unmatched", None, None
         if direction == "Credit":
             mref = take("Deposit Batch", """
                 select name from `tabDeposit Batch`
-                where abs(total_amount - %s) <= %s
+                where bank_account = %s
+                  and status in ('Deposited', 'Reconciled')
+                  and abs(total_amount - %s) <= %s
                   and abs(datediff(deposit_date, %s)) <= %s
                 order by abs(datediff(deposit_date, %s))""",
-                (amt, MATCH_TOL, d, MATCH_DAYS, d))
+                (bank_account, amt, MATCH_TOL, d, MATCH_DAYS, d))
             mtype = "Deposit Batch" if mref else None
             if not mref:
                 mref = take("Cheque", """
                     select name from `tabCheque`
                     where direction = 'Incoming'
+                      and bank_account = %s
+                      and (deposit_batch is null or deposit_batch = '')
                       and status in ('Deposited', 'Cleared')
                       and abs(amount - %s) <= %s
-                      and abs(datediff(cheque_date, %s)) <= %s
-                    order by abs(datediff(cheque_date, %s))""",
-                    (amt, MATCH_TOL, d, MATCH_DAYS, d))
+                      and abs(datediff(coalesce(presented_on, cheque_date), %s)) <= %s
+                    order by abs(datediff(coalesce(presented_on, cheque_date), %s))""",
+                    (bank_account, amt, MATCH_TOL, d, MATCH_DAYS, d))
                 mtype = "Cheque" if mref else None
         else:
             mref = take("Head Lease Payment", """
-                select name from `tabHead Lease Payment`
-                where abs(amount - %s) <= %s
-                  and abs(datediff(due_date, %s)) <= %s
-                order by abs(datediff(due_date, %s))""",
-                (amt, MATCH_TOL, d, MATCH_DAYS, d))
+                select hp.name from `tabHead Lease Payment` hp
+                inner join `tabCheque` c on c.name = hp.cheque
+                where hp.status = 'Cleared'
+                  and c.bank_account = %s
+                  and abs(hp.amount - %s) <= %s
+                  and abs(datediff(coalesce(c.cleared_on, c.presented_on,
+                                             hp.due_date), %s)) <= %s
+                order by abs(datediff(coalesce(c.cleared_on, c.presented_on,
+                                                hp.due_date), %s))""",
+                (bank_account, amt, MATCH_TOL, d, MATCH_DAYS, d))
             mtype = "Head Lease Payment" if mref else None
         if mref:
             status = "Matched"
         doc.append("lines", {
-            "txn_date": d, "bank_ref": ln.get("ref"),
-            "narrative": ln.get("narrative"), "amount": amt,
+            "txn_date": d, "bank_ref": ln["ref"],
+            "narrative": ln["narrative"], "amount": amt,
             "direction": direction, "status": status,
             "matched_type": mtype, "matched_ref": mref,
         })
