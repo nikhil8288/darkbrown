@@ -3411,7 +3411,7 @@ const FORMS={
 
 'log-cheque':{t:'Log cheque',s:'Post-dated cheque register',cta:'Log cheque',
  steps:[{n:'Cheque',body:d=>`<div class="fg">
-    ${fld({k:'tenant',l:'Tenant',t:'sel',o:TENANTS.slice(0,24).map(t=>t.n),req:1},d.tenant)}
+    ${fld({k:'tenant',l:'Tenant',t:'sel',o:TENANTS.map(t=>t.n),req:1},d.tenant)}
     ${fld({k:'bank',l:'Bank',t:'sel',o:['QNB','Doha Bank','CBQ','Masraf Al Rayan','QIB','Ahli Bank'],req:1},d.bank)}
     ${fld({k:'no',l:'Cheque number',t:'txt',p:'482991',req:1},d.no)}
     ${fld({k:'amt',l:'Amount (QAR)',t:'num',step:'100',req:1},d.amt)}
@@ -3429,7 +3429,7 @@ const FORMS={
  init:c=>({tenant:c&&c.n?c.n:'',method:'Cheque'}),
  steps:[
   {n:'Payment',body:d=>`<div class="fg">
-    ${fld({k:'tenant',l:'Tenant',t:'sel',o:TENANTS.slice(0,24).map(t=>t.n),req:1},d.tenant)}
+    ${fld({k:'tenant',l:'Tenant',t:'sel',o:TENANTS.map(t=>t.n),req:1},d.tenant)}
     ${fld({k:'amt',l:'Amount received (QAR)',t:'num',step:'100',req:1},d.amt)}
     ${fld({k:'method',l:'Method',t:'sel',o:['Cheque','Bank transfer','Cash','Card'],req:1},d.method)}
     ${fld({k:'date',l:'Received on',t:'date',d:'2026-07-26',req:1},d.date)}
@@ -3616,7 +3616,7 @@ const FORMS={
 'new-agreement':{t:'New agreement',s:'Workflow 2B',cta:'Raise agreement',
  steps:[
   {n:'Parties',body:d=>`<div class="fg">
-    ${fld({k:'tenant',l:'Tenant',t:'sel',o:TENANTS.slice(0,24).map(t=>t.n),req:1},d.tenant)}
+    ${fld({k:'tenant',l:'Tenant',t:'sel',o:TENANTS.map(t=>t.n),req:1},d.tenant)}
     ${fld({k:'unit',l:'Unit',t:'sel',o:UNITS.filter(u=>u.st!=='Occupied').slice(0,14).map(u=>u.id),req:1},d.unit)}</div>`,
    fields:[{k:'tenant',req:1},{k:'unit',req:1}]},
   {n:'Terms',fields:[
@@ -8676,8 +8676,8 @@ FORMS['log-cheque']={t:'Log a cheque',s:'Money in or money out · the register i
    fields:[{k:'dir',req:1}]},
   {n:'The cheque',body:d=>{const inc=/^Received/.test(d.dir)||d.dir==='Replacement for a returned cheque';
    return `<div class="fg">
-    ${inc?fld({k:'party',l:'Drawer',t:'sel',o:TENANTS.slice(0,24).map(t=>t.n),req:1},d.party)
-        :fld({k:'party',l:'Payee',t:'sel',o:LL.map(l=>l.n).slice(0,12)
+    ${inc?fld({k:'party',l:'Drawer',t:'sel',o:TENANTS.map(t=>t.n),req:1},d.party)
+        :fld({k:'party',l:'Payee',t:'sel',o:LL.map(l=>l.n)
           .concat(['Gulf Cool Services','New Meridien Manpower','Kahramaa','Doha Fix Co']),req:1},d.party)}
     ${d.dir==='Replacement for a returned cheque'
       ?fld({k:'replaces',l:'Replaces',t:'sel',o:CHQ.filter(c=>c.st==='Returned').map(c=>c.id+' · '+c.party+' · '+k(c.amt)),req:1},d.replaces):''}
