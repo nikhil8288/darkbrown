@@ -20,6 +20,7 @@
   "assigned_to",
   "discrepancies",
   "closed_on",
+  "check_snapshot",
   "notes"
  ],
  "fields": [
@@ -57,6 +58,12 @@
    "fieldname": "closed_on",
    "fieldtype": "Datetime",
    "label": "Closed On"
+  },
+  {
+   "fieldname": "check_snapshot",
+   "fieldtype": "Long Text",
+   "label": "Checklist Snapshot",
+   "read_only": 1
   },
   {
    "fieldname": "notes",

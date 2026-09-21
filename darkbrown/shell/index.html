@@ -9274,18 +9274,11 @@ const WIRE={
 
 'start-close':{
  m:'cashdesk.record_close',
- /* The count carried is what is actually open: every derived check the
-    records show as failing, plus every manual item nobody ticked. It is not
-    a tally of unticked boxes on a list that arrived half-ticked. */
  a:d=>{const c=(window.DB_SEED&&DB_SEED.closing)||{checks:[]};
    const checks=c.checks||[];
-   const open=checks.filter(x=>x.kind==='derived'&&!x.ok).length
-     +checks.filter(x=>x.kind==='manual'&&!d['m_'+x.k]).length;
-   const notes=[(d.note||'').trim(),
-     checks.filter(x=>x.kind==='manual'&&!d['m_'+x.k])
-       .map(x=>'Not confirmed: '+x.label).join('; ')].filter(Boolean).join(' \u00b7 ');
    return {payload:{period_end:c.period_end||new Date().toISOString().slice(0,10),
-     status:'Closed',discrepancies:open,notes}}},
+     status:'Closed',notes:(d.note||'').trim(),
+     manual_confirmed:checks.filter(x=>x.kind==='manual'&&d['m_'+x.k]).map(x=>x.k)}}},
  ok:r=>({title:'Close recorded',msg:'Week to '+r.period_end+' closed',
    detail:r.discrepancies?r.discrepancies+' discrepanc'+(r.discrepancies===1?'y':'ies')+' carried on the record':'Nothing outstanding',
    goto:'#/closing'})},

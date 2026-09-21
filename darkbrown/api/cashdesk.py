@@ -93,19 +93,56 @@ def record_close(payload):
     completing it sets Closed and stamps the time."""
     guard(MD, ACC)
     p = _payload(payload)
-    period_end = p.get("period_end") or today()
+    raw_end = getdate(p.get("period_end") or _week_end())
+    if raw_end.weekday() != 3:
+        frappe.throw("A weekly close must end on a Thursday.")
+    if raw_end > getdate(_week_end()):
+        frappe.throw("A future week cannot be closed.")
+    period_end = str(raw_end)
+    status = p.get("status") or "In Progress"
+    if status not in ("In Progress", "Closed"):
+        frappe.throw("A weekly close can only be In Progress or Closed.")
     name = frappe.db.get_value("Weekly Closing", {"period_end": period_end})
     doc = frappe.get_doc("Weekly Closing", name) if name else frappe.get_doc(
         {"doctype": "Weekly Closing", "period_end": period_end})
-    doc.status = p.get("status") or "In Progress"
+    if name and doc.status == "Closed":
+        return {"name": doc.name, "status": doc.status,
+                "period_end": f"{getdate(doc.period_end):%d %b}",
+                "discrepancies": doc.discrepancies or 0}
+
+    start = frappe.utils.add_days(period_end, -6)
+    checks = _checks(start, period_end)
+    manual_keys = {c["k"] for c in checks if c["kind"] == "manual"}
+    confirmed = p.get("manual_confirmed") or []
+    if not isinstance(confirmed, (list, tuple)):
+        frappe.throw("Manual confirmations must be a list.")
+    confirmed = set(confirmed)
+    if confirmed - manual_keys:
+        frappe.throw("The close contains an unknown manual confirmation.")
+
+    for check in checks:
+        if check["kind"] == "manual":
+            check["ok"] = 1 if check["k"] in confirmed else 0
+            check["detail"] = ("Confirmed by " + frappe.session.user
+                               if check["ok"] else "Not confirmed")
+
+    open_checks = [c for c in checks if not c["ok"]]
+    unconfirmed = [c["label"] for c in open_checks if c["kind"] == "manual"]
+    notes = (p.get("notes") or "").strip()
+    if unconfirmed:
+        audit_note = "Not confirmed: " + "; ".join(unconfirmed)
+        notes = (notes + " · " + audit_note).strip(" ·")
+
+    doc.status = status
+    doc.assigned_to = frappe.session.user
+    doc.discrepancies = len(open_checks)
+    doc.notes = notes or None
+    doc.check_snapshot = frappe.as_json({
+        "period_start": str(start), "period_end": period_end,
+        "closed_by": frappe.session.user, "checks": checks,
+    })
     if doc.status == "Closed" and not doc.closed_on:
         doc.closed_on = frappe.utils.now()
-    if p.get("assigned_to"):
-        doc.assigned_to = p["assigned_to"]
-    if p.get("discrepancies") not in (None, ""):
-        doc.discrepancies = int(p["discrepancies"])
-    if p.get("notes"):
-        doc.notes = p["notes"]
     doc.save() if name else doc.insert()
     return {"name": doc.name, "status": doc.status,
             "period_end": f"{getdate(doc.period_end):%d %b}",
@@ -142,8 +179,9 @@ def _checks(start, end):
                     "detail": detail_ok if not count else detail_bad,
                     "go": route})
 
-    imports = frappe.db.count("Bank Statement Import",
-                              {"to_date": [">=", start]})
+    imports = frappe.db.count(
+        "Bank Statement Import",
+        {"from_date": ["<=", end], "to_date": [">=", start]})
     out.append({"k": "stmt", "label": "Bank statement imported",
                 "kind": "derived", "ok": 1 if imports else 0,
                 "count": imports,

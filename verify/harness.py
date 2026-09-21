@@ -1317,6 +1317,71 @@ def t_statement_matching_is_bank_and_state_scoped():
 check("statement matcher uses the correct bank and completed money state",
       t_statement_matching_is_bank_and_state_scoped)
 
+def t_weekly_close_is_recomputed_and_snapshotted_server_side():
+    from darkbrown.api import cashdesk
+    reset()
+    result = cashdesk.record_close({
+        'period_end': '2026-09-17', 'status': 'Closed',
+        'discrepancies': 0, 'manual_confirmed': [],
+        'assigned_to': 'forged@example.com',
+    })
+    row = S.DB['Weekly Closing'][0]
+    assert result['discrepancies'] == 4, result
+    assert row['discrepancies'] == 4
+    assert row['assigned_to'] == S.SESSION['user']
+    assert 'Not confirmed: Landlord cheque schedule confirmed' in row['notes']
+    snapshot = json.loads(row['check_snapshot'])
+    assert snapshot['closed_by'] == S.SESSION['user']
+    assert len(snapshot['checks']) == 8
+check("weekly close recomputes discrepancies and stores its audit snapshot",
+      t_weekly_close_is_recomputed_and_snapshotted_server_side)
+
+def t_weekly_close_rejects_bad_periods_and_manual_keys():
+    from darkbrown.api import cashdesk
+    for payload in (
+        {'period_end': '2026-09-16', 'status': 'Closed'},
+        {'period_end': '2026-09-24', 'status': 'Closed'},
+        {'period_end': '2026-09-17', 'status': 'Closed',
+         'manual_confirmed': ['invented-check']},
+    ):
+        reset()
+        try:
+            cashdesk.record_close(payload)
+            assert False, 'invalid weekly close was accepted: %s' % payload
+        except S.ValidationError:
+            pass
+check("weekly close rejects non-Thursday, future and forged confirmations",
+      t_weekly_close_rejects_bad_periods_and_manual_keys)
+
+def t_weekly_statement_check_requires_date_overlap():
+    from darkbrown.api import cashdesk
+    reset()
+    S.DB['Bank Statement Import'] = [{
+        'name': 'BSI-LATER', 'from_date': '2026-09-21',
+        'to_date': '2026-09-21',
+    }]
+    checks = cashdesk._checks('2026-09-11', '2026-09-17')
+    stmt = next(c for c in checks if c['k'] == 'stmt')
+    assert not stmt['ok'] and stmt['count'] == 0, stmt
+    S.DB['Bank Statement Import'].append({
+        'name': 'BSI-OVERLAP', 'from_date': '2026-09-10',
+        'to_date': '2026-09-12',
+    })
+    checks = cashdesk._checks('2026-09-11', '2026-09-17')
+    stmt = next(c for c in checks if c['k'] == 'stmt')
+    assert stmt['ok'] and stmt['count'] == 1, stmt
+check("weekly close counts only statements overlapping its period",
+      t_weekly_statement_check_requires_date_overlap)
+
+def t_weekly_close_ui_sends_confirmed_keys_not_counts():
+    shell = open(REPO + '/darkbrown/shell/index.html').read()
+    action = shell[shell.index("'start-close':{\n m:'cashdesk.record_close'"):
+                   shell.index("/* ---------------- money ---------------- */")]
+    assert 'manual_confirmed:' in action
+    assert 'discrepancies:open' not in action
+check("weekly close UI sends attestations and leaves counting to the server",
+      t_weekly_close_ui_sends_confirmed_keys_not_counts)
+
 # =====================================================================
 print()
 for n in PASS: print("  PASS  %s" % n)
