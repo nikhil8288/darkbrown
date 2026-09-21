@@ -1032,7 +1032,7 @@ def _invoice_lines(invoice):
 
 CHQ_STATE = {"Received": "On hand", "Deposited": "Deposited",
              "Presented": "Deposited", "Cleared": "Cleared",
-             "Returned": "Bounced", "Replaced": "Replaced",
+             "Returned": "Returned", "Replaced": "Replaced",
              "Cancelled": "Cancelled"}
 
 
@@ -1042,7 +1042,8 @@ def cheques():
         filters={"status": ["!=", "Cancelled"]},
         fields=["name", "party", "amount", "bank", "cheque_no", "cheque_date",
                 "direction", "status", "return_reason", "replaced_by",
-                "building", "unit"],
+                "building", "unit", "creation", "owner", "presented_on",
+                "cleared_on", "returned_on"],
         order_by="cheque_date asc", limit=400)
     if not rows:
         return []
@@ -1064,6 +1065,21 @@ def cheques():
                    else "Replacement pending")
         else:
             act = ""
+        hist = []
+        if c.creation:
+            owner = (frappe.db.get_value("User", c.owner, "full_name")
+                     or c.owner or "ERPNext")
+            hist.append({"d": _fdate(c.creation), "act": "Logged",
+                         "by": owner, "note": ""})
+        if c.presented_on:
+            hist.append({"d": _fdate(c.presented_on), "act": "Presented",
+                         "by": "ERPNext", "note": ""})
+        if c.cleared_on:
+            hist.append({"d": _fdate(c.cleared_on), "act": "Cleared",
+                         "by": "ERPNext", "note": ""})
+        if c.returned_on:
+            hist.append({"d": _fdate(c.returned_on), "act": "Returned",
+                         "by": "ERPNext", "note": c.return_reason or ""})
         out.append({
             "id": c.name,
             "b": c.building or (frappe.db.get_value("Unit", c.unit, "building")
@@ -1079,6 +1095,7 @@ def cheques():
             "st": CHQ_STATE.get(c.status, c.status),
             "reason": c.return_reason or "",
             "act": act,
+            "hist": hist,
         })
     return out
 
