@@ -237,10 +237,21 @@ def closing(period_end=None):
     current = None
     if name:
         d = frappe.get_doc("Weekly Closing", name)
+        recorded_checks = []
+        if d.check_snapshot:
+            try:
+                snapshot = frappe.parse_json(d.check_snapshot) or {}
+                if isinstance(snapshot, dict) and isinstance(snapshot.get("checks"), list):
+                    recorded_checks = snapshot["checks"]
+            except (TypeError, ValueError):
+                # Older or manually repaired records may not contain a usable
+                # snapshot.  The screen can still fall back to live checks.
+                recorded_checks = []
         current = {
             "id": d.name, "st": d.status,
             "discrepancies": d.discrepancies or 0,
             "notes": d.notes or "",
+            "checks": recorded_checks,
             "assigned": (frappe.db.get_value("User", d.assigned_to, "full_name")
                          or d.assigned_to) if d.assigned_to else "—",
             "closed_on": (frappe.utils.format_datetime(d.closed_on, "d MMM HH:mm")

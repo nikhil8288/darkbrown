@@ -1382,6 +1382,33 @@ def t_weekly_close_ui_sends_confirmed_keys_not_counts():
 check("weekly close UI sends attestations and leaves counting to the server",
       t_weekly_close_ui_sends_confirmed_keys_not_counts)
 
+def t_weekly_close_returns_and_renders_the_recorded_snapshot():
+    from darkbrown.api import cashdesk
+    reset()
+    cashdesk.record_close({
+        'period_end': '2026-09-17', 'status': 'Closed',
+        'manual_confirmed': [],
+    })
+    saved = json.loads(S.DB['Weekly Closing'][0]['check_snapshot'])['checks']
+    assert len(saved) == 8, saved
+    manual = [c for c in saved if c['kind'] == 'manual']
+    assert len(manual) == 3 and all(not c['ok'] for c in manual), manual
+    import inspect
+    api = inspect.getsource(cashdesk.closing)
+    assert 'frappe.parse_json(d.check_snapshot)' in api
+    assert '"checks": recorded_checks' in api
+
+    shell = open(REPO + '/darkbrown/shell/index.html').read()
+    route = shell[shell.index('ROUTES.closing=()=>{'):
+                  shell.index('/* ---------------- Approvals (2E) ---------------- */')]
+    assert "Array.isArray(cur.checks)" in route
+    assert "chip('Not confirmed','a')" in route
+    form = shell[shell.index("'start-close':{t:'Weekly close'"):
+                 shell.index("'record-inspection':")]
+    assert 'const totalOpen=open.length+manualOpen.length' in form
+check("weekly close renders its immutable snapshot and honest manual status",
+      t_weekly_close_returns_and_renders_the_recorded_snapshot)
+
 # =====================================================================
 print()
 for n in PASS: print("  PASS  %s" % n)
