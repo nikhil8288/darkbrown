@@ -449,6 +449,16 @@ def t_head_lease_payable_is_draft_and_approved():
     assert 'guard(MD, GM)' in issue and 'guard(MD, GM, ACC)' not in issue
     assert 'pi.submit()' in issue
 
+def t_invoice_reference_repair_is_registered():
+    import inspect
+    from darkbrown.patches import repair_invoice_reference_links as repair
+    patches = open(REPO + '/darkbrown/patches.txt').read()
+    assert 'darkbrown.patches.repair_invoice_reference_links' in patches
+    src = inspect.getsource(repair)
+    assert 'Tenancy Agreement' in src
+    assert '("Purchase Invoice", "custom_landlord_contract", "Head Lease"' in src
+    assert 'clear_cache' in src
+
 check("partial first month follows signed agreement dates", t_partial_month_billing)
 check("quarterly rent bills only at the contract cycle", t_frequency_cycle_billing)
 check("final billing cycle stops at the agreement end", t_final_partial_cycle)
@@ -457,6 +467,7 @@ check("rent invoices carry persisted idempotency keys", t_invoice_carries_idempo
 check("Head Lease rent-free days reduce the first accrual", t_head_lease_rent_free_accrual)
 check("Head Lease cost accrues monthly despite quarterly payment", t_head_lease_accrues_monthly)
 check("Head Lease payable stays draft until GM or MD approval", t_head_lease_payable_is_draft_and_approved)
+check("invoice reference links are repaired after DocType rename", t_invoice_reference_repair_is_registered)
 
 # ---- W. Stage 0 wipe
 
