@@ -127,7 +127,12 @@ def record(payload):
 
 @frappe.whitelist()
 def register(frm=None, to=None, basis=None, building=None, limit=None):
-    """Expenses in a window, with the totals the screen puts in its boxes."""
+    """Expenses in a window, with totals over the complete filtered set.
+
+    The row list is deliberately capped for the browser. Totals must not be:
+    otherwise a long period compares a partial register with the allocation
+    engine's complete common-cost pool.
+    """
     guard(MD, GM, ACC)
     to = str(getdate(to or today()))
     frm = str(getdate(frm or get_first_day(add_months(getdate(to), -11))))
@@ -170,23 +175,43 @@ def register(frm=None, to=None, basis=None, building=None, limit=None):
             "je": r.journal_entry or "",
         })
 
-    total = sum(r["amount"] for r in out)
-    direct = sum(r["amount"] for r in out if r["basis"] == BUILDING)
-    common = sum(r["amount"] for r in out if r["basis"] == COMMON)
-    unpaid = sum(r["amount"] for r in out if r["mode"] == "Unpaid")
+    where = ["docstatus = 1", "expense_date between %s and %s"]
+    values = [frm, to]
+    if basis:
+        where.append("basis = %s")
+        values.append(basis)
+    if building:
+        where.append("building = %s")
+        values.append(building)
+    summary = frappe.db.sql("""
+        select expense_head, basis, payment_mode, count(*) as entries,
+               ifnull(sum(amount), 0) as amount
+          from `tabExpense Entry`
+         where %s
+         group by expense_head, basis, payment_mode
+    """ % " and ".join(where), tuple(values), as_dict=True)
+
+    total = sum(flt(r.amount) for r in summary)
+    direct = sum(flt(r.amount) for r in summary if r.basis == BUILDING)
+    common = sum(flt(r.amount) for r in summary if r.basis == COMMON)
+    unpaid = sum(flt(r.amount) for r in summary
+                 if r.payment_mode == "Unpaid")
+    total_count = sum(int(r.entries or 0) for r in summary)
 
     by_group = {}
-    for r in out:
-        by_group[r["group"] or "Ungrouped"] = round(
-            by_group.get(r["group"] or "Ungrouped", 0.0) + r["amount"], 2)
+    for r in summary:
+        group = group_of(r.expense_head or "") or "Ungrouped"
+        by_group[group] = round(
+            by_group.get(group, 0.0) + flt(r.amount), 2)
 
     return {"rows": out, "frm": frm, "to": to,
             "total": round(total, 2),
             "direct": round(direct, 2),
             "common": round(common, 2),
             "unpaid": round(unpaid, 2),
-            "count": len(out),
-            "capped": len(out) >= int(limit or REGISTER_CAP),
+            "count": total_count,
+            "returned": len(out),
+            "capped": total_count > len(out),
             "by_group": by_group}
 
 

@@ -5460,19 +5460,19 @@ ROUTES.ledger=()=>{
    periodBar()+fbtn('New journal entry','journal-entry')+actbtn('Export trial balance')+actbtn('Period close'),
    stat([['Journals',JRN.length],['Debits',money(totDr)],['Credits',money(totCr)],
      ['In balance',Math.abs(totDr-totCr)<0.01?'Yes':'No','',Math.abs(totDr-totCr)<0.01?'g':'r'],
-     ['Cash at bank',money(accGroup('bank',['1010','1020'])+accGroup('cash',['1030'])),'','g'],
-     ['Receivables',money(accGroup('receivable',['1100'])),'','a'],
-     ['Deposits held',money(accGroup('deposits',['2100'])),'liability']])+
+     ['Bank movement',money(accGroup('bank',['1010','1020'])+accGroup('cash',['1030'])),'','g'],
+     ['Receivable movement',money(accGroup('receivable',['1100'])),'','a'],
+     ['Deposit movement',money(accGroup('deposits',['2100'])),'liability']])+
    `<div class="grid2">
-    <div class="card"><h3>Trial balance <span class="plabel">as at ${fdate(TODAY)}</span></h3>
+    <div class="card"><h3>Account movement <span class="plabel">${periodSpan()}</span></h3>
      ${tbl([{h:'Code',v:r=>r[0]},{h:'Account',v:r=>r[1]},{h:'Class',v:r=>r[2]},
        {h:'Debit',r:1,mono:1,v:r=>accBalance(r[0]).dr?money(accBalance(r[0]).dr):'—'},
        {h:'Credit',r:1,mono:1,v:r=>accBalance(r[0]).cr?money(accBalance(r[0]).cr):'—'},
-       {h:'Balance',r:1,mono:1,v:r=>money(Math.abs(accBalance(r[0]).bal))+' '+accBalance(r[0]).nat}],
+       {h:'Net movement',r:1,mono:1,v:r=>money(Math.abs(accBalance(r[0]).bal))+' '+accBalance(r[0]).nat}],
        used.map(a=>({...a,__id:a[0]})),
        {id:'tb',click:'openAcct',foot:['debits '+money(totDr)+' = credits '+money(totCr),'click an account for its ledger']})}</div>
-    <div class="card"><h3>Position</h3>
-     ${tbl([{h:'Class',v:r=>r[0]},{h:'Accounts',r:1,mono:1,v:r=>r[1]},{h:'Net balance',r:1,mono:1,v:r=>money(Math.abs(r[2]))}],
+    <div class="card"><h3>Period movement by class</h3>
+     ${tbl([{h:'Class',v:r=>r[0]},{h:'Accounts',r:1,mono:1,v:r=>r[1]},{h:'Net movement',r:1,mono:1,v:r=>money(Math.abs(r[2]))}],
        [['Assets',COA.filter(a=>a[2]==='Asset').length,cls('Asset')],
         ['Liabilities',COA.filter(a=>a[2]==='Liability').length,cls('Liability')],
         ['Equity',COA.filter(a=>a[2]==='Equity').length,cls('Equity')],
@@ -5504,17 +5504,17 @@ ROUTES.account=code=>{
   let run=0; const withBal=rows.slice().reverse().map(r=>{
     run+=a[3]==='Dr'?r.dr-r.cr:r.cr-r.dr; return {...r,bal:run}}).reverse();
   return crumb([['General ledger','#/ledger'],[a[0]+' · '+a[1],'']])+page(a[1],
-   `Account ${a[0]} · ${a[2]} · normal balance ${a[3]}`,actbtn('Export account'),
+   `Account ${a[0]} · ${a[2]} · movement ${periodSpan()} · normal side ${a[3]}`,actbtn('Export account'),
    stat([['Code',a[0]],['Class',a[2]],['Entries',rows.length],['Debits',money(b.dr)],['Credits',money(b.cr)],
-     ['Balance',money(Math.abs(b.bal))+' '+b.nat,'','g']])+
-   `<div class="card"><h3>Account ledger <span class="plabel">most recent first · running balance</span></h3>
+     ['Net movement',money(Math.abs(b.bal))+' '+b.nat,'','g']])+
+   `<div class="card"><h3>Account movement in selected window <span class="plabel">most recent first · running movement</span></h3>
     <div class="tw"><table><thead><tr><th>Journal</th><th>Date</th><th>Type</th><th>Reference</th>
-      <th>Narration</th><th class="r">Debit</th><th class="r">Credit</th><th class="r">Balance</th></tr></thead><tbody>
+      <th>Narration</th><th class="r">Debit</th><th class="r">Credit</th><th class="r">Running movement</th></tr></thead><tbody>
     ${withBal.map(r=>`<tr class="drill" onclick="go('#/journal/'+'${r.jid}')"><td>${r.jid}</td><td>${r.d}</td>
       <td>${chip(r.ty,'n')}</td><td>${r.ref}</td><td>${r.desc}</td>
       <td class="r num">${r.dr?money(r.dr):'—'}</td><td class="r num">${r.cr?money(r.cr):'—'}</td>
       <td class="r num">${money(Math.abs(r.bal))}</td></tr>`).join('')}
-    </tbody></table></div><div class="foot"><span>${rows.length} postings</span><span>closing ${money(Math.abs(b.bal))} ${b.nat}</span></div></div>`)};
+    </tbody></table></div><div class="foot"><span>${rows.length} postings</span><span>window movement ${money(Math.abs(b.bal))} ${b.nat}</span></div></div>`)};
 
 /* The paperwork step attaches the document and does nothing else.
 
@@ -6196,20 +6196,21 @@ addEventListener('keydown',e=>{if(e.key==='Escape')closeNotif()});
 ROUTES.coa=()=>{
   const rdy=books(); if(rdy!==true) return lazyPage('Chart of accounts','Reads the company chart in ERPNext',rdy);
   const cls=['Asset','Liability','Equity','Income','Expense'];
+  const plural={Asset:'Assets',Liability:'Liabilities',Equity:'Equity',Income:'Income',Expense:'Expenses'};
   let rows='';
   cls.forEach(c=>{
-    rows+=`<tr class="grp2"><td colspan="6">${c}s</td></tr>`;
+    rows+=`<tr class="grp2"><td colspan="6">${plural[c]}</td></tr>`;
     COA.filter(a=>a[2]===c).forEach(a=>{const b=accBalance(a[0]);
       rows+=`<tr class="drill" onclick="go('#/account/'+'${a[0]}')"><td>${a[0]}</td><td>${a[1]}</td>
        <td>${a[3]}</td><td class="r num">${b.dr?money(b.dr):'—'}</td><td class="r num">${b.cr?money(b.cr):'—'}</td>
        <td class="r num">${money(Math.abs(b.bal))} ${b.nat}</td></tr>`});
   });
-  return page('Chart of accounts',COA.length+' accounts · five classes · balances '+periodAsAt(),
+  return page('Chart of accounts',COA.length+' accounts · five classes · movement '+periodSpan(),
    periodBar()+fbtn('New journal entry','journal-entry')+actbtn('Add account'),
-   stat(cls.map(c=>[c+'s',COA.filter(a=>a[2]===c).length]))+
+   stat(cls.map(c=>[plural[c],COA.filter(a=>a[2]===c).length]))+
    `<div class="card"><h3>Accounts <span class="plabel">click any account for its ledger</span></h3>
     <div class="tw"><table><thead><tr><th>Code</th><th>Account</th><th>Normal</th>
-      <th class="r">Debits</th><th class="r">Credits</th><th class="r">Balance</th></tr></thead>
+      <th class="r">Debits</th><th class="r">Credits</th><th class="r">Net movement</th></tr></thead>
       <tbody>${rows}</tbody></table></div></div>`)};
 
 /* ---------- Journal entries list ---------- */
@@ -6534,8 +6535,9 @@ function expLive(d){
      ['Common',money(d.common),'shared out','a',{k:'b',v:'Common'}],
      ['Still unpaid',money(d.unpaid),'',d.unpaid?'r':'g']])+
    (f?fchip(f==='Building'?'building costs only':'common costs only','b'):'')+
-   (d.capped?`<div class="note">Capped at ${rows.length} entries \u2014 narrow the
-     period to see the rest.</div>`:'')+
+   (d.capped?`<div class="note">Showing ${d.returned||rows.length} of ${d.count}
+     entries. The summary totals and common-cost pool include the full selected
+     period; narrow the period to inspect every row.</div>`:'')+
    `<div class="card"><h3>Entries</h3>
     ${rows.length?tbl([
      {h:'Date',r:1,v:r=>fdate(r.date)},{h:'Head',v:r=>esc(r.head)},

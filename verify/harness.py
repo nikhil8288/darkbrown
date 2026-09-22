@@ -1467,6 +1467,36 @@ def t_voucher_detail_uses_source_document_cancellation():
 check("voucher detail directs corrections through the source document",
       t_voucher_detail_uses_source_document_cancellation)
 
+def t_expense_register_totals_are_not_limited_with_rows():
+    import inspect
+    from darkbrown.api import expenses
+    src = inspect.getsource(expenses.register)
+    assert 'group by expense_head, basis, payment_mode' in src
+    assert '"returned": len(out)' in src
+    assert '"capped": total_count > len(out)' in src
+    assert 'total = sum(flt(r.amount) for r in summary)' in src
+    shell = open(REPO + '/darkbrown/shell/index.html').read()
+    assert 'The summary totals and common-cost pool include the full selected' in shell
+check("expense totals cover the full period when register rows are capped",
+      t_expense_register_totals_are_not_limited_with_rows)
+
+def t_account_window_is_labelled_as_movement_not_balance():
+    shell = open(REPO + '/darkbrown/shell/index.html').read()
+    coa = shell[shell.index('ROUTES.coa=()=>{'):
+                shell.index('/* ---------- Journal entries list ---------- */')]
+    ledger = shell[shell.index('ROUTES.ledger=()=>{'):
+                   shell.index('/* The paperwork step attaches',
+                               shell.index('ROUTES.ledger=()=>{'))]
+    assert "movement '+periodSpan()" in coa
+    assert "<th class=\"r\">Net movement</th>" in coa
+    assert "Liability:'Liabilities'" in coa
+    assert 'Account movement <span class="plabel">${periodSpan()}' in ledger
+    assert "['Bank movement'" in ledger
+    assert "['Net movement'" in ledger
+    assert 'window movement ${money(Math.abs(b.bal))}' in ledger
+check("account screens describe selected-window movement accurately",
+      t_account_window_is_labelled_as_movement_not_balance)
+
 # =====================================================================
 print()
 for n in PASS: print("  PASS  %s" % n)
