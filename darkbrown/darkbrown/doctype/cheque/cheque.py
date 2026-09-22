@@ -9,7 +9,7 @@ class Cheque(Document):
 			frappe.throw(_("A cheque needs an amount."))
 		dup = frappe.db.exists("Cheque", {
 			"cheque_no": self.cheque_no, "party": self.party,
-			"name": ["!=", self.name or ""]})
+			"name": ["!=", self.get("name") or ""]})
 		if dup:
 			frappe.msgprint(
 				_("Cheque {0} is already on the register for this party as {1}.")

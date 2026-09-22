@@ -210,6 +210,41 @@ def t_money_amount_guards():
         pass
 check("receipts and cheques reject non-positive amounts", t_money_amount_guards)
 
+def t_outgoing_headlease_cheque_is_contract_scoped():
+    reset()
+    S.DB['Head Lease'].append({
+        'name':'HL-001', 'building':'Al Sadd', 'landlord':'SUP-001',
+        'status':'Active', 'start_date':'2026-01-01', 'end_date':'2026-12-31'})
+    from darkbrown.api import finance
+    r = finance.log_cheque(json.dumps({
+        'direction':'Outgoing', 'party':'SUP-001', 'cheque_no':'9001',
+        'cheque_date':'2026-09-22', 'amount':5000,
+        'purpose':'Head-lease rent'}))
+    made = next(x for x in S.DB['Cheque'] if x['name'] == r['cheques'][0])
+    assert made['head_lease'] == 'HL-001', made
+    assert made['building'] == 'Al Sadd', made
+check("outgoing landlord cheques inherit their unambiguous Head Lease",
+      t_outgoing_headlease_cheque_is_contract_scoped)
+
+def t_outgoing_headlease_cheque_refuses_ambiguity():
+    reset()
+    for name in ('HL-001', 'HL-002'):
+        S.DB['Head Lease'].append({
+            'name':name, 'building':'Al Sadd', 'landlord':'SUP-001',
+            'status':'Active', 'start_date':'2026-01-01',
+            'end_date':'2026-12-31'})
+    from darkbrown.api import finance
+    try:
+        finance.log_cheque(json.dumps({
+            'direction':'Outgoing', 'party':'SUP-001', 'cheque_no':'9002',
+            'cheque_date':'2026-09-22', 'amount':5000,
+            'purpose':'Head-lease rent'}))
+        assert False, "ambiguous landlord cheque was accepted"
+    except S.ValidationError:
+        assert 'multiple Head Leases' in S.THROWN[-1], S.THROWN[-1]
+check("outgoing landlord cheques refuse ambiguous contract allocation",
+      t_outgoing_headlease_cheque_refuses_ambiguity)
+
 def t_cheque_form_does_not_truncate_parties():
     src = open(REPO + '/darkbrown/shell/index.html').read()
     assert "TENANTS.slice(0,24)" not in src, \

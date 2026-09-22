@@ -41,6 +41,51 @@ def _company():
             or frappe.db.get_value("Company", {}, "name"))
 
 
+def _outgoing_head_lease(data, party, cheque_date):
+    """Resolve the contract that an outgoing landlord cheque belongs to.
+
+    Supplier payment allocation is contract-scoped.  Letting a head-lease
+    cheque reach clearing without this link makes it eligible for the
+    supplier's unrelated open bills, which is worse than refusing ambiguous
+    input.  A caller may name the lease; otherwise one unambiguous live lease
+    for the landlord and cheque date is inferred.
+    """
+    purpose = data.get("purpose") or "Other"
+    requested = data.get("head_lease")
+    if purpose not in ("Head-lease rent", "Deposit to landlord") and not requested:
+        return None
+
+    if requested:
+        if not frappe.db.exists("Head Lease", requested):
+            frappe.throw(_("Head Lease {0} does not exist.").format(requested))
+        lease = frappe.get_doc("Head Lease", requested)
+        require_record_access(lease, "read")
+        if lease.landlord != party:
+            frappe.throw(_(
+                "Head Lease {0} belongs to {1}, not {2}."
+            ).format(requested, lease.landlord, party))
+        return lease
+
+    candidates = frappe.get_all(
+        "Head Lease",
+        filters={"landlord": party,
+                 "status": ["in", ("Active", "Expiring")]},
+        fields=["name", "building", "landlord", "start_date", "end_date"])
+    on = getdate(cheque_date)
+    candidates = [x for x in candidates
+                  if (not x.start_date or getdate(x.start_date) <= on)
+                  and (not x.end_date or getdate(x.end_date) >= on)]
+    if not candidates:
+        frappe.throw(_(
+            "No active Head Lease for {0} covers the cheque date {1}."
+        ).format(party, on))
+    if len(candidates) > 1:
+        frappe.throw(_(
+            "{0} has multiple Head Leases covering {1}; choose the contract."
+        ).format(party, on))
+    return frappe.get_doc("Head Lease", candidates[0].name)
+
+
 # -------------------------------------------------------------------- cheques
 
 @frappe.whitelist()
@@ -53,15 +98,6 @@ def log_cheque(payload):
     """
     guard(MD, ACC)
     data = frappe.parse_json(payload)
-    agreement = data.get("tenancy_agreement")
-    ta = frappe.get_doc("Tenancy Agreement", agreement) if agreement else None
-    if ta:
-        require_record_access(ta, "read")
-    else:
-        require_building_access(data.get("building") or (
-            frappe.db.get_value("Unit", data.get("unit"), "building")
-            if data.get("unit") else None))
-
     count = int(data.get("count") or 1)
     if count < 1:
         frappe.throw(_("A cheque batch needs at least one cheque."))
@@ -77,11 +113,28 @@ def log_cheque(payload):
         frappe.throw(_("A cheque amount must be greater than zero."))
 
     direction = data.get("direction") or "Incoming"
+    if direction not in ("Incoming", "Outgoing"):
+        frappe.throw(_("Cheque direction must be Incoming or Outgoing."))
+    agreement = data.get("tenancy_agreement")
+    ta = frappe.get_doc("Tenancy Agreement", agreement) if agreement else None
     party = data.get("party") or (ta.tenant if ta else None)
     if not party:
         frappe.throw(_("A cheque needs a party."))
 
     first_date = getdate(data.get("cheque_date") or today())
+    lease = (_outgoing_head_lease(data, party, first_date)
+             if direction == "Outgoing" else None)
+    building = (ta.building if ta else lease.building if lease
+                else data.get("building") or (
+                    frappe.db.get_value("Unit", data.get("unit"), "building")
+                    if data.get("unit") else None))
+    if ta:
+        require_record_access(ta, "read")
+    elif lease:
+        require_record_access(lease, "read")
+    else:
+        require_building_access(building)
+
     every = int(data.get("months_apart") or 1)
     numeric = first_no.isdigit()
 
@@ -102,17 +155,17 @@ def log_cheque(payload):
             "amount": amount,
             "cheque_book": data.get("cheque_book"),
             "scan": data.get("scan"),
-            "building": ta.building if ta else data.get("building"),
+            "building": building,
             "unit": ta.unit if ta else data.get("unit"),
             "tenancy_agreement": agreement,
-            "head_lease": data.get("head_lease"),
+            "head_lease": lease.name if lease else data.get("head_lease"),
             "purpose": data.get("purpose") or (
                 "Rent" if direction == "Incoming" else "Other"),
             "notes": data.get("notes"),
         })
         doc.flags.ignore_mandatory = True
         doc.insert(ignore_permissions=True)
-        made.append(doc.name)
+        made.append(doc.get("name"))
 
     if ta:
         ta.db_set("cheques_held", flt(ta.cheques_held) + count,
