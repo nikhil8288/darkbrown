@@ -269,6 +269,17 @@ def t_outgoing_cheque_uses_payment_language():
 check("outgoing cheque lifecycle uses payment language",
       t_outgoing_cheque_uses_payment_language)
 
+def t_outgoing_return_form_uses_supplier_language():
+    src = open(REPO + '/darkbrown/shell/index.html').read()
+    assert "ret&&!outgoing?fld({k:'next'" in src, \
+        "outgoing return still offers tenant collection actions"
+    assert "A returned outgoing cheque reverses the payment." in src, \
+        "outgoing return does not explain the supplier-payment reversal"
+    assert "The supplier Payment Entry is cancelled, the payable reopens" in src, \
+        "outgoing return still describes tenant arrears instead of the payable"
+check("outgoing return form uses supplier-payment language",
+      t_outgoing_return_form_uses_supplier_language)
+
 def t_cheque_form_does_not_truncate_parties():
     src = open(REPO + '/darkbrown/shell/index.html').read()
     assert "TENANTS.slice(0,24)" not in src, \

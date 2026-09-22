@@ -8760,7 +8760,7 @@ FORMS['cheque-action']={t:'Update the cheque',s:'Every change is kept on the che
  init:ctx=>({__id:ctx&&ctx.id,act:''}),
  steps:[{n:'What happened',body:d=>{const c=C(d.__id)||CHQ[0];
    const next=chequeNext(c);const opts=next.map(x=>x[0]);
-   const ret=/returned/i.test(d.act||'');
+   const ret=/returned/i.test(d.act||'');const outgoing=c.dir==='out';
    return `<div class="kv" style="margin-bottom:12px">
     ${[['Cheque',c.id],['Party',c.party||c.tn],['Amount',k(c.amt)],['Bank',c.bank+' · '+c.no],
        ['Date on the cheque',c.mat],['Status now',chequeStatusLabel(c)]].map(r=>`<div><span>${r[0]}</span><b>${r[1]}</b></div>`).join('')}</div>
@@ -8768,13 +8768,16 @@ FORMS['cheque-action']={t:'Update the cheque',s:'Every change is kept on the che
     ${fld({k:'act',l:'What happened',t:'sel',o:['Choose one'].concat(opts),req:1,live:1},d.act)}
     ${fld({k:'date',l:'When',t:'date',d:ISO(TODAY),req:1},d.date)}
     ${ret?fld({k:'reason',l:'Reason given by the bank',t:'sel',o:RETURNREASON,req:1},d.reason):''}
-    ${ret?fld({k:'next',l:'What happens now',t:'sel',
+    ${ret&&!outgoing?fld({k:'next',l:'What happens now',t:'sel',
       o:['Ask for a replacement','Re-present on an agreed date','Open a collection case','Escalate to legal'],req:1},d.next):''}
     ${fld({k:'note',l:'Note',t:'ta',p:'what was agreed, and with whom',full:1},d.note)}</div>
    ${next.length?`<div class="note">${next.map(x=>'<b>'+x[0]+'</b> — '+x[1]).join('<br>')}</div>`:''}
-   ${ret?`<div class="note" style="border-left-color:var(--red)"><b>A returned cheque is not just a status.</b>
-     The invoice goes back to unpaid, the tenant's arrears rise by the amount, and it appears in the MD exceptions feed until it is
-     resolved one way or the other.</div>`:''}`},
+   ${ret?(outgoing
+    ?`<div class="note" style="border-left-color:var(--red)"><b>A returned outgoing cheque reverses the payment.</b>
+      The supplier Payment Entry is cancelled, the payable reopens, and the bank movement is reversed with its audit trail intact.</div>`
+    :`<div class="note" style="border-left-color:var(--red)"><b>A returned cheque is not just a status.</b>
+      The invoice goes back to unpaid, the tenant's arrears rise by the amount, and it appears in the MD exceptions feed until it is
+      resolved one way or the other.</div>`):''}`},
   fields:[{k:'act',req:1},{k:'date',req:1}],
   check:d=>d.act&&d.act!=='Choose one',msg:'Choose what happened'}],
  submit:d=>{const c=C(d.__id)||CHQ[0];const a=d.act;
