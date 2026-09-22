@@ -73,7 +73,12 @@ def reset():
                     'account_type':'Bank','is_group':0},
                    {'name':'Security Deposits Held - DB',
                     'account_name':'Security Deposits Held','is_group':0,
-                    'company':'DarkBrown RealEstate'}],
+                    'company':'DarkBrown RealEstate'},
+                   {'name':'Tenant Recharge Income - DB',
+                    'account_name':'Tenant Recharge Income','is_group':0,
+                    'company':'DarkBrown RealEstate'},
+                   {'name':'Cash - DB','account_name':'Cash','account_type':'Cash',
+                    'is_group':0,'company':'DarkBrown RealEstate'}],
         'Bank Account':[{'name':'QNB Main','account':'QNB Main - DB'}],
         'Cost Center':[{'name':'Al Sadd - DB','cost_center_name':'Al Sadd','is_group':0}],
         'Customer':[{'name':'CUST-001','customer_name':'Mohammed Abdul Rahman'},
@@ -81,6 +86,7 @@ def reset():
         'Supplier':[{'name':'SUP-001','supplier_name':'Al Adekhar Real Estate LLC'}],
         'Unit':[], 'Building':[{'name':'Al Sadd'}],
         'Cheque':[], 'Security Deposit':[], 'Head Lease Payment':[],
+        'Move Out Case':[],
         'Collection Case':[], 'Sales Invoice':[], 'Purchase Invoice':[],
         'Payment Entry':[],
         'Tenancy Agreement':[], 'Head Lease':[], 'Building':[{'name':'Al Sadd'}],
@@ -1650,6 +1656,62 @@ def t_ledger_headlines_use_full_window_not_capped_vouchers():
     assert 'const totDr=JRN.reduce' not in route
 check("ledger headline totals do not change when the voucher list is capped",
       t_ledger_headlines_use_full_window_not_capped_vouchers)
+
+def t_moveout_settlement_syncs_deposit_deductions():
+    from darkbrown.api import operations
+    reset()
+    S.DB['Security Deposit'].append({
+        'name':'SD-1', 'tenancy_agreement':'TA-1', 'tenant':'CUST-001',
+        'company':'DarkBrown RealEstate', 'amount':1000, 'deductions':0,
+        'status':'Held', 'receipt_method':'Transfer'})
+    S.DB['Move Out Case'].append({
+        'name':'MO-1', 'tenancy_agreement':'TA-1', 'tenant':'CUST-001',
+        'unit':None, 'building':'Al Sadd', 'security_deposit':'SD-1',
+        'status':'Settlement Pending', 'deposit_held':1000,
+        'outstanding_rent':0, 'utilities_due':40, 'damages_charged':0})
+    result = operations.advance_moveout('MO-1', {
+        'step':'settle', 'outstanding_rent':100, 'damages_charged':60})
+    sd = S.DB['Security Deposit'][0]
+    assert result['status'] == 'Refund Pending', result
+    assert sd['deductions'] == 200, sd
+    assert 'Outstanding rent: QAR 100.00' in sd['deduction_reason']
+    assert 'Utilities: QAR 40.00' in sd['deduction_reason']
+    assert 'Damages: QAR 60.00' in sd['deduction_reason']
+check("move-out settlement carries itemised deductions to the deposit approval",
+      t_moveout_settlement_syncs_deposit_deductions)
+
+def t_deposit_release_posts_balanced_refund_journal():
+    from darkbrown.api import approvals
+    reset()
+    S.DB['Security Deposit'].append({
+        'name':'SD-1', 'tenancy_agreement':'TA-1', 'tenant':'CUST-001',
+        'company':'DarkBrown RealEstate', 'amount':1000, 'deductions':200,
+        'deduction_reason':'Rent 100; utilities and damage 100',
+        'status':'Held', 'receipt_method':'Transfer',
+        'move_out_case':'MO-1', 'refund_journal_entry':None})
+    S.DB['Move Out Case'].append({
+        'name':'MO-1', 'tenancy_agreement':'TA-1', 'tenant':'CUST-001',
+        'unit':None, 'building':'Al Sadd', 'security_deposit':'SD-1',
+        'status':'Refund Pending', 'deposit_held':1000,
+        'outstanding_rent':100, 'utilities_due':40, 'damages_charged':60})
+    result = approvals._deposit('SD-1', 'approve', 'Controlled test')
+    inserted = [c for c in S.CALLS
+                if c[0] == 'insert' and c[1] == 'Journal Entry']
+    assert inserted, 'deposit release did not create a Journal Entry'
+    accounts = inserted[-1][2]['accounts']
+    debit = sum(float(a.get('debit_in_account_currency') or 0)
+                for a in accounts)
+    credit = sum(float(a.get('credit_in_account_currency') or 0)
+                 for a in accounts)
+    assert (debit, credit) == (1000, 1000), accounts
+    assert result['refund'] == 800, result
+    assert result['journal_entry'], result
+    assert S.DB['Security Deposit'][0]['refund_journal_entry'] == result['journal_entry']
+    assert S.DB['Move Out Case'][0]['status'] == 'Closed'
+    assert any(c[0] == 'submit' and c[1] == 'Journal Entry' for c in S.CALLS), \
+        'refund journal was left in draft'
+check("MD deposit approval posts and links a balanced refund journal",
+      t_deposit_release_posts_balanced_refund_journal)
 
 # =====================================================================
 print()

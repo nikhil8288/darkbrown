@@ -624,6 +624,7 @@ def _collections(r, tenancies):
                             "first of the quarter."))
     if not case:
         return
+    case = case["case"]
     r.count("collection cases")
 
     r.step("log call", lambda: ops_api.log_contact(

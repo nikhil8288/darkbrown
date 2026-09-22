@@ -25,6 +25,7 @@
   "cb_refund",
   "refund_amount",
   "refunded_on",
+  "refund_journal_entry",
   "move_out_case"
  ],
  "fields": [
@@ -151,6 +152,13 @@
    "fieldname": "refunded_on",
    "fieldtype": "Date",
    "label": "Refunded On"
+  },
+  {
+   "fieldname": "refund_journal_entry",
+   "fieldtype": "Link",
+   "label": "Refund Journal Entry",
+   "options": "Journal Entry",
+   "read_only": 1
   },
   {
    "fieldname": "move_out_case",

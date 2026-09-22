@@ -154,9 +154,73 @@ def _deposit(reference, decision, note):
         doc.save(ignore_permissions=True)
         return {"reference": doc.name, "status": doc.status}
 
-    refund = flt(doc.amount) - flt(doc.deductions)
+    refund = max(flt(doc.amount) - flt(doc.deductions), 0)
+    if doc.refund_journal_entry:
+        frappe.throw(_("{0} was already posted in {1}.").format(
+            reference, doc.refund_journal_entry))
+
+    company = doc.company
+    liability = frappe.db.get_value(
+        "Account", {"account_name": "Security Deposits Held",
+                    "company": company, "is_group": 0}, "name")
+    if not liability:
+        frappe.throw(_("Security Deposits Held account is not configured."))
+
+    from darkbrown.api.finance import _paid_to, _settings, _cost_center
+    if doc.receipt_method == "Cash":
+        money_account = frappe.db.get_value(
+            "Account", {"company": company, "account_type": "Cash",
+                        "is_group": 0}, "name")
+    else:
+        money_account = _paid_to(_settings().default_bank_account, company)
+    if refund and not money_account:
+        frappe.throw(_("No {0} account is configured for the refund.").format(
+            "cash" if doc.receipt_method == "Cash" else "bank"))
+
+    mo = (frappe.get_doc("Move Out Case", doc.move_out_case)
+          if doc.move_out_case else None)
+    remaining = flt(doc.deductions)
+    rent = min(flt(mo.outstanding_rent) if mo else 0, remaining)
+    remaining -= rent
+    recharge = remaining
+
+    je = frappe.new_doc("Journal Entry")
+    je.company = company
+    je.posting_date = today()
+    je.user_remark = ("Security deposit settlement {0}"
+                      + (" for move-out {1}" if mo else "")).format(
+                          doc.name, mo.name if mo else "")
+    cc = _cost_center(mo.building) if mo and mo.building else None
+    je.append("accounts", {"account": liability,
+                           "debit_in_account_currency": flt(doc.amount),
+                           "cost_center": cc})
+    if refund:
+        je.append("accounts", {"account": money_account,
+                               "credit_in_account_currency": refund,
+                               "cost_center": cc})
+    if rent:
+        from erpnext.accounts.party import get_party_account
+        receivable = get_party_account("Customer", doc.tenant, company)
+        je.append("accounts", {"account": receivable,
+                               "party_type": "Customer", "party": doc.tenant,
+                               "credit_in_account_currency": rent,
+                               "cost_center": cc})
+    if recharge:
+        recharge_account = frappe.db.get_value(
+            "Account", {"account_name": "Tenant Recharge Income",
+                        "company": company, "is_group": 0}, "name")
+        if not recharge_account:
+            frappe.throw(_("Tenant Recharge Income account is not configured."))
+        je.append("accounts", {"account": recharge_account,
+                               "credit_in_account_currency": recharge,
+                               "cost_center": cc})
+    je.flags.ignore_permissions = True
+    je.insert()
+    je.submit()
+
     doc.refund_amount = refund
     doc.refunded_on = today()
+    doc.refund_journal_entry = je.name
     doc.status = ("Refunded" if refund >= flt(doc.amount)
                   else "Partially Refunded" if refund > 0 else "Forfeited")
     doc.save(ignore_permissions=True)
@@ -164,11 +228,15 @@ def _deposit(reference, decision, note):
     if doc.move_out_case:
         mo = frappe.get_doc("Move Out Case", doc.move_out_case)
         if mo.status == "Refund Pending":
+            mo.refund_amount = refund
+            mo.refund_method = ("Cash" if doc.receipt_method == "Cash"
+                                else "Transfer")
+            mo.refund_paid_on = today()
             mo.status = "Closed"
             mo.save(ignore_permissions=True)
 
     return {"reference": doc.name, "status": doc.status,
-            "refund": round(refund)}
+            "refund": round(refund), "journal_entry": je.name}
 
 
 def _invoice_run(reference, decision, note):

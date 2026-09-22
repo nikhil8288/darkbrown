@@ -40,7 +40,8 @@ def log_contact(case, method, outcome, notes=None, promised_amount=None,
     elif outcome in ("No Answer", "Disputed") and doc.status == "Open":
         doc.status = "Contacted"
     doc.save()
-    return doc.name
+    return {"case": doc.name, "status": doc.status,
+            "security_deposit": doc.security_deposit}
 
 
 @frappe.whitelist()
@@ -204,5 +205,21 @@ def advance_moveout(case, payload):
         frappe.throw(_("Unknown move-out step: {0}").format(step))
 
     doc.save()
+    if step == "settle" and doc.security_deposit:
+        total = (flt(doc.outstanding_rent) + flt(doc.utilities_due)
+                 + flt(doc.damages_charged))
+        held = flt(frappe.db.get_value(
+            "Security Deposit", doc.security_deposit, "amount"))
+        deductions = min(total, held)
+        reasons = []
+        for label, amount in (("Outstanding rent", doc.outstanding_rent),
+                              ("Utilities", doc.utilities_due),
+                              ("Damages", doc.damages_charged)):
+            if flt(amount):
+                reasons.append("{0}: QAR {1:,.2f}".format(label, flt(amount)))
+        frappe.db.set_value("Security Deposit", doc.security_deposit, {
+            "deductions": deductions,
+            "deduction_reason": "; ".join(reasons),
+        })
     return {"case": doc.name, "status": doc.status,
             "refund": flt(doc.refund_amount)}
