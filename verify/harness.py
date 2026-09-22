@@ -1557,6 +1557,16 @@ def t_reconciled_batch_does_not_roll_cheques_back_to_received():
 check("saving a reconciled batch preserves its cleared cheque state",
       t_reconciled_batch_does_not_roll_cheques_back_to_received)
 
+def t_ledger_headlines_use_full_window_not_capped_vouchers():
+    shell = open(REPO + '/darkbrown/shell/index.html').read()
+    route = shell[shell.index('ROUTES.ledger=()=>{'):
+                  shell.index('window.openAcct=', shell.index('ROUTES.ledger=()=>{'))]
+    assert 'const totDr=COA.reduce((s,a)=>s+(a[4]||0),0)' in route
+    assert 'const totCr=COA.reduce((s,a)=>s+(a[5]||0),0)' in route
+    assert 'const totDr=JRN.reduce' not in route
+check("ledger headline totals do not change when the voucher list is capped",
+      t_ledger_headlines_use_full_window_not_capped_vouchers)
+
 # =====================================================================
 print()
 for n in PASS: print("  PASS  %s" % n)

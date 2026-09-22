@@ -5454,8 +5454,11 @@ function jrnFiltered(){
 ROUTES.ledger=()=>{
   const rdy=books(); if(rdy!==true) return lazyPage('General ledger','Reads GL entries in ERPNext',rdy);
   const res=jrnFiltered();
-  const totDr=JRN.reduce((a,j)=>a+j.lines.reduce((x,l)=>x+(l[1]||0),0),0);
-  const totCr=JRN.reduce((a,j)=>a+j.lines.reduce((x,l)=>x+(l[2]||0),0),0);
+  /* JRN is capped for rendering; account totals are the server's aggregate
+     over the complete selected window. Headline totals must not move merely
+     because a new voucher displaced the oldest displayed voucher. */
+  const totDr=COA.reduce((s,a)=>s+(a[4]||0),0);
+  const totCr=COA.reduce((s,a)=>s+(a[5]||0),0);
   const used=COA.filter(a=>{const b=accBalance(a[0]);return b.dr||b.cr});
   const cls=t=>COA.filter(a=>a[2]===t).reduce((s,a)=>s+accBalance(a[0]).bal,0);
   const sel=(k,opts)=>`<select onchange="lfSet('${k}',this.value)">${opts.map(o=>
