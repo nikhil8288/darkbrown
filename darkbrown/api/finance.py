@@ -310,11 +310,18 @@ def return_cheque(cheque, reason, charge=None, notes=None, on=None):
     # stale timestamp and the save is refused as a conflict. Reload, then
     # apply the bounce to the fresh copy.
     if doc.payment_entry:
+        # Payment Entry cancellation deliberately clears ``cleared_on`` while
+        # it restores the cheque's prior operational state.  A return is
+        # different: Cleared remains a real, completed audit event even though
+        # its accounting entry is reversed.  Preserve that event timestamp
+        # across the cancellation hook so the lifecycle stays immutable.
+        cleared_on = doc.cleared_on
         pe = frappe.get_doc("Payment Entry", doc.payment_entry)
         if pe.docstatus == 1:
             pe.cancel()
         doc.reload()
         doc.payment_entry = None
+        doc.cleared_on = cleared_on
 
     doc.status = "Returned"
     doc.returned_on = on or today()

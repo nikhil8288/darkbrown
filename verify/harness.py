@@ -391,6 +391,20 @@ def t_charge_unbooked_reported():
     assert r['charge_unbooked'] is True, "unbooked charge not reported"
 check("an unconfigured charge account is reported, not silently dropped", t_charge_unbooked_reported)
 
+def t_return_preserves_cleared_history():
+    """A return reverses money, not the historical fact it once cleared."""
+    import inspect
+    from darkbrown.api import finance
+    src = inspect.getsource(finance.return_cheque)
+    capture = src.index('cleared_on = doc.cleared_on')
+    cancel = src.index('pe.cancel()')
+    reload_ = src.index('doc.reload()')
+    restore = src.index('doc.cleared_on = cleared_on')
+    assert capture < cancel < reload_ < restore, \
+        "return flow does not restore the cleared audit timestamp after cancellation"
+check("returning a cleared cheque preserves its Cleared history event",
+      t_return_preserves_cleared_history)
+
 # ---- F. handoff now fires
 def t_t5_fires():
     reset(); c = mkcheque(status='Returned')
