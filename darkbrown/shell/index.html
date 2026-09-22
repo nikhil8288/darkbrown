@@ -4453,7 +4453,7 @@ ROUTES.landlord=id=>{const l=L_(id);
  const bs=BUILDINGS.filter(b=>(l.buildings||[]).includes(b.id));
  return crumb([['Landlords','#/landlords'],[l.n,'']])+page(l.n,
   `${l.type} · ${l.idno} · on file since ${l.since}`,
-  fbtn('Record cheque to landlord','landlord-cheque')+actbtn('Send a document','Document sent'),
+  fbtn('Record cheque to landlord','landlord-cheque',{ll:l.n})+actbtn('Send a document','Document sent'),
   stat([['Buildings',bs.length],['Head-lease cost',k(bs.reduce((a,b)=>a+b.cost,0))],
    ['Documents',(l.docs||[]).length,'',(l.docs||[]).length?'g':'r'],
    ['Payable',(!l.bank||l.bank==='—')?'no bank on file':'bank on file','',(!l.bank||l.bank==='—')?'r':'g']])+
@@ -9396,7 +9396,7 @@ const WIRE={
  m:'finance.log_cheque',
  a:d=>({payload:{direction:'Outgoing',party:(d.__ctx&&d.__ctx.ll)||null,
    cheque_no:d.no,cheque_date:d.date,amount:wNum(d.amt),count:1,
-   bank:d.bank,purpose:d.purpose||'Other',notes:d.note}}),
+   bank:d.bank,purpose:'Head-lease rent',notes:d.note}}),
  ok:()=>({title:'Cheque recorded',msg:'Outgoing cheque on the register',goto:'#/cheques'})},
 
 'amend-invoice':{

@@ -245,6 +245,19 @@ def t_outgoing_headlease_cheque_refuses_ambiguity():
 check("outgoing landlord cheques refuse ambiguous contract allocation",
       t_outgoing_headlease_cheque_refuses_ambiguity)
 
+def t_landlord_detail_cheque_carries_party_and_headlease_purpose():
+    src = open(REPO + '/darkbrown/shell/index.html').read()
+    assert "fbtn('Record cheque to landlord','landlord-cheque',{ll:l.n})" in src, \
+        "landlord detail cheque action does not carry its Supplier party"
+    block = src[src.index("'landlord-cheque':{", src.index("const WIRE")):
+                src.index("'amend-invoice':{", src.index("const WIRE"))]
+    assert "party:(d.__ctx&&d.__ctx.ll)||null" in block, \
+        "landlord cheque payload does not send the selected Supplier"
+    assert "purpose:'Head-lease rent'" in block, \
+        "landlord cheque payload does not activate Head Lease allocation"
+check("landlord detail cheque sends its party and Head Lease purpose",
+      t_landlord_detail_cheque_carries_party_and_headlease_purpose)
+
 def t_cheque_form_does_not_truncate_parties():
     src = open(REPO + '/darkbrown/shell/index.html').read()
     assert "TENANTS.slice(0,24)" not in src, \
