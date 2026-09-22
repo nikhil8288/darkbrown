@@ -6588,8 +6588,14 @@ ROUTES.expenses=()=>{
 
 function journalDetail(id){const j=JRN.find(x=>x.id===id)||JRN[0];
   const dr=j.lines.reduce((a,l)=>a+(l[1]||0),0), cr=j.lines.reduce((a,l)=>a+(l[2]||0),0);
+  const correction={
+   'Sales Invoice':'Cancel the source Sales Invoice; ERPNext keeps the reversing ledger trail',
+   'Purchase Invoice':'Cancel the source Purchase Invoice; ERPNext keeps the reversing ledger trail',
+   'Payment Entry':'Cancel the source Payment Entry; ERPNext keeps the reversing ledger trail',
+   'Journal Entry':'Cancel or reverse the source Journal Entry in ERPNext'
+  }[j.vt]||'Correct or cancel the source document in ERPNext';
   return crumb([['Journal entries','#/journal'],[j.id,'']])+page(j.id,`${j.desc} · ${j.d}`,
-   actbtn('Print')+actbtn('Reverse entry'),
+   actbtn('Print'),
    stat([['Date',j.d],['Type',j.ty],['Reference',j.ref],['Debits',money(dr)],['Credits',money(cr)],
      ['Balanced',Math.abs(dr-cr)<0.01?'Yes':'No','',Math.abs(dr-cr)<0.01?'g':'r'],['Posted by',j.by||'\u2014']])+
    `<div class="card"><h3>Journal lines</h3>
@@ -6602,7 +6608,7 @@ function journalDetail(id){const j=JRN.find(x=>x.id===id)||JRN[0];
    ${noteThread(j.id)}
    <div class="card"><h3>Audit</h3><div class="kv">
     ${[['Posted by',j.by||'\u2014'],['Posted on',j.d],['Source document',j.ref],
-       ['Reversible','yes — creates a mirror entry'],['Edited after posting','no']]
+       ['Correction path',correction],['Edited after posting','no']]
      .map(r=>`<div><span>${r[0]}</span><b>${r[1]}</b></div>`).join('')}</div></div>`)}
 
 

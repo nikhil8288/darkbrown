@@ -1454,6 +1454,19 @@ def t_cash_flow_excludes_the_historical_cutover_control():
 check("cash flow excludes the non-cash historical cutover control",
       t_cash_flow_excludes_the_historical_cutover_control)
 
+def t_voucher_detail_uses_source_document_cancellation():
+    shell = open(REPO + '/darkbrown/shell/index.html').read()
+    start = shell.index('function journalDetail(id)')
+    detail = shell[start:shell.index(
+        '/* ================================================================', start)]
+    assert "actbtn('Reverse entry')" not in detail
+    assert "'Sales Invoice':'Cancel the source Sales Invoice" in detail
+    assert "'Payment Entry':'Cancel the source Payment Entry" in detail
+    assert "['Correction path',correction]" in detail
+    assert 'creates a mirror entry' not in detail
+check("voucher detail directs corrections through the source document",
+      t_voucher_detail_uses_source_document_cancellation)
+
 # =====================================================================
 print()
 for n in PASS: print("  PASS  %s" % n)
