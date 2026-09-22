@@ -21,7 +21,11 @@
   "cb_slip",
   "prepared_by",
   "deposited_by",
-  "override_reason"
+  "override_reason",
+  "sec_reconciliation",
+  "bank_statement_import",
+  "reconciled_by",
+  "reconciled_on"
  ],
  "fields": [
   {
@@ -126,6 +130,31 @@
    "fieldtype": "Small Text",
    "label": "Same-User Override Reason",
    "description": "Preparing and depositing should be two people. Where it is one, say why."
+  },
+  {
+   "fieldname": "sec_reconciliation",
+   "fieldtype": "Section Break",
+   "label": "Bank Reconciliation"
+  },
+  {
+   "fieldname": "bank_statement_import",
+   "fieldtype": "Link",
+   "label": "Bank Statement Import",
+   "options": "Bank Statement Import",
+   "read_only": 1
+  },
+  {
+   "fieldname": "reconciled_by",
+   "fieldtype": "Link",
+   "label": "Reconciled By",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "reconciled_on",
+   "fieldtype": "Datetime",
+   "label": "Reconciled On",
+   "read_only": 1
   }
  ],
  "index_web_pages_for_search": 0,

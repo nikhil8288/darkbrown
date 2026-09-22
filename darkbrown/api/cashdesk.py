@@ -439,6 +439,19 @@ def import_statement(payload):
         frappe.throw("No usable lines. Each needs a date, an amount and "
                      "a direction (Credit or Debit).")
     doc.insert()
+    # A uniquely matched deposit slip has now appeared on the bank statement.
+    # That is the event the Deposit Batch status calls "Reconciled". Leaving
+    # the batch at Deposited makes the batch queue disagree with this import.
+    for line in doc.lines:
+        if (line.status == "Matched"
+                and line.matched_type == "Deposit Batch"
+                and line.matched_ref):
+            frappe.db.set_value("Deposit Batch", line.matched_ref, {
+                "status": "Reconciled",
+                "bank_statement_import": doc.name,
+                "reconciled_by": frappe.session.user,
+                "reconciled_on": now_datetime(),
+            })
     return {"name": doc.name, "total": doc.total_lines,
             "matched": doc.matched, "unmatched": doc.unmatched}
 

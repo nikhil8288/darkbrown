@@ -784,6 +784,7 @@ def batches():
         fields=_has("Deposit Batch", [
             "name", "deposit_date", "bank_account", "status", "total_amount",
             "slip_no", "prepared_by", "deposited_by", "override_reason",
+            "bank_statement_import", "reconciled_by", "reconciled_on",
             "creation"]),
         order_by="deposit_date desc, creation desc", limit=100)
     if not rows:
@@ -809,6 +810,29 @@ def batches():
     tnames = _customer_names([l.tenant for ls in lines.values() for l in ls
                              if l.tenant])
 
+    # Old imports predate the audit fields on Deposit Batch. The matched bank
+    # line is still authoritative evidence, so surface it immediately; new
+    # imports also persist these values directly on the batch.
+    batch_ids = [r["name"] for r in rows]
+    matched_lines = frappe.get_all(
+        "Bank Statement Line",
+        filters={"matched_type": "Deposit Batch",
+                 "matched_ref": ["in", batch_ids], "status": "Matched"},
+        fields=["matched_ref", "parent", "txn_date"],
+        order_by="txn_date desc")
+    legacy_recon = {}
+    for line in matched_lines:
+        legacy_recon.setdefault(line.matched_ref, line)
+    import_ids = list({l.parent for l in matched_lines if l.parent})
+    import_users = {i.name: i.imported_by for i in frappe.get_all(
+        "Bank Statement Import", filters={"name": ["in", import_ids]},
+        fields=["name", "imported_by"])} if import_ids else {}
+    recon_users = {r.get("reconciled_by") for r in rows
+                   if r.get("reconciled_by")}
+    recon_users.update(u for u in import_users.values() if u)
+    names.update({u: (frappe.db.get_value("User", u, "full_name") or u)
+                  for u in recon_users})
+
     out = []
     for r in rows:
         ls = lines.get(r["name"], [])
@@ -816,12 +840,19 @@ def batches():
         cash = [l for l in ls if not l.cheque]
         prepared = r.get("prepared_by")
         deposited = r.get("deposited_by")
+        legacy = legacy_recon.get(r["name"])
+        recon_import = r.get("bank_statement_import") or (
+            legacy.parent if legacy else None)
+        reconciled_by = r.get("reconciled_by") or import_users.get(recon_import)
+        reconciled_on = r.get("reconciled_on") or (
+            legacy.txn_date if legacy else None)
+        effective_status = "Reconciled" if recon_import else r.get("status")
         out.append({
             "id": r["name"],
             "date": _fdate(r.get("deposit_date")),
             "bank": banks.get(r.get("bank_account"), r.get("bank_account") or "—"),
             "slip": r.get("slip_no") or "—",
-            "st": r.get("status"),
+            "st": effective_status,
             "total": _k(r.get("total_amount")),
             "count": len(ls),
             "cheques": len(cheques),
@@ -833,6 +864,9 @@ def batches():
             # field rather than something the screen has to work out.
             "same": 1 if (prepared and deposited and prepared == deposited) else 0,
             "override": r.get("override_reason") or "",
+            "recon_import": recon_import or "",
+            "reconciled_by": names.get(reconciled_by, reconciled_by or "—"),
+            "reconciled_on": _fdate(reconciled_on),
             "lines": [{
                 "ty": l.payment_type or ("Cheque" if l.cheque else "Cash"),
                 "slip": l.collection_slip_no or "—",

@@ -4857,7 +4857,9 @@ ROUTES.batch=id=>{
   b.st==='Draft'?fbtn('Mark it banked','deposit-batch',{id:b.id,prepared:b.prepared}):'',
   stat([['Lines',b.count],['Value',k(b.total)],['Cheques',b.cheques],
    ['Cash',k(b.cashValue)],['Prepared by',b.prepared],
-   ['Banked by',b.deposited,'',b.same?'r':'']])+
+   ['Banked by',b.deposited,'',b.same?'r':''],
+   ...(b.st==='Reconciled'?[['Reconciled by',b.reconciled_by],
+     ['Statement',b.recon_import,b.reconciled_on,'g']]:[])])+
   (b.same?`<div class="warn">${b.prepared} both prepared and banked this batch. ${
     b.override?'Reason recorded: "'+b.override+'"':'No reason was recorded.'}</div>`:'')+
   `<div class="card"><h3>What is in the slip</h3>${b.lines&&b.lines.length?tbl([

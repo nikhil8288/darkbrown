@@ -1497,6 +1497,27 @@ def t_account_window_is_labelled_as_movement_not_balance():
 check("account screens describe selected-window movement accurately",
       t_account_window_is_labelled_as_movement_not_balance)
 
+def t_statement_match_closes_the_deposit_batch_lifecycle():
+    import inspect
+    from darkbrown.api import app, cashdesk
+    importer = inspect.getsource(cashdesk.import_statement)
+    assert 'line.matched_type == "Deposit Batch"' in importer
+    assert '"status": "Reconciled"' in importer
+    assert '"bank_statement_import": doc.name' in importer
+    assert '"reconciled_by": frappe.session.user' in importer
+    feed = inspect.getsource(app.batches)
+    assert 'legacy_recon' in feed
+    assert 'effective_status = "Reconciled" if recon_import' in feed
+    batch_schema = json.load(open(
+        REPO + '/darkbrown/darkbrown/doctype/deposit_batch/deposit_batch.json'))
+    fields = {f['fieldname'] for f in batch_schema['fields']}
+    assert {'bank_statement_import', 'reconciled_by',
+            'reconciled_on'} <= fields
+    shell = open(REPO + '/darkbrown/shell/index.html').read()
+    assert "['Reconciled by',b.reconciled_by]" in shell
+check("a matched statement line closes and audits its deposit batch",
+      t_statement_match_closes_the_deposit_batch_lifecycle)
+
 # =====================================================================
 print()
 for n in PASS: print("  PASS  %s" % n)
