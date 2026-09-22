@@ -1545,6 +1545,18 @@ def t_receipts_link_back_to_their_cleared_cheques():
 check("cleared-cheque receipts are linked and not offered for duplicate issue",
       t_receipts_link_back_to_their_cleared_cheques)
 
+def t_reconciled_batch_does_not_roll_cheques_back_to_received():
+    import inspect
+    from darkbrown.darkbrown.doctype.deposit_batch.deposit_batch import DepositBatch
+    src = inspect.getsource(DepositBatch.on_update)
+    assert 'if self.status == "Draft"' in src
+    assert 'elif self.status == "Deposited"' in src
+    assert 'elif self.status == "Cancelled"' in src
+    assert 'Reconciled deliberately changes no cheque status' in src
+    assert '"Deposited" if self.status == "Deposited" else "Received"' not in src
+check("saving a reconciled batch preserves its cleared cheque state",
+      t_reconciled_batch_does_not_roll_cheques_back_to_received)
+
 # =====================================================================
 print()
 for n in PASS: print("  PASS  %s" % n)
