@@ -8677,6 +8677,14 @@ const CHQNEXT={
    ['Settled another way','Paid by transfer or cash instead'],['Write off','Give up on it']],
  'Cleared':[['Mark returned','The bank reversed or returned it']],
  'Issued':[['Mark presented','The payee banked it'],['Mark returned','Our cheque came back'],['Cancel','Stopped before presentation']]};
+function chequeStatusLabel(c){
+ return c&&c.dir==='out'&&c.st==='Deposited'?'Presented':c.st;
+}
+function chequeNext(c){
+ return c&&c.dir==='out'&&c.st==='Deposited'
+  ?[['Mark cleared','Funds paid'],['Mark returned','Our bank returned the cheque']]
+  :(CHQNEXT[c.st]||[]);
+}
 const RETURNREASON=['Insufficient funds','Signature mismatch','Account closed','Post-dated','Stop payment',
  'Amount in words differs','Stale — over six months','Technical — endorsement'];
 
@@ -8751,11 +8759,11 @@ FORMS['log-cheque']={t:'Log a cheque',s:'Money in or money out · the register i
 FORMS['cheque-action']={t:'Update the cheque',s:'Every change is kept on the cheque, including the ones that went wrong',cta:'Record it',
  init:ctx=>({__id:ctx&&ctx.id,act:''}),
  steps:[{n:'What happened',body:d=>{const c=C(d.__id)||CHQ[0];
-   const opts=(CHQNEXT[c.st]||[]).map(x=>x[0]);
+   const next=chequeNext(c);const opts=next.map(x=>x[0]);
    const ret=/returned/i.test(d.act||'');
    return `<div class="kv" style="margin-bottom:12px">
     ${[['Cheque',c.id],['Party',c.party||c.tn],['Amount',k(c.amt)],['Bank',c.bank+' · '+c.no],
-       ['Date on the cheque',c.mat],['Status now',c.st]].map(r=>`<div><span>${r[0]}</span><b>${r[1]}</b></div>`).join('')}</div>
+       ['Date on the cheque',c.mat],['Status now',chequeStatusLabel(c)]].map(r=>`<div><span>${r[0]}</span><b>${r[1]}</b></div>`).join('')}</div>
    <div class="fg">
     ${fld({k:'act',l:'What happened',t:'sel',o:['Choose one'].concat(opts),req:1,live:1},d.act)}
     ${fld({k:'date',l:'When',t:'date',d:ISO(TODAY),req:1},d.date)}
@@ -8763,7 +8771,7 @@ FORMS['cheque-action']={t:'Update the cheque',s:'Every change is kept on the che
     ${ret?fld({k:'next',l:'What happens now',t:'sel',
       o:['Ask for a replacement','Re-present on an agreed date','Open a collection case','Escalate to legal'],req:1},d.next):''}
     ${fld({k:'note',l:'Note',t:'ta',p:'what was agreed, and with whom',full:1},d.note)}</div>
-   ${(CHQNEXT[c.st]||[]).length?`<div class="note">${(CHQNEXT[c.st]||[]).map(x=>'<b>'+x[0]+'</b> — '+x[1]).join('<br>')}</div>`:''}
+   ${next.length?`<div class="note">${next.map(x=>'<b>'+x[0]+'</b> — '+x[1]).join('<br>')}</div>`:''}
    ${ret?`<div class="note" style="border-left-color:var(--red)"><b>A returned cheque is not just a status.</b>
      The invoice goes back to unpaid, the tenant's arrears rise by the amount, and it appears in the MD exceptions feed until it is
      resolved one way or the other.</div>`:''}`},
@@ -8802,7 +8810,7 @@ FORMS['post-reconciled-batch']={t:'Post reconciled batch',
 ROUTES.cheques=()=>page('Cheques','Money in and money out · custody, presentation, clearing, return',
  fbtn('Log a cheque','log-cheque'),
  stat([['On hand',CHQ.filter(c=>c.st==='On hand').length],
-  ['Deposited',CHQ.filter(c=>c.st==='Deposited').length],
+  ['Deposited',CHQ.filter(c=>c.dir!=='out'&&c.st==='Deposited').length],
   ['Cleared',CHQ.filter(c=>c.st==='Cleared').length,'','g'],
   ['Returned',CHQ.filter(c=>c.st==='Returned').length,'unresolved',CHQ.filter(c=>c.st==='Returned').length?'r':''],
   ['Issued by us',CHQ.filter(c=>c.dir==='out').length],
@@ -8812,19 +8820,19 @@ ROUTES.cheques=()=>page('Cheques','Money in and money out · custody, presentati
   {h:'Cheque',v:c=>c.id},{h:'Way',v:c=>chip(c.dir==='out'?'Out':'In',c.dir==='out'?'a':'n')},
   {h:'Party',v:c=>c.party||c.tn},{h:'Bank',v:c=>c.bank},{h:'Number',v:c=>c.no},
   {h:'Amount',r:1,mono:1,v:c=>k(c.amt)},{h:'Dated',r:1,v:c=>c.mat},
-  {h:'Status',v:c=>chip(c.st,c.st==='Cleared'?'g':c.st==='Returned'?'r':c.st==='Deposited'?'a':'n')},
+  {h:'Status',v:c=>chip(chequeStatusLabel(c),c.st==='Cleared'?'g':c.st==='Returned'?'r':c.st==='Deposited'?'a':'n')},
   {h:'Then what',v:c=>c.act||'—'}],
   CHQ.map(c=>({...c,__id:c.id})),{id:'chl',click:'openC'})}</div>`);
 
 ROUTES.cheque=id=>{const c=id?C(id):CHQ[0]; if(!c) return notFound('Cheque','#/cheques');const inc=c.dir!=='out';
  const life=inc?['Logged','Deposited','Cleared']:['Issued','Handed over','Presented'];
- const at=c.st==='Cleared'||c.st==='Presented'?2:(c.st==='Deposited'||c.st==='Handed to the payee'?1:0);
+ const at=c.st==='Cleared'||c.st==='Presented'||(!inc&&c.st==='Deposited')?2:(c.st==='Deposited'||c.st==='Handed to the payee'?1:0);
  return crumb([['Cheques','#/cheques'],[c.id,'']])+page(c.id,
   `${c.party||c.tn} · ${c.bank} · cheque ${c.no} · ${inc?'money in':'money out'}`,
   fbtn('Update the cheque','cheque-action',{id:c.id})+
   (c.st==='Returned'?fbtn('Log the replacement','log-cheque',{dir:'Replacement for a returned cheque'}):''),
   stat([['Amount',k(c.amt)],['Direction',inc?'Money in':'Money out'],['Dated',c.mat],
-   ['Notice before presentation',(c.adv||14)+' days'],['Status',c.st,'',c.st==='Cleared'?'g':c.st==='Returned'?'r':'a'],
+   ['Notice before presentation',(c.adv||14)+' days'],['Status',chequeStatusLabel(c),'',c.st==='Cleared'?'g':c.st==='Returned'?'r':'a'],
    ...(c.st==='Returned'?[['Reason',c.reason||'—'],['Now',c.act||'not decided']]:[])])+
   (c.st==='Returned'
    ?(inc

@@ -258,6 +258,17 @@ def t_landlord_detail_cheque_carries_party_and_headlease_purpose():
 check("landlord detail cheque sends its party and Head Lease purpose",
       t_landlord_detail_cheque_carries_party_and_headlease_purpose)
 
+def t_outgoing_cheque_uses_payment_language():
+    src = open(REPO + '/darkbrown/shell/index.html').read()
+    assert "c.dir==='out'&&c.st==='Deposited'?'Presented':c.st" in src, \
+        "presented outgoing cheques are still labelled Deposited"
+    assert "[['Mark cleared','Funds paid']" in src, \
+        "outgoing cheque clearing is still described as funds received"
+    assert "c.dir!=='out'&&c.st==='Deposited'" in src, \
+        "outgoing presented cheques still inflate the incoming deposit count"
+check("outgoing cheque lifecycle uses payment language",
+      t_outgoing_cheque_uses_payment_language)
+
 def t_cheque_form_does_not_truncate_parties():
     src = open(REPO + '/darkbrown/shell/index.html').read()
     assert "TENANTS.slice(0,24)" not in src, \
