@@ -809,6 +809,10 @@ def batches():
 
     tnames = _customer_names([l.tenant for ls in lines.values() for l in ls
                              if l.tenant])
+    cheque_ids = [l.cheque for ls in lines.values() for l in ls if l.cheque]
+    cheque_status = {c.name: c.status for c in frappe.get_all(
+        "Cheque", filters={"name": ["in", cheque_ids]},
+        fields=["name", "status"])} if cheque_ids else {}
 
     # Old imports predate the audit fields on Deposit Batch. The matched bank
     # line is still authoritative evidence, so surface it immediately; new
@@ -858,6 +862,8 @@ def batches():
             "cheques": len(cheques),
             "cash": len(cash),
             "cashValue": _k(sum(flt(l.amount) for l in cash)),
+            "pending_cheques": sum(1 for l in cheques
+                                   if cheque_status.get(l.cheque) != "Cleared"),
             "prepared": names.get(prepared, prepared or "—"),
             "deposited": names.get(deposited, "—") if deposited else "—",
             # One person on both ends is the thing worth seeing, so it is a

@@ -4854,7 +4854,9 @@ ROUTES.batch=id=>{
     `<div class="card">${empty('Open the list and pick it from there.')}</div>`);
  return crumb([['Cheque batches','#/batches'],[b.id,'']])+page(b.id,
   b.bank+' · '+b.date+' · slip '+b.slip+' · '+b.st,
-  b.st==='Draft'?fbtn('Mark it banked','deposit-batch',{id:b.id,prepared:b.prepared}):'',
+ b.st==='Draft'?fbtn('Mark it banked','deposit-batch',{id:b.id,prepared:b.prepared}):
+  (b.st==='Reconciled'&&b.pending_cheques
+   ?fbtn('Post cleared cheques','post-reconciled-batch',{id:b.id}):''),
   stat([['Lines',b.count],['Value',k(b.total)],['Cheques',b.cheques],
    ['Cash',k(b.cashValue)],['Prepared by',b.prepared],
    ['Banked by',b.deposited,'',b.same?'r':''],
@@ -8782,6 +8784,18 @@ FORMS['cheque-action']={t:'Update the cheque',s:'Every change is kept on the che
   return{title:'Cheque updated',msg:c.id+' · '+was+' → '+c.st,
    detail:/returned/i.test(a)?(d.reason||'')+' · '+(d.next||''):'Recorded on the cheque history',goto:'#/cheque/'+c.id}}};
 
+FORMS['post-reconciled-batch']={t:'Post reconciled batch',
+ s:'Bank match confirmed · clear its cheques and allocate tenant receipts',
+ cta:'Post the receipts',
+ init:c=>({id:c&&c.id}),
+ steps:[{n:'Confirm',body:d=>{const b=BT(d.id)||{};return `<p class="pp">The
+   bank statement has matched batch <b>${esc(d.id||'')}</b>. Posting now marks
+   its ${b.pending_cheques||0} uncleared cheque${b.pending_cheques===1?'':'s'}
+   cleared and creates the corresponding Payment Entr${b.pending_cheques===1?'y':'ies'},
+   allocated against each tenant’s oldest open invoice.</p>
+   <div class="note">This is the accounting step. Running it again is safe:
+   an existing Payment Entry is reused rather than posted twice.</div>`}}]};
+
 ROUTES.cheques=()=>page('Cheques','Money in and money out · custody, presentation, clearing, return',
  fbtn('Log a cheque','log-cheque'),
  stat([['On hand',CHQ.filter(c=>c.st==='On hand').length],
@@ -9302,6 +9316,14 @@ const WIRE={
    goto:'#/closing'})},
 
 /* ---------------- money ---------------- */
+
+'post-reconciled-batch':{
+ m:'cashdesk.post_reconciled_batch',
+ a:d=>({batch:d.id}),
+ ok:r=>({title:'Batch entries posted',
+   msg:r.receipts+' receipt'+(r.receipts===1?'':'s')+' created',
+   detail:(r.already_posted?r.already_posted+' already existed · ':'')+
+     'matched by '+r.statement,goto:'#/batch/'+r.batch})},
 
 'issue-receipt':{
  guard:d=>d.kind==='Cheque cleared'

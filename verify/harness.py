@@ -1518,6 +1518,33 @@ def t_statement_match_closes_the_deposit_batch_lifecycle():
 check("a matched statement line closes and audits its deposit batch",
       t_statement_match_closes_the_deposit_batch_lifecycle)
 
+def t_reconciled_batch_posting_is_explicit_and_idempotent():
+    import inspect
+    from darkbrown.api import cashdesk
+    src = inspect.getsource(cashdesk.post_reconciled_batch)
+    assert '"matched_type": "Deposit Batch"' in src
+    assert 'from darkbrown.api.finance import clear_cheque' in src
+    assert 'before = frappe.db.get_value("Cheque", line.cheque, "payment_entry")' in src
+    assert '(existing if before else posted).append(item)' in src
+    shell = open(REPO + '/darkbrown/shell/index.html').read()
+    assert "fbtn('Post cleared cheques','post-reconciled-batch'" in shell
+    assert "m:'cashdesk.post_reconciled_batch'" in shell
+check("reconciled batch posting is reviewed, explicit and idempotent",
+      t_reconciled_batch_posting_is_explicit_and_idempotent)
+
+def t_receipts_link_back_to_their_cleared_cheques():
+    import inspect
+    from darkbrown.api import finance
+    listing = inspect.getsource(finance.receipts)
+    detail = inspect.getsource(finance.receipt)
+    assert 'cheque_refs = set(frappe.get_all(' in listing
+    assert '_receipt_row(r, names, cheque_refs)' in listing
+    assert '{"name": pe.reference_no} if named_cheque' in detail
+    shell = open(REPO + '/darkbrown/shell/index.html').read()
+    assert "!RCPT.some(r=>r.chq===c.id)" in shell
+check("cleared-cheque receipts are linked and not offered for duplicate issue",
+      t_receipts_link_back_to_their_cleared_cheques)
+
 # =====================================================================
 print()
 for n in PASS: print("  PASS  %s" % n)

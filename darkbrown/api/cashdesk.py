@@ -687,3 +687,44 @@ def classify_line(line, classification, note=None):
     return {"line": line, "classification": classification,
             "status": row.status, "equity": bool(rule.get("equity")),
             "import": parent}
+
+
+@frappe.whitelist()
+def post_reconciled_batch(batch):
+    """Post the tenant receipts proven by a matched deposit-batch line.
+
+    Matching is still identification, not posting: the import never creates
+    money entries by itself. This explicit action is the review boundary for
+    workflow 2C step 4. It is idempotent because ``clear_cheque`` returns an
+    existing Payment Entry when a cheque is already cleared.
+    """
+    guard(MD, ACC)
+    match = frappe.db.get_value(
+        "Bank Statement Line",
+        {"status": "Matched", "matched_type": "Deposit Batch",
+         "matched_ref": batch},
+        ["parent", "txn_date"], as_dict=True)
+    if not match:
+        frappe.throw("No matched bank-statement line proves this batch cleared.")
+
+    doc = frappe.get_doc("Deposit Batch", batch)
+    from darkbrown.api.finance import clear_cheque
+
+    posted, existing = [], []
+    for line in doc.lines:
+        if not line.cheque:
+            continue
+        before = frappe.db.get_value("Cheque", line.cheque, "payment_entry")
+        result = clear_cheque(line.cheque, str(match.txn_date))
+        item = {"cheque": line.cheque,
+                "payment_entry": result.get("payment_entry")}
+        (existing if before else posted).append(item)
+
+    doc.status = "Reconciled"
+    doc.bank_statement_import = match.parent
+    doc.reconciled_by = frappe.session.user
+    doc.reconciled_on = now_datetime()
+    doc.save(ignore_permissions=True)
+    return {"batch": doc.name, "statement": match.parent,
+            "posted": posted, "existing": existing,
+            "receipts": len(posted), "already_posted": len(existing)}

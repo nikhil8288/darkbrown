@@ -1263,7 +1263,7 @@ def _short_user(user):
     return bits[0] + (" " + bits[-1][0] + "." if len(bits) > 1 else "")
 
 
-def _receipt_row(pe, names=None):
+def _receipt_row(pe, names=None, cheque_refs=None):
     names = names or {}
     mode = (pe.mode_of_payment or "").lower()
     return {
@@ -1282,6 +1282,8 @@ def _receipt_row(pe, names=None):
         "date": str(pe.posting_date),
         "mode": pe.mode_of_payment or "—",
         "ref": pe.reference_no or "—",
+        "chq": (pe.reference_no if cheque_refs is not None
+                and pe.reference_no in cheque_refs else ""),
         "stmt": pe.reference_no or "",
         "acct": pe.paid_to or "—",
         "un": flt(pe.unallocated_amount),
@@ -1328,7 +1330,11 @@ def receipts(q=None, limit=None):
             "Customer", filters={"name": ["in", list(parties)]},
             fields=["name", "customer_name"])}
 
-    out = [_receipt_row(r, names) for r in rows]
+    refs = {r.reference_no for r in rows if r.reference_no}
+    cheque_refs = set(frappe.get_all(
+        "Cheque", filters={"name": ["in", list(refs)]}, pluck="name")) \
+        if refs else set()
+    out = [_receipt_row(r, names, cheque_refs) for r in rows]
     if q:
         needle = str(q).lower()
         out = [r for r in out if needle in " ".join(
@@ -1360,7 +1366,10 @@ def receipt(name):
 
     customer = (frappe.db.get_value("Customer", pe.party, "customer_name")
                 if pe.party else None)
-    row = _receipt_row(pe, {pe.party: customer or pe.party})
+    named_cheque = bool(pe.reference_no and
+                        frappe.db.exists("Cheque", pe.reference_no))
+    row = _receipt_row(pe, {pe.party: customer or pe.party},
+                       {pe.reference_no} if named_cheque else set())
 
     applied = []
     row["inv"] = ""
@@ -1378,8 +1387,10 @@ def receipt(name):
 
     cheque = None
     if pe.reference_no and frappe.db.exists("DocType", "Cheque"):
+        filters = ({"name": pe.reference_no} if named_cheque
+                   else {"cheque_no": pe.reference_no})
         hit = frappe.get_all(
-            "Cheque", filters={"cheque_no": pe.reference_no},
+            "Cheque", filters=filters,
             fields=["name", "status", "cheque_date", "bank"], limit=1)
         if hit:
             cheque = {"id": hit[0].name, "st": hit[0].status,
