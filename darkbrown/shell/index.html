@@ -1520,6 +1520,14 @@ function accBalance(code){
   let dr=0,cr=0; ledgerRows({acc:code}).forEach(r=>{dr+=r.dr;cr+=r.cr});
   return{dr,cr,bal:nat==='Dr'?dr-cr:cr-dr,nat};
 }
+function movementSide(b){
+  /* `bal` is positive when movement follows the account's normal side and
+     negative when it runs against it. Printing `nat` unconditionally makes
+     an asset with only credits read as "80 Dr" even though the ledger line is
+     plainly a credit. */
+  if(!b||!b.nat)return '—';
+  return b.bal<0?(b.nat==='Dr'?'Cr':'Dr'):b.nat;
+}
 
 /* The ledger screen used to add up '1010', '1020' and '1030' by name for
    "cash at bank". Those codes are the prototype's. The server names which of
@@ -5479,7 +5487,7 @@ ROUTES.ledger=()=>{
      ${tbl([{h:'Code',v:r=>r[0]},{h:'Account',v:r=>r[1]},{h:'Class',v:r=>r[2]},
        {h:'Debit',r:1,mono:1,v:r=>accBalance(r[0]).dr?money(accBalance(r[0]).dr):'—'},
        {h:'Credit',r:1,mono:1,v:r=>accBalance(r[0]).cr?money(accBalance(r[0]).cr):'—'},
-       {h:'Net movement',r:1,mono:1,v:r=>money(Math.abs(accBalance(r[0]).bal))+' '+accBalance(r[0]).nat}],
+       {h:'Net movement',r:1,mono:1,v:r=>{const b=accBalance(r[0]);return money(Math.abs(b.bal))+' '+movementSide(b)}}],
        used.map(a=>({...a,__id:a[0]})),
        {id:'tb',click:'openAcct',foot:['debits '+money(totDr)+' = credits '+money(totCr),'click an account for its ledger']})}</div>
     <div class="card"><h3>Period movement by class</h3>
@@ -5517,15 +5525,15 @@ ROUTES.account=code=>{
   return crumb([['General ledger','#/ledger'],[a[0]+' · '+a[1],'']])+page(a[1],
    `Account ${a[0]} · ${a[2]} · movement ${periodSpan()} · normal side ${a[3]}`,actbtn('Export account'),
    stat([['Code',a[0]],['Class',a[2]],['Entries',rows.length],['Debits',money(b.dr)],['Credits',money(b.cr)],
-     ['Net movement',money(Math.abs(b.bal))+' '+b.nat,'','g']])+
+     ['Net movement',money(Math.abs(b.bal))+' '+movementSide(b),'','g']])+
    `<div class="card"><h3>Account movement in selected window <span class="plabel">most recent first · running movement</span></h3>
     <div class="tw"><table><thead><tr><th>Journal</th><th>Date</th><th>Type</th><th>Reference</th>
       <th>Narration</th><th class="r">Debit</th><th class="r">Credit</th><th class="r">Running movement</th></tr></thead><tbody>
     ${withBal.map(r=>`<tr class="drill" onclick="go('#/journal/'+'${r.jid}')"><td>${r.jid}</td><td>${r.d}</td>
       <td>${chip(r.ty,'n')}</td><td>${r.ref}</td><td>${r.desc}</td>
       <td class="r num">${r.dr?money(r.dr):'—'}</td><td class="r num">${r.cr?money(r.cr):'—'}</td>
-      <td class="r num">${money(Math.abs(r.bal))}</td></tr>`).join('')}
-    </tbody></table></div><div class="foot"><span>${rows.length} postings</span><span>window movement ${money(Math.abs(b.bal))} ${b.nat}</span></div></div>`)};
+      <td class="r num">${money(Math.abs(r.bal))} ${movementSide({bal:r.bal,nat:a[3]})}</td></tr>`).join('')}
+    </tbody></table></div><div class="foot"><span>${rows.length} postings</span><span>window movement ${money(Math.abs(b.bal))} ${movementSide(b)}</span></div></div>`)};
 
 /* The paperwork step attaches the document and does nothing else.
 
@@ -6226,7 +6234,7 @@ ROUTES.coa=()=>{
     COA.filter(a=>a[2]===c).forEach(a=>{const b=accBalance(a[0]);
       rows+=`<tr class="drill" onclick="go('#/account/'+'${a[0]}')"><td>${a[0]}</td><td>${a[1]}</td>
        <td>${a[3]}</td><td class="r num">${b.dr?money(b.dr):'—'}</td><td class="r num">${b.cr?money(b.cr):'—'}</td>
-       <td class="r num">${money(Math.abs(b.bal))} ${b.nat}</td></tr>`});
+       <td class="r num">${money(Math.abs(b.bal))} ${movementSide(b)}</td></tr>`});
   });
   return page('Chart of accounts',COA.length+' accounts · five classes · movement '+periodSpan(),
    periodBar()+fbtn('New journal entry','journal-entry')+actbtn('Add account'),

@@ -74,7 +74,8 @@ def reset():
                    {'name':'Bank Charges - DB','account_name':'Bank Charges',
                     'account_type':'Expense Account','is_group':0},
                    {'name':'QNB Main - DB','account_name':'QNB Main',
-                    'account_type':'Bank','is_group':0},
+                    'account_type':'Bank','root_type':'Asset','is_group':0,
+                    'disabled':0,'company':'DarkBrown RealEstate'},
                    {'name':'Security Deposits Held - DB',
                     'account_name':'Security Deposits Held','is_group':0,
                     'company':'DarkBrown RealEstate'},
@@ -1549,6 +1550,24 @@ def t_cash_flow_excludes_the_historical_cutover_control():
 check("cash flow excludes the non-cash historical cutover control",
       t_cash_flow_excludes_the_historical_cutover_control)
 
+def t_receipts_reject_untyped_bank_account_mappings():
+    from darkbrown.api import finance
+    reset()
+    assert finance._paid_to('QNB Main', 'DarkBrown RealEstate') == \
+        'QNB Main - DB'
+    S.DB['Account'].append({
+        'name':'QNB Current Account - DB',
+        'account_name':'QNB Current Account', 'root_type':'Asset',
+        'account_type':'', 'is_group':0, 'disabled':0,
+        'company':'DarkBrown RealEstate'})
+    S.DB['Bank Account'].append({
+        'name':'QNB Untyped', 'account':'QNB Current Account - DB'})
+    assert finance._paid_to('QNB Untyped', 'DarkBrown RealEstate') is None
+    assert finance._paid_to('Historical Cutover Control - DB',
+                            'DarkBrown RealEstate') is None
+check("receipts reject bank mappings that cash flow cannot recognise",
+      t_receipts_reject_untyped_bank_account_mappings)
+
 def t_voucher_detail_uses_source_document_cancellation():
     shell = open(REPO + '/darkbrown/shell/index.html').read()
     start = shell.index('function journalDetail(id)')
@@ -1589,6 +1608,11 @@ def t_account_window_is_labelled_as_movement_not_balance():
     assert "['Bank movement'" in ledger
     assert "['Net movement'" in ledger
     assert 'window movement ${money(Math.abs(b.bal))}' in ledger
+    assert "function movementSide(b)" in shell
+    assert "return b.bal<0?(b.nat==='Dr'?'Cr':'Dr'):b.nat" in shell
+    assert "money(Math.abs(b.bal))+' '+movementSide(b)" in ledger
+    assert '${movementSide({bal:r.bal,nat:a[3]})}' in ledger
+    assert '${money(Math.abs(b.bal))} ${movementSide(b)}' in coa
 check("account screens describe selected-window movement accurately",
       t_account_window_is_labelled_as_movement_not_balance)
 

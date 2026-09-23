@@ -942,15 +942,36 @@ def _paid_to(value, company):
     """
     if value:
         gl = frappe.db.get_value("Bank Account", value, "account")
-        if gl:
-            return gl
-        if frappe.db.exists("Account", value):
-            return value
+        candidate = gl or (value if frappe.db.exists("Account", value)
+                           else None)
+        # A Bank Account mapping is configuration, not proof that the linked
+        # ledger is actually cash.  Accepting an untyped asset here makes the
+        # receipt post successfully while disappearing from every cash-flow
+        # report.  Fail closed so the chart can be repaired explicitly.
+        return _operational_money_account(candidate, company)
 
-    return (frappe.db.get_value("Account",
-                                {"company": company, "account_type": "Bank",
-                                 "is_group": 0}, "name")
+    candidate = frappe.db.get_value(
+        "Account", {"company": company, "account_type": "Bank",
+                    "is_group": 0, "disabled": 0}, "name")
+    return (_operational_money_account(candidate, company)
             or _cash_account(company))
+
+
+def _operational_money_account(account, company):
+    """Return a real cash/bank leaf or ``None`` for unsafe configuration."""
+    if not account:
+        return None
+    details = frappe.db.get_value(
+        "Account", account,
+        ["company", "root_type", "account_type", "is_group", "disabled",
+         "account_name"], as_dict=True)
+    if (details and details.company == company
+            and details.root_type == "Asset"
+            and details.account_type in ("Bank", "Cash")
+            and not details.is_group and not details.disabled
+            and details.account_name != "Historical Cutover Control"):
+        return account
+    return None
 
 
 def _cash_account(company):
