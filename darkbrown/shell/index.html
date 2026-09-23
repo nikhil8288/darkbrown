@@ -3547,13 +3547,15 @@ const FORMS={
    detail:'Opened without a live connection \u2014 the file was not uploaded'})},
 
 'review-document':{t:'Review document',s:'Human validation · OCR deferred',cta:'Save decision',
- init:ctx=>{const x=DOCS.find(d=>d.id===(ctx&&ctx.id))||{};
+ init:ctx=>{const id=ctx&&ctx.id;
+   const x=(typeof VDOCS!=='undefined'&&VDOCS.find(d=>d.id===id))||DOCS.find(d=>d.id===id)||{};
    return{id:(ctx&&ctx.id)||'',type:x.ty||'Other',decision:'Validate',reason:'',file:x.f||'\u2014',status:x.st||'\u2014'}},
  steps:[{n:'Decision',body:d=>`<p class="pp">Review the private file before deciding. Validation records the
    document type chosen below; rejection keeps the register row and records why it was rejected.</p>
    <div class="kv"><div><span>Document</span><b>${esc(d.id||'\u2014')}</b></div>
     <div><span>File</span><b>${esc(d.file||'\u2014')}</b></div>
     <div><span>Current status</span><b>${esc(d.status||'\u2014')}</b></div></div>
+   <div style="margin:12px 0"><button type="button" class="btn" onclick="openFileDoc('${escA(d.id||'')}')">Open private file</button></div>
    <div class="fg">
     ${fld({k:'type',l:'Document type',t:'sel',o:fileKinds(),req:1},d.type)}
     ${fld({k:'decision',l:'Decision',t:'sel',o:['Validate','Reject'],req:1,live:1},d.decision)}
@@ -5490,6 +5492,10 @@ ROUTES.vault=()=>{
 window.openVDoc=id=>{
   const d=VDOCS.find(x=>x.id===id); if(!d) return;
   if(!window.DB_LIVE) return toast(d.f+' \u2014 preview opens in the viewer');
+  /* Documentation and management review an unconfirmed row from the Vault.
+     Everyone else, and every completed row, keeps the normal preview action. */
+  if(d.st==='Needs review'&&['MD','GM','DOC'].includes(ROLEV))
+    return openForm('review-document',{id});
   /* The file is served by Frappe, which runs its own permission check on the
      way out. That is the check that should decide this, rather than a second
      one written here and drifting from it. */

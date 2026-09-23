@@ -2139,6 +2139,14 @@ def t_ocr_is_deferred_and_manual_document_review_is_wired():
     assert '/doc-intake' not in upload
     assert 'does not send the file to an extraction service' in upload
     assert "window.openDoc=id=>openForm('review-document',{id});" in shell
+    review_form = shell[shell.index("'review-document':{t:"):
+                        shell.index("'add-files':{t:")]
+    assert "VDOCS.find(d=>d.id===id)" in review_form
+    assert "onclick=\"openFileDoc('${escA(d.id||'')}')\"" in review_form
+    vault_open = shell[shell.index('window.openVDoc=id=>'):
+                       shell.index('/* ---------- Approval with notes ---------- */')]
+    assert "d.st==='Needs review'&&['MD','GM','DOC'].includes(ROLEV)" in vault_open
+    assert "return openForm('review-document',{id});" in vault_open
     wire = shell[shell.index("'review-document':{\n guard:"):
                  shell.index("'add-files':{\n pre:")]
     assert "m:'documents.review'" in wire
