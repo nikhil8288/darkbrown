@@ -807,6 +807,68 @@ def _mark_maintenance_recharges(snapshots, run_name, invoice):
         })
 
 
+@frappe.whitelist()
+def cancel_run_invoice(invoice, reason):
+    """Cancel one wholly-unpaid invoice created by an Invoice Run.
+
+    This deliberately is not a general invoice-edit endpoint.  ERPNext owns
+    the reversal, and the Sales Invoice cancellation hook reopens the run line
+    and returns any maintenance recharge on it to ``Queued``.  Restricting the
+    endpoint to run invoices prevents the shell from cancelling unrelated
+    accounting documents through an identifier alone.
+    """
+    guard(MD, GM)
+    reason = (reason or "").strip()
+    if not reason:
+        frappe.throw(_("An invoice cancellation needs an audit reason."))
+
+    si = frappe.get_doc("Sales Invoice", invoice)
+    if si.docstatus != 1:
+        state = "cancelled" if si.docstatus == 2 else "draft"
+        frappe.throw(_("{0} is {1}, not a submitted invoice.").format(
+            invoice, state))
+
+    line = frappe.db.get_value(
+        "Invoice Run Line",
+        {"sales_invoice": invoice, "parenttype": "Invoice Run"},
+        ["name", "parent", "charge_snapshot"], as_dict=True,
+    )
+    if not line or not line.parent:
+        frappe.throw(_("{0} was not raised by an Invoice Run.").format(invoice))
+    run = frappe.get_doc("Invoice Run", line.parent)
+    require_record_access(run, "write")
+
+    grand_total = flt(si.grand_total)
+    outstanding = flt(si.outstanding_amount)
+    if abs(grand_total - outstanding) >= 0.005:
+        frappe.throw(_(
+            "{0} has payments or credits allocated. Reverse those first; "
+            "only a wholly unpaid invoice can be cancelled here."
+        ).format(invoice))
+
+    jobs = [
+        charge.get("source_name")
+        for charge in frappe.parse_json(line.charge_snapshot or "[]")
+        if charge.get("source_doctype") == "Maintenance Request"
+        and charge.get("source_name")
+    ]
+    si.add_comment("Comment", "Invoice cancelled: {0}".format(reason))
+    si.flags.ignore_permissions = True
+    si.cancel()
+
+    return {
+        "invoice": si.name,
+        "status": "Cancelled",
+        "run": run.name,
+        "run_status": frappe.db.get_value("Invoice Run", run.name, "status"),
+        "maintenance": [{
+            "job": job,
+            "status": frappe.db.get_value(
+                "Maintenance Request", job, "recharge_status"),
+        } for job in jobs],
+    }
+
+
 def _rent_item():
     name = "Rent"
     if frappe.db.exists("Item", name):

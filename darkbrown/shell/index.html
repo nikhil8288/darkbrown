@@ -9493,14 +9493,14 @@ const WIRE={
  ok:()=>({title:'Cheque recorded',msg:'Outgoing cheque on the register',goto:'#/cheques'})},
 
 'amend-invoice':{
- m:'agreements.request_amendment',
- a:d=>{const i=INV.find(x=>x.id===(d.__ctx&&d.__ctx.id))||{};
-   const nw=wNum(d.rent)+wNum(d.util)+wNum(d.mnt);
-   return {payload:{agreement:wAgrT(i.t)||i.t,agreement_type:'Tenancy Agreement',
-     field:'monthly_rent',old_value:String(i.amt||''),new_value:String(nw),
-     value_impact:+(nw-(i.amt||0)).toFixed(2),reason:d.why}}},
- ok:r=>({title:'Amendment requested',msg:'Sent for approval as '+r.amendment,
-   detail:'Routing follows the value, not the requester',goto:'#/approvals'})},
+ guard:d=>d.kind==='Cancel the invoice entirely'?null:
+   'Only full cancellation has a controlled live accounting path. Correct the agreement or its charges, then cancel and replace the run invoice.',
+ m:'finance.cancel_run_invoice',
+ a:d=>({invoice:d.__ctx&&d.__ctx.id,reason:d.why}),
+ ok:r=>({title:'Invoice cancelled',msg:r.invoice+' reversed',
+   detail:r.run+' returned to '+r.run_status+
+     ((r.maintenance||[]).length?' · maintenance recharge returned to '+r.maintenance[0].status:''),
+   goto:'#/billrun/'+r.run})},
 
 'approve-decision':{
  m:'approvals.decide',

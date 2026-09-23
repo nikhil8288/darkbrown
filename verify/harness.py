@@ -1978,11 +1978,17 @@ def t_maintenance_status_rules_and_recharge_handoff_are_wired():
     assert '"recharge_status": "Queued"' in billing
     assert '"source_doctype": "Maintenance Request"' in billing
     assert '"recharge_status": "Queued"' in cancellation
+    invoice_cancel = inspect.getsource(finance.cancel_run_invoice)
+    assert 'only a wholly unpaid invoice can be cancelled here' in invoice_cancel
+    assert 'si.cancel()' in invoice_cancel
+    assert 'parenttype": "Invoice Run"' in invoice_cancel
     assert '"ceiling_approved_by"' in feed
     shell = open(REPO + '/darkbrown/shell/index.html').read()
     assert 'assigned_to:d.assigned||null' in shell
     assert "['Resolved','Cancelled'].includes(j.raw_status)?''" in shell
     assert 'before work starts.' in shell
+    assert "m:'finance.cancel_run_invoice'" in shell
+    assert "d.kind==='Cancel the invoice entirely'" in shell
 check("maintenance status, audit and tenant-recharge lifecycle are wired",
       t_maintenance_status_rules_and_recharge_handoff_are_wired)
 
