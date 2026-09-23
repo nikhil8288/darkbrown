@@ -346,7 +346,7 @@ def return_cheque(cheque, reason, charge=None, notes=None, on=None):
 
 
 def _case_for_bounce(cheque):
-    """A bounce opens a collection case unless the tenant already has one.
+    """A bounce opens a collection case unless the tenancy already has one.
 
     The bounce is recorded as a comment rather than a contact action — an
     action row means somebody spoke to the tenant, and nobody has yet.
@@ -354,34 +354,20 @@ def _case_for_bounce(cheque):
     note = (f"Cheque {cheque.cheque_no} for QAR {flt(cheque.amount):,.0f} "
             f"returned: {cheque.return_reason}.")
 
-    open_case = frappe.get_all(
-        "Collection Case",
-        filters={"tenant": cheque.party,
-                 "status": ["not in", ("Closed", "Cancelled")]},
-        pluck="name")
-    if open_case:
-        case = frappe.get_doc("Collection Case", open_case[0])
-        case.outstanding_amount = flt(case.outstanding_amount) + flt(cheque.amount)
-        case.save(ignore_permissions=True)
-        case.add_comment("Comment", note)
-        return case.name
+    invoice_exposure = sum(flt(r.outstanding_amount) for r in frappe.get_all(
+        "Sales Invoice",
+        filters={"customer": cheque.party, "docstatus": 1,
+                 "outstanding_amount": [">", 0]},
+        fields=["outstanding_amount"]))
+    exposure = max(invoice_exposure, flt(cheque.amount))
 
-    doc = frappe.get_doc({
-        "doctype": "Collection Case",
-        "tenant": cheque.party,
-        "tenancy_agreement": cheque.tenancy_agreement,
-        "unit": cheque.unit,
-        "building": cheque.building,
-        "status": "Open",
-        "trigger": "Returned Cheque",
-        "opened_on": today(),
-        "reference": cheque.name,
-        "outstanding_amount": flt(cheque.amount),
-    })
-    doc.flags.ignore_mandatory = True
-    doc.insert(ignore_permissions=True)
-    doc.add_comment("Comment", note)
-    return doc.name
+    from darkbrown.utils.collections_case import open_case
+    name = open_case(
+        cheque.tenancy_agreement, "Returned Cheque", reference=cheque.name,
+        outstanding=exposure)
+    if name:
+        frappe.get_doc("Collection Case", name).add_comment("Comment", note)
+    return name
 
 
 @frappe.whitelist()

@@ -43,17 +43,22 @@ def open_case(tenancy, trigger, reference=None, outstanding=None,
     if existing:
         doc = frappe.get_doc("Collection Case", existing)
         if outstanding is not None:
-            doc.outstanding_amount = flt(outstanding)
+            # A returned cheque may already have reopened the invoice it paid.
+            # Keep the greater recorded exposure instead of adding the cheque
+            # again and double-counting the same rent.
+            doc.outstanding_amount = (max(flt(doc.outstanding_amount),
+                                          flt(outstanding))
+                                      if trigger == "Returned Cheque"
+                                      else flt(outstanding))
         if oldest_due:
             doc.oldest_due_date = oldest_due
         if trigger == "Returned Cheque":
-            doc.append("actions", {
-                "action_on": frappe.utils.now(),
-                "method": "Letter",
-                "outcome": "Disputed",
-                "notes": f"Cheque {reference} returned.",
-                "by_user": frappe.session.user,
-            })
+            if doc.status in ("Open", "Contacted", "Promised"):
+                doc.status = "Broken Promise"
+                doc.broken_promise = 1
+        elif trigger == "Two Months Arrears" and doc.status in (
+                "Open", "Contacted", "Promised", "Broken Promise"):
+            doc.status = "Escalated"
         doc.save(ignore_permissions=True)
         return doc.name
 
@@ -67,11 +72,14 @@ def open_case(tenancy, trigger, reference=None, outstanding=None,
         "tenancy_agreement": tenancy,
         "tenant": ta.tenant,
         "trigger": trigger,
-        "status": "Open",
+        "status": ("Broken Promise" if trigger == "Returned Cheque"
+                   else "Escalated" if trigger == "Two Months Arrears"
+                   else "Open"),
         "opened_on": today(),
         "reference": reference,
         "outstanding_amount": flt(outstanding),
         "oldest_due_date": oldest_due,
+        "broken_promise": 1 if trigger == "Returned Cheque" else 0,
     }).insert(ignore_permissions=True)
     return doc.name
 

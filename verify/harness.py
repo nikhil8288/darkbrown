@@ -2033,6 +2033,32 @@ def t_collection_case_history_uses_recorded_events():
 check("collection detail shows recorded history without invented future events",
       t_collection_case_history_uses_recorded_events)
 
+def t_collection_escalation_and_bounce_rules_are_enforced():
+    import inspect
+    from darkbrown.api import finance, operations
+    from darkbrown.utils import collections_case
+    bounce = inspect.getsource(finance._case_for_bounce)
+    opening = inspect.getsource(collections_case.open_case)
+    legal = inspect.getsource(operations.escalate)
+    assert 'from darkbrown.utils.collections_case import open_case' in bounce
+    assert 'invoice_exposure' in bounce and 'max(invoice_exposure' in bounce
+    assert 'filters={"tenant": cheque.party' not in bounce
+    assert 'trigger == "Returned Cheque"' in opening
+    assert 'doc.status = "Broken Promise"' in opening
+    assert 'trigger == "Two Months Arrears"' in opening
+    assert 'doc.status = "Escalated"' in opening
+    assert 'doc.append("actions"' not in opening
+    assert 'guard(MD)' in legal and 'guard(MD, GM, ACC)' not in legal
+    assert 'doc.status = "Legal"' in legal
+    assert 'A legal notice needs the grounds for escalation.' in legal
+    shell = open(REPO + '/darkbrown/shell/index.html').read()
+    assert "['Arrears detected','Reminder sent','Promise to pay','Promise broken','Escalated','Legal notice']" in shell
+    assert "ROLEV==='MD'&&c.stage!=='Legal notice'" in shell
+    assert "Reserved Managing Director action" in shell
+    assert "Legal counsel: '+d.firm" in shell
+check("collection triggers and legal escalation follow the guarded stage model",
+      t_collection_escalation_and_bounce_rules_are_enforced)
+
 def t_planning_module_is_deferred_everywhere():
     shell = open(REPO + '/darkbrown/shell/index.html').read()
     assert 'const PLANNING_ENABLED=false;' in shell

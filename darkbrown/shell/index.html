@@ -3669,13 +3669,13 @@ const FORMS={
  submit:d=>({title:'Promise recorded',msg:k(d.amt)+' promised by '+d.date,
    detail:'If the date passes unpaid, the case reopens and appears in the MD exceptions feed'})},
 
-'escalate-legal':{t:'Escalate to legal',s:'Reserved MD approval',cta:'Request escalation',
+'escalate-legal':{t:'Issue legal notice',s:'Reserved Managing Director action',cta:'Issue legal notice',
  steps:[{n:'Escalation',fields:[
    {k:'firm',l:'Legal counsel',t:'sel',o:['Al Tamimi & Co.','Sharq Law','In-house'],req:1},
    {k:'amt',l:'Amount claimed (QAR)',t:'num',step:'100',req:1},
    {k:'why',l:'Grounds for escalation',t:'ta',p:'Contact history, broken promises, evidence held',req:1}]}],
- submit:()=>({title:'Escalation requested',msg:'Sent to the MD for approval',
-   detail:'Legal escalation is a reserved category and cannot be delegated',goto:'#/approvals'})},
+ submit:()=>({title:'Legal notice issued',msg:'Case moved to legal notice',
+   detail:'Recorded as a reserved Managing Director decision',goto:'#/cases'})},
 
 'new-agreement':{t:'New agreement',s:'Workflow 2B',cta:'Raise agreement',
  steps:[
@@ -4557,9 +4557,9 @@ ROUTES.agreements=()=>{
 /* ---------- Cases: who opens them, and how ---------- */
 const CASERULES=[
  ['Invoice unpaid 7 days after due date','System','Case opens at Reminder sent, assigned round-robin'],
- ['Cheque returned by the bank','System','Case opens at Promise broken, one stage higher than a late invoice'],
+ ['Cheque returned by the bank','System','Case opens at Promise broken and appears in the MD exceptions feed'],
  ['Promise to pay passes with no payment','System','Case reopens and escalates one stage'],
- ['Arrears cross two months of rent','System','Case escalates to Legal notice and appears on the MD dashboard'],
+ ['Arrears cross two months of rent','System','Case is escalated for the MD to issue a legal notice'],
  ['Anything a person judges needs chasing','Collections officer','Opened by hand, reason required']];
 window.openA=id=>go('#/agreement/'+id);
 
@@ -5499,8 +5499,8 @@ ROUTES.approval=id=>{const a=id?AP(id):APPR[0]; if(!a) return notFound('Approval
 
 /* ---------- Case with notes ---------- */
 ROUTES.case=id=>{const c=id?CS(id):CASES[0]; if(!c) return notFound('Collection case','#/cases');
- const stgs=['Arrears detected','Reminder sent','Promise to pay','Legal notice','Escalated'];
- const cur=stgs.findIndex(s=>s===c.stage||(c.stage==='Promise broken'&&s==='Promise to pay'));
+ const stgs=['Arrears detected','Reminder sent','Promise to pay','Promise broken','Escalated','Legal notice'];
+ const cur=stgs.findIndex(s=>s===c.stage);
  const triggers={'Past Due':'invoice passed the grace period','Returned Cheque':'cheque returned by the bank',
   'Broken Promise':'promise date passed unpaid','Two Months Arrears':'arrears reached the legal threshold'};
  const opened=c.manual
@@ -5510,7 +5510,8 @@ ROUTES.case=id=>{const c=id?CS(id):CASES[0]; if(!c) return notFound('Collection 
  const activity=[{text:opened,on:c.opened||'—',by:''},...(c.activity||[]).map(a=>({
   text:[a.method,a.outcome,a.notes].filter(Boolean).join(' · '),on:a.on||'—',by:a.by||''}))];
  return crumb([['Cases','#/cases'],[c.id,'']])+page(c.id,`${c.tn} · ${n0(c.amt)} outstanding · owner ${c.owner}`,
-  fbtn('Log contact','record-contact',{id:c.id})+fbtn('Record promise','record-promise',{id:c.id,amt:c.amt})+fbtn('Escalate to legal','escalate-legal',{id:c.id,amt:c.amt}),
+  fbtn('Log contact','record-contact',{id:c.id})+fbtn('Record promise','record-promise',{id:c.id,amt:c.amt})+
+  (ROLEV==='MD'&&c.stage!=='Legal notice'?fbtn('Issue legal notice','escalate-legal',{id:c.id,amt:c.amt}):''),
   stat([['Amount',n0(c.amt),'','r'],['Stage',chip(c.stage,stChip(c.stage))],['Case age',c.age+' days'],
    ['Promise to pay',c.promise],['Owner',c.owner],['Notes',(NOTES[c.id]||[]).length]])+
   `<div class="card"><h3>Case progression</h3>${steps(stgs,Math.max(cur,1))}
@@ -9570,8 +9571,9 @@ const WIRE={
 
 'escalate-legal':{
  m:'operations.escalate',
- a:d=>({case:d.__ctx&&d.__ctx.id,reason:d.why}),
- ok:(r,d)=>({title:'Escalated',msg:'Case moved to legal',
+ a:d=>({case:d.__ctx&&d.__ctx.id,reason:[d.why,'Legal counsel: '+d.firm,
+   'Amount claimed: QAR '+n0(wNum(d.amt))].join(' · ')}),
+ ok:(r,d)=>({title:'Legal notice issued',msg:'Case moved to legal notice',
    detail:d.firm+' \u00b7 '+k(wNum(d.amt))+' claimed'})},
 
 'open-case':{

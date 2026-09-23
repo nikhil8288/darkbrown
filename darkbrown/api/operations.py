@@ -55,19 +55,27 @@ def log_contact(case, method, outcome, notes=None, promised_amount=None,
 
 @frappe.whitelist()
 def escalate(case, reason=None):
-    guard(MD, GM, ACC)
+    # Serving a legal notice is a reserved MD decision.  The former endpoint
+    # let Accounts or the GM change the legal state directly while the shell
+    # claimed an MD approval was being requested.
+    guard(MD)
     doc = frappe.get_doc("Collection Case", case)
     require_record_access(doc, "write")
+    reason = (reason or "").strip()
+    if not reason:
+        frappe.throw(_("A legal notice needs the grounds for escalation."))
     if doc.status in ("Resolved", "Closed"):
         frappe.throw(_("That case is already closed."))
-    doc.status = "Legal" if doc.status == "Escalated" else "Escalated"
+    if doc.status == "Legal":
+        frappe.throw(_("That case is already at legal notice."))
+    doc.status = "Legal"
     doc.escalated_on = today()
     doc.escalated_by = frappe.session.user
     doc.append("actions", {
         "action_on": frappe.utils.now(),
         "method": "Letter",
         "outcome": "Notice Served",
-        "notes": reason or f"Escalated to {doc.status}.",
+        "notes": reason,
         "by_user": frappe.session.user,
     })
     doc.save()
