@@ -1,6 +1,6 @@
 """Loads the REAL doctype JSON into the stub's schema, imports the REAL
 darkbrown modules, and exercises the paths the audit flagged."""
-import sys, json, glob, os, traceback
+import sys, json, glob, os, traceback, types
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import stub_frappe as S
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
@@ -1549,6 +1549,24 @@ def t_cash_flow_excludes_the_historical_cutover_control():
     assert 'legacy cutover clearing account, not money at bank' in shell
 check("cash flow excludes the non-cash historical cutover control",
       t_cash_flow_excludes_the_historical_cutover_control)
+
+def t_cash_flow_ignores_same_side_noncash_reclassification():
+    from darkbrown.api import statements
+    rows = [
+        types.SimpleNamespace(account='DEPOSIT', debit=100, credit=0),
+        types.SimpleNamespace(account='INCOME', debit=0, credit=20),
+    ]
+    outflow = statements._cash_counterparts(rows, -80)
+    assert [r.account for r in outflow] == ['DEPOSIT'], outflow
+
+    receipt = [
+        types.SimpleNamespace(account='DEPOSIT', debit=0, credit=100),
+        types.SimpleNamespace(account='FEE', debit=5, credit=0),
+    ]
+    inflow = statements._cash_counterparts(receipt, 95)
+    assert [r.account for r in inflow] == ['DEPOSIT'], inflow
+check("cash flow excludes same-side non-cash voucher legs",
+      t_cash_flow_ignores_same_side_noncash_reclassification)
 
 def t_receipts_reject_untyped_bank_account_mappings():
     from darkbrown.api import finance

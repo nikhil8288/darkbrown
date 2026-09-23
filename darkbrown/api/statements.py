@@ -435,6 +435,22 @@ def _chunked(seq):
         yield seq[i:i + CHUNK]
 
 
+def _cash_counterparts(rows, cash_net):
+    """The non-cash legs that actually face the cash movement.
+
+    A compound settlement can include a non-cash reclassification on the
+    same side as cash.  For example Dr deposit liability 100 / Cr cash 80 /
+    Cr recharge income 20 pays 80 against the liability; the income leg is a
+    retention, not another destination for the cash.  Only legs opposite the
+    net cash sign are therefore eligible for direct-method allocation.
+    """
+    if cash_net > 0:
+        return [r for r in rows
+                if flt(r.debit) - flt(r.credit) < -0.005]
+    return [r for r in rows
+            if flt(r.debit) - flt(r.credit) > 0.005]
+
+
 @frappe.whitelist()
 def cash_flow(frm=None, to=None):
     """Where the cash actually went, by the direct method.
@@ -515,7 +531,8 @@ def cash_flow(frm=None, to=None):
                        for r in rows if r.account in cash)
         if abs(cash_net) < 0.005:
             continue
-        others = [r for r in rows if r.account not in cash]
+        others = _cash_counterparts(
+            [r for r in rows if r.account not in cash], cash_net)
         weights = [abs(flt(r.debit) - flt(r.credit)) for r in others]
         spread = sum(weights)
         if not others or spread < 0.005:
