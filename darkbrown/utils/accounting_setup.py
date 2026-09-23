@@ -64,19 +64,16 @@ def _ensure_account(company, labels, root_type, preferred_parents):
 
 
 def _find_cash_account(company):
-    for label in ("Cash Clearing", "Cash in Hand"):
+    for label in ("Cash", "Cash in Hand", "Cash Clearing"):
         account = frappe.db.get_value("Account", {
             "company": company, "account_name": label, "is_group": 0,
         }, "name")
         if account:
             return account
-    # Localized charts often name the standard cash leaf differently.  Its
-    # ERPNext account_type is the stable semantic signal, so reuse it rather
-    # than creating a duplicate merely to obtain an English label.
-    return frappe.db.get_value("Account", {
-        "company": company, "account_type": "Cash", "is_group": 0,
-        "disabled": 0,
-    }, "name")
+    # A bare account_type lookup is unsafe: Historical Cutover Control is
+    # intentionally tagged Cash for import mechanics but must never receive
+    # an operational receipt or refund.
+    return None
 
 
 def _map_mode(company, mode, account):

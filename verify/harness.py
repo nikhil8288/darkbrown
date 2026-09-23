@@ -67,7 +67,11 @@ def reset():
                          'returned_cheque_charge_account':'Bank Charges - DB',
                          'presentation_notice_days':14,
                          'default_tenancy_notice_days':60}],
-        'Account':[{'name':'Bank Charges - DB','account_name':'Bank Charges',
+        'Account':[{'name':'Historical Cutover Control - DB',
+                    'account_name':'Historical Cutover Control',
+                    'root_type':'Asset','account_type':'Cash','is_group':0,
+                    'disabled':0,'company':'DarkBrown RealEstate'},
+                   {'name':'Bank Charges - DB','account_name':'Bank Charges',
                     'account_type':'Expense Account','is_group':0},
                    {'name':'QNB Main - DB','account_name':'QNB Main',
                     'account_type':'Bank','is_group':0},
@@ -78,7 +82,8 @@ def reset():
                     'account_name':'Tenant Recharge Income','is_group':0,
                     'company':'DarkBrown RealEstate'},
                    {'name':'Cash - DB','account_name':'Cash','account_type':'Cash',
-                    'is_group':0,'company':'DarkBrown RealEstate'}],
+                    'root_type':'Asset','is_group':0,'disabled':0,
+                    'company':'DarkBrown RealEstate'}],
         'Bank Account':[{'name':'QNB Main','account':'QNB Main - DB'}],
         'Cost Center':[{'name':'Al Sadd - DB','cost_center_name':'Al Sadd','is_group':0}],
         'Customer':[{'name':'CUST-001','customer_name':'Mohammed Abdul Rahman'},
@@ -1736,7 +1741,7 @@ def t_deposit_release_posts_balanced_refund_journal():
         'name':'SD-1', 'tenancy_agreement':'TA-1', 'tenant':'CUST-001',
         'company':'DarkBrown RealEstate', 'amount':1000, 'deductions':200,
         'deduction_reason':'Rent 100; utilities and damage 100',
-        'status':'Held', 'receipt_method':'Transfer',
+        'status':'Held', 'receipt_method':'Cash',
         'move_out_case':'MO-1', 'refund_journal_entry':None})
     S.DB['Move Out Case'].append({
         'name':'MO-1', 'tenancy_agreement':'TA-1', 'tenant':'CUST-001',
@@ -1753,6 +1758,9 @@ def t_deposit_release_posts_balanced_refund_journal():
     credit = sum(float(a.get('credit_in_account_currency') or 0)
                  for a in accounts)
     assert (debit, credit) == (1000, 1000), accounts
+    cash_lines = [a for a in accounts
+                  if float(a.get('credit_in_account_currency') or 0) == 800]
+    assert cash_lines and cash_lines[0]['account'] == 'Cash - DB', accounts
     assert result['refund'] == 800, result
     assert result['journal_entry'], result
     assert S.DB['Security Deposit'][0]['refund_journal_entry'] == result['journal_entry']

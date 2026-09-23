@@ -166,11 +166,10 @@ def _deposit(reference, decision, note):
     if not liability:
         frappe.throw(_("Security Deposits Held account is not configured."))
 
-    from darkbrown.api.finance import _paid_to, _settings, _cost_center
+    from darkbrown.api.finance import (
+        _cash_account, _paid_to, _settings, _cost_center)
     if doc.receipt_method == "Cash":
-        money_account = frappe.db.get_value(
-            "Account", {"company": company, "account_type": "Cash",
-                        "is_group": 0}, "name")
+        money_account = _cash_account(company)
     else:
         money_account = _paid_to(_settings().default_bank_account, company)
     if refund and not money_account:

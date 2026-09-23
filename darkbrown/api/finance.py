@@ -950,9 +950,40 @@ def _paid_to(value, company):
     return (frappe.db.get_value("Account",
                                 {"company": company, "account_type": "Bank",
                                  "is_group": 0}, "name")
-            or frappe.db.get_value("Account",
-                                   {"company": company, "account_type": "Cash",
-                                    "is_group": 0}, "name"))
+            or _cash_account(company))
+
+
+def _cash_account(company):
+    """Resolve an operational cash ledger without ever selecting a control.
+
+    Historical Cutover Control is deliberately tagged as Cash so historical
+    imports can balance, which makes a bare ``account_type=Cash`` lookup
+    unsafe for real receipts and refunds.  Operational cash must have an
+    explicit cash name or a validated Mode of Payment mapping.
+    """
+    for label in ("Cash", "Cash in Hand", "Cash Clearing"):
+        account = frappe.db.get_value("Account", {
+            "company": company, "account_name": label, "is_group": 0,
+            "disabled": 0,
+        }, "name")
+        if account:
+            return account
+
+    mapped = frappe.db.get_value("Mode of Payment Account", {
+        "parent": "Cash", "company": company,
+    }, "default_account")
+    if not mapped:
+        return None
+    details = frappe.db.get_value(
+        "Account", mapped,
+        ["root_type", "account_type", "is_group", "disabled", "account_name"],
+        as_dict=True)
+    if (details and details.root_type == "Asset"
+            and details.account_type == "Cash" and not details.is_group
+            and not details.disabled
+            and details.account_name != "Historical Cutover Control"):
+        return mapped
+    return None
 
 
 def _receipt(customer, amount, on, bank_account=None, mode=None,
