@@ -30,12 +30,17 @@
   "cost_lines",
   "cost",
   "over_ceiling",
+  "ceiling_approved_by",
+  "ceiling_approved_on",
   "sec_recharge",
   "rechargeable",
   "recharge_to",
+  "recharge_tenancy",
   "cb_recharge",
   "recharge_amount",
-  "recharge_status"
+  "recharge_status",
+  "recharge_invoice_run",
+  "recharge_invoice"
  ],
  "fields": [
   {
@@ -189,6 +194,19 @@
    "read_only": 1
   },
   {
+   "fieldname": "ceiling_approved_by",
+   "fieldtype": "Link",
+   "label": "Ceiling Approved By",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "ceiling_approved_on",
+   "fieldtype": "Datetime",
+   "label": "Ceiling Approved On",
+   "read_only": 1
+  },
+  {
    "fieldname": "sec_recharge",
    "fieldtype": "Section Break",
    "label": "Tenant Recharge"
@@ -206,6 +224,14 @@
    "depends_on": "rechargeable"
   },
   {
+   "fieldname": "recharge_tenancy",
+   "fieldtype": "Link",
+   "label": "Recharge Tenancy",
+   "options": "Tenancy Agreement",
+   "read_only": 1,
+   "depends_on": "rechargeable"
+  },
+  {
    "fieldname": "cb_recharge",
    "fieldtype": "Column Break"
   },
@@ -220,9 +246,25 @@
    "fieldname": "recharge_status",
    "fieldtype": "Select",
    "label": "Recharge Status",
-   "options": "\nPending\nInvoiced\nWaived",
+   "options": "\nPending\nQueued\nInvoiced\nWaived",
    "depends_on": "rechargeable",
    "description": "A recharge rides on the next rent invoice as its own line, against its own income account."
+  },
+  {
+   "fieldname": "recharge_invoice_run",
+   "fieldtype": "Link",
+   "label": "Recharge Invoice Run",
+   "options": "Invoice Run",
+   "read_only": 1,
+   "depends_on": "rechargeable"
+  },
+  {
+   "fieldname": "recharge_invoice",
+   "fieldtype": "Link",
+   "label": "Recharge Invoice",
+   "options": "Sales Invoice",
+   "read_only": 1,
+   "depends_on": "rechargeable"
   }
  ],
  "index_web_pages_for_search": 0,

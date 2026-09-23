@@ -3413,7 +3413,7 @@ const FORMS={
  submit:d=>({msg:'Imported'})},
 
 'raise-job':{t:'Raise maintenance job',s:'Workflow 2D',cta:'Raise job',
- init:c=>({building:c&&c.bn?c.bn:'',unit:c&&c.u?c.u:'',pr:'Planned'}),
+ init:c=>({building:c&&c.bn?c.bn:'',unit:c&&c.u?c.u:'',pr:'Planned',assigned:''}),
  steps:[
   {n:'Details',body:d=>`<div class="fg">
     ${fld({k:'building',l:'Building',t:'sel',o:BUILDINGS.map(b=>b.n),req:1},d.building)}
@@ -3426,18 +3426,18 @@ const FORMS={
     const c=+d.cost||0, over=d.pr==='Emergency'&&c>2000;
     return `<div class="fg">
       ${fld({k:'cost',l:'Estimated cost (QAR)',t:'num',step:'100',p:'1400',req:1,live:1},d.cost)}
-      ${fld({k:'owner',l:'Assign to',t:'sel',o:['Maint. team','Yusuf K.','External contractor'],req:1},d.owner)}
+      ${fld({k:'assigned',l:'Assign to user email',t:'txt',p:'maintenance@darkbrown.qa'},d.assigned)}
       ${fld({k:'rch',l:'Recharge to tenant',t:'chk'},d.rch)}</div>
-     ${over?`<div class="merr" style="display:block">Emergency cost exceeds the QAR 2,000 ceiling — this job will route to the MD for approval before settlement.</div>`
+     ${over?`<div class="merr" style="display:block">Emergency cost exceeds the QAR 2,000 ceiling — this job will route to the MD for approval before work starts.</div>`
        :`<div class="note">Emergency jobs above QAR 2,000 require MD approval. Recharges post as a line on the tenant's next rent invoice.</div>`}`},
    fields:[{k:'cost',req:1}]}],
  submit:d=>{
   const id='MNT-'+String(220+JOBS.length).padStart(4,'0');
   const b=BUILDINGS.find(x=>x.n===d.building)||BUILDINGS[0];
   const cost=Math.round(+d.cost||0), ceil=d.pr==='Emergency'&&cost>2000;
-  JOBS.push({id,b:b.id,bn:b.n,u:d.unit,cat:d.cat,pr:d.pr,cost,st:'Open',rch:!!d.rch,age:0,owner:d.owner||'Maint. team',ceil});
+  JOBS.push({id,b:b.id,bn:b.n,u:d.unit,cat:d.cat,pr:d.pr,cost,st:d.assigned?'Assigned':'Open',rch:!!d.rch,age:0,owner:d.assigned||'Maint. team',ceil});
  return{title:'Job raised',msg:id+' created for '+d.unit,
-   detail:ceil?'Over the emergency ceiling — routed to MD approval':'Assigned to '+(d.owner||'Maint. team'),goto:'#/job/'+id}}},
+   detail:ceil?'Over the emergency ceiling — routed to MD approval':(d.assigned?'Assigned to '+d.assigned:'Open and unassigned'),goto:'#/job/'+id}}},
 
 'update-job':{t:'Update maintenance job',s:'Progress, actual cost and resolution',cta:'Save update',
  init:c=>({status:c&&c.raw_status||'Open',cost:c&&c.cost||0,
@@ -3457,7 +3457,10 @@ const FORMS={
     ${(d.__ctx&&d.__ctx.rch)?fld({k:'recharge',l:'Tenant recharge (QAR)',t:'num',step:'1',req:1},d.recharge):''}
     ${fld({k:'notes',l:'Work notes / resolution',t:'ta',p:'Work completed, parts used, access or follow-up'},d.notes)}</div>
     ${(d.__ctx&&d.__ctx.ceil)?'<div class="merr" style="display:block">This job is above the emergency ceiling. Work cannot start until the MD approves it.</div>':''}`,
-   fields:[{k:'cost',req:1}]}],
+   fields:[{k:'cost',req:1}],
+   check:d=>(d.status!=='Scheduled'||!!d.scheduled)&&
+     (d.status!=='Resolved'||!!String(d.notes||'').trim()),
+   msg:'A scheduled job needs a date, and a resolved job needs resolution notes.'}],
  submit:d=>{const j=J(d.__ctx&&d.__ctx.id);if(j){j.st=d.status==='Resolved'?'Completed':d.status;
    j.cost=+d.cost||0;j.owner=d.assigned||j.owner;if(d.notes)j.resolution=d.notes}
    return{title:'Job updated',msg:(d.__ctx&&d.__ctx.id)+' moved to '+d.status,
@@ -4694,12 +4697,14 @@ window.openJ=id=>go('#/job/'+id);
 
 ROUTES.job=id=>{const j=id?J(id):JOBS[0]; if(!j) return notFound('Maintenance job','#/maint');
  return crumb([['Maintenance','#/maint'],[j.id,'']])+page(j.id,`${j.cat} · ${j.u} · ${j.bn}`,
-  fbtn('Update job','update-job',{id:j.id,raw_status:j.raw_status||({'Open':'Open','Assigned':'Assigned','In progress':'In Progress','Completed':'Resolved'}[j.st]||j.st),
+  ['Resolved','Cancelled'].includes(j.raw_status)?'':fbtn('Update job','update-job',{id:j.id,raw_status:j.raw_status||({'Open':'Open','Assigned':'Assigned','In progress':'In Progress','Completed':'Resolved'}[j.st]||j.st),
     cost:j.cost,scheduled:j.scheduled,resolution:j.resolution,rch:j.rch,recharge_amount:j.recharge_amount,ceil:j.ceil}),
   stat([['Priority',chip(j.pr,j.pr==='Emergency'?'r':'n')],['Cost',n0(j.cost),'',j.ceil?'r':''],
    ['Status',chip(j.st,stChip(j.st))],['Age',j.age+' days'],['Owner',j.owner],
-   ['Recharge',j.rch?(j.recharge_status||'Pending'):'Absorbed']])+
-  (j.ceil?`<div class="warn">Cost exceeds the QAR 2,000 emergency ceiling — MD approval required before settlement. This job appears in the MD exceptions feed.</div>`:'')+
+   ['Recharge',j.rch?(j.recharge_status||'Pending'):'Absorbed'],
+   ...(j.ceiling_approved_by?[['Ceiling approval',j.ceiling_approved_by,
+     j.ceiling_approved_on||'approved','g']]:[])])+
+  (j.ceil?`<div class="warn">Cost exceeds the QAR 2,000 emergency ceiling — MD approval required before work starts. This job appears in the MD exceptions feed.</div>`:'')+
   `<div class="card"><h3>Job workflow — 2D</h3>${steps(['Raised','Assigned','In progress','Completed','Costed &amp; recharged'],
    ['Open','Assigned','In progress','Awaiting parts','Completed'].indexOf(j.st)>=4?4:Math.max(1,['Open','Assigned','In progress','Awaiting parts','Completed'].indexOf(j.st)))}</div>
   <div class="card"><h3>Cost lines</h3>${tbl([{h:'Line',v:r=>r.item||r[0]},{h:'Supplier',v:r=>r.supplier||r[1]},{h:'Amount',r:1,mono:1,v:r=>n0(r.amount!==undefined?r.amount:r[2])}],
@@ -9586,6 +9591,7 @@ const WIRE={
  a:d=>({payload:{building:wBld(d.building),unit:d.unit||null,
    category:wMap(W_JOBCAT,d.cat,'Other'),priority:wMap(W_JOBPRI,d.pr,'Medium'),
    issue:String(d.desc||'').slice(0,120),description:d.desc,
+   assigned_to:d.assigned||null,
    estimated_cost:wNum(d.cost),
    rechargeable:d.rch==='true'||d.rch===true?1:0,
    recharge_amount:d.rch==='true'||d.rch===true?wNum(d.cost):0}}),

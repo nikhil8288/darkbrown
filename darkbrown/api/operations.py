@@ -14,6 +14,15 @@ STAGE_STATUS = {
     "Legal notice": "Legal",
 }
 
+JOB_TRANSITIONS = {
+    "Open": {"Assigned", "Scheduled", "Cancelled"},
+    "Assigned": {"Scheduled", "In Progress", "Cancelled"},
+    "Scheduled": {"In Progress", "Cancelled"},
+    "In Progress": {"Resolved", "Cancelled"},
+    "Resolved": set(),
+    "Cancelled": set(),
+}
+
 
 @frappe.whitelist()
 def log_contact(case, method, outcome, notes=None, promised_amount=None,
@@ -82,40 +91,137 @@ def raise_job(payload):
     data = frappe.parse_json(payload)
     if not data.get("building"):
         frappe.throw(_("A job needs a building."))
-    require_building_access(data.get("building"))
+    building = data.get("building")
+    require_building_access(building)
+    unit = data.get("unit")
+    if unit:
+        unit_building = frappe.db.get_value("Unit", unit, "building")
+        if not unit_building:
+            frappe.throw(_("Unit {0} does not exist.").format(unit))
+        if unit_building != building:
+            frappe.throw(_("Unit {0} does not belong to {1}.").format(
+                unit, building))
+
+    estimated = flt(data.get("estimated_cost") or data.get("cost"))
+    if estimated <= 0:
+        frappe.throw(_("A maintenance job needs a positive estimated cost."))
+
+    rechargeable = cint(data.get("rechargeable"))
+    recharge_to = None
+    recharge_tenancy = None
+    if rechargeable:
+        if not unit:
+            frappe.throw(_("A tenant recharge needs the affected unit."))
+        tenancies = frappe.get_all(
+            "Tenancy Agreement",
+            filters={"unit": unit, "building": building,
+                     "status": ["in", ("Active", "Expiring")]},
+            fields=["name", "tenant"], limit=2)
+        if len(tenancies) != 1:
+            frappe.throw(_(
+                "{0} needs exactly one live tenancy before maintenance can "
+                "be recharged.").format(unit))
+        recharge_tenancy = tenancies[0].name
+        recharge_to = tenancies[0].tenant
+        supplied_customer = data.get("recharge_to")
+        if supplied_customer and supplied_customer != recharge_to:
+            frappe.throw(_("The recharge customer must match the live tenancy."))
+
     doc = frappe.get_doc({
         "doctype": "Maintenance Request",
-        "building": data.get("building"),
-        "unit": data.get("unit"),
+        "building": building,
+        "unit": unit,
         "category": data.get("category") or "Other",
         "priority": data.get("priority") or "Medium",
         "issue": data.get("issue"),
         "description": data.get("description"),
-        "status": "Open",
-        "rechargeable": cint(data.get("rechargeable")),
-        "recharge_to": data.get("recharge_to"),
-        "recharge_amount": flt(data.get("recharge_amount")),
-    }).insert()
+        "status": "Assigned" if data.get("assigned_to") else "Open",
+        "assigned_to": data.get("assigned_to"),
+        "rechargeable": rechargeable,
+        "recharge_to": recharge_to,
+        "recharge_tenancy": recharge_tenancy,
+        "recharge_amount": (flt(data.get("recharge_amount"))
+                            if rechargeable else 0),
+        "cost_lines": [{"item": "Estimated job cost", "amount": estimated}],
+    })
+    if rechargeable and not doc.recharge_amount:
+        doc.recharge_amount = estimated
+    doc.insert()
     return {"case": doc.name, "status": doc.status,
-            "security_deposit": doc.security_deposit}
+            "cost": flt(doc.cost), "over_ceiling": bool(doc.over_ceiling),
+            "recharge_to": doc.recharge_to}
 
 
 @frappe.whitelist()
-def advance_job(job, status, cost=None, notes=None, assigned_to=None):
+def advance_job(job, status, cost=None, notes=None, assigned_to=None,
+                scheduled_on=None, recharge_amount=None):
     guard(MD, GM, MNT)
     doc = frappe.get_doc("Maintenance Request", job)
     require_record_access(doc, "write")
+    allowed = JOB_TRANSITIONS.get(doc.status)
+    if allowed is None or status not in allowed:
+        frappe.throw(_("{0} cannot move from {1} to {2}.").format(
+            job, doc.status, status))
+
+    old_cost = flt(doc.cost)
+    new_cost = flt(cost) if cost is not None else old_cost
+    if new_cost < 0:
+        frappe.throw(_("Maintenance cost cannot be negative."))
+    cost_changed = cost is not None and abs(new_cost - old_cost) >= 0.005
+    if doc.recharge_status == "Invoiced" and (
+            cost_changed or recharge_amount is not None):
+        frappe.throw(_(
+            "An invoiced maintenance recharge cannot be changed. Cancel its "
+            "Sales Invoice through the controlled correction workflow first."))
+    if cost_changed:
+        doc.ceiling_approved_by = None
+        doc.ceiling_approved_on = None
+        doc.cost_lines = []
+        doc.append("cost_lines", {"item": "Actual job cost",
+                                  "amount": new_cost})
+
+    # Test the proposed cost, not the flag saved with the previous cost.  An
+    # approved QAR 1,900 job edited to QAR 3,000 used to pass this gate first,
+    # enter In Progress, then have validate() revoke its approval and mark it
+    # over ceiling.  Work could therefore start in the same request that made
+    # approval necessary.  Recompute after clearing any stale approval and
+    # refuse the transition before status changes or anything is saved.
+    ceiling = flt(frappe.db.get_single_value(
+        "DBR Settings", "emergency_maintenance_ceiling"))
+    needs_approval = bool(
+        ceiling and doc.priority == "Emergency" and new_cost > ceiling
+        and not doc.ceiling_approved_by)
+    if needs_approval and status in ("In Progress", "Resolved"):
+        frappe.throw(_(
+            "{0} is above the emergency ceiling and needs MD approval "
+            "before work starts.").format(job))
+
+    effective_schedule = scheduled_on or doc.scheduled_on
+    if status == "Scheduled" and not effective_schedule:
+        frappe.throw(_("A scheduled maintenance job needs its scheduled date."))
+    if status == "Resolved" and not (notes or doc.resolution_notes):
+        frappe.throw(_("A resolved maintenance job needs resolution notes."))
+
     doc.status = status
     if assigned_to:
         doc.assigned_to = assigned_to
+    if scheduled_on:
+        doc.scheduled_on = scheduled_on
     if notes:
         doc.resolution_notes = notes
     if status == "Resolved":
         doc.resolved_on = frappe.utils.now()
-    if cost is not None:
-        doc.cost_lines = []
-        doc.append("cost_lines", {"item": "Job cost",
-                                  "amount": flt(cost)})
+    if recharge_amount is not None:
+        if not doc.rechargeable:
+            frappe.throw(_("That job is not marked for tenant recharge."))
+        if doc.recharge_status == "Invoiced":
+            frappe.throw(_("An invoiced maintenance recharge cannot be changed."))
+        doc.recharge_amount = flt(recharge_amount)
+    elif doc.rechargeable and cost is not None:
+        doc.recharge_amount = new_cost
+    if status == "Resolved" and doc.rechargeable and \
+            flt(doc.recharge_amount) <= 0:
+        frappe.throw(_("A rechargeable resolved job needs a positive amount."))
     doc.save()
     return {"job": doc.name, "status": doc.status,
             "over_ceiling": bool(doc.over_ceiling)}

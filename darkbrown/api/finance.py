@@ -478,6 +478,18 @@ def _charge_amount(charge, agreement, period_start, window):
         return _prorated_monthly(charge.amount, window[0], window[1])
     return flt(charge.amount, 2)
 
+
+def _maintenance_recharge_account(company):
+    account = frappe.db.get_value(
+        "Account", {"company": company,
+                    "account_name": "Tenant Recharge Income",
+                    "root_type": "Income", "is_group": 0}, "name")
+    if not account:
+        frappe.throw(_(
+            "Configure Tenant Recharge Income before billing maintenance "
+            "recharges."))
+    return account
+
 @frappe.whitelist()
 def build_invoice_run(building, period_start=None):
     """Draft a month of rent for one building.
@@ -517,6 +529,19 @@ def build_invoice_run(building, period_start=None):
         "generated_on": frappe.utils.now(),
     })
 
+    maintenance = frappe.get_all(
+        "Maintenance Request",
+        filters={"building": building, "status": "Resolved",
+                 "rechargeable": 1, "recharge_status": "Pending",
+                 "recharge_invoice_run": ["is", "not set"],
+                 "recharge_amount": [">", 0]},
+        fields=["name", "unit", "recharge_to", "recharge_tenancy",
+                "recharge_amount", "issue"],
+        order_by="resolved_on asc, creation asc")
+    maintenance_account = (_maintenance_recharge_account(_company())
+                           if maintenance else None)
+    queued_recharges = set()
+
     total, variance_seen = 0, False
     for a in agreements:
         window = _billing_window(a, start)
@@ -534,6 +559,22 @@ def build_invoice_run(building, period_start=None):
                                   "amount": charge_amount,
                                   "income_account": charge.income_account,
                                   "remarks": charge.remarks})
+        for job in maintenance:
+            belongs = (job.recharge_tenancy == a.name or (
+                not job.recharge_tenancy and job.recharge_to == a.tenant
+                and job.unit == a.unit))
+            if not belongs:
+                continue
+            snapshots.append({
+                "type": "Maintenance Recharge",
+                "amount": flt(job.recharge_amount, 2),
+                "income_account": maintenance_account,
+                "remarks": "{0} — {1}".format(job.name,
+                                                job.issue or "Maintenance"),
+                "source_doctype": "Maintenance Request",
+                "source_name": job.name,
+            })
+            queued_recharges.add(job.name)
         amount = flt(agreed + sum(x["amount"] for x in snapshots), 2)
         variance = flt(amount - agreed, 2)
         if variance:
@@ -557,6 +598,11 @@ def build_invoice_run(building, period_start=None):
     run.has_variance = 1 if variance_seen else 0
     run.flags.ignore_mandatory = True
     run.insert(ignore_permissions=True)
+    for job in queued_recharges:
+        frappe.db.set_value("Maintenance Request", job, {
+            "recharge_status": "Queued",
+            "recharge_invoice_run": run.name,
+        })
     return {"run": run.name, "lines": len(run.lines), "total": _kk(total)}
 
 
@@ -606,6 +652,7 @@ def invoice_run(run):
             "reason": l.reason or "",
             "invoice": l.sales_invoice,
             "invoice_cancelled": 1 if l.sales_invoice in cancelled else 0,
+            "charges": frappe.parse_json(l.charge_snapshot or "[]"),
         } for l in doc.lines],
     }
 
@@ -691,7 +738,9 @@ def _rent_invoice(run, line):
         {"custom_rental_agreement": line.tenancy_agreement,
          "custom_billing_period": period,
          "docstatus": ["<", 2]}, "name")
+    snapshots = frappe.parse_json(line.charge_snapshot or "[]")
     if existing:
+        _mark_maintenance_recharges(snapshots, run.name, existing)
         return existing
     item = _rent_item()
     items = [{
@@ -703,7 +752,7 @@ def _rent_invoice(run, line):
         "rate": flt(line.agreement_amount),
         "cost_center": _cost_center(run.building),
     }]
-    for charge in frappe.parse_json(line.charge_snapshot or "[]"):
+    for charge in snapshots:
         items.append({
             "item_code": item,
             "item_name": charge.get("type") or "Tenancy charge",
@@ -736,7 +785,26 @@ def _rent_invoice(run, line):
     si.flags.ignore_permissions = True
     si.insert(ignore_permissions=True)
     si.submit()
+    _mark_maintenance_recharges(snapshots, run.name, si.name)
     return si.name
+
+
+def _mark_maintenance_recharges(snapshots, run_name, invoice):
+    for charge in snapshots:
+        if charge.get("source_doctype") != "Maintenance Request" or \
+                not charge.get("source_name"):
+            continue
+        job = charge["source_name"]
+        queued_run = frappe.db.get_value(
+            "Maintenance Request", job, "recharge_invoice_run")
+        if queued_run != run_name:
+            frappe.throw(_(
+                "Maintenance recharge {0} is reserved by another invoice "
+                "run.").format(job))
+        frappe.db.set_value("Maintenance Request", job, {
+            "recharge_status": "Invoiced",
+            "recharge_invoice": invoice,
+        })
 
 
 def _rent_item():

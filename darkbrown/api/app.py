@@ -275,12 +275,25 @@ def jobs():
         filters={"status": ["!=", "Cancelled"]},
         fields=["name", "building", "unit", "category", "priority", "cost",
                 "status", "rechargeable", "reported_on", "assigned_to",
-                "over_ceiling"],
+                "over_ceiling", "issue", "resolution_notes", "scheduled_on",
+                "ceiling_approved_by", "ceiling_approved_on",
+                "recharge_to", "recharge_amount", "recharge_status",
+                "recharge_invoice_run", "recharge_invoice"],
         order_by="reported_on desc")
     if not rows:
         return []
     bnames = {b.name: b.building_name for b in frappe.get_all(
         "Building", fields=["name", "building_name"])}
+    job_names = [j.name for j in rows]
+    cost_lines = {}
+    for line in frappe.get_all(
+            "Maintenance Cost Line", filters={"parent": ["in", job_names]},
+            fields=["parent", "item", "supplier", "amount", "invoice_ref"],
+            order_by="idx asc"):
+        cost_lines.setdefault(line.parent, []).append({
+            "item": line.item or "Cost", "supplier": line.supplier or "—",
+            "amount": _k(line.amount), "invoice": line.invoice_ref or "—",
+        })
     out = []
     for j in rows:
         out.append({
@@ -292,10 +305,24 @@ def jobs():
             "pr": JOB_PRIORITY.get(j.priority, "Routine"),
             "cost": _k(j.cost),
             "st": JOB_STATE.get(j.status, j.status),
+            "raw_status": j.status,
             "rch": bool(j.rechargeable),
+            "recharge_to": j.recharge_to,
+            "recharge_amount": _k(j.recharge_amount),
+            "recharge_status": j.recharge_status or "—",
+            "recharge_run": j.recharge_invoice_run,
+            "recharge_invoice": j.recharge_invoice,
             "age": (date_diff(today(), j.reported_on) if j.reported_on else 0),
             "owner": _short_name(j.assigned_to) or "Maint. team",
             "ceil": bool(j.over_ceiling),
+            "ceiling_approved_by": (_short_name(j.ceiling_approved_by)
+                                     if j.ceiling_approved_by else None),
+            "ceiling_approved_on": (_fdate(j.ceiling_approved_on)
+                                     if j.ceiling_approved_on else None),
+            "issue": j.issue or "—",
+            "resolution": j.resolution_notes or "",
+            "scheduled": _fdate(j.scheduled_on) if j.scheduled_on else "—",
+            "lines": cost_lines.get(j.name, []),
         })
     return out
 

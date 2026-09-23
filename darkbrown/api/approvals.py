@@ -129,6 +129,8 @@ def _maintenance(reference, decision, note):
         frappe.throw(_("{0} is not above the ceiling.").format(reference))
     if decision == "approve":
         doc.status = "Assigned" if doc.status == "Open" else doc.status
+        doc.ceiling_approved_by = frappe.session.user
+        doc.ceiling_approved_on = frappe.utils.now()
         doc.over_ceiling = 0
         doc.resolution_notes = ((doc.resolution_notes or "")
                                 + f"\n\nCeiling approved by "

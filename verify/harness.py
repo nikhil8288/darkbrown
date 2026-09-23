@@ -1853,6 +1853,168 @@ def t_shell_wires_guarded_deposit_correction():
 check("journal detail exposes the guarded deposit correction workflow",
       t_shell_wires_guarded_deposit_correction)
 
+def _maintenance_fixture():
+    reset()
+    S.DB['DBR Settings'][0]['emergency_maintenance_ceiling'] = 2000
+    S.DB['Maintenance Request'] = []
+    S.DB['Unit'] = [
+        {'name':'UNIT-1', 'building':'Al Sadd', 'status':'Occupied'},
+        {'name':'UNIT-2', 'building':'Other Building', 'status':'Occupied'},
+    ]
+    S.DB['Building'].append({'name':'Other Building'})
+    S.DB['Tenancy Agreement'] = [{
+        'name':'TA-MNT-1', 'building':'Al Sadd', 'unit':'UNIT-1',
+        'tenant':'CUST-001', 'status':'Active', 'monthly_rent':5000,
+        'start_date':'2026-01-01', 'end_date':'2026-12-31',
+        'payment_frequency':'Monthly'}]
+
+def t_maintenance_creation_persists_cost_assignment_and_recharge_scope():
+    _maintenance_fixture()
+    old_user, old_roles = S.frappe.session.user, list(S.SESSION['roles'])
+    try:
+        S.frappe.session.user = 'Administrator'
+        S.SESSION['roles'] = ['Managing Director']
+        from darkbrown.api import operations
+        result = operations.raise_job({
+            'building':'Al Sadd', 'unit':'UNIT-1', 'category':'Plumbing',
+            'priority':'Medium', 'issue':'Leaking sink',
+            'estimated_cost':1250, 'assigned_to':'maintenance@darkbrown.qa',
+            'rechargeable':1})
+        row = next(r for r in S.DB['Maintenance Request']
+                   if r['name'] == result['case'])
+        assert row['status'] == 'Assigned', row
+        assert row['assigned_to'] == 'maintenance@darkbrown.qa', row
+        assert row['cost'] == 1250, row
+        assert row['cost_lines'][0]['amount'] == 1250, row
+        assert row['recharge_to'] == 'CUST-001', row
+        assert row['recharge_tenancy'] == 'TA-MNT-1', row
+        assert row['recharge_amount'] == 1250, row
+        assert row['recharge_status'] == 'Pending', row
+    finally:
+        S.frappe.session.user, S.SESSION['roles'] = old_user, old_roles
+check("maintenance creation persists assignment, cost and tenancy recharge scope",
+      t_maintenance_creation_persists_cost_assignment_and_recharge_scope)
+
+def t_maintenance_refuses_a_unit_from_another_building():
+    _maintenance_fixture()
+    old_user, old_roles = S.frappe.session.user, list(S.SESSION['roles'])
+    try:
+        S.frappe.session.user = 'Administrator'
+        S.SESSION['roles'] = ['Managing Director']
+        from darkbrown.api import operations
+        try:
+            operations.raise_job({
+                'building':'Al Sadd', 'unit':'UNIT-2', 'category':'Electrical',
+                'priority':'High', 'issue':'Test', 'estimated_cost':500})
+            assert False, 'cross-building unit was accepted'
+        except S.ValidationError:
+            assert 'does not belong to Al Sadd' in S.THROWN[-1], S.THROWN[-1]
+        assert not S.DB['Maintenance Request']
+    finally:
+        S.frappe.session.user, S.SESSION['roles'] = old_user, old_roles
+check("maintenance creation rejects a unit from another building",
+      t_maintenance_refuses_a_unit_from_another_building)
+
+def t_emergency_maintenance_approval_cannot_be_bypassed_by_cost_change():
+    _maintenance_fixture()
+    old_user, old_roles = S.frappe.session.user, list(S.SESSION['roles'])
+    try:
+        S.frappe.session.user = 'Administrator'
+        S.SESSION['roles'] = ['Managing Director']
+        from darkbrown.api import operations, approvals
+        raised = operations.raise_job({
+            'building':'Al Sadd', 'unit':'UNIT-1', 'category':'Electrical',
+            'priority':'Emergency', 'issue':'Main breaker failure',
+            'estimated_cost':3000, 'assigned_to':'maintenance@darkbrown.qa'})
+        job = raised['case']
+        assert raised['over_ceiling'] is True, raised
+        try:
+            operations.advance_job(job, 'In Progress', cost=3000)
+            assert False, 'unapproved emergency work started'
+        except S.ValidationError:
+            assert 'needs MD approval' in S.THROWN[-1], S.THROWN[-1]
+
+        approved = approvals.decide(
+            'Emergency maint.', job, 'approve', 'Restore essential power')
+        assert approved['status'] == 'Assigned', approved
+        stored = next(r for r in S.DB['Maintenance Request']
+                      if r['name'] == job)
+        assert stored['ceiling_approved_by'] == 'Administrator', stored
+        assert stored['over_ceiling'] == 0, stored
+
+        try:
+            operations.advance_job(job, 'In Progress', cost=3500)
+            assert False, 'a higher cost reused the old approval'
+        except S.ValidationError:
+            assert 'needs MD approval' in S.THROWN[-1], S.THROWN[-1]
+        stored = next(r for r in S.DB['Maintenance Request']
+                      if r['name'] == job)
+        assert stored['status'] == 'Assigned', stored
+        assert stored['cost'] == 3000, stored
+        assert stored['ceiling_approved_by'] == 'Administrator', stored
+
+        moved = operations.advance_job(job, 'In Progress', cost=3000)
+        assert moved['status'] == 'In Progress', moved
+        done = operations.advance_job(
+            job, 'Resolved', cost=3000,
+            notes='Breaker and damaged cable replaced; supply tested.')
+        assert done['status'] == 'Resolved', done
+    finally:
+        S.frappe.session.user, S.SESSION['roles'] = old_user, old_roles
+check("emergency maintenance approval is required again after a cost change",
+      t_emergency_maintenance_approval_cannot_be_bypassed_by_cost_change)
+
+def t_maintenance_status_rules_and_recharge_handoff_are_wired():
+    import inspect
+    from darkbrown.api import finance, operations, app
+    from darkbrown.utils import invoice_run
+    advance = inspect.getsource(operations.advance_job)
+    billing = inspect.getsource(finance.build_invoice_run)
+    cancellation = inspect.getsource(invoice_run.on_sales_invoice_cancel)
+    feed = inspect.getsource(app.jobs)
+    assert 'status == "Scheduled" and not effective_schedule' in advance
+    assert 'status == "Resolved" and not (notes or doc.resolution_notes)' in advance
+    assert 'doc.recharge_status == "Invoiced"' in advance
+    assert '"recharge_status": "Queued"' in billing
+    assert '"source_doctype": "Maintenance Request"' in billing
+    assert '"recharge_status": "Queued"' in cancellation
+    assert '"ceiling_approved_by"' in feed
+    shell = open(REPO + '/darkbrown/shell/index.html').read()
+    assert 'assigned_to:d.assigned||null' in shell
+    assert "['Resolved','Cancelled'].includes(j.raw_status)?''" in shell
+    assert 'before work starts.' in shell
+check("maintenance status, audit and tenant-recharge lifecycle are wired",
+      t_maintenance_status_rules_and_recharge_handoff_are_wired)
+
+def t_planning_module_is_deferred_everywhere():
+    shell = open(REPO + '/darkbrown/shell/index.html').read()
+    assert 'const PLANNING_ENABLED=false;' in shell
+    for route in ('planning', 'capacity', 'forecast', 'scenarios', 'scenario',
+                  'model', 'portfolioplan', 'targets', 'risks', 'pactions',
+                  'cfo', 'fva', 'compare', 'unitplan', 'solver', 'optimise',
+                  'pconfig'):
+        assert "'%s'" % route in shell[shell.index(
+            'const DEFERRED_PLANNING_ROUTES='):shell.index(
+            'const DEFERRED_PLANNING_FORMS=')], route
+    for route in ('planning', 'capacity', 'forecast', 'scenarios', 'model',
+                  'portfolioplan', 'targets', 'risks', 'pactions', 'cfo'):
+        assert 'data-r="%s" data-feature="planning" hidden' % route in shell
+    router = shell[shell.index('function router(){'):
+                   shell.index('window.toggleNav=', shell.index('function router(){'))]
+    assert 'if(planningDeferred(r)){' in router
+    assert "history.replaceState(null,'',dflt)" in router
+    opener = shell[shell.index('window.openForm=(key,ctx)=>{'):
+                   shell.index('window.startFresh=', shell.index('window.openForm=(key,ctx)=>{'))]
+    assert 'DEFERRED_PLANNING_FORMS.includes(key)' in opener
+    admin = shell[shell.index('ROUTES.admin=()=>_admin()'):
+                  shell.index('Stage-by-stage workflow build')]
+    assert '(PLANNING_ENABLED?' in admin
+    owners = shell[shell.index('ROUTES.owners=()=>'):
+                   shell.index('window.openRun=', shell.index('ROUTES.owners=()=>'))]
+    assert '${PLANNING_ENABLED?`<div class="card"><h3>Distribution capacity' in owners
+check("Planning navigation, direct routes, forms and cross-links stay hidden",
+      t_planning_module_is_deferred_everywhere)
+
 # =====================================================================
 print()
 for n in PASS: print("  PASS  %s" % n)

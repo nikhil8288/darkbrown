@@ -14,10 +14,21 @@ def on_sales_invoice_cancel(doc, method=None):
     lines = frappe.get_all(
         "Invoice Run Line",
         filters={"sales_invoice": doc.name, "parenttype": "Invoice Run"},
-        fields=["name", "parent"],
+        fields=["name", "parent", "charge_snapshot"],
     )
     parents = set()
     for line in lines:
+        for charge in frappe.parse_json(line.charge_snapshot or "[]"):
+            if charge.get("source_doctype") != "Maintenance Request" or \
+                    not charge.get("source_name"):
+                continue
+            job = charge["source_name"]
+            if frappe.db.get_value(
+                    "Maintenance Request", job, "recharge_invoice") == doc.name:
+                frappe.db.set_value("Maintenance Request", job, {
+                    "recharge_status": "Queued",
+                    "recharge_invoice": None,
+                }, update_modified=False)
         frappe.db.set_value(
             "Invoice Run Line", line.name, "sales_invoice", None,
             update_modified=False,
@@ -32,4 +43,3 @@ def on_sales_invoice_cancel(doc, method=None):
                 "approved_by": None,
                 "issued_on": None,
             })
-
