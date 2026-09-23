@@ -93,7 +93,7 @@ def reset():
         'Cheque':[], 'Security Deposit':[], 'Head Lease Payment':[],
         'Move Out Case':[],
         'Collection Case':[], 'Sales Invoice':[], 'Purchase Invoice':[],
-        'Payment Entry':[],
+        'Payment Entry':[], 'Journal Entry':[],
         'Tenancy Agreement':[], 'Head Lease':[], 'Building':[{'name':'Al Sadd'}],
         'Has Role':[{'parent':'acc@darkbrown.qa','role':'Accounts','parenttype':'User'}],
         'User':[{'name':'acc@darkbrown.qa','enabled':1}],
@@ -1769,6 +1769,47 @@ def t_deposit_release_posts_balanced_refund_journal():
         'refund journal was left in draft'
 check("MD deposit approval posts and links a balanced refund journal",
       t_deposit_release_posts_balanced_refund_journal)
+
+def t_deposit_release_correction_reopens_complete_chain():
+    from darkbrown.api import approvals
+    reset()
+    S.frappe.session.user = 'Administrator'
+    S.DB['Security Deposit'].append({
+        'name':'SD-1', 'tenancy_agreement':'TA-1', 'tenant':'CUST-001',
+        'company':'DarkBrown RealEstate', 'amount':1000, 'deductions':200,
+        'deduction_reason':'Damage 200', 'status':'Partially Refunded',
+        'receipt_method':'Cash', 'move_out_case':'MO-1',
+        'refunded_on':'2026-09-23', 'refund_journal_entry':'JV-1'})
+    S.DB['Move Out Case'].append({
+        'name':'MO-1', 'tenancy_agreement':'TA-1', 'tenant':'CUST-001',
+        'unit':'UNIT-1', 'building':'Al Sadd', 'security_deposit':'SD-1',
+        'status':'Closed', 'deposit_held':1000, 'outstanding_rent':0,
+        'utilities_due':100, 'damages_charged':100,
+        'refund_paid_on':'2026-09-23', 'refund_method':'Cash'})
+    S.DB['Tenancy Agreement'].append({'name':'TA-1','status':'Terminated'})
+    S.DB['Unit'].append({'name':'UNIT-1','status':'Not Ready'})
+    S.DB['Journal Entry'].append({
+        'name':'JV-1', 'docstatus':1,
+        'user_remark':'Security deposit settlement SD-1 for move-out MO-1'})
+    result = approvals.reopen_deposit_release(
+        'SD-1', 'JV-1', 'Wrong cash account selected')
+    assert result['status'] == 'Held', result
+    assert result['move_out_status'] == 'Refund Pending', result
+    assert any(c[0] == 'cancel' and c[2]['name'] == 'JV-1' for c in S.CALLS)
+    assert S.DB['Security Deposit'][0]['refund_journal_entry'] is None
+    assert S.DB['Move Out Case'][0]['refund_paid_on'] is None
+    assert S.DB['Tenancy Agreement'][0]['status'] == 'Active'
+    assert S.DB['Unit'][0]['status'] == 'Occupied'
+check("deposit correction cancels the journal and reopens the complete chain",
+      t_deposit_release_correction_reopens_complete_chain)
+
+def t_shell_wires_guarded_deposit_correction():
+    shell = open(REPO + '/darkbrown/shell/index.html').read()
+    assert "fbtn('Correct deposit settlement','reopen-deposit-release'" in shell
+    assert "m:'approvals.reopen_deposit_release'" in shell
+    assert 'This reverses a posted financial transaction.' in shell
+check("journal detail exposes the guarded deposit correction workflow",
+      t_shell_wires_guarded_deposit_correction)
 
 # =====================================================================
 print()

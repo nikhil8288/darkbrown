@@ -238,6 +238,59 @@ def _deposit(reference, decision, note):
             "refund": round(refund), "journal_entry": je.name}
 
 
+@frappe.whitelist()
+def reopen_deposit_release(reference, journal_entry, note):
+    """Cancel a posted deposit settlement and reopen its full workflow."""
+    guard(MD)
+    note = (note or "").strip()
+    if not note:
+        frappe.throw(_("A correction needs an audit reason."))
+
+    doc = frappe.get_doc("Security Deposit", reference)
+    if doc.refund_journal_entry != journal_entry:
+        frappe.throw(_("{0} is not the refund journal linked to {1}.").format(
+            journal_entry, reference))
+    if doc.status not in ("Partially Refunded", "Refunded", "Forfeited"):
+        frappe.throw(_("{0} is {1}, not a posted release.").format(
+            reference, doc.status))
+
+    je = frappe.get_doc("Journal Entry", journal_entry)
+    expected = "Security deposit settlement {0}".format(reference)
+    if je.docstatus != 1 or expected not in (je.user_remark or ""):
+        frappe.throw(_("{0} is not the submitted settlement for {1}.").format(
+            journal_entry, reference))
+
+    mo = (frappe.get_doc("Move Out Case", doc.move_out_case)
+          if doc.move_out_case else None)
+    if not mo or mo.status != "Closed":
+        frappe.throw(_("The linked move-out is not in the posted Closed state."))
+
+    je.cancel()
+
+    doc.status = "Held"
+    doc.refunded_on = None
+    doc.refund_journal_entry = None
+    doc.save(ignore_permissions=True)
+
+    mo.status = "Refund Pending"
+    mo.refund_paid_on = None
+    mo.refund_method = None
+    mo.save(ignore_permissions=True)
+
+    if mo.tenancy_agreement:
+        frappe.db.set_value("Tenancy Agreement", mo.tenancy_agreement,
+                            "status", "Active")
+    if mo.unit:
+        frappe.db.set_value("Unit", mo.unit, "status", "Occupied")
+
+    doc.add_comment(
+        "Comment", "Deposit settlement correction: {0}. Cancelled {1}.".format(
+            note, journal_entry))
+    return {"reference": doc.name, "status": doc.status,
+            "move_out": mo.name, "move_out_status": mo.status,
+            "cancelled_journal": journal_entry}
+
+
 def _invoice_run(reference, decision, note):
     from darkbrown.api.finance import issue_invoice_run
     if decision == "approve":

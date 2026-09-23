@@ -6173,6 +6173,18 @@ FORMS['approve-decision']={t:'Record decision',s:'Reserved MD approval · reason
   return{title:d.dec==='Approve'?'Approved':d.dec==='Reject'?'Rejected':'Information requested',
    msg:'Decision recorded and added to the note thread',detail:d.why,goto:d.ref?'#/approval/'+d.ref:'#/approvals'}}};
 
+FORMS['reopen-deposit-release']={t:'Correct deposit settlement',
+ s:'Cancels the linked journal and reopens the complete approval chain',cta:'Cancel journal and reopen',
+ init:c=>({deposit:(c&&c.deposit)||'',journal:(c&&c.journal)||''}),
+ steps:[{n:'Correction',body:d=>`<div class="warn"><b>This reverses a posted financial transaction.</b>
+   Journal ${esc(d.journal)} will be cancelled. Deposit ${esc(d.deposit)}, its move-out, tenancy and unit
+   will return to their pre-approval states so the release can be approved again.</div>
+   <div class="fg">${fld({k:'why',l:'Correction reason',t:'ta',
+     p:'Permanent audit note explaining why the posting is being reversed',req:1,full:1},d.why)}</div>`,
+   fields:[{k:'why',req:1}]}],
+ submit:d=>({title:'Deposit settlement reopened',msg:d.deposit+' returned to the MD approval queue',
+   detail:d.journal+' was cancelled with its ledger reversal preserved',goto:'#/approvals'})};
+
 FORMS['journal-entry']={t:'New journal entry',s:'Manual posting · must balance',cta:'Post journal',
  init:()=>({d1:'',c1:''}),
  steps:[{n:'Entry',body:d=>{
@@ -6601,6 +6613,7 @@ ROUTES.expenses=()=>{
 
 function journalDetail(id){const j=JRN.find(x=>x.id===id)||JRN[0];
   const dr=j.lines.reduce((a,l)=>a+(l[1]||0),0), cr=j.lines.reduce((a,l)=>a+(l[2]||0),0);
+  const dep=String(j.desc||'').match(/Security deposit settlement (SD-[A-Za-z0-9-]+)/);
   const correction={
    'Sales Invoice':'Cancel the source Sales Invoice; ERPNext keeps the reversing ledger trail',
    'Purchase Invoice':'Cancel the source Purchase Invoice; ERPNext keeps the reversing ledger trail',
@@ -6608,7 +6621,8 @@ function journalDetail(id){const j=JRN.find(x=>x.id===id)||JRN[0];
    'Journal Entry':'Cancel or reverse the source Journal Entry in ERPNext'
   }[j.vt]||'Correct or cancel the source document in ERPNext';
   return crumb([['Journal entries','#/journal'],[j.id,'']])+page(j.id,`${j.desc} · ${j.d}`,
-   actbtn('Print'),
+   actbtn('Print')+(dep?fbtn('Correct deposit settlement','reopen-deposit-release',
+     {deposit:dep[1],journal:j.id}):''),
    stat([['Date',j.d],['Type',j.ty],['Reference',j.ref],['Debits',money(dr)],['Credits',money(cr)],
      ['Balanced',Math.abs(dr-cr)<0.01?'Yes':'No','',Math.abs(dr-cr)<0.01?'g':'r'],['Posted by',j.by||'\u2014']])+
    `<div class="card"><h3>Journal lines</h3>
@@ -9432,6 +9446,14 @@ const WIRE={
  guard:d=>/more information/i.test(d.dec||'')
   ?'Requesting more information is not a decision the queue records yet. It stays pending either way \u2014 approve it or reject it with the reason.':null,
  ok:(r,d)=>({title:'Decision recorded',msg:d.dec+' \u00b7 '+(d.__ctx&&d.__ctx.ref),
+   goto:'#/approvals'})},
+
+'reopen-deposit-release':{
+ m:'approvals.reopen_deposit_release',
+ a:d=>({reference:(d.__ctx&&d.__ctx.deposit)||d.deposit,
+   journal_entry:(d.__ctx&&d.__ctx.journal)||d.journal,note:d.why}),
+ ok:r=>({title:'Deposit settlement reopened',msg:r.reference+' is '+r.status,
+   detail:r.cancelled_journal+' cancelled; '+r.move_out+' is '+r.move_out_status,
    goto:'#/approvals'})},
 
 /* ---------------- operations ---------------- */
