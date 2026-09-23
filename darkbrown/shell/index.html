@@ -4815,7 +4815,9 @@ ROUTES.invoice=id=>{const i=id?I(id):INV[0]; if(!i) return notFound('Invoice','#
  return crumb([['Invoices','#/invoices'],[i.id,'']])+page(i.id,`${i.tn} · ${i.bn} · due ${i.due}`,
   fbtn('Record payment','record-payment',{n:i.tn})+
   (pend?`<button class="btn" onclick="go('#/amendment/${pend.id}')">Amendment with the GM</button>`
-    :fbtn('Amend this invoice','amend-invoice',{id:i.id}))+fbtn('Send reminder','send-doc'),
+    :(window.DB_LIVE
+      ?((ROLEV==='GM'||ROLEV==='MD')?fbtn('Cancel this invoice','amend-invoice',{id:i.id}):'')
+      :fbtn('Amend this invoice','amend-invoice',{id:i.id})))+fbtn('Send reminder','send-doc'),
   stat([['Amount',k(i.amt)],['Paid',k(i.paid)],['Balance',k(i.amt-i.paid),'',i.amt-i.paid>0?'r':'g'],
    ['Due',i.due],['Status',chip(i.st,stChip(i.st))],
    ['Raised by',i.run||'opening balance']])+
@@ -8949,30 +8951,37 @@ ROUTES.cheque=id=>{const c=id?C(id):CHQ[0]; if(!c) return notFound('Cheque','#/c
 /* ---------- amendments to an issued invoice ---------- */
 const AMEND=[];
 const AM=id=>AMEND.find(a=>a.id===id);
-FORMS['amend-invoice']={t:'Amend an issued invoice',s:'The change is proposed, not applied · the GM approves before it posts',
- cta:'Send to the General Manager',
+FORMS['amend-invoice']={t:window.DB_LIVE?'Cancel an issued invoice':'Amend an issued invoice',
+ s:window.DB_LIVE?'Authorized full cancellation · the reversal posts immediately':'The change is proposed, not applied · the GM approves before it posts',
+ cta:window.DB_LIVE?'Cancel invoice':'Send to the General Manager',
  init:ctx=>{const i=I(ctx&&ctx.id)||INV[0];
   return{__id:i.id,rent:String((i.lines||[]).find(l=>/^Rent/.test(l[0]))?.[1]||i.amt),
    util:String((i.lines||[]).find(l=>/Utility/.test(l[0]))?.[1]||0),
-   mnt:String((i.lines||[]).find(l=>/Maintenance/.test(l[0]))?.[1]||0),kind:'Reduce the amount'}},
+   mnt:String((i.lines||[]).find(l=>/Maintenance/.test(l[0]))?.[1]||0),
+   kind:window.DB_LIVE?'Cancel the invoice entirely':'Reduce the amount'}},
  steps:[
   {n:'What is wrong',body:d=>{const i=I(d.__id)||INV[0];
    return `<div class="kv" style="margin-bottom:12px">
     ${[['Invoice',i.id],['Tenant',i.tn],['Building',i.bn],['Issued for',k(i.amt)],
        ['Paid so far',k(i.paid)],['Status',i.st]].map(r=>`<div><span>${r[0]}</span><b>${r[1]}</b></div>`).join('')}</div>
-   <div class="fg">${fld({k:'kind',l:'What kind of amendment',t:'sel',req:1,live:1,
-     o:['Reduce the amount','Increase the amount','Correct a line','Cancel the invoice entirely']},d.kind)}</div>
+   ${window.DB_LIVE
+     ?`<div class="kv"><div><span>Action</span><b>Cancel the invoice entirely</b></div></div>`
+     :`<div class="fg">${fld({k:'kind',l:'What kind of amendment',t:'sel',req:1,live:1,
+       o:['Reduce the amount','Increase the amount','Correct a line','Cancel the invoice entirely']},d.kind)}</div>`}
    ${i.paid>0?`<div class="note" style="border-left-color:var(--amber)"><b>This invoice has already been part paid.</b>
      Reducing it below ${k(i.paid)} leaves the tenant in credit, which is allowed but has to be deliberate.</div>`:''}
-   <div class="note">An issued invoice is never edited in place. What you propose here becomes a credit or debit note on approval,
-    so the original and the correction both stay readable.</div>`},
+   <div class="note">${window.DB_LIVE
+     ?'ERPNext cancels the submitted invoice and reverses its ledger entries. The original remains in the audit trail; it is never deleted or edited in place.'
+     :'An issued invoice is never edited in place. What you propose here becomes a credit or debit note on approval, so the original and the correction both stay readable.'}</div>`},
    fields:[{k:'kind',req:1}]},
   {n:'The correction',body:d=>{const i=I(d.__id)||INV[0];
    const cancel=d.kind==='Cancel the invoice entirely';
    const nw=cancel?0:(+d.rent||0)+(+d.util||0)+(+d.mnt||0);
    return cancel
-    ?`<p class="pp">The whole invoice is written back. Nothing is deleted — a credit note for the full amount is raised against it.</p>
-      ${stat([['Issued for',k(i.amt)],['Credit note',k(i.amt)],['Left payable','QAR 0']])}`
+    ?`<p class="pp">${window.DB_LIVE
+       ?'The submitted invoice and its ledger posting are reversed. Nothing is deleted; the cancelled document remains readable in ERPNext.'
+       :'The whole invoice is written back. Nothing is deleted — a credit note for the full amount is raised against it.'}</p>
+      ${stat([['Issued for',k(i.amt)],[window.DB_LIVE?'Ledger reversal':'Credit note',k(i.amt)],['Left payable','QAR 0']])}`
     :`<div class="fg">
        ${fld({k:'rent',l:'Rent, K',t:'num',step:'100',live:1},d.rent)}
        ${fld({k:'util',l:'Utility recovery, K',t:'num',step:'100',live:1},d.util)}
@@ -8981,12 +8990,15 @@ FORMS['amend-invoice']={t:'Amend an issued invoice',s:'The change is proposed, n
         ['Difference',(nw-i.amt>0?'+':'')+k(nw-i.amt),'',nw>i.amt?'a':'g'],
         ['Instrument',nw>i.amt?'Debit note':'Credit note']])}`}},
   {n:'Reason',body:d=>{const i=I(d.__id)||INV[0];
-   return `<div class="fg">${fld({k:'why',l:'Why this invoice is wrong',t:'ta',full:1,req:1,
+   return `<div class="fg">${fld({k:'why',l:window.DB_LIVE?'Why this invoice must be cancelled':'Why this invoice is wrong',t:'ta',full:1,req:1,
      p:'What happened, what was agreed, and with whom'},d.why)}
-    ${fld({k:'evid',l:'Anything supporting it',t:'file',hint:'email, note, signed variation'},d.evid)}</div>
-   <div class="note">The General Manager reads this and nothing else. Write it for somebody who was not in the conversation.</div>
-   <div class="note"><b>Nothing posts until the GM approves.</b> Until then the invoice stands as issued and the tenant still owes
-    the original amount.</div>`},
+    ${window.DB_LIVE?'':fld({k:'evid',l:'Anything supporting it',t:'file',hint:'email, note, signed variation'},d.evid)}</div>
+   <div class="note">${window.DB_LIVE
+     ?'The reason is written to the invoice audit trail. Use enough detail for somebody who was not in the conversation.'
+     :'The General Manager reads this and nothing else. Write it for somebody who was not in the conversation.'}</div>
+   <div class="note">${window.DB_LIVE
+     ?'<b>This posts immediately.</b> Only a wholly unpaid invoice raised by an Invoice Run can be cancelled here. Its run reopens and any linked maintenance recharge returns to the queue.'
+     :'<b>Nothing posts until the GM approves.</b> Until then the invoice stands as issued and the tenant still owes the original amount.'}</div>`},
    fields:[{k:'why',req:1}],
    check:d=>(d.why||'').trim().length>0,msg:'Type a reason — it is what the General Manager will read'}],
  submit:d=>{const i=I(d.__id)||INV[0];

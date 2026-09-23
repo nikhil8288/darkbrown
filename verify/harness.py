@@ -1989,6 +1989,11 @@ def t_maintenance_status_rules_and_recharge_handoff_are_wired():
     assert 'before work starts.' in shell
     assert "m:'finance.cancel_run_invoice'" in shell
     assert "d.kind==='Cancel the invoice entirely'" in shell
+    assert "fbtn('Cancel this invoice','amend-invoice'" in shell
+    assert "window.DB_LIVE?'Cancel an issued invoice'" in shell
+    assert "window.DB_LIVE?'Cancel invoice':'Send to the General Manager'" in shell
+    assert "Only a wholly unpaid invoice raised by an Invoice Run" in shell
+    assert "window.DB_LIVE?'Ledger reversal':'Credit note'" in shell
 check("maintenance status, audit and tenant-recharge lifecycle are wired",
       t_maintenance_status_rules_and_recharge_handoff_are_wired)
 
