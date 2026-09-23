@@ -829,6 +829,7 @@ AGR.slice(0,46).forEach((a,i)=>{
 /* live data · replaces the seed when the server sent rows */
 if(window.DB_SEED&&Array.isArray(DB_SEED.invoices)){INV.length=0;INV.push.apply(INV,DB_SEED.invoices);}
 const I=id=>INV.find(x=>x.id===id);
+const invBal=i=>Math.max(0,+(i&&i.balance!==undefined?i.balance:(i.amt-i.paid))||0);
 
 const CHQ=[];
 for(let i=0;i<58;i++){
@@ -3494,8 +3495,8 @@ const FORMS={
    fields:[{k:'tenant',req:1},{k:'amt',req:1}]},
   {n:'Allocation',body:d=>{
     const t=TENANTS.find(x=>x.n===d.tenant); let left=+d.amt||0;
-    const open=INV.filter(i=>i.t===(t||{}).id&&i.amt-i.paid>0).slice(0,4);
-    const rows=open.map(i=>{const bal=i.amt-i.paid, take=Math.min(bal,left); left-=take;
+    const open=INV.filter(i=>i.t===(t||{}).id&&invBal(i)>0).slice(0,4);
+    const rows=open.map(i=>{const bal=invBal(i), take=Math.min(bal,left); left-=take;
       return [i.id,i.due,bal.toFixed(1),take.toFixed(1),(bal-take).toFixed(1)]});
     return `<p class="pp">Allocation follows the standing rule: <b>oldest invoice first, rent before recharge</b>.
       You can override on the invoice itself if needed.</p>
@@ -3507,8 +3508,8 @@ const FORMS={
        ['On account',n0(Math.max(left,0)),'',left>0?'a':'']])}`}}],
  submit:d=>{
   const t=TENANTS.find(x=>x.n===d.tenant); let left=+d.amt||0;
-  if(t){INV.filter(i=>i.t===t.id&&i.amt-i.paid>0).forEach(i=>{
-     const take=Math.min(i.amt-i.paid,left); i.paid=+(i.paid+take).toFixed(1); left-=take;
+  if(t){INV.filter(i=>i.t===t.id&&invBal(i)>0).forEach(i=>{
+     const take=Math.min(invBal(i),left); i.paid=+(i.paid+take).toFixed(1); left-=take;
      i.st=i.paid>=i.amt?'Paid':i.paid>0?'Part paid':'Unpaid'});
    t.arr=Math.max(0,Math.round(t.arr-(+d.amt||0))); t.st=t.arr>25000?'In arrears':t.arr>0?'Late':'Current';}
   return{title:'Payment posted',msg:k(+d.amt||0)+' received from '+d.tenant,
@@ -4347,8 +4348,8 @@ ROUTES.tenant=id=>{const t=id?T(id):TENANTS[0]; if(!t) return notFound('Tenant',
     chs.map(c=>({...c,__id:c.id})),{id:'tc',click:'openC'}):empty('No cheques on file')}</div></div>
    <div class="card"><h3>Invoices</h3>${ins.length?tbl([
     {h:'Invoice',v:i=>i.id},{h:'Unit',v:i=>i.bn},{h:'Amount',r:1,mono:1,v:i=>n0(i.amt)},
-    {h:'Paid',r:1,mono:1,v:i=>n0(i.paid)},{h:'Balance',r:1,mono:1,v:i=>n0((i.amt-i.paid)),
-     style:i=>i.amt-i.paid>0?'color:var(--red)':''},{h:'Due',r:1,v:i=>i.due},
+    {h:'Paid',r:1,mono:1,v:i=>n0(i.paid)},{h:'Balance',r:1,mono:1,v:i=>n0(invBal(i)),
+     style:i=>invBal(i)>0?'color:var(--red)':''},{h:'Due',r:1,v:i=>i.due},
     {h:'Status',v:i=>chip(i.st,stChip(i.st))}],
     ins.map(i=>({...i,__id:i.id})),{id:'ti',click:'openI'}):empty('No invoices')}</div>
    ${cs?`<div class="card"><h3>Collection case ${cs.id} <span class="tag red">OPEN</span></h3>
@@ -4789,17 +4790,19 @@ window.openDoc=id=>toast('Opens the review pane for '+id+' — side-by-side scan
 /* ---------------- Invoices ---------------- */
 ROUTES.invoices=()=>page('Invoices','Raised by an invoice run, one building at a time',
  `<button class="btn" onclick="go('#/generate')">Generate invoices</button>`,
- stat([['Issued',INV.length],['Paid',INV.filter(i=>i.st==='Paid').length,'','g'],
+ stat([['Issued',INV.filter(i=>i.st!=='Draft'&&i.st!=='Cancelled').length],['Paid',INV.filter(i=>i.st==='Paid').length,'','g'],
   ['Part paid',INV.filter(i=>i.st==='Part paid').length,'','a'],
   ['Unpaid',INV.filter(i=>i.st==='Unpaid').length,'','r'],
-  ['Outstanding',n0(INV.reduce((a,i)=>a+(i.amt-i.paid),0)),'','r']])+
+  ['Cancelled',INV.filter(i=>i.st==='Cancelled').length,'','n'],
+  ['Outstanding',n0(INV.reduce((a,i)=>a+invBal(i),0)),'','r']])+
  `<div class="card">${tbl([
   {h:'Invoice',v:i=>i.id},{h:'Tenant',v:i=>i.tn},{h:'Building',v:i=>i.bn},
   {h:'Amount',r:1,mono:1,v:i=>n0(i.amt)},{h:'Paid',r:1,mono:1,v:i=>n0(i.paid)},
-  {h:'Balance',r:1,mono:1,v:i=>n0((i.amt-i.paid)),style:i=>i.amt-i.paid>0?'color:var(--red)':''},
-  {h:'Due',r:1,v:i=>i.due},{h:'Status',v:i=>chip(i.st,stChip(i.st))}],
+  {h:'Balance',r:1,mono:1,v:i=>n0(invBal(i)),style:i=>invBal(i)>0?'color:var(--red)':''},
+  {h:'Due',r:1,v:i=>i.due},{h:'Status',v:i=>chip(i.st,stChip(i.st))},
+  {h:'Audit',v:i=>i.replaced_by?'Replaced by '+i.replaced_by:i.replaces?'Replaces '+i.replaces:'—'}],
   INV.map(i=>({...i,__id:i.id})),{id:'il',click:'openI',
-   foot:['every invoice carries the run that raised it','an amended invoice carries the reason it was amended']})}</div>`+
+   foot:['active and cancelled invoices share one audit register','replacement lineage is preserved']})}</div>`+
  (AMEND.filter(a=>a.st==='Pending GM approval').length
   ?`<div class="card"><h3>Amendments waiting on the General Manager</h3>${tbl([
     {h:'Reference',v:a=>a.id},{h:'Invoice',v:a=>a.inv},{h:'Tenant',v:a=>a.tn},
@@ -4812,15 +4815,24 @@ window.openI=id=>go('#/invoice/'+id);
 ROUTES.invoice=id=>{const i=id?I(id):INV[0]; if(!i) return notFound('Invoice','#/invoices');
  const pend=i.pending?AM(i.pending):null;
  const hist=AMEND.filter(a=>a.inv===i.id);
+ const active=i.st!=='Cancelled'&&i.st!=='Draft';
  return crumb([['Invoices','#/invoices'],[i.id,'']])+page(i.id,`${i.tn} · ${i.bn} · due ${i.due}`,
-  fbtn('Record payment','record-payment',{n:i.tn})+
+  (active?fbtn('Record payment','record-payment',{n:i.tn}):'')+
   (pend?`<button class="btn" onclick="go('#/amendment/${pend.id}')">Amendment with the GM</button>`
     :(window.DB_LIVE
-      ?((ROLEV==='GM'||ROLEV==='MD')?fbtn('Cancel this invoice','amend-invoice',{id:i.id}):'')
-      :fbtn('Amend this invoice','amend-invoice',{id:i.id})))+fbtn('Send reminder','send-doc'),
-  stat([['Amount',k(i.amt)],['Paid',k(i.paid)],['Balance',k(i.amt-i.paid),'',i.amt-i.paid>0?'r':'g'],
+      ?(active&&(ROLEV==='GM'||ROLEV==='MD')?fbtn('Cancel this invoice','amend-invoice',{id:i.id}):'')
+      :fbtn('Amend this invoice','amend-invoice',{id:i.id})))+
+  (active?fbtn('Send reminder','send-doc'):'')+
+  (i.replaced_by?`<button class="btn" onclick="go('#/invoice/${i.replaced_by}')">Open replacement</button>`:'')+
+  (i.replaces?`<button class="btn" onclick="go('#/invoice/${i.replaces}')">Open cancelled original</button>`:''),
+  stat([['Amount',k(i.amt)],['Paid',k(i.paid)],['Balance',k(invBal(i)),'',invBal(i)>0?'r':'g'],
    ['Due',i.due],['Status',chip(i.st,stChip(i.st))],
    ['Raised by',i.run||'opening balance']])+
+  (i.st==='Cancelled'?`<div class="note" style="border-left-color:var(--red)"><b>Cancelled${i.cancelled_on?' on '+i.cancelled_on:''}.</b>
+    ${esc(i.cancel_reason||'The audit reason is held on the ERPNext document.')}
+    ${i.replaced_by?` Replacement: <a href="#/invoice/${i.replaced_by}">${i.replaced_by}</a>.`:''}</div>`:'')+
+  (i.replaces?`<div class="note" style="border-left-color:var(--em)"><b>Replacement invoice.</b>
+    This document replaces cancelled invoice <a href="#/invoice/${i.replaces}">${i.replaces}</a>.</div>`:'')+
   (pend?`<div class="note" style="border-left-color:var(--amber)"><b>An amendment is with the General Manager.</b>
     ${k(pend.from)} → ${k(pend.to)} · ${pend.why} Nothing has posted; this invoice stands as issued until it is approved.</div>`:'')+
   (i.amended?`<div class="note" style="border-left-color:var(--em)"><b>This invoice was amended after issue.</b>
@@ -4837,8 +4849,8 @@ ROUTES.invoice=id=>{const i=id?I(id):INV[0]; if(!i) return notFound('Invoice','#
   <div class="card"><h3>Payment allocation</h3><div class="list">
    ${i.paid>0?`<div class="it"><span class="dot g"></span><span class="t">Cheque cleared — allocated to rent line</span>
     <span class="amt">${n0(i.paid)}</span></div>`:''}
-   ${i.amt-i.paid>0?`<div class="it"><span class="dot r"></span><span class="t">Outstanding balance</span>
-    <span class="amt">${n0((i.amt-i.paid))}</span></div>`:''}</div></div>`)};
+   ${invBal(i)>0?`<div class="it"><span class="dot r"></span><span class="t">Outstanding balance</span>
+    <span class="amt">${n0(invBal(i))}</span></div>`:''}</div></div>`)};
 
 /* ---------------- Cheques ---------------- */
 ROUTES.cheques=()=>page('Cheques','Post-dated cheque register · deposit, clear, bounce',
@@ -8366,9 +8378,10 @@ ROUTES.billrun=id=>{const r=BILLRUNS.find(x=>x.id===id);
  if(!r)return empty('No billing run with that reference');
  const inv=INV.filter(i=>i.run===r.id);
  return crumb([['Generate invoices','#/generate'],[r.id,'']])+page(r.id,
-  `${r.bn} · ${r.period} · issued by ${r.by} on ${r.date}`,
+  `${r.bn} · ${r.period} · ${r.st} · generated by ${r.by} on ${r.date}`,
   actbtn('Print the run','Run printed'),
-  stat([['Invoices',r.count],['Value',k(r.total)],['Changes',r.changes.length,'',r.changes.length?'a':'g'],
+  stat([['Active invoices',r.count],['Cancelled',inv.filter(i=>i.st==='Cancelled').length,'','n'],
+   ['Run value',k(r.total)],['Changes',r.changes.length,'',r.changes.length?'a':'g'],
    ['Due by',r.due],['Utility recovery',r.incl.util?'included':'excluded'],
    ['Arrears carried',r.incl.arr?'on the invoice':'left on the case']])+
   (r.changes.length?`<div class="card"><h3>Changes made before issue</h3>${tbl([
@@ -8379,11 +8392,12 @@ ROUTES.billrun=id=>{const r=BILLRUNS.find(x=>x.id===id);
      foot:['a change to a draft never changes the agreement','if the agreement itself is wrong, it has to be amended or renewed']})}</div>`
    :`<div class="note" style="border-left-color:var(--em)"><b>Nothing was changed.</b> Every invoice in this run is exactly what the
      agreements say.</div>`)+
-  `<div class="card"><h3>Invoices issued</h3>${tbl([
+  `<div class="card"><h3>Invoice history</h3>${tbl([
    {h:'Invoice',v:i=>i.id},{h:'Tenant',v:i=>i.tn},{h:'Unit',v:i=>(A(i.a)||{}).u||'—'},
    {h:'Amount',r:1,mono:1,v:i=>k(i.amt)},{h:'Due',r:1,v:i=>i.due},
-   {h:'Source',v:i=>i.amended?chip('Amended','a'):chip('From agreement','g')},
-   {h:'Status',v:i=>chip(i.st,stChip(i.st))}],
+   {h:'Source',v:i=>i.replaces?chip('Replacement','g'):i.replaced_by?chip('Original','n'):chip('From agreement','g')},
+   {h:'Status',v:i=>chip(i.st,stChip(i.st))},
+   {h:'Audit',v:i=>i.replaced_by?'Replaced by '+i.replaced_by:i.replaces?'Replaces '+i.replaces:'—'}],
    inv.map(i=>({...i,__id:i.id})),{id:'bri',click:'openI'})}</div>`)};
 
 
@@ -9078,17 +9092,17 @@ const RC=id=>RCPT.find(r=>r.id===id);
 const ALLOC_OLDEST='Oldest open invoice first';
 function openInvFor(party){
   const t=(TENANTS.find(x=>x.n===party)||TENANTS.find(x=>x.id===party)||{}).id||party;
-  return INV.filter(i=>(i.t===t||i.tn===party)&&i.st!=='Draft'&&(i.amt-i.paid)>0.005)
+  return INV.filter(i=>(i.t===t||i.tn===party)&&i.st!=='Draft'&&i.st!=='Cancelled'&&invBal(i)>0.005)
     .sort((a,b)=>(a.dueD||0)-(b.dueD||0));
 }
-const allocLabel=i=>i.id+' \u00b7 due '+i.due+' \u00b7 '+k(+(i.amt-i.paid).toFixed(2))+' open';
+const allocLabel=i=>i.id+' \u00b7 due '+i.due+' \u00b7 '+k(+invBal(i).toFixed(2))+' open';
 const allocId=v=>(v&&v!==ALLOC_OLDEST)?String(v).split(' \u00b7 ')[0]:null;
 window.allocId=allocId;
 function allocField(party,val){
   const open=openInvFor(party);
   if(!open.length) return `<div class="fl full"><span>Allocate against</span>
     <div class="rov">Nothing outstanding \u2014 the receipt sits on account</div></div>`;
-  const total=open.reduce((a,i)=>a+(i.amt-i.paid),0);
+  const total=open.reduce((a,i)=>a+invBal(i),0);
   return fld({k:'inv',l:'Allocate against',t:'sel',
     o:[ALLOC_OLDEST].concat(open.map(allocLabel))},val)+
    `<div class="mini" style="grid-column:1/-1;margin-top:-6px">${open.length} open invoice${

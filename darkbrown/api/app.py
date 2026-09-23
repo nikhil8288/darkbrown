@@ -1049,12 +1049,20 @@ def _agreement_docs(rows):
 def invoices():
     """Sales Invoices raised against tenants. The building and unit come from
     the invoice run line that produced it where there is one; a manually
-    raised invoice simply carries no unit."""
+    raised invoice simply carries no unit.
+
+    Cancelled invoices stay in this audit feed.  The cancellation hook clears
+    their run-line pointer so the same line can be reissued, therefore their
+    original run is reconstructed from the persisted agreement and billing
+    period rather than pretending the cancelled document never existed.
+    """
     rows = frappe.get_all(
         "Sales Invoice",
-        filters={"docstatus": ["<", 2]},
-        fields=["name", "customer", "grand_total", "outstanding_amount",
-                "due_date", "status", "docstatus"],
+        filters={"docstatus": ["in", [0, 1, 2]]},
+        fields=_has("Sales Invoice", [
+            "name", "customer", "grand_total", "outstanding_amount",
+            "due_date", "status", "docstatus", "creation", "modified",
+            "custom_rental_agreement", "custom_billing_period"]),
         order_by="due_date desc", limit=300)
     if not rows:
         return []
@@ -1066,18 +1074,93 @@ def invoices():
             filters={"sales_invoice": ["in", [r.name for r in rows]]},
             fields=["sales_invoice", "tenancy_agreement", "unit", "parent"]):
         link[l.sales_invoice] = l
+
+    # Once an invoice is cancelled its run line intentionally has no
+    # sales_invoice: that empty slot is how issue_invoice_run creates exactly
+    # one replacement.  Rebuild the historical link by agreement + billing
+    # period, both of which remain immutable on the cancelled Sales Invoice.
+    agreements = set(
+        r.get("custom_rental_agreement") for r in rows
+        if r.get("custom_rental_agreement"))
+    if agreements:
+        history_lines = frappe.get_all(
+            "Invoice Run Line",
+            filters={"tenancy_agreement": ["in", list(agreements)]},
+            fields=["tenancy_agreement", "unit", "parent"])
+        run_names = list(set(l.parent for l in history_lines if l.parent))
+        run_period = {
+            r.name: str(r.period_start or "")
+            for r in frappe.get_all(
+                "Invoice Run", filters={"name": ["in", run_names]},
+                fields=["name", "period_start"])
+        } if run_names else {}
+        historical_link = {
+            (l.tenancy_agreement, run_period.get(l.parent, "")): l
+            for l in history_lines if run_period.get(l.parent)
+        }
+        for si in rows:
+            if si.name in link:
+                continue
+            key = (si.get("custom_rental_agreement"),
+                   str(si.get("custom_billing_period") or ""))
+            if key in historical_link:
+                link[si.name] = historical_link[key]
+
     ta_b = {t.name: t for t in frappe.get_all(
         "Tenancy Agreement",
         fields=["name", "building", "unit"])} if link else {}
     bnames = _building_names([t.building for t in ta_b.values()])
 
+    cancelled = [r.name for r in rows if r.docstatus == 2]
+    cancel_reason = {}
+    if cancelled:
+        for c in frappe.get_all(
+                "Comment",
+                filters={"reference_doctype": "Sales Invoice",
+                         "reference_name": ["in", cancelled],
+                         "comment_type": "Comment"},
+                fields=["reference_name", "content", "creation"],
+                order_by="creation desc"):
+            if c.reference_name in cancel_reason:
+                continue
+            content = frappe.utils.strip_html(c.content or "").strip()
+            if content.startswith("Invoice cancelled:"):
+                cancel_reason[c.reference_name] = content.split(":", 1)[1].strip()
+
+    # Pair a cancelled document with the active document carrying the same
+    # agreement/period idempotency key.  This makes replacement lineage visible
+    # without adding another mutable link field to either accounting document.
+    groups = {}
+    for si in rows:
+        key = (si.get("custom_rental_agreement"),
+               str(si.get("custom_billing_period") or ""))
+        if all(key):
+            groups.setdefault(key, []).append(si)
+    replaces, replaced_by = {}, {}
+    for group in groups.values():
+        active = sorted((x for x in group if x.docstatus == 1),
+                        key=lambda x: str(x.get("creation") or ""))
+        gone = sorted((x for x in group if x.docstatus == 2),
+                      key=lambda x: str(x.get("creation") or ""))
+        if active and gone:
+            replacement = active[-1].name
+            original = gone[-1].name
+            replaces[replacement] = original
+            replaced_by[original] = replacement
+
     out = []
     for si in rows:
-        paid = flt(si.grand_total) - flt(si.outstanding_amount)
+        # A cancellation is a reversal, not a payment. ERPNext may zero its
+        # outstanding amount during cancellation; never turn that into a
+        # fictitious "Paid" amount in the audit register.
+        paid = (0 if si.docstatus == 2
+                else flt(si.grand_total) - flt(si.outstanding_amount))
         l = link.get(si.name)
         ta = ta_b.get(l.tenancy_agreement) if l else None
         due_d = date_diff(si.due_date, today()) if si.due_date else 0
-        if flt(si.outstanding_amount) <= 0 and si.docstatus == 1:
+        if si.docstatus == 2:
+            st = "Cancelled"
+        elif flt(si.outstanding_amount) <= 0 and si.docstatus == 1:
             st = "Paid"
         elif paid > 0:
             st = "Part paid"
@@ -1093,9 +1176,14 @@ def invoices():
             "bn": bnames.get(ta.building, "—") if ta else "—",
             "amt": _k(si.grand_total),
             "paid": _k(paid),
+            "balance": 0 if si.docstatus == 2 else _k(si.outstanding_amount),
             "due": _fdate(si.due_date),
             "dueD": due_d,
             "st": "Draft" if si.docstatus == 0 else st,
+            "cancelled_on": _fdate(si.get("modified")) if si.docstatus == 2 else None,
+            "cancel_reason": cancel_reason.get(si.name, ""),
+            "replaces": replaces.get(si.name),
+            "replaced_by": replaced_by.get(si.name),
             "lines": _invoice_lines(si.name),
         })
     return out

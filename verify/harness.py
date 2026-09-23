@@ -1997,6 +1997,27 @@ def t_maintenance_status_rules_and_recharge_handoff_are_wired():
 check("maintenance status, audit and tenant-recharge lifecycle are wired",
       t_maintenance_status_rules_and_recharge_handoff_are_wired)
 
+def t_cancelled_invoice_and_replacement_audit_is_visible():
+    import inspect
+    from darkbrown.api import app
+    feed = inspect.getsource(app.invoices)
+    assert '"docstatus": ["in", [0, 1, 2]]' in feed
+    assert 'custom_rental_agreement' in feed
+    assert 'custom_billing_period' in feed
+    assert 'cancel_reason' in feed
+    assert '"replaces": replaces.get(si.name)' in feed
+    assert '"replaced_by": replaced_by.get(si.name)' in feed
+    assert '"balance": 0 if si.docstatus == 2' in feed
+    shell = open(REPO + '/darkbrown/shell/index.html').read()
+    assert "const invBal=i=>" in shell
+    assert "['Cancelled',INV.filter(i=>i.st==='Cancelled').length" in shell
+    assert "active and cancelled invoices share one audit register" in shell
+    assert "Open cancelled original" in shell
+    assert "<h3>Invoice history</h3>" in shell
+    assert "i.st!=='Cancelled'&&invBal(i)>0.005" in shell
+check("cancelled invoices and their replacements remain visible and non-payable",
+      t_cancelled_invoice_and_replacement_audit_is_visible)
+
 def t_planning_module_is_deferred_everywhere():
     shell = open(REPO + '/darkbrown/shell/index.html').read()
     assert 'const PLANNING_ENABLED=false;' in shell
