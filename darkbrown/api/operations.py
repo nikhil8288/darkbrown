@@ -96,7 +96,8 @@ def raise_job(payload):
         "recharge_to": data.get("recharge_to"),
         "recharge_amount": flt(data.get("recharge_amount")),
     }).insert()
-    return doc.name
+    return {"case": doc.name, "status": doc.status,
+            "security_deposit": doc.security_deposit}
 
 
 @frappe.whitelist()
@@ -175,7 +176,13 @@ def advance_moveout(case, payload):
         doc.inspection_on = data.get("inspection_on") or today()
         doc.inspected_by = frappe.session.user
         doc.inspection_notes = data.get("notes")
-        doc.damages_amount = flt(data.get("damages"))
+        damages = flt(data.get("damages"))
+        doc.damages_amount = damages
+        # The custom workflow records inspection deductions as agreed values,
+        # so expose them immediately in the case summary and carry them into
+        # settlement.  Utilities remain separate to avoid counting them twice.
+        doc.damages_charged = damages
+        doc.utilities_due = flt(data.get("utilities_due"))
     elif step == "meters":
         doc.meter_readings = []
         for r in data.get("readings") or []:

@@ -1680,6 +1680,44 @@ def t_moveout_settlement_syncs_deposit_deductions():
 check("move-out settlement carries itemised deductions to the deposit approval",
       t_moveout_settlement_syncs_deposit_deductions)
 
+def t_moveout_inspection_preserves_damage_and_utility_categories():
+    from darkbrown.api import operations
+    reset()
+    S.DB['Move Out Case'].append({
+        'name':'MO-1', 'tenancy_agreement':'TA-1', 'tenant':'CUST-001',
+        'unit':None, 'building':'Al Sadd', 'security_deposit':'SD-1',
+        'status':'Notice Received', 'deposit_held':100,
+        'outstanding_rent':0, 'utilities_due':0, 'damages_amount':0,
+        'damages_charged':0})
+    result = operations.advance_moveout('MO-1', {
+        'step':'inspection', 'inspection_on':'2026-09-23',
+        'notes':'Controlled inspection', 'damages':10, 'utilities_due':10})
+    case = S.DB['Move Out Case'][0]
+    assert result['status'] == 'Inspection Done', result
+    assert case['damages_amount'] == 10, case
+    assert case['damages_charged'] == 10, case
+    assert case['utilities_due'] == 10, case
+check("move-out inspection keeps damage and utility deductions distinct",
+      t_moveout_inspection_preserves_damage_and_utility_categories)
+
+def t_moveout_shell_uses_live_case_values_for_release():
+    shell = open(REPO + '/darkbrown/shell/index.html').read()
+    inspection = shell[shell.index("'record-inspection':{t:"):
+                       shell.index("'deposit-release':{t:")]
+    release = shell[shell.index("'deposit-release':{t:"):
+                    shell.index("'record-contact':{t:")]
+    binding = shell[shell.rindex("'record-inspection':{"):
+                    shell.index("/* ---------------- the rest", shell.rindex("'record-inspection':{"))]
+    assert 'n0(11200)' not in inspection
+    assert 'n0(11200)' not in release
+    assert "const m=MO(d.__ctx&&d.__ctx.id)||{}" in inspection
+    assert "const m=MO(d.__ctx&&d.__ctx.id)||{}" in release
+    assert "method==='Transfer'" in release
+    assert "utilities_due:+wNum(d.d4).toFixed(2)" in binding
+    assert "damages_charged:amount('Damages')" in binding
+check("move-out modals and bindings use live deposit and deduction values",
+      t_moveout_shell_uses_live_case_values_for_release)
+
 def t_deposit_release_posts_balanced_refund_journal():
     from darkbrown.api import approvals
     reset()

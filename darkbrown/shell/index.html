@@ -3562,30 +3562,34 @@ const FORMS={
 'record-inspection':{t:'Record move-out inspection',s:'Workflow 2G',cta:'Save inspection',
  steps:[
   {n:'Condition',fields:[
-    {k:'date',l:'Inspection date',t:'date',d:'2026-07-26',req:1},
+    {k:'date',l:'Inspection date',t:'date',d:ISO(TODAY),req:1},
     {k:'by',l:'Inspected by',t:'sel',o:['Aisha R.','Yusuf K.','Maint. team'],req:1},
     {k:'cond',l:'Overall condition',t:'sel',o:['Good — fair wear','Minor damage','Significant damage'],req:1},
     {k:'keys',l:'All keys returned',t:'chk',d:'true'},
     {k:'notes',l:'Notes',t:'ta',p:'Room-by-room observations'}]},
-  {n:'Deductions',body:d=>`<p class="pp">Deductions are agreed with the tenant before the deposit release goes to the MD.</p>
-   <div class="fg">${fld({k:'d1',l:'Deep clean (QAR)',t:'num',step:'100',d:'600',live:1},d.d1)}
-    ${fld({k:'d2',l:'Repairs (QAR)',t:'num',step:'100',d:'400',live:1},d.d2)}
+  {n:'Deductions',body:d=>{const m=MO(d.__ctx&&d.__ctx.id)||{};
+   const held=wNum(m.dep);const deductions=(+d.d1||0)+(+d.d2||0)+(+d.d3||0)+(+d.d4||0);
+   return `<p class="pp">Deductions are agreed with the tenant before the deposit release goes to the MD.</p>
+   <div class="fg">${fld({k:'d1',l:'Deep clean (QAR)',t:'num',step:'100',d:'0',live:1},d.d1)}
+    ${fld({k:'d2',l:'Repairs (QAR)',t:'num',step:'100',d:'0',live:1},d.d2)}
     ${fld({k:'d3',l:'Missing items (QAR)',t:'num',step:'100',d:'0'},d.d3)}
     ${fld({k:'d4',l:'Outstanding utilities (QAR)',t:'num',step:'100',d:'0'},d.d4)}</div>
-   ${stat([['Deposit held',n0(11200)],['Total deductions',n0(((+d.d1||0)+(+d.d2||0)+(+d.d3||0)+(+d.d4||0))),'','a'],
-     ['Refund due',n0((11200-((+d.d1||0)+(+d.d2||0)+(+d.d3||0)+(+d.d4||0)))),'','g']])}`}],
+   ${stat([['Deposit held',n0(held)],['Total deductions',n0(deductions),'','a'],
+     ['Refund due',n0(Math.max(held-deductions,0)),'','g']])}`}}],
  submit:d=>({title:'Inspection recorded',msg:'Deductions total '+n0(((+d.d1||0)+(+d.d2||0)+(+d.d3||0)+(+d.d4||0))),
    detail:'Deposit release request ready to send to the MD',goto:'#/moveout'})},
 
 'deposit-release':{t:'Request deposit release',s:'Reserved MD approval',cta:'Send to MD',
- steps:[{n:'Release',body:d=>`<div class="kv">
-   ${[['Deposit held',n0(11200)],['Deductions agreed',n0(1000)],['Refund due',n0(10200)],
-      ['Original receipt method','Bank transfer'],['Release method','Bank transfer — mirrors receipt']]
+ steps:[{n:'Release',body:d=>{const m=MO(d.__ctx&&d.__ctx.id)||{};
+   const held=wNum(m.dep);const deductions=(m.ded||[]).reduce((a,x)=>a+wNum(x[1]),0);
+   const method=m.receipt_method||'Same as receipt';
+   return `<div class="kv">
+   ${[['Deposit held',n0(held)],['Deductions agreed',n0(deductions)],['Refund due',n0(Math.max(held-deductions,0))],
+      ['Original receipt method',method],['Release method',method+' — mirrors receipt']]
     .map(r=>`<div><span>${r[0]}</span><b>${r[1]}</b></div>`).join('')}</div>
-   <div class="fg" style="margin-top:10px">${fld({k:'iban',l:'Tenant IBAN',t:'txt',p:'QA00 QNBA 0000 0000 0000',req:1},d.iban)}
+   <div class="fg" style="margin-top:10px">${method==='Transfer'?fld({k:'iban',l:'Tenant IBAN',t:'txt',p:'QA00 QNBA 0000 0000 0000',req:1},d.iban):''}
     ${fld({k:'why',l:'Note for the MD',t:'ta',p:'Anything relevant to the decision'},d.why)}</div>
-   <div class="note">Release method must mirror how the deposit was received. This approval cannot be delegated.</div>`,
-  fields:[{k:'iban',req:1}]}],
+   <div class="note">Release method must mirror how the deposit was received. This approval cannot be delegated.</div>`}}],
  submit:()=>({title:'Sent to MD',msg:'Deposit release request raised',
    detail:'APR-0106 · reserved category · awaiting MD decision',goto:'#/approvals'})},
 
@@ -9521,7 +9525,8 @@ const WIRE={
  m:'operations.advance_moveout',
  a:d=>({case:d.__ctx&&d.__ctx.id,payload:{step:'inspection',
    inspection_on:d.date,notes:d.notes,
-   damages:+(wNum(d.d1)+wNum(d.d2)+wNum(d.d3)+wNum(d.d4)).toFixed(2)}}),
+   damages:+(wNum(d.d1)+wNum(d.d2)+wNum(d.d3)).toFixed(2),
+   utilities_due:+wNum(d.d4).toFixed(2)}}),
  ok:(r,d)=>({title:'Inspection recorded',msg:'Deductions of '+
    k(wNum(d.d1)+wNum(d.d2)+wNum(d.d3)+wNum(d.d4))+' recorded',
    detail:'Case is now '+r.status})},
@@ -9529,8 +9534,9 @@ const WIRE={
 'deposit-release':{
  m:'operations.advance_moveout',
  a:d=>{const m=MO(d.__ctx&&d.__ctx.id)||{};
-   return {case:d.__ctx&&d.__ctx.id,payload:{step:'settle',outstanding_rent:0,
-     damages_charged:(m.ded||[]).reduce((a,x)=>a+x[1],0)}}},
+   const amount=label=>(m.ded||[]).filter(x=>x[0]===label).reduce((a,x)=>a+wNum(x[1]),0);
+   return {case:d.__ctx&&d.__ctx.id,payload:{step:'settle',
+     outstanding_rent:amount('Outstanding rent'),damages_charged:amount('Damages')}}},
  ok:r=>({title:'Sent to the MD',msg:'Refund of '+k(r.refund)+' waiting on approval',
    detail:'A deposit release is reserved \u2014 it cannot be delegated',goto:'#/approvals'})},
 

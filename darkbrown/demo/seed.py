@@ -645,10 +645,11 @@ def _moveout(r, tenancies):
     if not name:
         return
 
-    case = r.step("open move-out · Najma Tower-501", lambda: ops_api.open_moveout(
+    opened = r.step("open move-out · Najma Tower-501", lambda: ops_api.open_moveout(
         _json({"tenancy_agreement": name, "reason": "Tenant Notice",
                "notice_received_on": add_days(today(), -35),
                "planned_move_out": add_days(today(), 25)})))
+    case = opened.get("case") if isinstance(opened, dict) else opened
     if not case:
         return
     r.count("move-out cases")

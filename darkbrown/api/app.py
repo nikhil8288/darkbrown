@@ -316,13 +316,20 @@ def moveouts():
         filters={"status": ["!=", "Cancelled"]},
         fields=["name", "tenant", "unit", "building", "status", "deposit_held",
                 "notice_received_on", "planned_move_out", "outstanding_rent",
-                "utilities_due", "damages_charged"],
+                "utilities_due", "damages_charged", "security_deposit"],
         order_by="planned_move_out asc")
     if not rows:
         return []
     tnames = _customer_names([r.tenant for r in rows])
+    deposits = {}
+    deposit_names = [m.security_deposit for m in rows if m.security_deposit]
+    if deposit_names:
+        deposits = {d.name: d for d in frappe.get_all(
+            "Security Deposit", filters={"name": ["in", deposit_names]},
+            fields=["name", "amount", "deductions", "receipt_method"])}
     out = []
     for m in rows:
+        deposit = deposits.get(m.security_deposit)
         ded = []
         if flt(m.outstanding_rent):
             ded.append(["Outstanding rent", _k(m.outstanding_rent)])
@@ -337,6 +344,8 @@ def moveouts():
             "tn": tnames.get(m.tenant, m.tenant),
             "u": m.unit,
             "dep": _k(m.deposit_held),
+            "deposit": m.security_deposit,
+            "receipt_method": (deposit.receipt_method if deposit else None),
             "step": MO_STEP.get(m.status, 0),
             "notice": _fdate(m.notice_received_on),
             "out": _fdate(m.planned_move_out),
