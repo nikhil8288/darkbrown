@@ -3653,7 +3653,7 @@ const FORMS={
 
 'record-contact':{t:'Log contact',s:'Collection case activity',cta:'Save',
  steps:[{n:'Contact',fields:[
-   {k:'date',l:'Date',t:'date',d:'2026-07-26',req:1},
+   {k:'date',l:'Contact date',t:'date',d:ISO(TODAY),req:1},
    {k:'ch',l:'Channel',t:'sel',o:['Phone','WhatsApp','Email','In person','Letter'],req:1},
    {k:'out',l:'Outcome',t:'sel',o:['No answer','Promised payment','Disputed','Refused','Notice served'],req:1},
    {k:'note',l:'Notes',t:'ta',p:'What was said',req:1}]}],
@@ -9557,7 +9557,7 @@ const WIRE={
 'record-contact':{
  m:'operations.log_contact',
  a:d=>({case:d.__ctx&&d.__ctx.id,method:wMap(W_CHAN,d.ch,'Call'),
-   outcome:wMap(W_OUT,d.out,'No Answer'),notes:d.note}),
+   outcome:wMap(W_OUT,d.out,'No Answer'),notes:d.note,contact_on:d.date}),
  ok:(r,d)=>({title:'Contact logged',msg:d.ch+' \u00b7 '+d.out,
    detail:'Added to the case log, not over the last entry'})},
 
@@ -9565,7 +9565,7 @@ const WIRE={
  m:'operations.log_contact',
  a:d=>({case:d.__ctx&&d.__ctx.id,method:wMap(W_CHAN,d.ch,'Call'),
    outcome:'Promised',promised_amount:wNum(d.amt),promised_date:d.date,
-   notes:(d.note||'')+(d.method?' \u00b7 to pay by '+d.method:'')}),
+   notes:[d.note,d.method?'To pay by '+d.method:''].filter(Boolean).join(' \u00b7 ')}),
  ok:(r,d)=>({title:'Promise recorded',msg:k(wNum(d.amt))+' promised by '+d.date,
    detail:'If the date passes unpaid the case reopens on its own'})},
 

@@ -2059,6 +2059,29 @@ def t_collection_escalation_and_bounce_rules_are_enforced():
 check("collection triggers and legal escalation follow the guarded stage model",
       t_collection_escalation_and_bounce_rules_are_enforced)
 
+def t_collection_contact_and_promise_inputs_are_auditable():
+    import inspect
+    from darkbrown.api import operations
+    contact = inspect.getsource(operations.log_contact)
+    assert 'contact_on=None' in contact
+    assert 'A contact date cannot be in the future.' in contact
+    assert 'A contact log needs notes.' in contact
+    assert 'A new promise date cannot be in the past.' in contact
+    assert 'A promise needs a positive amount.' in contact
+    assert 'A promise cannot exceed the case outstanding amount.' in contact
+    assert '"{0} 12:00:00".format(action_date)' in contact
+    shell = open(REPO + '/darkbrown/shell/index.html').read()
+    form = shell[shell.index("'record-contact':{t:"):
+                 shell.index("'record-promise':{t:")]
+    wire = shell[shell.index("'record-contact':{\n m:"):
+                 shell.index("'escalate-legal':{\n m:")]
+    assert "l:'Contact date',t:'date',d:ISO(TODAY)" in form
+    assert "2026-07-26" not in form
+    assert "contact_on:d.date" in wire
+    assert "d.method?'To pay by '+d.method" in wire
+check("collection contacts and promises preserve valid dates and amounts",
+      t_collection_contact_and_promise_inputs_are_auditable)
+
 def t_planning_module_is_deferred_everywhere():
     shell = open(REPO + '/darkbrown/shell/index.html').read()
     assert 'const PLANNING_ENABLED=false;' in shell

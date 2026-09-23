@@ -2,7 +2,7 @@
 
 import frappe
 from frappe import _
-from frappe.utils import flt, cint, today
+from frappe.utils import flt, cint, today, getdate
 from darkbrown.guards import guard, ACC, GM, MD, MNT
 from darkbrown.permissions import require_building_access, require_record_access
 
@@ -26,25 +26,50 @@ JOB_TRANSITIONS = {
 
 @frappe.whitelist()
 def log_contact(case, method, outcome, notes=None, promised_amount=None,
-                promised_date=None):
+                promised_date=None, contact_on=None):
     """Every touch on a case is a row in the log, not an overwrite of the last
     one. The stage follows from the outcome."""
     guard(MD, GM, ACC)
     doc = frappe.get_doc("Collection Case", case)
     require_record_access(doc, "write")
+    if doc.status in ("Resolved", "Closed"):
+        frappe.throw(_("That case is already closed."))
+
+    action_date = getdate(contact_on or today())
+    if action_date > getdate(today()):
+        frappe.throw(_("A contact date cannot be in the future."))
+
+    notes = (notes or "").strip()
+    if outcome != "Promised" and not notes:
+        frappe.throw(_("A contact log needs notes."))
+
+    if outcome == "Promised":
+        if not promised_date:
+            frappe.throw(_("A promise needs a date."))
+        promise_date = getdate(promised_date)
+        if promise_date < getdate(today()):
+            frappe.throw(_("A new promise date cannot be in the past."))
+        amount = flt(promised_amount)
+        if amount <= 0:
+            frappe.throw(_("A promise needs a positive amount."))
+        if amount > flt(doc.outstanding_amount) + 0.005:
+            frappe.throw(_("A promise cannot exceed the case outstanding amount."))
+
     doc.append("actions", {
-        "action_on": frappe.utils.now(),
+        # The form captures a date, not a time. Today's contact keeps the
+        # actual timestamp; a backdated contact is stored at noon so its date
+        # remains honest without inventing a precise time.
+        "action_on": (frappe.utils.now() if action_date == getdate(today())
+                      else "{0} 12:00:00".format(action_date)),
         "method": method,
         "outcome": outcome,
         "notes": notes,
         "by_user": frappe.session.user,
     })
     if outcome == "Promised":
-        if not promised_date:
-            frappe.throw(_("A promise needs a date."))
         doc.status = "Promised"
-        doc.promised_date = promised_date
-        doc.promised_amount = flt(promised_amount)
+        doc.promised_date = promise_date
+        doc.promised_amount = amount
         doc.broken_promise = 0
     elif outcome in ("No Answer", "Disputed") and doc.status == "Open":
         doc.status = "Contacted"
