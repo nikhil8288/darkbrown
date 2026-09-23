@@ -609,7 +609,7 @@ body.focus main{max-width:none}
     <div class="nv" data-r="maint">Maintenance</div>
     <div class="nv" data-r="utilities">Utilities</div>
     <div class="grp">Documents</div>
-    <div class="nv" data-r="intake" style="display:none">Intake &amp; OCR</div>
+    <div class="nv" data-r="intake" data-feature="ocr" hidden>Intake &amp; OCR</div>
     <div class="nv" data-r="vault">Vault</div>
     <div class="grp">Finance</div>
     <div class="nv" data-r="invoices">Invoices</div>
@@ -1296,6 +1296,7 @@ const DEFERRED_PLANNING_ROUTES=['planning','capacity','forecast','fva',
  'solver','risks','optimise','cfo','pactions','pconfig'];
 const DEFERRED_PLANNING_FORMS=['new-scenario','new-target','model-building'];
 const planningDeferred=r=>!PLANNING_ENABLED&&DEFERRED_PLANNING_ROUTES.includes(r);
+const ocrDeferred=r=>r==='intake'&&window.DB_OCR_ENABLED!==true;
 
 /* ---------- screens with nothing behind them ----------
    These render from the prototype's own invented figures. That was fine
@@ -1387,6 +1388,13 @@ function router(){
   if(planningDeferred(r)){
     const safe=dflt.slice(2);
     if(location.hash!==dflt) history.replaceState(null,'',dflt);
+    r=safe; rawId=undefined;
+  }
+  /* OCR is not part of this launch. A copied intake bookmark goes to the
+     manual Vault workflow instead of exposing the deferred screen. */
+  if(ocrDeferred(r)){
+    const safe='vault';
+    if(location.hash!=='#/vault') history.replaceState(null,'','#/vault');
     r=safe; rawId=undefined;
   }
   /* Real docnames contain spaces — "Najma Tower", "Najma Tower-501" — and the
@@ -3516,30 +3524,42 @@ const FORMS={
    detail:'Allocated oldest-first'+(left>0?' · '+k(left)+' left on account':''),
    goto:t?'#/tenant/'+t.id:'#/tenants'}}},
 
-'upload-docs':{t:'Upload documents',s:'Workflow 2F · intake and OCR',cta:'Send to extraction',
+'upload-docs':{t:'Upload for review',s:'Manual intake · OCR deferred',cta:'Upload for review',
+ init:()=>({type:'Other'}),
  steps:[
   {n:'Files',fields:[
-    {k:'type',l:'Document type',t:'sel',o:['Auto-detect','Cheque batch','Tenant contract','Landlord contract','QID','Passport','Utility invoice'],req:1},
-    {k:'link',l:'Link to',t:'sel',o:['Detect from content','Tenant','Building','Agreement']},
+    {k:'type',l:'Document type',t:'sel',o:fileKinds(),req:1},
     {k:'file',l:'Files',t:'file',multi:1,hint:'PDF, JPG or PNG · several at once',req:1}]},
-  /* This step printed six extracted fields with confidence scores against a
-     document that had never been uploaded. Extraction is real, but it lives
-     at /doc-intake and runs against the model. Here the file is uploaded and
-     filed, and it is filed as needing review. */
+  /* OCR is deliberately deferred. This form records only what a person chose
+     and leaves the file unlinked until it is reviewed from the register. */
   {n:'Filing',body:d=>{
    const f=(window.FFILES&&FFILES.file)||[];
    return `<p class="pp">The file is uploaded when you save and filed to the register as <b>Needs review</b>.
-     Nothing reads it as true until somebody in Documentation confirms it.</p>
+     Nothing is extracted and nothing reads it as true until somebody in Documentation confirms it.</p>
    <div class="kv">
     <div><span>Files</span><b>${f.length?f.map(x=>x.name).join(', '):'\u2014'}</b></div>
-    <div><span>Filed as</span><b>${d.type==='Auto-detect'?'Unknown \u2014 set on review':d.type}</b></div>
-    <div><span>Linked to</span><b>${d.link==='Detect from content'?'nothing yet \u2014 linked on review':d.link}</b></div>
+    <div><span>Filed as</span><b>${d.type||'Other'}</b></div>
+    <div><span>Linked to</span><b>Unfiled \u2014 link from the record workflow</b></div>
    </div>
-   <div class="note">For automatic extraction \u2014 document type, party, dates, amounts read off the page \u2014
-     use <a href="/doc-intake" target="_blank">Document intake</a> instead. That path runs the model and shows
-     you the confidence on every field before anything is written.</div>`}}],
+   <div class="note"><b>OCR is deferred for this release.</b> This creates a private register entry for
+     human review; it does not send the file to an extraction service.</div>`}}],
  submit:()=>({title:'Nothing was saved',msg:'This form needs the server',
    detail:'Opened without a live connection \u2014 the file was not uploaded'})},
+
+'review-document':{t:'Review document',s:'Human validation · OCR deferred',cta:'Save decision',
+ init:ctx=>{const x=DOCS.find(d=>d.id===(ctx&&ctx.id))||{};
+   return{id:(ctx&&ctx.id)||'',type:x.ty||'Other',decision:'Validate',reason:'',file:x.f||'\u2014',status:x.st||'\u2014'}},
+ steps:[{n:'Decision',body:d=>`<p class="pp">Review the private file before deciding. Validation records the
+   document type chosen below; rejection keeps the register row and records why it was rejected.</p>
+   <div class="kv"><div><span>Document</span><b>${esc(d.id||'\u2014')}</b></div>
+    <div><span>File</span><b>${esc(d.file||'\u2014')}</b></div>
+    <div><span>Current status</span><b>${esc(d.status||'\u2014')}</b></div></div>
+   <div class="fg">
+    ${fld({k:'type',l:'Document type',t:'sel',o:fileKinds(),req:1},d.type)}
+    ${fld({k:'decision',l:'Decision',t:'sel',o:['Validate','Reject'],req:1,live:1},d.decision)}
+    ${d.decision==='Reject'?fld({k:'reason',l:'Reason for rejection',t:'ta',req:1,
+      p:'Why can this document not be accepted?'},d.reason):''}
+   </div>`}]},
 
 /* The other way in. Intake reads a document and asks somebody to confirm what
    it read; this one just puts the file where it belongs. There is no
@@ -3554,8 +3574,8 @@ const FORMS={
       one kind of thing. Asking first would have made every file in the drop
       whatever the first one happened to be. */
    return `<p class="pp">These are stored and filed against this ${where}, and nothing is read off them.
-     For a document whose <b>contents</b> matter \u2014 a QID number, a lease rent, an expiry \u2014
-     use <a href="/doc-intake" target="_blank">Document intake</a>, which extracts and asks for confirmation.</p>
+     OCR is deferred for this release, so document values must be entered and checked by a person in the
+     relevant record workflow.</p>
    <div class="fg">${fld({k:'on',l:where==='unit'?'Unit':'Building',t:'ro'},d.on)}
     ${fld({k:'file',l:'Files',t:'file',multi:1,req:1,
       hint:'PDF, JPG or PNG \u00b7 drag several at once \u00b7 max 10 MB each'},d.file)}</div>
@@ -4730,13 +4750,13 @@ ROUTES.utilities=()=>{
   const d=c.data, rows=d.rows||[];
   if(!rows.length) return page('Utilities',
     'Kahramaa billing against tenant recovery',
-    fbtn('Upload documents','upload-docs'),
+    fbtn('Upload for review','upload-docs'),
     `<div class="card">${empty('No utility bill has been entered for this period. '+
       'Nothing is billed, nothing is allocated, and nothing is outstanding — '+
       'which is a different thing from a recovery rate of zero.')}</div>`);
   return page('Utilities',
    `${d.bills} bill${d.bills===1?'':'s'} \u00b7 ${d.from} to ${d.to} \u00b7 one consolidated recovery invoice per tenant per month`,
-   fbtn('Upload documents','upload-docs'),
+   fbtn('Upload for review','upload-docs'),
    stat([['Billed to us',n0(d.billed)],['Allocated',n0(d.allocated)],
     ['Recovered',n0(d.recovered),'invoiced to tenants','g'],
     ['Recovery rate',d.rate+'%','',d.rate>=90?'g':d.rate>=75?'a':'r'],
@@ -4785,7 +4805,7 @@ ROUTES.intake=()=>page('Document intake','Deferred for launch','',
   {h:'Status',v:d=>chip(d.st,stChip(d.st))},{h:'By',v:d=>d.by},{h:'When',r:1,v:d=>d.when}],
   DOCS.map(d=>({...d,__id:d.id})),{id:'dl',click:'openDoc',
    foot:['Duplicate detection and QID validation run automatically','low confidence forces human review']})}</div>`);
-window.openDoc=id=>toast('Opens the review pane for '+id+' — side-by-side scan and extracted fields');
+window.openDoc=id=>openForm('review-document',{id});
 
 /* ---------------- Invoices ---------------- */
 ROUTES.invoices=()=>page('Invoices','Raised by an invoice run, one building at a time',
@@ -5443,7 +5463,7 @@ ROUTES.vault=()=>{
  return page('Document vault',VDOCS.length?VDOCS.length+' on the register \u00b7 '+okN+
    ' validated \u00b7 filed against operational records'
    :'Nothing on the register yet \u00b7 documents appear here once intake has filed them',
-  fbtn('Upload documents','upload-docs'),
+  fbtn('Upload for review','upload-docs'),
   `<div class="card"><h3>Find a document ${active?`<span class="tag amb">${active} filter${active>1?'s':''} active</span>`:''}
      <span class="plabel">${res.length} of ${VDOCS.length} shown</span></h3>
    <div class="vfilters">
@@ -7119,6 +7139,7 @@ function roleCan(r){
      that cannot open the route it asked for gets sent. */
   if(r==='home'||r==='mywork')return true;
   if(planningDeferred(r))return false;
+  if(ocrDeferred(r))return false;
   /* Named denial first. The category rules below are broad allows, and a
      broad allow was beating a specific denial: `data` is on RESTRICTED,
      which admits MD and GM, so the General Manager kept the purge screen
@@ -7144,7 +7165,8 @@ function applyRole(){
     <div>${roleInfo(ROLEV)[0]}<small>${roleInfo(ROLEV)[1]}</small></div>`;
   document.querySelectorAll('.nv').forEach(n=>{
     const r=n.dataset.r;
-    n.hidden=n.dataset.feature==='planning'&&!PLANNING_ENABLED;
+    n.hidden=(n.dataset.feature==='planning'&&!PLANNING_ENABLED)||
+      (n.dataset.feature==='ocr'&&window.DB_OCR_ENABLED!==true);
     n.style.display=!n.hidden&&roleCan(r)?'':'none'});
   document.querySelectorAll('.grp').forEach(g=>{
     let sib=g.nextElementSibling,any=false;
@@ -9738,10 +9760,27 @@ const WIRE={
   :'Choose a file first \u2014 registering a document without one files a row that points at nothing.',
  m:'documents.register',
  /* __url is the real file, uploaded a moment ago. d.file is only its name. */
- a:d=>({payload:{file:d.__url||d.file,type:wMap(W_DOCTYPE,d.type,'Unknown'),
+ a:d=>({payload:{file:d.__url||d.file,type:d.type||'Other',
    status:'Needs Review',pages:1}}),
  ok:r=>({title:'Filed',msg:'Document '+r.document+' registered',
    detail:'It is waiting for review \u2014 nothing reads it as true until confirmed',
+   goto:'#/vault'})},
+
+'review-document':{
+ guard:d=>{
+   if(!(d.__ctx&&d.__ctx.id)) return 'Open a document from the register first.';
+   if(d.decision==='Reject'&&!String(d.reason||'').trim())
+     return 'A rejection needs a reason.';
+   return null},
+ m:'documents.review',
+ a:d=>({document:d.__ctx.id,
+   decision:d.decision==='Reject'?'reject':'confirm',
+   payload:d.decision==='Reject'?{reason:String(d.reason||'').trim()}:
+     {document_type:d.type||'Other'}}),
+ ok:r=>({title:r.status==='Rejected'?'Rejected':'Validated',
+   msg:r.document+' · '+r.status,
+   detail:r.status==='Rejected'?'The reason is retained on the register.':
+     'The chosen document type is now confirmed.',
    goto:'#/vault'})},
 
 /* Files go up first and against the record itself, so the bytes are attached

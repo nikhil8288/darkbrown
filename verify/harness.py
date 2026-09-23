@@ -2119,6 +2119,35 @@ def t_vault_entity_filter_follows_live_register_values():
 check("vault entity filter is derived from the live document register",
       t_vault_entity_filter_follows_live_register_values)
 
+def t_ocr_is_deferred_and_manual_document_review_is_wired():
+    shell = open(REPO + '/darkbrown/shell/index.html').read()
+    assert 'data-r="intake" data-feature="ocr" hidden' in shell
+    assert "const ocrDeferred=r=>r==='intake'&&window.DB_OCR_ENABLED!==true;" in shell
+    router = shell[shell.index('function router(){'):
+                   shell.index('window.toggleNav=', shell.index('function router(){'))]
+    assert 'if(ocrDeferred(r)){' in router
+    assert "history.replaceState(null,'','#/vault')" in router
+    roles = shell[shell.index('function roleCan(r){'):
+                  shell.index('/* ---------- owner and reserve data ---------- */')]
+    assert 'if(ocrDeferred(r))return false;' in roles
+    assert "n.dataset.feature==='ocr'&&window.DB_OCR_ENABLED!==true" in roles
+    upload = shell[shell.index("'upload-docs':{t:"):
+                   shell.index("'review-document':{t:")]
+    assert "t:'Upload for review'" in upload
+    assert "init:()=>({type:'Other'})" in upload
+    assert "l:'Link to'" not in upload
+    assert '/doc-intake' not in upload
+    assert 'does not send the file to an extraction service' in upload
+    assert "window.openDoc=id=>openForm('review-document',{id});" in shell
+    wire = shell[shell.index("'review-document':{\n guard:"):
+                 shell.index("'add-files':{\n pre:")]
+    assert "m:'documents.review'" in wire
+    assert "decision:d.decision==='Reject'?'reject':'confirm'" in wire
+    assert "{reason:String(d.reason||'').trim()}" in wire
+    assert "{document_type:d.type||'Other'}" in wire
+check("OCR stays hidden while manual upload and document review remain usable",
+      t_ocr_is_deferred_and_manual_document_review_is_wired)
+
 def t_planning_module_is_deferred_everywhere():
     shell = open(REPO + '/darkbrown/shell/index.html').read()
     assert 'const PLANNING_ENABLED=false;' in shell
