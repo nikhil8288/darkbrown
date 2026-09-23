@@ -628,17 +628,17 @@ body.focus main{max-width:none}
     <div class="nv" data-r="pl">Profit &amp; Loss</div>
     <div class="nv" data-r="bs">Balance Sheet</div>
     <div class="nv" data-r="cf">Cash Flow</div>
-    <div class="grp">Planning</div>
-    <div class="nv" data-r="planning">Planning home</div>
-    <div class="nv" data-r="capacity">Capacity curve</div>
-    <div class="nv" data-r="forecast">Forecast</div>
-    <div class="nv" data-r="scenarios">Scenarios <span class="b" id="nbScen">4</span></div>
-    <div class="nv" data-r="model">Building model</div>
-    <div class="nv" data-r="portfolioplan">Portfolio plan</div>
-    <div class="nv" data-r="targets">Targets</div>
-    <div class="nv" data-r="risks">Risk &amp; uncertainty</div>
-    <div class="nv" data-r="pactions">Planning actions</div>
-    <div class="nv" data-r="cfo">Digital CFO</div>
+    <div class="grp" data-feature="planning" hidden>Planning</div>
+    <div class="nv" data-r="planning" data-feature="planning" hidden>Planning home</div>
+    <div class="nv" data-r="capacity" data-feature="planning" hidden>Capacity curve</div>
+    <div class="nv" data-r="forecast" data-feature="planning" hidden>Forecast</div>
+    <div class="nv" data-r="scenarios" data-feature="planning" hidden>Scenarios <span class="b" id="nbScen">4</span></div>
+    <div class="nv" data-r="model" data-feature="planning" hidden>Building model</div>
+    <div class="nv" data-r="portfolioplan" data-feature="planning" hidden>Portfolio plan</div>
+    <div class="nv" data-r="targets" data-feature="planning" hidden>Targets</div>
+    <div class="nv" data-r="risks" data-feature="planning" hidden>Risk &amp; uncertainty</div>
+    <div class="nv" data-r="pactions" data-feature="planning" hidden>Planning actions</div>
+    <div class="nv" data-r="cfo" data-feature="planning" hidden>Digital CFO</div>
     <div class="grp">Owners</div>
     <div class="nv" data-r="owners">Owners home</div>
     <div class="nv" data-r="policy">Distribution policy</div>
@@ -1285,6 +1285,17 @@ window.dbDo = async (fn, okMsg) => {
 };
 const ROUTES={};
 
+/* Planning is deliberately deferred. Keep its implementation intact so it can
+   be resumed later, but do not advertise or open any of its current or legacy
+   routes while the feature is off. This is a product switch, not a role rule:
+   it applies equally to every login, including the Managing Director. */
+const PLANNING_ENABLED=false;
+const DEFERRED_PLANNING_ROUTES=['planning','capacity','forecast','fva',
+ 'scenarios','scenario','compare','model','portfolioplan','unitplan','targets',
+ 'solver','risks','optimise','cfo','pactions','pconfig'];
+const DEFERRED_PLANNING_FORMS=['new-scenario','new-target','model-building'];
+const planningDeferred=r=>!PLANNING_ENABLED&&DEFERRED_PLANNING_ROUTES.includes(r);
+
 /* ---------- screens with nothing behind them ----------
    These render from the prototype's own invented figures. That was fine
    while nothing was live; it is not fine once real records are on the site,
@@ -1368,7 +1379,15 @@ function router(){
   const full=(location.hash||dflt).slice(2);
   const qi=full.indexOf('?');
   const h=qi<0?full:full.slice(0,qi);
-  const [r,rawId]=h.split('/');
+  let [r,rawId]=h.split('/');
+  /* A copied bookmark must not bypass the hidden navigation. Replace a
+     deferred Planning URL with the signed-in role's normal home before route
+     lookup, so no prototype Planning screen is rendered even momentarily. */
+  if(planningDeferred(r)){
+    const safe=dflt.slice(2);
+    if(location.hash!==dflt) history.replaceState(null,'',dflt);
+    r=safe; rawId=undefined;
+  }
   /* Real docnames contain spaces — "Najma Tower", "Najma Tower-501" — and the
      hash encodes them. Without decoding, every lookup missed and the
      ||first-row fallbacks rendered the wrong record without saying so. */
@@ -2926,6 +2945,9 @@ function formSnap(){
 function formBaseline(){collect();FINIT=formSnap()}
 
 window.openForm=(key,ctx)=>{
+  if(!PLANNING_ENABLED&&DEFERRED_PLANNING_FORMS.includes(key)){
+    toast('Planning is not available');return;
+  }
   FRM=FORMS[key]; if(!FRM){toast('No form defined');return;}
   FKEY=key;
   if(window.DB_LIVE&&BLOCKED[key]){blockedForm(key);return;}
@@ -3401,7 +3423,7 @@ const FORMS={
     ${fld({k:'desc',l:'Description',t:'ta',p:'What is wrong, and what access is needed',req:1},d.desc)}</div>`,
    fields:[{k:'building',req:1},{k:'unit',req:1},{k:'desc',req:1}]},
   {n:'Cost & recharge',body:d=>{
-    const c=+d.cost||0, over=d.pr==='Emergency'&&c>2;
+    const c=+d.cost||0, over=d.pr==='Emergency'&&c>2000;
     return `<div class="fg">
       ${fld({k:'cost',l:'Estimated cost (QAR)',t:'num',step:'100',p:'1400',req:1,live:1},d.cost)}
       ${fld({k:'owner',l:'Assign to',t:'sel',o:['Maint. team','Yusuf K.','External contractor'],req:1},d.owner)}
@@ -3414,8 +3436,32 @@ const FORMS={
   const b=BUILDINGS.find(x=>x.n===d.building)||BUILDINGS[0];
   const cost=Math.round(+d.cost||0), ceil=d.pr==='Emergency'&&cost>2000;
   JOBS.push({id,b:b.id,bn:b.n,u:d.unit,cat:d.cat,pr:d.pr,cost,st:'Open',rch:!!d.rch,age:0,owner:d.owner||'Maint. team',ceil});
-  return{title:'Job raised',msg:id+' created for '+d.unit,
+ return{title:'Job raised',msg:id+' created for '+d.unit,
    detail:ceil?'Over the emergency ceiling — routed to MD approval':'Assigned to '+(d.owner||'Maint. team'),goto:'#/job/'+id}}},
+
+'update-job':{t:'Update maintenance job',s:'Progress, actual cost and resolution',cta:'Save update',
+ init:c=>({status:c&&c.raw_status||'Open',cost:c&&c.cost||0,
+   scheduled:c&&c.scheduled&&c.scheduled!=='—'?c.scheduled:'',notes:c&&c.resolution||'',
+   assigned:'',recharge:c&&c.recharge_amount||0}),
+ steps:[
+  {n:'Progress',body:d=>{const cur=d.__ctx&&d.__ctx.raw_status||'Open';
+    const next={Open:['Assigned','Scheduled','Cancelled'],Assigned:['Scheduled','In Progress','Cancelled'],
+      Scheduled:['In Progress','Cancelled'],'In Progress':['Resolved','Cancelled']}[cur]||[];
+    return `<p class="pp">Current status: <b>${cur}</b>. Completed and cancelled jobs are final.</p>
+     <div class="fg">${fld({k:'status',l:'Move to',t:'sel',o:next.length?next:[cur],req:1},d.status)}
+      ${fld({k:'scheduled',l:'Scheduled for',t:'date'},d.scheduled)}
+      ${fld({k:'assigned',l:'Assign to user email',t:'txt',p:'maintenance@darkbrown.qa'},d.assigned)}</div>`},
+   fields:[{k:'status',req:1}]},
+  {n:'Cost & resolution',body:d=>`<div class="fg">
+    ${fld({k:'cost',l:'Actual / latest cost (QAR)',t:'num',step:'1',req:1},d.cost)}
+    ${(d.__ctx&&d.__ctx.rch)?fld({k:'recharge',l:'Tenant recharge (QAR)',t:'num',step:'1',req:1},d.recharge):''}
+    ${fld({k:'notes',l:'Work notes / resolution',t:'ta',p:'Work completed, parts used, access or follow-up'},d.notes)}</div>
+    ${(d.__ctx&&d.__ctx.ceil)?'<div class="merr" style="display:block">This job is above the emergency ceiling. Work cannot start until the MD approves it.</div>':''}`,
+   fields:[{k:'cost',req:1}]}],
+ submit:d=>{const j=J(d.__ctx&&d.__ctx.id);if(j){j.st=d.status==='Resolved'?'Completed':d.status;
+   j.cost=+d.cost||0;j.owner=d.assigned||j.owner;if(d.notes)j.resolution=d.notes}
+   return{title:'Job updated',msg:(d.__ctx&&d.__ctx.id)+' moved to '+d.status,
+     detail:d.notes||'Progress and cost saved',goto:'#/job/'+(d.__ctx&&d.__ctx.id)}}},
 
 'log-cheque':{t:'Log cheque',s:'Post-dated cheque register',cta:'Log cheque',
  steps:[{n:'Cheque',body:d=>`<div class="fg">
@@ -4648,15 +4694,16 @@ window.openJ=id=>go('#/job/'+id);
 
 ROUTES.job=id=>{const j=id?J(id):JOBS[0]; if(!j) return notFound('Maintenance job','#/maint');
  return crumb([['Maintenance','#/maint'],[j.id,'']])+page(j.id,`${j.cat} · ${j.u} · ${j.bn}`,
-  fbtn('Update job','raise-job',{bn:j.bn,u:j.u}),
+  fbtn('Update job','update-job',{id:j.id,raw_status:j.raw_status||({'Open':'Open','Assigned':'Assigned','In progress':'In Progress','Completed':'Resolved'}[j.st]||j.st),
+    cost:j.cost,scheduled:j.scheduled,resolution:j.resolution,rch:j.rch,recharge_amount:j.recharge_amount,ceil:j.ceil}),
   stat([['Priority',chip(j.pr,j.pr==='Emergency'?'r':'n')],['Cost',n0(j.cost),'',j.ceil?'r':''],
    ['Status',chip(j.st,stChip(j.st))],['Age',j.age+' days'],['Owner',j.owner],
-   ['Recharge',j.rch?'Tenant':'Absorbed']])+
+   ['Recharge',j.rch?(j.recharge_status||'Pending'):'Absorbed']])+
   (j.ceil?`<div class="warn">Cost exceeds the QAR 2,000 emergency ceiling — MD approval required before settlement. This job appears in the MD exceptions feed.</div>`:'')+
   `<div class="card"><h3>Job workflow — 2D</h3>${steps(['Raised','Assigned','In progress','Completed','Costed &amp; recharged'],
    ['Open','Assigned','In progress','Awaiting parts','Completed'].indexOf(j.st)>=4?4:Math.max(1,['Open','Assigned','In progress','Awaiting parts','Completed'].indexOf(j.st)))}</div>
-  <div class="card"><h3>Cost lines</h3>${tbl([{h:'Line',v:r=>r[0]},{h:'Supplier',v:r=>r[1]},{h:'Amount',r:1,mono:1,v:r=>n0(r[2])}],
-   [['Labour','Al Nahar Tech',+(j.cost*0.4).toFixed(1)],['Parts','Gulf Spares',+(j.cost*0.6).toFixed(1)]].map(r=>({...r,__id:r[0]})),
+  <div class="card"><h3>Cost lines</h3>${tbl([{h:'Line',v:r=>r.item||r[0]},{h:'Supplier',v:r=>r.supplier||r[1]},{h:'Amount',r:1,mono:1,v:r=>n0(r.amount!==undefined?r.amount:r[2])}],
+   (window.DB_LIVE?(j.lines||[]):[['Labour','Al Nahar Tech',+(j.cost*0.4).toFixed(1)],['Parts','Gulf Spares',+(j.cost*0.6).toFixed(1)]]).map(r=>({...r,__id:r.item||r[0]})),
    {id:'jc',foot:['Total '+n0(j.cost),j.rch?'recharged to tenant — own income account':'absorbed by Darkbrown']})}</div>`)};
 
 /* ---------------- Utilities ---------------- */
@@ -7044,6 +7091,7 @@ function roleCan(r){
   /* Home is the one screen nobody can be shut out of - it is where a role
      that cannot open the route it asked for gets sent. */
   if(r==='home'||r==='mywork')return true;
+  if(planningDeferred(r))return false;
   /* Named denial first. The category rules below are broad allows, and a
      broad allow was beating a specific denial: `data` is on RESTRICTED,
      which admits MD and GM, so the General Manager kept the purge screen
@@ -7068,11 +7116,14 @@ function applyRole(){
   if(u)u.innerHTML=`<div class="av">${ROLEV==='ACC'?'AC':ROLEV==='DOC'?'DO':ROLEV}</div>
     <div>${roleInfo(ROLEV)[0]}<small>${roleInfo(ROLEV)[1]}</small></div>`;
   document.querySelectorAll('.nv').forEach(n=>{
-    const r=n.dataset.r;n.style.display=roleCan(r)?'':'none'});
+    const r=n.dataset.r;
+    n.hidden=n.dataset.feature==='planning'&&!PLANNING_ENABLED;
+    n.style.display=!n.hidden&&roleCan(r)?'':'none'});
   document.querySelectorAll('.grp').forEach(g=>{
     let sib=g.nextElementSibling,any=false;
     while(sib&&!sib.classList.contains('grp')){if(sib.classList.contains('nv')&&sib.style.display!=='none')any=true;sib=sib.nextElementSibling}
-    g.style.display=any?'':'none'})}
+    g.hidden=g.dataset.feature==='planning'&&!PLANNING_ENABLED;
+    g.style.display=!g.hidden&&any?'':'none'})}
 
 /* ---------- owner and reserve data ---------- */
 const BANKACC=[['QNB current — 0021 4478',1206400],['Doha Bank current — 7741 2200',498200],['QNB collection — 0088 1120',137400]];
@@ -7180,11 +7231,11 @@ ROUTES.owners=()=>{
      <div><span>Last movement</span><b>${(OWNE.filter(e=>e.sh===s.id).slice(-1)[0]||{d:'—'}).d}</b></div>
      <div><span>Paid by</span><b>${s.method} · ${s.acct}</b></div>
      <div><span>Holding since</span><b>${s.from}</b></div></div></div>`).join('')}</div>
-  <div class="card"><h3>Distribution capacity against the target
+  ${PLANNING_ENABLED?`<div class="card"><h3>Distribution capacity against the target
     <span class="chip ${capVerdict(DPOL.target).cls}">${capVerdict(DPOL.target).txt}</span></h3>
    ${capChart(DPOL.target,210)}
    <div class="foot"><span>the same curve the planner works with — one series, one definition</span>
-    <span><a href="#/capacity" onclick="go('#/capacity');return false">open the capacity curve</a></span></div></div>
+    <span><a href="#/capacity" onclick="go('#/capacity');return false">open the capacity curve</a></span></div></div>`:''}
   <div class="grid2">
    <div class="card"><h3>Recent owner movements</h3>
     ${ownerEntries(OWNE.slice().reverse().slice(0,7).map(e=>({...e,__id:e.src})),'oe',false)}</div>
@@ -8071,7 +8122,7 @@ function roleBlock(r){
 
 /* ---------- planning configuration folded into Admin rather than a screen of its own ---------- */
 const _admin=ROUTES.admin;
-ROUTES.admin=()=>_admin()+
+ROUTES.admin=()=>_admin()+(PLANNING_ENABLED?
  `<div class="card" id="sec-plan"><h3>Planning and distribution parameters</h3>${window.DB_LIVE
   ?uw('Every figure here — reserve months, denominator, distribution target, split rule, '+
       'posting account — is a prototype default. None of it is stored anywhere or read from '+
@@ -8092,7 +8143,7 @@ ROUTES.admin=()=>_admin()+
    ['Q21','Posting account','The accountant','Runs approve but cannot post'],
    ['Q24','Cash and ATM withdrawals','Managing Director','Denominator uncertain by up to '+k(14.5)+' a month'],
    ['Q11','Denominator confirmation','Head-lease statements','Every capacity figure stays provisional']]
-   .map(r=>({...r,__id:r[0]})),{id:'oq'})}</div>`;
+   .map(r=>({...r,__id:r[0]})),{id:'oq'})}</div>`:'');
 
 
 /* ================================================================
@@ -9535,11 +9586,22 @@ const WIRE={
  a:d=>({payload:{building:wBld(d.building),unit:d.unit||null,
    category:wMap(W_JOBCAT,d.cat,'Other'),priority:wMap(W_JOBPRI,d.pr,'Medium'),
    issue:String(d.desc||'').slice(0,120),description:d.desc,
+   estimated_cost:wNum(d.cost),
    rechargeable:d.rch==='true'||d.rch===true?1:0,
    recharge_amount:d.rch==='true'||d.rch===true?wNum(d.cost):0}}),
- ok:(r,d)=>({title:'Job raised',msg:'Maintenance request '+r,
-   detail:d.pr==='Emergency'?'Emergency \u2014 it will be checked against the spend ceiling':'Open and unassigned',
-   goto:'#/job/'+r})},
+ ok:(r,d)=>({title:'Job raised',msg:'Maintenance request '+r.case,
+   detail:r.over_ceiling?'Emergency \u2014 routed to MD approval':
+     'Open \u00b7 estimated cost QAR '+n0(r.cost||wNum(d.cost)),
+   goto:'#/job/'+r.case})},
+
+'update-job':{
+ m:'operations.advance_job',
+ a:d=>({job:d.__ctx&&d.__ctx.id,status:d.status,cost:wNum(d.cost),
+   notes:d.notes||null,assigned_to:d.assigned||null,scheduled_on:d.scheduled||null,
+   recharge_amount:(d.__ctx&&d.__ctx.rch)?wNum(d.recharge):null}),
+ ok:(r,d)=>({title:'Job updated',msg:r.job+' moved to '+r.status,
+   detail:r.over_ceiling?'Still awaiting MD ceiling approval':'Progress, cost and resolution saved',
+   goto:'#/job/'+r.job})},
 
 'start-moveout':{
  m:'operations.open_moveout',
