@@ -2070,6 +2070,8 @@ def t_collection_contact_and_promise_inputs_are_auditable():
     assert 'A promise needs a positive amount.' in contact
     assert 'A promise cannot exceed the case outstanding amount.' in contact
     assert '"{0} 12:00:00".format(action_date)' in contact
+    assert 'doc.security_deposit' not in contact
+    assert 'return {"case": doc.name, "status": doc.status}' in contact
     shell = open(REPO + '/darkbrown/shell/index.html').read()
     form = shell[shell.index("'record-contact':{t:"):
                  shell.index("'record-promise':{t:")]

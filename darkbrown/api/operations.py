@@ -74,8 +74,10 @@ def log_contact(case, method, outcome, notes=None, promised_amount=None,
     elif outcome in ("No Answer", "Disputed") and doc.status == "Open":
         doc.status = "Contacted"
     doc.save()
-    return {"case": doc.name, "status": doc.status,
-            "security_deposit": doc.security_deposit}
+    # Collection Case has no security_deposit field. Reading it here raised
+    # after save and made every otherwise-valid contact or promise request
+    # roll back at response time.
+    return {"case": doc.name, "status": doc.status}
 
 
 @frappe.whitelist()
