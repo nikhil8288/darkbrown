@@ -4587,7 +4587,7 @@ window.openCS=id=>go('#/case/'+id);
 
 /* ---------------- Move-out (workflow 2G) ---------------- */
 ROUTES.moveout=id=>{
- if(id){const m=MO(id); if(!m) return notFound('Move-out case','#/moveout');const S=['Notice received','Move-out inspection','Deductions agreed','Deposit release approved','Closed'];
+ if(id){const m=MO(id); if(!m) return notFound('Move-out case','#/moveout');const S=['Notice received','Move-out inspection','Deductions agreed','Deposit release pending','Closed'];
   return crumb([['Move-out','#/moveout'],[m.id,'']])+page(m.id,`${m.tn} · ${m.u} · notice ${m.notice}`,
    fbtn('Record inspection','record-inspection',{id:m.id})+fbtn('Request deposit release','deposit-release',{id:m.id,dep:m.dep}),
    stat([['Deposit held',n0(m.dep)],['Deductions',n0(m.ded.reduce((a,d)=>a+d[1],0)),'','a'],
@@ -4616,7 +4616,7 @@ ROUTES.moveout=id=>{
    {h:'Reason',v:m=>m.reason||'End of term'},
    {h:'Deposit',r:1,mono:1,v:m=>k(m.dep)},
    {h:'Deductions',r:1,mono:1,v:m=>k(m.ded.reduce((a,d)=>a+d[1],0))},
-   {h:'Stage',v:m=>chip(['Notice received','Move-out inspection','Deductions agreed','Deposit release approved','Closed'][m.step],
+   {h:'Stage',v:m=>chip(['Notice received','Move-out inspection','Deductions agreed','Deposit release pending','Closed'][m.step],
      m.step>=3?'g':m.step===0?'n':'a')}],
    MOVEOUT.map(m=>({...m,__id:m.id})),{id:'mol',click:'openMO'})}</div>`)};
 window.openMO=id=>go('#/moveout/'+id);

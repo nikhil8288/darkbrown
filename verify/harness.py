@@ -1685,6 +1685,9 @@ def t_moveout_pending_release_is_not_rendered_closed():
     from darkbrown.api import app
     assert app.MO_STEP['Refund Pending'] == 3, app.MO_STEP
     assert app.MO_STEP['Closed'] == 4, app.MO_STEP
+    shell = open(REPO + '/darkbrown/shell/index.html').read()
+    assert shell.count("'Deposit release pending','Closed'") >= 2
+    assert "'Deposit release approved','Closed'" not in shell
 check("pending deposit release is not displayed as a closed move-out",
       t_moveout_pending_release_is_not_rendered_closed)
 
