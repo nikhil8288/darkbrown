@@ -2108,6 +2108,17 @@ def t_manual_collection_case_has_truthful_inputs_and_server_guards():
 check("manual collection cases persist amount without bypassing stage controls",
       t_manual_collection_case_has_truthful_inputs_and_server_guards)
 
+def t_vault_entity_filter_follows_live_register_values():
+    shell = open(REPO + '/darkbrown/shell/index.html').read()
+    vault = shell[shell.index('ROUTES.vault=()=>'):
+                  shell.index('window.openVDoc=', shell.index('ROUTES.vault=()=>'))]
+    assert "new Set(VDOCS.map(d=>d.ent).filter(Boolean))" in vault
+    assert "${sel('ty',types)} ${sel('ent',entities)}" in vault
+    assert "['All records','Tenant','Building','Agreement','Batch','Move-out']" not in vault
+    assert "filed against operational records" in vault
+check("vault entity filter is derived from the live document register",
+      t_vault_entity_filter_follows_live_register_values)
+
 def t_planning_module_is_deferred_everywhere():
     shell = open(REPO + '/darkbrown/shell/index.html').read()
     assert 'const PLANNING_ENABLED=false;' in shell
