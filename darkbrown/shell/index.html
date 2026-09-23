@@ -4628,7 +4628,7 @@ ROUTES.cases=()=>page('Collection cases',
  `<div class="card"><h3>How a case comes into being</h3>${tbl([
   {h:'Trigger',v:r=>r[0]},{h:'Opened by',v:r=>chip(r[1],r[1]==='System'?'n':'a')},{h:'What happens',v:r=>r[2]}],
   CASERULES.map(r=>({...r,__id:r[0]})),{id:'cr',
-   foot:['thresholds are configuration — Admin, not code','a case is never opened twice for the same tenant, it escalates instead']})}
+   foot:['thresholds are configuration — Admin, not code','a case is never opened twice for the same tenancy, it escalates instead']})}
   <div class="note"><b>Ownership.</b> The system opens the case and assigns it; a collections officer works it; the GM sees the queue;
    the MD approves write-offs and legal escalation. Nobody closes a case by deleting it — it closes on settlement, on write-off, or on move-out.</div></div>`+
  searchbox('cl','Search by tenant, reference or owner')+
@@ -5501,19 +5501,24 @@ ROUTES.approval=id=>{const a=id?AP(id):APPR[0]; if(!a) return notFound('Approval
 ROUTES.case=id=>{const c=id?CS(id):CASES[0]; if(!c) return notFound('Collection case','#/cases');
  const stgs=['Arrears detected','Reminder sent','Promise to pay','Legal notice','Escalated'];
  const cur=stgs.findIndex(s=>s===c.stage||(c.stage==='Promise broken'&&s==='Promise to pay'));
+ const triggers={'Past Due':'invoice passed the grace period','Returned Cheque':'cheque returned by the bank',
+  'Broken Promise':'promise date passed unpaid','Two Months Arrears':'arrears reached the legal threshold'};
+ const opened=c.manual
+  ?'Case opened by hand'+(c.reason?' — '+c.reason:'')
+  :'Case opened automatically — '+(triggers[c.trigger]||c.trigger||'system trigger')+
+    (c.reference?' · '+c.reference:'');
+ const activity=[{text:opened,on:c.opened||'—',by:''},...(c.activity||[]).map(a=>({
+  text:[a.method,a.outcome,a.notes].filter(Boolean).join(' · '),on:a.on||'—',by:a.by||''}))];
  return crumb([['Cases','#/cases'],[c.id,'']])+page(c.id,`${c.tn} · ${n0(c.amt)} outstanding · owner ${c.owner}`,
   fbtn('Log contact','record-contact',{id:c.id})+fbtn('Record promise','record-promise',{id:c.id,amt:c.amt})+fbtn('Escalate to legal','escalate-legal',{id:c.id,amt:c.amt}),
   stat([['Amount',n0(c.amt),'','r'],['Stage',chip(c.stage,stChip(c.stage))],['Case age',c.age+' days'],
    ['Promise to pay',c.promise],['Owner',c.owner],['Notes',(NOTES[c.id]||[]).length]])+
   `<div class="card"><h3>Case progression</h3>${steps(stgs,Math.max(cur,1))}
-   ${c.stage==='Promise broken'?'<div class="warn">Promise broken — case reopened automatically and surfaced in the MD exceptions feed.</div>':''}</div>
+  ${c.stage==='Promise broken'?'<div class="warn">Promise broken — case reopened automatically and surfaced in the MD exceptions feed.</div>':''}</div>
   ${noteThread(c.id, 'Collection Case', c.id)}
   <div class="card"><h3>Activity log</h3><div class="list">
-   ${[['Case opened automatically — invoice 30 days overdue',dplus(-c.age)],
-      ['Reminder sent by '+c.owner,dplus(-c.age+6)],
-      ['Tenant contacted by phone — promised payment',dplus(-c.age+14)],
-      ...(c.stage==='Promise broken'?[['Promise date passed, no payment — case reopened',dplus(-2)]]:[])]
-    .map(r=>`<div class="it"><span class="dot n"></span><span class="t">${r[0]}</span><span class="m">${r[1]}</span></div>`).join('')}
+   ${activity.map(a=>`<div class="it"><span class="dot n"></span><span class="t">${esc(a.text)}${a.by&&a.by!=='—'
+      ?`<span class="mini"> · ${esc(a.by)}</span>`:''}</span><span class="m">${esc(a.on)}</span></div>`).join('')}
    </div></div>`)};
 
 /* ---------- Accounts: general ledger ---------- */

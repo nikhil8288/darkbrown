@@ -2018,6 +2018,21 @@ def t_cancelled_invoice_and_replacement_audit_is_visible():
 check("cancelled invoices and their replacements remain visible and non-payable",
       t_cancelled_invoice_and_replacement_audit_is_visible)
 
+def t_collection_case_history_uses_recorded_events():
+    import inspect
+    from darkbrown.api import app
+    feed = inspect.getsource(app.cases)
+    assert '"Collection Case Action"' in feed
+    assert '"activity": actions_by_case.get(c.name, [])' in feed
+    assert '"manual": c.trigger == "Manual"' in feed
+    shell = open(REPO + '/darkbrown/shell/index.html').read()
+    assert "...(c.activity||[]).map" in shell
+    assert "Case opened automatically — invoice 30 days overdue" not in shell
+    assert "Tenant contacted by phone — promised payment" not in shell
+    assert "same tenancy, it escalates instead" in shell
+check("collection detail shows recorded history without invented future events",
+      t_collection_case_history_uses_recorded_events)
+
 def t_planning_module_is_deferred_everywhere():
     shell = open(REPO + '/darkbrown/shell/index.html').read()
     assert 'const PLANNING_ENABLED=false;' in shell

@@ -235,24 +235,48 @@ def cases():
     rows = frappe.get_all(
         "Collection Case",
         filters={"status": ["in", list(CASE_STAGE)]},
-        fields=["name", "tenant", "building", "status", "outstanding_amount", "opened_on",
-                "promised_date", "owner", "days_past_due"],
+        fields=["name", "tenant", "tenancy_agreement", "building", "status",
+                "trigger", "reference", "manual_reason",
+                "outstanding_amount", "opened_on", "promised_date", "owner",
+                "days_past_due"],
         order_by="outstanding_amount desc")
     if not rows:
         return []
     tnames = _customer_names([r.tenant for r in rows])
+    actions_by_case = {}
+    for action in frappe.get_all(
+            "Collection Case Action",
+            filters={"parent": ["in", [r.name for r in rows]],
+                     "parenttype": "Collection Case"},
+            fields=["parent", "action_on", "method", "outcome", "by_user",
+                    "notes", "idx"],
+            order_by="parent asc, idx asc"):
+        actions_by_case.setdefault(action.parent, []).append({
+            "on": _fdate(action.action_on),
+            "method": action.method or "Action",
+            "outcome": action.outcome or "—",
+            "by": _short_name(action.by_user) if action.by_user else "—",
+            "notes": action.notes or "",
+        })
     out = []
     for c in rows:
         out.append({
             "id": c.name,
             "b": c.building,
             "t": c.tenant,
+            "tenancy": c.tenancy_agreement,
             "tn": tnames.get(c.tenant, c.tenant),
             "amt": _k(c.outstanding_amount),
             "stage": CASE_STAGE.get(c.status, c.status),
             "age": (date_diff(today(), c.opened_on) if c.opened_on else 0),
             "owner": _short_name(c.owner),
             "promise": _fdate(c.promised_date) if c.promised_date else "—",
+            "manual": c.trigger == "Manual",
+            "trigger": c.trigger or "Past Due",
+            "reference": c.reference or "",
+            "reason": c.manual_reason or "",
+            "opened": _fdate(c.opened_on),
+            "activity": actions_by_case.get(c.name, []),
         })
     return out
 
