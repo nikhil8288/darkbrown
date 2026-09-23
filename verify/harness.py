@@ -1674,11 +1674,19 @@ def t_moveout_settlement_syncs_deposit_deductions():
     sd = S.DB['Security Deposit'][0]
     assert result['status'] == 'Refund Pending', result
     assert sd['deductions'] == 200, sd
+    assert sd['move_out_case'] == 'MO-1', sd
     assert 'Outstanding rent: QAR 100.00' in sd['deduction_reason']
     assert 'Utilities: QAR 40.00' in sd['deduction_reason']
     assert 'Damages: QAR 60.00' in sd['deduction_reason']
 check("move-out settlement carries itemised deductions to the deposit approval",
       t_moveout_settlement_syncs_deposit_deductions)
+
+def t_moveout_pending_release_is_not_rendered_closed():
+    from darkbrown.api import app
+    assert app.MO_STEP['Refund Pending'] == 3, app.MO_STEP
+    assert app.MO_STEP['Closed'] == 4, app.MO_STEP
+check("pending deposit release is not displayed as a closed move-out",
+      t_moveout_pending_release_is_not_rendered_closed)
 
 def t_moveout_inspection_preserves_damage_and_utility_categories():
     from darkbrown.api import operations

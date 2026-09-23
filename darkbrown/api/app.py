@@ -305,7 +305,9 @@ MO_STEP = {
     "Inspection Pending": 1,
     "Inspection Done": 2,
     "Settlement Pending": 3,
-    "Refund Pending": 4,
+    # A release request is still awaiting the reserved MD decision.  It must
+    # not render as the final Closed step before the refund journal posts.
+    "Refund Pending": 3,
     "Closed": 4,
 }
 

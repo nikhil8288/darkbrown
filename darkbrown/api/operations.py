@@ -158,7 +158,8 @@ def open_moveout(payload):
     if doc.security_deposit:
         frappe.db.set_value("Security Deposit", doc.security_deposit,
                             "move_out_case", doc.name)
-    return doc.name
+    return {"case": doc.name, "status": doc.status,
+            "security_deposit": doc.security_deposit}
 
 
 @frappe.whitelist()
@@ -227,6 +228,10 @@ def advance_moveout(case, payload):
         frappe.db.set_value("Security Deposit", doc.security_deposit, {
             "deductions": deductions,
             "deduction_reason": "; ".join(reasons),
+            # Repair older cases that pre-date the reverse-link write in
+            # open_moveout.  The approval queue intentionally reads from the
+            # deposit side, so settlement must make that relationship whole.
+            "move_out_case": doc.name,
         })
     return {"case": doc.name, "status": doc.status,
             "refund": flt(doc.refund_amount)}
