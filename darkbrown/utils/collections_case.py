@@ -194,11 +194,14 @@ def nightly():
 
 
 @frappe.whitelist()
-def open_manual(tenancy_agreement, reason):
+def open_manual(tenancy_agreement, reason, outstanding_amount=None):
     """The fifth route. A person may open a case by hand, with a reason."""
     guard(MD, GM, ACC)
     if not (reason or "").strip():
         frappe.throw("A case opened by hand needs a reason.")
+    amount = flt(outstanding_amount)
+    if amount <= 0:
+        frappe.throw("A case opened by hand needs a positive amount at stake.")
     if live_case(tenancy_agreement):
         frappe.throw("This tenancy already has a live case.")
     ta = frappe.db.get_value("Tenancy Agreement", tenancy_agreement,
@@ -211,5 +214,6 @@ def open_manual(tenancy_agreement, reason):
         "manual_reason": reason,
         "status": "Open",
         "opened_on": today(),
+        "outstanding_amount": amount,
     }).insert()
     return doc.name

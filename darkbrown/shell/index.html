@@ -8261,15 +8261,14 @@ window.openCase=id=>go('#/case/'+id);
 /* ---------- new forms ---------- */
 Object.assign(FORMS,{
 'open-case':{t:'Open a collection case by hand',s:'Only where the automatic triggers would miss it',cta:'Open the case',
- init:()=>({stage:'Reminder sent',owner:'Aisha R.'}),
+ init:()=>({}),
  steps:[{n:'Case',body:d=>{const t=TENANTS.find(x=>x.n===d.tenant);
   return `<div class="note">The system already opens a case seven days after a due date, on a returned cheque, and on a broken promise.
-    Opening one by hand is for the situation the rules cannot see — a tenant who has told you they are leaving, say.</div>
+    Opening one by hand is for the situation the rules cannot see — a tenant who has told you they are leaving, say.
+    A manual case always starts at Reminder sent and is owned by the person opening it.</div>
    <div class="fg">
     ${fld({k:'tenant',l:'Tenant',t:'sel',o:TENANTS.slice(0,20).map(x=>x.n),req:1,live:1},d.tenant)}
     ${fld({k:'amt',l:'Amount at stake (QAR)',t:'num',step:'100',req:1},d.amt||(t?String(Math.round(t.arr)):''))}
-    ${fld({k:'stage',l:'Opening stage',t:'sel',o:['Reminder sent','Promise to pay','Promise broken','Legal notice'],req:1},d.stage)}
-    ${fld({k:'owner',l:'Assign to',t:'sel',o:['Aisha R.','Anoop M.','Yusuf K.'],req:1},d.owner)}
     ${fld({k:'why',l:'Why this needs a case',t:'ta',req:1,full:1,p:'Required — it is the first line of the case history'},d.why)}</div>
    ${t&&t.arr===0?`<div class="note" style="border-left-color:var(--amber)"><b>This tenant has no arrears on file.</b>
      Opening a case anyway is allowed, but the reason above carries the whole justification.</div>`:''}`},
@@ -9578,7 +9577,8 @@ const WIRE={
 
 'open-case':{
  m:'operations.open_case',
- a:d=>({tenancy_agreement:wAgrT(wTen(d.tenant)),reason:d.why}),
+ a:d=>({tenancy_agreement:wAgrT(wTen(d.tenant)),reason:d.why,
+   outstanding_amount:wNum(d.amt)}),
  guard:d=>wAgrT(wTen(d.tenant))?null
   :'That tenant has no live agreement on record, and a case hangs off an agreement. Check the tenant, or open the case from the agreement itself.',
  ok:r=>({title:'Case opened',msg:'Collection case '+r+' opened',

@@ -110,12 +110,12 @@ def escalate(case, reason=None):
 
 
 @frappe.whitelist()
-def open_case(tenancy_agreement, reason):
+def open_case(tenancy_agreement, reason, outstanding_amount=None):
     guard(MD, GM, ACC)
     require_record_access(frappe.get_doc("Tenancy Agreement", tenancy_agreement),
                           "read")
     from darkbrown.utils.collections_case import open_manual
-    return open_manual(tenancy_agreement, reason)
+    return open_manual(tenancy_agreement, reason, outstanding_amount)
 
 
 # ---------------------------------------------------------------- maintenance

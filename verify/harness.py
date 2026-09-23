@@ -2084,6 +2084,30 @@ def t_collection_contact_and_promise_inputs_are_auditable():
 check("collection contacts and promises preserve valid dates and amounts",
       t_collection_contact_and_promise_inputs_are_auditable)
 
+def t_manual_collection_case_has_truthful_inputs_and_server_guards():
+    import inspect
+    from darkbrown.api import operations
+    from darkbrown.utils import collections_case
+    endpoint = inspect.getsource(operations.open_case)
+    manual = inspect.getsource(collections_case.open_manual)
+    assert "outstanding_amount=None" in endpoint
+    assert "open_manual(tenancy_agreement, reason, outstanding_amount)" in endpoint
+    assert "amount = flt(outstanding_amount)" in manual
+    assert "A case opened by hand needs a positive amount at stake." in manual
+    assert '"outstanding_amount": amount' in manual
+    assert '"status": "Open"' in manual
+    shell = open(REPO + '/darkbrown/shell/index.html').read()
+    form = shell[shell.index("'open-case':{t:"):
+                 shell.index("'record-handover':{t:")]
+    wire = shell[shell.index("'open-case':{\n m:"):
+                 shell.index("'record-handover':{\n m:")]
+    assert "A manual case always starts at Reminder sent" in form
+    assert "l:'Opening stage'" not in form
+    assert "l:'Assign to'" not in form
+    assert "outstanding_amount:wNum(d.amt)" in wire
+check("manual collection cases persist amount without bypassing stage controls",
+      t_manual_collection_case_has_truthful_inputs_and_server_guards)
+
 def t_planning_module_is_deferred_everywhere():
     shell = open(REPO + '/darkbrown/shell/index.html').read()
     assert 'const PLANNING_ENABLED=false;' in shell
