@@ -6331,7 +6331,7 @@ window.bSearch=v=>{FDATA.bq=v;clearTimeout(window.__bq);window.__bq=setTimeout((
   const i=document.getElementById('bq');if(i){i.focus();i.setSelectionRange(v.length,v.length)}},280)};
 
 /* ---------- decision with notes ---------- */
-FORMS['approve-decision']={t:'Record decision',s:'Reserved MD approval · reason is mandatory',cta:'Submit decision',
+FORMS['approve-decision']={t:'Record decision',s:'Approval decision · reasoning is mandatory',cta:'Submit decision',
  init:c=>({dec:(c&&c.dec)||'Approve',ref:(c&&c.ref)||''}),
  steps:[{n:'Decision',body:d=>`<div class="fg">
    ${fld({k:'dec',l:'Decision',t:'sel',o:['Approve','Reject','Request more information'],req:1,live:1},d.dec)}
@@ -9682,8 +9682,10 @@ const WIRE={
 'approve-decision':{
  m:'approvals.decide',
  a:d=>{const a=AP(d.ref)||{};
+   const condition=/approve/i.test(d.dec||'')&&d.cond&&d.cond!=='None'
+     ?'\nCondition: '+d.cond:'';
    return {kind:a.ty,reference:a.id,
-     decision:/approve/i.test(d.dec)?'approve':'reject',note:d.why}},
+     decision:/approve/i.test(d.dec)?'approve':'reject',note:String(d.why||'').trim()+condition}},
  guard:d=>/more information/i.test(d.dec||'')
   ?'Requesting more information is not a decision the queue records yet. It stays pending either way \u2014 approve it or reject it with the reason.':null,
  ok:(r,d)=>({title:'Decision recorded',msg:d.dec+' \u00b7 '+(d.__ctx&&d.__ctx.ref),

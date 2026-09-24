@@ -294,11 +294,13 @@ def reopen_deposit_release(reference, journal_entry, note):
 
 
 def _invoice_run(reference, decision, note):
-    from darkbrown.api.finance import issue_invoice_run
+    from darkbrown.api.finance import cancel_invoice_run, issue_invoice_run
     if decision == "approve":
         return issue_invoice_run(reference)
-    doc = frappe.get_doc("Invoice Run", reference)
-    doc.status = "Cancelled"
-    doc.variance_reason = ((doc.variance_reason or "") + f"\n\nRejected: {note}")
-    doc.save(ignore_permissions=True)
-    return {"reference": doc.name, "status": doc.status}
+    # Rejection is the same business event as cancelling an unissued run. Use
+    # that controlled path so its state guard runs and any maintenance or
+    # utility recoveries reserved by the draft return to their queues.
+    result = cancel_invoice_run(reference, "Approval rejected: {0}".format(note))
+    return {"reference": result["run"], "status": result["status"],
+            "maintenance_released": result["maintenance_released"],
+            "utility_released": result["utility_released"]}

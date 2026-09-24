@@ -2255,6 +2255,23 @@ def t_staff_register_retains_leavers_and_rejects_invalid_pay():
 check("staff register retains leavers and rejects invalid pay",
       t_staff_register_retains_leavers_and_rejects_invalid_pay)
 
+def t_approval_rejection_uses_controlled_run_cancellation_and_keeps_conditions():
+    import inspect
+    from darkbrown.api import approvals
+    reject = inspect.getsource(approvals._invoice_run)
+    shell = open(REPO + '/darkbrown/shell/index.html').read()
+    assert "cancel_invoice_run, issue_invoice_run" in reject
+    assert 'cancel_invoice_run(reference, "Approval rejected: {0}".format(note))' in reject
+    assert 'maintenance_released' in reject and 'utility_released' in reject
+    wire = shell[shell.index("'approve-decision':{\n m:'approvals.decide'"):
+                 shell.index("'reopen-deposit-release':{", shell.index(
+                     "'approve-decision':{\n m:'approvals.decide'"))]
+    assert "?'\\nCondition: '+d.cond:''" in wire
+    assert "note:String(d.why||'').trim()+condition" in wire
+    assert "s:'Approval decision · reasoning is mandatory'" in shell
+check("approval rejection releases reservations and keeps conditions",
+      t_approval_rejection_uses_controlled_run_cancellation_and_keeps_conditions)
+
 def t_collection_case_history_uses_recorded_events():
     import inspect
     from darkbrown.api import app
