@@ -16,6 +16,8 @@ ACCOUNT_REQUIREMENTS = (
      ("Current Liabilities", "Liabilities")),
     ("tenant_recharge", ("Tenant Recharge Income", "Tenant Recharges"), "Income",
      ("Direct Income", "Income")),
+    ("utility_recovery", ("Utility Recovery",), "Income",
+     ("Direct Income", "Income")),
     ("cheque_clearing", ("Cheques in Hand", "Cheque Clearing"), "Asset",
      ("Cash and Bank Accounts", "Current Assets", "Assets")),
 )

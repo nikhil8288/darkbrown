@@ -15,6 +15,7 @@ ACCOUNT_ROLES = {
     "head_lease_expense": ("Expense", ("Head Lease Rent",)),
     "security_deposit_liability": ("Liability", ("Security Deposits Held",)),
     "tenant_recharge": ("Income", ("Tenant Recharge Income", "Tenant Recharges")),
+    "utility_recovery": ("Income", ("Utility Recovery",)),
     "maintenance_expense": ("Expense", ("Building Maintenance",)),
     "cash_clearing": ("Asset", ("Cash Clearing", "Cash in Hand")),
     "cheque_clearing": ("Asset", ("Cheques in Hand", "Cheque Clearing")),
