@@ -2272,6 +2272,21 @@ def t_approval_rejection_uses_controlled_run_cancellation_and_keeps_conditions()
 check("approval rejection releases reservations and keeps conditions",
       t_approval_rejection_uses_controlled_run_cancellation_and_keeps_conditions)
 
+def t_building_pl_withholds_margin_when_head_lease_cost_is_missing():
+    import inspect
+    from darkbrown.api import reports
+    pack = inspect.getsource(reports._pl_by_building)
+    assert 'a.account_name == "Head Lease Rent"' in pack
+    assert 'def expects_head_lease_cost(building_name, month)' in pack
+    assert 'and abs(v["head_lease"]) < 0.005' in pack
+    assert '"Missing head-lease cost" if missing_cost' in pack
+    assert '_col("cost_status", "Cost status")' in pack
+    assert '"net": None if incomplete' in pack
+    assert '"margin": (None if incomplete or not inc' in pack
+    assert 'are withheld rather than presenting' in pack
+check("building P&L withholds false margin when lease cost is missing",
+      t_building_pl_withholds_margin_when_head_lease_cost_is_missing)
+
 def t_collection_case_history_uses_recorded_events():
     import inspect
     from darkbrown.api import app

@@ -129,16 +129,20 @@ def _pl_by_building(frm, to, building=None):
     if building:
         cost_centres = {k: v for k, v in cost_centres.items() if v == building}
 
-    rows_by = defaultdict(lambda: {"income": 0.0, "expense": 0.0})
+    rows_by = defaultdict(
+        lambda: {"income": 0.0, "expense": 0.0, "head_lease": 0.0})
     gl = frappe.get_all(
         "GL Entry",
         filters={"is_cancelled": 0, "company": company,
                  "posting_date": ["between", [frm, to]]},
         fields=["account", "cost_center", "debit", "credit", "posting_date"],
         limit=50000)
-    roots = {a.name: a.root_type for a in frappe.get_all(
+    accounts = frappe.get_all(
         "Account", filters={"company": company},
-        fields=["name", "root_type"])}
+        fields=["name", "root_type", "account_name"])
+    roots = {a.name: a.root_type for a in accounts}
+    head_lease_accounts = {
+        a.name for a in accounts if a.account_name == "Head Lease Rent"}
 
     for e in gl:
         b = cost_centres.get(e.cost_center)
@@ -149,7 +153,29 @@ def _pl_by_building(frm, to, building=None):
         if root == "Income":
             rows_by[(b, month)]["income"] += flt(e.credit) - flt(e.debit)
         elif root == "Expense":
-            rows_by[(b, month)]["expense"] += flt(e.debit) - flt(e.credit)
+            amount = flt(e.debit) - flt(e.credit)
+            rows_by[(b, month)]["expense"] += amount
+            if e.account in head_lease_accounts:
+                rows_by[(b, month)]["head_lease"] += amount
+
+    leases = defaultdict(list)
+    for lease in frappe.get_all(
+            "Head Lease",
+            filters={"status": ["in", ("Active", "Expiring", "Expired")]},
+            fields=["building", "start_date", "end_date", "annual_rent",
+                    "rent_free_days"]):
+        leases[lease.building].append(lease)
+
+    def expects_head_lease_cost(building_name, month):
+        month_start = getdate(month)
+        month_end = get_last_day(month_start)
+        for lease in leases.get(building_name, []):
+            charge_start = add_days(
+                getdate(lease.start_date), int(lease.rent_free_days or 0))
+            if (flt(lease.annual_rent) > 0 and charge_start <= month_end
+                    and getdate(lease.end_date) >= month_start):
+                return True
+        return False
 
     # Overhead does not post to a building and never should; it is divided
     # here so the margin is what the building actually earns the company
@@ -168,29 +194,40 @@ def _pl_by_building(frm, to, building=None):
 
     rows = []
     for (b, month) in sorted(keys):
-        v = rows_by.get((b, month), {"income": 0.0, "expense": 0.0})
+        v = rows_by.get((b, month),
+                        {"income": 0.0, "expense": 0.0, "head_lease": 0.0})
         overhead = flt(alloc.get("%s|%s" % (b, month[:7]), 0.0))
-        net = v["income"] - v["expense"] - overhead
+        missing_cost = (v["income"] > 0
+                        and expects_head_lease_cost(b, month)
+                        and abs(v["head_lease"]) < 0.005)
+        net = None if missing_cost else v["income"] - v["expense"] - overhead
         rows.append({"building": b, "month": month[:7],
                      "income": round(v["income"], 2),
                      "expense": round(v["expense"], 2),
                      "overhead": round(overhead, 2),
-                     "net": round(net, 2),
-                     "margin": round(net / v["income"] * 100, 1)
-                     if v["income"] else None})
+                     "cost_status": ("Missing head-lease cost" if missing_cost
+                                     else "Complete" if v["income"]
+                                     else "No revenue"),
+                     "net": round(net, 2) if net is not None else None,
+                     "margin": (round(net / v["income"] * 100, 1)
+                                if v["income"] and net is not None else None)})
 
     cols = [_col("building", "Building"), _col("month", "Month"),
             _col("income", "Revenue", "money"),
             _col("expense", "Direct cost", "money"),
             _col("overhead", "Allocated overhead", "money"),
+            _col("cost_status", "Cost status"),
             _col("net", "Net", "money"), _col("margin", "Margin", "percent")]
     inc = sum(r["income"] for r in rows)
     exp = sum(r["expense"] for r in rows)
     ovh = sum(r["overhead"] for r in rows)
+    incomplete = any(r["cost_status"] == "Missing head-lease cost" for r in rows)
     totals = {"income": round(inc, 2), "expense": round(exp, 2),
               "overhead": round(ovh, 2),
-              "net": round(inc - exp - ovh, 2),
-              "margin": round((inc - exp - ovh) / inc * 100, 1) if inc else None}
+              "cost_status": "Incomplete" if incomplete else "Complete",
+              "net": None if incomplete else round(inc - exp - ovh, 2),
+              "margin": (None if incomplete or not inc
+                         else round((inc - exp - ovh) / inc * 100, 1))}
     note = ("Direct cost is what posted to the building's own cost centre. "
             "Allocated overhead is the company's common cost divided by "
             "head-lease weight across the buildings that were live that "
@@ -203,10 +240,11 @@ def _pl_by_building(frm, to, building=None):
                 "and no overhead to divide. A posting with no cost centre "
                 "cannot be attributed to a building and is left out rather "
                 "than spread across them.")
-    elif not any(r["expense"] for r in rows):
-        note += ("No direct cost is posted in this window, so the margins are "
-                 "revenue less overhead only. Revenue without its lease cost "
-                 "is not a margin.")
+    elif incomplete:
+        note += ("One or more revenue rows have an active, chargeable head "
+                 "lease but no Head Lease Rent posting. Their net and margin, "
+                 "and the report totals, are withheld rather than presenting "
+                 "revenue less incomplete cost as profit.")
     return _pack("pl_by_building", cols, rows, totals, note)
 
 
