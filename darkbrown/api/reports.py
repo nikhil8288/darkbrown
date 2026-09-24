@@ -368,14 +368,23 @@ def _spread(frm, to, building=None):
 def _arrears(frm, to, building=None):
     as_on = getdate(to)
     buildings = _buildings()
+    filters = {"docstatus": 1, "outstanding_amount": [">", 0],
+               "posting_date": ["<=", str(as_on)]}
+    if building:
+        cost_center = frappe.db.get_value("Building", building, "cost_center")
+        if not cost_center:
+            return _pack(
+                "arrears", [], [], {},
+                "%s has no cost centre, so its receivables cannot be scoped."
+                % building)
+        filters["cost_center"] = cost_center
     rows = []
     for si in frappe.get_all(
             "Sales Invoice",
-            filters={"docstatus": 1, "outstanding_amount": [">", 0],
-                     "posting_date": ["<=", str(as_on)]},
+            filters=filters,
             fields=["name", "customer", "posting_date", "due_date",
                     "outstanding_amount", "grand_total", "cost_center",
-                    "remarks"], limit=20000):
+                    "remarks", "custom_rental_agreement"], limit=20000):
         due = getdate(si.due_date or si.posting_date)
         age = (as_on - due).days
         bucket = ("current" if age <= 0 else "b30" if age <= 30
@@ -384,7 +393,18 @@ def _arrears(frm, to, building=None):
         # real building name is exact; guessing at the shape of the segment is
         # not, and would mislabel every invoice from a differently named one.
         unit = ""
+        if si.custom_rental_agreement:
+            unit_name = frappe.db.get_value(
+                "Tenancy Agreement", si.custom_rental_agreement, "unit")
+            if unit_name:
+                unit_row = frappe.db.get_value(
+                    "Unit", unit_name, ["building", "unit_no"], as_dict=True)
+                if unit_row:
+                    unit = "%s %s" % (unit_row.building,
+                                      unit_row.unit_no or unit_name)
         for part in (si.remarks or "").split("|"):
+            if unit:
+                break
             part = part.strip()
             if any(part.startswith(b + " ") or part == b for b in buildings):
                 unit = part
@@ -408,7 +428,9 @@ def _arrears(frm, to, building=None):
             _col("total", "Total", "money")]
     totals = {k: round(sum(r[k] for r in rows), 2)
               for k in ("current", "b30", "b60", "b90", "b90p", "total")}
-    note = "" if rows else "Nothing is outstanding as at %s." % as_on
+    note = (("Point-in-time receivables as at %s; the From date does not "
+             "exclude older unpaid invoices." % as_on) if rows else
+            "Nothing is outstanding as at %s." % as_on)
     return _pack("arrears", cols, rows, totals, note)
 
 

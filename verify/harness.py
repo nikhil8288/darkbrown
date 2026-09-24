@@ -2308,6 +2308,18 @@ def t_spread_withholds_profit_until_accrued_lease_cost_is_posted():
 check("spread withholds profit until accrued lease cost is fully posted",
       t_spread_withholds_profit_until_accrued_lease_cost_is_posted)
 
+def t_arrears_uses_tenancy_units_and_applies_building_scope():
+    import inspect
+    from darkbrown.api import reports
+    pack = inspect.getsource(reports._arrears)
+    assert 'filters["cost_center"] = cost_center' in pack
+    assert '"custom_rental_agreement"' in pack
+    assert '"Tenancy Agreement", si.custom_rental_agreement, "unit"' in pack
+    assert '"Unit", unit_name, ["building", "unit_no"]' in pack
+    assert 'Point-in-time receivables as at' in pack
+check("arrears shows tenancy units and honours building scope",
+      t_arrears_uses_tenancy_units_and_applies_building_scope)
+
 def t_collection_case_history_uses_recorded_events():
     import inspect
     from darkbrown.api import app
