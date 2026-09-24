@@ -3363,8 +3363,59 @@ function parseStmt(text){
   return out;
 }
 
+function utilityTenancies(d){
+  const bid=wBld(d.building);
+  return AGR.filter(a=>a.b===bid&&['Active','Expiring'].includes(a.st));
+}
+function utilityAllocations(d){
+  return utilityTenancies(d).map(a=>({
+    unit:a.u,
+    amount:d.basis==='Manual'?wNum(d['ua_'+a.u]):0,
+    consumption:d.basis==='Sub-Meter'?wNum(d['uc_'+a.u]):0
+  })).filter(x=>d.basis!=='Manual'||x.amount>0);
+}
+
 /* ---------- form definitions ---------- */
 const FORMS={
+
+'record-utility':{t:'Record utility bill',s:'Provider bill · tenant recovery allocation',cta:'Record bill',
+ init:()=>({type:'Kahramaa',basis:'Equal Split',start:periodStart(),end:ISO(TODAY)}),
+ steps:[
+  {n:'Bill',body:d=>`<p class="pp">This records the provider bill and prepares the tenant shares.
+    It does not post income or touch the ledger. Recovery is billed only through the next approved invoice run.</p>
+   <div class="fg">
+    ${fld({k:'building',l:'Building',t:'sel',o:BUILDINGS.map(b=>b.n),req:1,live:1},d.building)}
+    ${fld({k:'type',l:'Utility',t:'sel',o:['Kahramaa','Water','Gas'],req:1},d.type)}
+    ${fld({k:'billno',l:'Provider bill number',t:'txt',p:'e.g. KM-2026-00921',req:1},d.billno)}
+    ${fld({k:'start',l:'Period start',t:'date',req:1},d.start)}
+    ${fld({k:'end',l:'Period end',t:'date',req:1},d.end)}
+    ${fld({k:'amount',l:'Bill amount (QAR)',t:'num',step:'0.01',req:1,live:1},d.amount)}
+    ${fld({k:'consumption',l:'Provider consumption',t:'num',step:'0.001'},d.consumption)}
+    ${fld({k:'scan',l:'Bill scan',t:'file',hint:'Optional private PDF, JPG or PNG'},d.scan)}
+   </div>`,
+   fields:[{k:'building',req:1},{k:'type',req:1},{k:'billno',req:1},
+     {k:'start',req:1},{k:'end',req:1},{k:'amount',req:1}],
+   check:d=>+d.amount>0&&d.start<=d.end&&d.end<=ISO(TODAY),
+   msg:'Use a positive amount and a bill period ending today or earlier.'},
+  {n:'Allocation',body:d=>{const rows=utilityTenancies(d),amt=wNum(d.amount);
+    return `<div class="fg">${fld({k:'basis',l:'Allocation basis',t:'sel',
+      o:['Equal Split','Area','Sub-Meter','Manual'],req:1,live:1},d.basis)}</div>
+    ${rows.length?`<div class="tw"><table><tr><th>Unit</th><th>Tenant</th>
+      <th class="r">${d.basis==='Sub-Meter'?'Reading':d.basis==='Manual'?'Amount':'Share'}</th></tr>
+      ${rows.map((a,i)=>`<tr><td>${esc(a.u)}</td><td>${esc(a.tn)}</td><td class="r">
+       ${d.basis==='Sub-Meter'?fld({k:'uc_'+a.u,l:'Consumption',t:'num',step:'0.001'},d['uc_'+a.u]):
+         d.basis==='Manual'?fld({k:'ua_'+a.u,l:'QAR',t:'num',step:'0.01'},d['ua_'+a.u]):
+         `<span class="num">${d.basis==='Equal Split'&&rows.length?n0(amt/rows.length):
+           d.basis==='Area'?n0(amt*(U(a.u)?.sqm||0)/rows.reduce((s,x)=>s+(U(x.u)?.sqm||0),0)):'—'}</span>`}
+       </td></tr>`).join('')}</table></div>`:
+      `<div class="note" style="border-left-color:var(--red)"><b>No live tenancies.</b>
+       The bill cannot be allocated until the building has an active tenancy.</div>`}
+    <div class="note">Equal split and area calculate the shares on the server. Sub-meter uses the readings above.
+      Manual allocation may leave a common-area balance for the landlord to absorb.</div>`},
+   fields:[{k:'basis',req:1}],
+   check:d=>utilityTenancies(d).length>0,
+   msg:'The selected building needs at least one live tenancy for this bill period.'}],
+ submit:()=>({title:'Nothing was saved',msg:'This form needs the server'})},
 
 'head-lease-accrual':{t:'Draft landlord accrual',
  s:'Monthly Head Lease expense · saved as a draft Purchase Invoice',
@@ -4752,13 +4803,13 @@ ROUTES.utilities=()=>{
   const d=c.data, rows=d.rows||[];
   if(!rows.length) return page('Utilities',
     'Kahramaa billing against tenant recovery',
-    fbtn('Upload for review','upload-docs'),
+    fbtn('Record utility bill','record-utility')+fbtn('Upload for review','upload-docs'),
     `<div class="card">${empty('No utility bill has been entered for this period. '+
       'Nothing is billed, nothing is allocated, and nothing is outstanding — '+
       'which is a different thing from a recovery rate of zero.')}</div>`);
   return page('Utilities',
    `${d.bills} bill${d.bills===1?'':'s'} \u00b7 ${d.from} to ${d.to} \u00b7 one consolidated recovery invoice per tenant per month`,
-   fbtn('Upload for review','upload-docs'),
+   fbtn('Record utility bill','record-utility')+fbtn('Upload for review','upload-docs'),
    stat([['Billed to us',n0(d.billed)],['Allocated',n0(d.allocated)],
     ['Recovered',n0(d.recovered),'invoiced to tenants','g'],
     ['Recovery rate',d.rate+'%','',d.rate>=90?'g':d.rate>=75?'a':'r'],
@@ -9351,6 +9402,31 @@ const W_DOCTYPE={'Auto-detect':'Unknown','Cheque batch':'Cheque Batch','Tenant c
  'Landlord contract':'Building Agreement','QID':'QID','Passport':'Passport','Utility invoice':'Utility Bill'};
 
 const WIRE={
+
+'record-utility':{
+ pre:1,
+ guard:d=>{
+   const rows=utilityTenancies(d);
+   if(!rows.length) return 'The selected building has no live tenancy to allocate.';
+   if(d.basis==='Sub-Meter'&&utilityAllocations(d).reduce((s,x)=>s+x.consumption,0)<=0)
+     return 'Enter the unit readings before saving a sub-meter allocation.';
+   if(d.basis==='Manual'){
+     const used=utilityAllocations(d).reduce((s,x)=>s+x.amount,0);
+     if(used<=0) return 'Enter at least one tenant amount for a manual allocation.';
+     if(used>wNum(d.amount)+0.005) return 'Manual tenant shares exceed the provider bill.';
+   }
+   return null},
+ m:'utilities.record_bill',
+ a:d=>({payload:{building:wBld(d.building),utility_type:d.type,
+   bill_no:d.billno,period_start:d.start,period_end:d.end,
+   amount:wNum(d.amount),consumption:wNum(d.consumption),
+   allocation_basis:d.basis,allocations:utilityAllocations(d),
+   bill_scan:d.__url||null}}),
+ ok:r=>({title:'Utility bill recorded',msg:r.bill+' · QAR '+n0(r.allocated)+' allocated',
+   detail:r.tenants+' tenant share'+(r.tenants===1?'':'s')+
+     (r.unallocated?' · QAR '+n0(r.unallocated)+' remains with the landlord':'')+
+     ' · recovery waits for the next approved invoice run',
+   goto:'#/utilities'})},
 
 'head-lease-accrual':{
  m:'finance.build_head_lease_payable',

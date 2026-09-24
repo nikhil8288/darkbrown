@@ -11,6 +11,7 @@
   "share_pct",
   "consumption",
   "amount",
+  "invoice_run",
   "sales_invoice"
  ],
  "fields": [
@@ -52,6 +53,14 @@
    "options": "QAR",
    "reqd": 1,
    "in_list_view": 1,
+   "columns": 2
+  },
+  {
+   "fieldname": "invoice_run",
+   "fieldtype": "Link",
+   "label": "Queued On",
+   "options": "Invoice Run",
+   "read_only": 1,
    "columns": 2
   },
   {

@@ -82,6 +82,9 @@ def reset():
                    {'name':'Tenant Recharge Income - DB',
                     'account_name':'Tenant Recharge Income','is_group':0,
                     'company':'DarkBrown RealEstate'},
+                   {'name':'Utility Recovery - DB',
+                    'account_name':'Utility Recovery','root_type':'Income',
+                    'is_group':0,'company':'DarkBrown RealEstate'},
                    {'name':'Cash - DB','account_name':'Cash','account_type':'Cash',
                     'root_type':'Asset','is_group':0,'disabled':0,
                     'company':'DarkBrown RealEstate'}],
@@ -1996,6 +1999,87 @@ def t_maintenance_status_rules_and_recharge_handoff_are_wired():
     assert "window.DB_LIVE?'Ledger reversal':'Credit note'" in shell
 check("maintenance status, audit and tenant-recharge lifecycle are wired",
       t_maintenance_status_rules_and_recharge_handoff_are_wired)
+
+def _utility_fixture():
+    reset()
+    S.DB['Unit'] = [
+        {'name':'UNIT-1','building':'Al Sadd','status':'Occupied','area_sqm':60},
+        {'name':'UNIT-2','building':'Al Sadd','status':'Occupied','area_sqm':40},
+    ]
+    S.DB['Tenancy Agreement'] = [
+        {'name':'TA-U1','building':'Al Sadd','unit':'UNIT-1','tenant':'CUST-001',
+         'status':'Active','start_date':'2026-01-01','end_date':'2026-12-31',
+         'monthly_rent':5000,'payment_frequency':'Monthly'},
+        {'name':'TA-U2','building':'Al Sadd','unit':'UNIT-2','tenant':'CUST-002',
+         'status':'Active','start_date':'2026-01-01','end_date':'2026-12-31',
+         'monthly_rent':4500,'payment_frequency':'Monthly'},
+    ]
+    S.DB['Utility Bill'] = []
+    S.DB['Utility Bill Allocation'] = []
+
+def t_utility_bill_capture_allocates_without_posting_income():
+    _utility_fixture()
+    from darkbrown.api import utilities
+    result = utilities.record_bill(json.dumps({
+        'building':'Al Sadd','utility_type':'Kahramaa',
+        'bill_no':'KM-TEST-001','period_start':'2026-09-01',
+        'period_end':'2026-09-23','amount':1000,
+        'consumption':2500,'allocation_basis':'Area'}))
+    assert result['status'] == 'Allocated', result
+    assert result['allocated'] == 1000, result
+    bill = S.DB['Utility Bill'][0]
+    assert [r['amount'] for r in bill['allocations']] == [600, 400], bill
+    assert [r['tenant'] for r in bill['allocations']] == ['CUST-001','CUST-002']
+    assert not [c for c in S.CALLS if c[1:2] in (('Sales Invoice',),
+                                                  ('Journal Entry',))]
+check("utility capture validates and allocates without touching the ledger",
+      t_utility_bill_capture_allocates_without_posting_income)
+
+def t_manual_utility_allocation_refuses_cross_building_units():
+    _utility_fixture()
+    S.DB['Unit'].append({'name':'OTHER-1','building':'Other','status':'Occupied'})
+    from darkbrown.api import utilities
+    try:
+        utilities.record_bill(json.dumps({
+            'building':'Al Sadd','utility_type':'Water','bill_no':'W-TEST-001',
+            'period_start':'2026-09-01','period_end':'2026-09-23','amount':500,
+            'allocation_basis':'Manual',
+            'allocations':[{'unit':'OTHER-1','amount':500}]}))
+        assert False, 'cross-building utility allocation was accepted'
+    except S.ValidationError:
+        assert 'no live tenancy in this building' in S.THROWN[-1], S.THROWN[-1]
+check("manual utility allocations cannot cross the building boundary",
+      t_manual_utility_allocation_refuses_cross_building_units)
+
+def t_utility_recovery_is_reserved_for_the_governed_invoice_run():
+    _utility_fixture()
+    S.DB['Tenancy Agreement'] = S.DB['Tenancy Agreement'][:1]
+    S.DB['Utility Bill'].append({
+        'name':'UB-1','building':'Al Sadd','utility_type':'Kahramaa',
+        'bill_no':'KM-TEST-002','status':'Allocated',
+        'period_end':'2026-09-23','amount':700})
+    S.DB['Utility Bill Allocation'].append({
+        'name':'UBA-1','parent':'UB-1','unit':'UNIT-1','tenant':'CUST-001',
+        'amount':700,'invoice_run':None,'sales_invoice':None})
+    from darkbrown.api import finance
+    made = finance.build_invoice_run('Al Sadd','2026-09-01')
+    run = S.DB['Invoice Run'][0]
+    charges = json.loads(run['lines'][0]['charge_snapshot'])
+    utility = next(c for c in charges
+                   if c.get('source_doctype') == 'Utility Bill Allocation')
+    assert utility['source_name'] == 'UBA-1', utility
+    assert utility['amount'] == 700, utility
+    assert S.DB['Utility Bill Allocation'][0]['invoice_run'] == made['run']
+    shell = open(REPO + '/darkbrown/shell/index.html').read()
+    assert "m:'utilities.record_bill'" in shell
+    assert "fbtn('Record utility bill','record-utility')" in shell
+    from darkbrown.utils import invoice_run
+    import inspect
+    cancellation = inspect.getsource(invoice_run.on_sales_invoice_cancel)
+    assert 'source == "Utility Bill Allocation"' in cancellation
+    assert '"status", "Allocated"' in cancellation
+check("utility recovery is reserved for an approved invoice run and reversible",
+      t_utility_recovery_is_reserved_for_the_governed_invoice_run)
 
 def t_cancelled_invoice_and_replacement_audit_is_visible():
     import inspect

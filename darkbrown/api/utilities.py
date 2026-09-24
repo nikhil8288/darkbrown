@@ -12,8 +12,10 @@ never billed, and that is exactly the number this screen exists to show.
 """
 
 import frappe
+from frappe import _
 from frappe.utils import flt, getdate, today, add_months
-from darkbrown.guards import guard, ACC, DOC, GM, MD, MNT
+from darkbrown.guards import guard, ACC, GM, MD, MNT
+from darkbrown.permissions import require_building_access, require_file_access
 
 #: How far back the screen reads. Long enough to see a variance develop.
 MONTHS = 6
@@ -56,6 +58,151 @@ def _recovered(bills):
     return billed_out, invoiced
 
 
+def _live_tenancies(building, on_date):
+    rows = frappe.get_all(
+        "Tenancy Agreement",
+        filters={"building": building,
+                 "status": ["in", ("Active", "Expiring")]},
+        fields=["name", "tenant", "unit", "start_date", "end_date"],
+        order_by="unit asc")
+    on_date = getdate(on_date)
+    return [r for r in rows
+            if r.unit and r.tenant
+            and (not r.start_date or getdate(r.start_date) <= on_date)
+            and (not r.end_date or getdate(r.end_date) >= on_date)]
+
+
+def _weighted_allocations(data, tenancies, amount):
+    """Return auditable allocation rows without trusting client party data."""
+    basis = data.get("allocation_basis") or "Equal Split"
+    by_unit = {r.unit: r for r in tenancies}
+    supplied = data.get("allocations") or []
+    if basis == "Manual":
+        seen, out = set(), []
+        for item in supplied:
+            unit = item.get("unit")
+            if unit in seen:
+                frappe.throw(_("Unit {0} is listed twice.").format(unit))
+            seen.add(unit)
+            tenancy = by_unit.get(unit)
+            if not tenancy:
+                frappe.throw(_(
+                    "{0} has no live tenancy in this building for the bill period."
+                ).format(unit or "An allocation"))
+            value = flt(item.get("amount"), 2)
+            if value <= 0:
+                frappe.throw(_("Every manual allocation needs a positive amount."))
+            out.append({"unit": unit, "tenant": tenancy.tenant,
+                        "amount": value, "consumption": flt(
+                            item.get("consumption"), 3)})
+        if not out:
+            frappe.throw(_("A manual allocation needs at least one unit."))
+    else:
+        if not tenancies:
+            frappe.throw(_(
+                "This building has no live tenancies for the bill period."))
+        if basis == "Equal Split":
+            weights = {r.unit: 1.0 for r in tenancies}
+        elif basis == "Area":
+            weights = {r.unit: flt(frappe.db.get_value(
+                "Unit", r.unit, "area_sqm")) for r in tenancies}
+            if any(v <= 0 for v in weights.values()):
+                frappe.throw(_(
+                    "Every occupied unit needs an area before an area allocation."))
+        elif basis == "Sub-Meter":
+            readings = {x.get("unit"): flt(x.get("consumption"), 3)
+                        for x in supplied}
+            weights = {r.unit: readings.get(r.unit, 0.0) for r in tenancies}
+            if any(v < 0 for v in weights.values()) or sum(weights.values()) <= 0:
+                frappe.throw(_(
+                    "Sub-meter allocation needs non-negative readings and a positive total."))
+        else:
+            frappe.throw(_("Unsupported utility allocation basis: {0}.").format(basis))
+
+        total_weight = sum(weights.values())
+        out, used = [], 0.0
+        for i, tenancy in enumerate(tenancies):
+            value = (round(amount - used, 2) if i == len(tenancies) - 1
+                     else round(amount * weights[tenancy.unit] / total_weight, 2))
+            used += value
+            out.append({"unit": tenancy.unit, "tenant": tenancy.tenant,
+                        "amount": value,
+                        "consumption": (weights[tenancy.unit]
+                                        if basis == "Sub-Meter" else 0.0)})
+
+    allocated = round(sum(x["amount"] for x in out), 2)
+    if allocated > amount + 0.005:
+        frappe.throw(_("Allocations exceed the bill amount."))
+    for row in out:
+        row["share_pct"] = round(
+            row["amount"] / allocated * 100, 4) if allocated else 0
+    return out
+
+
+@frappe.whitelist()
+def record_bill(payload):
+    """Capture a provider bill and its tenant recovery allocation.
+
+    The bill itself does not touch the ledger. Allocations are queued into the
+    next governed invoice run and become recoveries only after that run is
+    approved and its Sales Invoices are submitted.
+    """
+    guard(MD, GM, ACC)
+    data = frappe.parse_json(payload)
+    building = data.get("building")
+    require_building_access(building)
+    if not building or not frappe.db.exists("Building", building):
+        frappe.throw(_("Choose an existing building."))
+
+    utility_type = data.get("utility_type") or "Kahramaa"
+    if utility_type not in ("Kahramaa", "Water", "Gas"):
+        frappe.throw(_("Unsupported utility type."))
+    bill_no = str(data.get("bill_no") or "").strip()
+    if not bill_no:
+        frappe.throw(_("A utility bill needs the provider bill number."))
+    if frappe.db.exists("Utility Bill", {
+            "building": building, "utility_type": utility_type,
+            "bill_no": bill_no, "status": ["!=", "Cancelled"]}):
+        frappe.throw(_("That provider bill is already on the register."))
+
+    if not data.get("period_start") or not data.get("period_end"):
+        frappe.throw(_("A utility bill needs both period dates."))
+    period_start, period_end = (getdate(data.get("period_start")),
+                                getdate(data.get("period_end")))
+    if period_start > period_end:
+        frappe.throw(_("The utility period cannot end before it starts."))
+    if period_end > getdate(today()):
+        frappe.throw(_("A utility bill period cannot end in the future."))
+    amount = flt(data.get("amount"), 2)
+    if amount <= 0:
+        frappe.throw(_("A utility bill amount must be greater than zero."))
+
+    bill_scan = data.get("bill_scan")
+    if bill_scan:
+        require_file_access(bill_scan)
+    basis = data.get("allocation_basis") or "Equal Split"
+    tenancies = _live_tenancies(building, period_end)
+    allocations = _weighted_allocations(data, tenancies, amount)
+    company = (frappe.db.get_single_value("DBR Settings", "default_company")
+               or frappe.db.get_value("Company", {}, "name"))
+    doc = frappe.get_doc({
+        "doctype": "Utility Bill", "building": building,
+        "utility_type": utility_type, "status": "Allocated",
+        "company": company, "bill_no": bill_no,
+        "period_start": period_start, "period_end": period_end,
+        "amount": amount, "consumption": flt(data.get("consumption"), 3),
+        "bill_scan": bill_scan, "allocation_basis": basis,
+    })
+    for row in allocations:
+        doc.append("allocations", row)
+    doc.flags.ignore_mandatory = True
+    doc.insert(ignore_permissions=True)
+    return {"bill": doc.name, "status": doc.status,
+            "allocated": round(sum(x["amount"] for x in allocations), 2),
+            "unallocated": round(amount - sum(x["amount"] for x in allocations), 2),
+            "tenants": len(allocations)}
+
+
 @frappe.whitelist()
 def overview(months=None):
     """Per-building billed, allocated and recovered over the window.
@@ -64,7 +211,7 @@ def overview(months=None):
     entered — a portfolio with no utility bills on it is a real state, and
     the screen says so instead of showing five noughts as if it had looked.
     """
-    guard(MD, GM, ACC, DOC, MNT)
+    guard(MD, GM, ACC, MNT)
     frm, to = _period(months)
     bills = _bill_rows(frm, to)
     if not bills:
@@ -135,7 +282,7 @@ def overview(months=None):
 @frappe.whitelist()
 def bills(building=None, months=None):
     """The bills themselves, for the building workspace and for drilling in."""
-    guard(MD, GM, ACC, DOC, MNT)
+    guard(MD, GM, ACC, MNT)
     frm, to = _period(months)
     rows = _bill_rows(frm, to)
     if building:
@@ -164,7 +311,7 @@ def bills(building=None, months=None):
 @frappe.whitelist()
 def meters(building=None):
     """Meters on a building, so an unmetered unit is visible as one."""
-    guard(MD, GM, ACC, DOC, MNT)
+    guard(MD, GM, ACC, MNT)
     filters = {}
     if building:
         filters["building"] = building

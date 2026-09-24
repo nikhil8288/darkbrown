@@ -476,6 +476,17 @@ def _maintenance_recharge_account(company):
             "recharges."))
     return account
 
+
+def _utility_recovery_account(company):
+    account = frappe.db.get_value(
+        "Account", {"company": company,
+                    "account_name": "Utility Recovery",
+                    "root_type": "Income", "is_group": 0}, "name")
+    if not account:
+        frappe.throw(_(
+            "Configure Utility Recovery before billing tenant utility shares."))
+    return account
+
 @frappe.whitelist()
 def build_invoice_run(building, period_start=None):
     """Draft a month of rent for one building.
@@ -528,6 +539,25 @@ def build_invoice_run(building, period_start=None):
                            if maintenance else None)
     queued_recharges = set()
 
+    utility_bills = frappe.get_all(
+        "Utility Bill",
+        filters={"building": building,
+                 "status": ["in", ("Allocated", "Recovered")],
+                 "period_end": ["<=", end]},
+        fields=["name", "bill_no", "utility_type", "period_end"],
+        order_by="period_end asc, creation asc")
+    utility_by_name = {b.name: b for b in utility_bills}
+    utility_allocations = (frappe.get_all(
+        "Utility Bill Allocation",
+        filters={"parent": ["in", list(utility_by_name)],
+                 "sales_invoice": ["is", "not set"],
+                 "invoice_run": ["is", "not set"]},
+        fields=["name", "parent", "unit", "tenant", "amount"])
+        if utility_by_name else [])
+    utility_account = (_utility_recovery_account(_company())
+                       if utility_allocations else None)
+    queued_utility = set()
+
     total, variance_seen = 0, False
     for a in agreements:
         window = _billing_window(a, start)
@@ -561,6 +591,22 @@ def build_invoice_run(building, period_start=None):
                 "source_name": job.name,
             })
             queued_recharges.add(job.name)
+        for allocation in utility_allocations:
+            if not (allocation.tenant == a.tenant and allocation.unit == a.unit):
+                continue
+            bill = utility_by_name.get(allocation.parent)
+            snapshots.append({
+                "type": "Utility Recovery",
+                "amount": flt(allocation.amount, 2),
+                "income_account": utility_account,
+                "remarks": "{0} — {1} {2}".format(
+                    allocation.parent,
+                    (bill.utility_type if bill else "Utility"),
+                    (bill.bill_no if bill else "bill")),
+                "source_doctype": "Utility Bill Allocation",
+                "source_name": allocation.name,
+            })
+            queued_utility.add(allocation.name)
         amount = flt(agreed + sum(x["amount"] for x in snapshots), 2)
         variance = flt(amount - agreed, 2)
         if variance:
@@ -589,6 +635,9 @@ def build_invoice_run(building, period_start=None):
             "recharge_status": "Queued",
             "recharge_invoice_run": run.name,
         })
+    for allocation in queued_utility:
+        frappe.db.set_value("Utility Bill Allocation", allocation,
+                            "invoice_run", run.name)
     return {"run": run.name, "lines": len(run.lines), "total": _kk(total)}
 
 
@@ -726,7 +775,7 @@ def _rent_invoice(run, line):
          "docstatus": ["<", 2]}, "name")
     snapshots = frappe.parse_json(line.charge_snapshot or "[]")
     if existing:
-        _mark_maintenance_recharges(snapshots, run.name, existing)
+        _mark_source_recharges(snapshots, run.name, existing)
         return existing
     item = _rent_item()
     items = [{
@@ -771,26 +820,44 @@ def _rent_invoice(run, line):
     si.flags.ignore_permissions = True
     si.insert(ignore_permissions=True)
     si.submit()
-    _mark_maintenance_recharges(snapshots, run.name, si.name)
+    _mark_source_recharges(snapshots, run.name, si.name)
     return si.name
 
 
-def _mark_maintenance_recharges(snapshots, run_name, invoice):
+def _mark_source_recharges(snapshots, run_name, invoice):
     for charge in snapshots:
-        if charge.get("source_doctype") != "Maintenance Request" or \
-                not charge.get("source_name"):
+        source = charge.get("source_doctype")
+        name = charge.get("source_name")
+        if not name:
             continue
-        job = charge["source_name"]
-        queued_run = frappe.db.get_value(
-            "Maintenance Request", job, "recharge_invoice_run")
-        if queued_run != run_name:
-            frappe.throw(_(
-                "Maintenance recharge {0} is reserved by another invoice "
-                "run.").format(job))
-        frappe.db.set_value("Maintenance Request", job, {
-            "recharge_status": "Invoiced",
-            "recharge_invoice": invoice,
-        })
+        if source == "Maintenance Request":
+            queued_run = frappe.db.get_value(
+                "Maintenance Request", name, "recharge_invoice_run")
+            if queued_run != run_name:
+                frappe.throw(_(
+                    "Maintenance recharge {0} is reserved by another invoice "
+                    "run.").format(name))
+            frappe.db.set_value("Maintenance Request", name, {
+                "recharge_status": "Invoiced",
+                "recharge_invoice": invoice,
+            })
+        elif source == "Utility Bill Allocation":
+            queued_run = frappe.db.get_value(
+                "Utility Bill Allocation", name, "invoice_run")
+            if queued_run != run_name:
+                frappe.throw(_(
+                    "Utility allocation {0} is reserved by another invoice "
+                    "run.").format(name))
+            parent = frappe.db.get_value(
+                "Utility Bill Allocation", name, "parent")
+            frappe.db.set_value("Utility Bill Allocation", name,
+                                "sales_invoice", invoice)
+            if parent and not frappe.db.count(
+                    "Utility Bill Allocation",
+                    filters={"parent": parent,
+                             "sales_invoice": ["is", "not set"]}):
+                frappe.db.set_value("Utility Bill", parent,
+                                    "status", "Recovered")
 
 
 @frappe.whitelist()

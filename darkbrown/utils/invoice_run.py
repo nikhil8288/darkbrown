@@ -19,16 +19,29 @@ def on_sales_invoice_cancel(doc, method=None):
     parents = set()
     for line in lines:
         for charge in frappe.parse_json(line.charge_snapshot or "[]"):
-            if charge.get("source_doctype") != "Maintenance Request" or \
-                    not charge.get("source_name"):
+            source = charge.get("source_doctype")
+            name = charge.get("source_name")
+            if not name:
                 continue
-            job = charge["source_name"]
-            if frappe.db.get_value(
-                    "Maintenance Request", job, "recharge_invoice") == doc.name:
-                frappe.db.set_value("Maintenance Request", job, {
+            if source == "Maintenance Request" and frappe.db.get_value(
+                    "Maintenance Request", name,
+                    "recharge_invoice") == doc.name:
+                frappe.db.set_value("Maintenance Request", name, {
                     "recharge_status": "Queued",
                     "recharge_invoice": None,
                 }, update_modified=False)
+            elif source == "Utility Bill Allocation" and frappe.db.get_value(
+                    "Utility Bill Allocation", name,
+                    "sales_invoice") == doc.name:
+                parent = frappe.db.get_value(
+                    "Utility Bill Allocation", name, "parent")
+                frappe.db.set_value(
+                    "Utility Bill Allocation", name, "sales_invoice", None,
+                    update_modified=False)
+                if parent:
+                    frappe.db.set_value(
+                        "Utility Bill", parent, "status", "Allocated",
+                        update_modified=False)
         frappe.db.set_value(
             "Invoice Run Line", line.name, "sales_invoice", None,
             update_modified=False,
