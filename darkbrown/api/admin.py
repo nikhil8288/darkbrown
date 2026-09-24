@@ -18,6 +18,7 @@ from frappe import _
 
 LOG_KEY = "darkbrown:demo:log"
 STATE_KEY = "darkbrown:demo:state"
+WRITE_CONFIRM = "MODIFY DARKBROWN DATA"
 ACTIONS = ("purge", "seed", "verify", "rebuild",
            # Stage 0 of the rebuild. check and gate write nothing; run is
            # gated on the same confirmation phrase as purge.
@@ -127,7 +128,15 @@ def start(action, confirm=None, wide=0):
         from darkbrown.demo import purge as purge_mod
         if confirm != purge_mod.CONFIRM:
             frappe.throw(_("Type the confirmation phrase exactly to go "
-                           "ahead: {0}").format(purge_mod.CONFIRM))
+                       "ahead: {0}").format(purge_mod.CONFIRM))
+
+    writes_data = (action == "seed" or
+                   (action.startswith("stage") and
+                    action.endswith(("_run", "_reload")) and
+                    action != "stage0_run"))
+    if writes_data and confirm != WRITE_CONFIRM:
+        frappe.throw(_("Type the confirmation phrase exactly to modify site "
+                       "data: {0}").format(WRITE_CONFIRM))
 
     if (_cache().get_value(STATE_KEY) or "") == "running":
         frappe.throw(_("A data job is already running. Wait for it to "

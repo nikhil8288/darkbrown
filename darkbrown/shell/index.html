@@ -650,7 +650,7 @@ body.focus main{max-width:none}
     <div class="nv" data-r="approvals">Approvals <span class="b" id="nbAppr">4</span></div>
     <div class="nv" data-r="reports">Reports</div>
     <div class="nv" data-r="admin">Admin</div>
-    <div class="nv" data-r="data">Data &amp; demo</div>
+    <div class="nv" data-r="data" data-feature="data-tools" hidden>Data &amp; demo</div>
   </nav>
   <div class="user" id="userbox" onclick="cycleRole()" title="Switch role"><div class="av">MD</div><div>Managing Director<small>Reserved approvals · full access</small></div></div>
 </aside>
@@ -1291,11 +1291,13 @@ const ROUTES={};
    routes while the feature is off. This is a product switch, not a role rule:
    it applies equally to every login, including the Managing Director. */
 const PLANNING_ENABLED=false;
+const DATA_TOOLS_ENABLED=false;
 const DEFERRED_PLANNING_ROUTES=['planning','capacity','forecast','fva',
  'scenarios','scenario','compare','model','portfolioplan','unitplan','targets',
  'solver','risks','optimise','cfo','pactions','pconfig'];
 const DEFERRED_PLANNING_FORMS=['new-scenario','new-target','model-building'];
 const planningDeferred=r=>!PLANNING_ENABLED&&DEFERRED_PLANNING_ROUTES.includes(r);
+const dataToolsDeferred=r=>!DATA_TOOLS_ENABLED&&r==='data';
 const ocrDeferred=r=>r==='intake'&&window.DB_OCR_ENABLED!==true;
 
 /* ---------- screens with nothing behind them ----------
@@ -1386,6 +1388,13 @@ function router(){
      deferred Planning URL with the signed-in role's normal home before route
      lookup, so no prototype Planning screen is rendered even momentarily. */
   if(planningDeferred(r)){
+    const safe=dflt.slice(2);
+    if(location.hash!==dflt) history.replaceState(null,'',dflt);
+    r=safe; rawId=undefined;
+  }
+  /* Bulk import, synthetic seeding and wipe controls are preserved for a
+     future controlled migration, but are not part of the operating ERP. */
+  if(dataToolsDeferred(r)){
     const safe=dflt.slice(2);
     if(location.hash!==dflt) history.replaceState(null,'',dflt);
     r=safe; rawId=undefined;
@@ -6853,6 +6862,16 @@ ROUTES.data=()=>page('Data & demo',
      <div style="margin-top:12px"><button class="btn" onclick="dtPreview()">Count it</button></div>
    </div>
 
+   <div class="card" style="margin-top:14px"><h3>Write safety</h3>
+     <p class="mt" style="max-width:64ch">Run, Reload and Seed write records to this
+     site. Type the phrase below to unlock them for this page visit. Check, Gate,
+     Count and Verify remain read-only.</p>
+     <label class="fl full" style="margin-top:12px;max-width:420px"><span>Type
+       <b>MODIFY DARKBROWN DATA</b> to unlock writes</span>
+       <input id="dtWriteConfirm" placeholder="MODIFY DARKBROWN DATA"
+              oninput="dtWriteLock()"></label>
+   </div>
+
    <div class="card" style="margin-top:14px"><h3>Stage 0 &mdash; Wipe</h3>
      <p class="mt" style="max-width:64ch">The first step of the rebuild. This clears
      <b>every</b> record the app owns &mdash; not the sixteen types the old purge knew about,
@@ -6875,9 +6894,9 @@ ROUTES.data=()=>page('Data & demo',
      These come before the buildings because a Building cannot be saved without one.</p>
      <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
        <button class="btn" onclick="dtStart('stage1_check')">Check 1</button>
-       <button class="btn" onclick="dtStart('stage1_run')">Run 1</button>
+       <button class="btn" data-write disabled onclick="dtStart('stage1_run')">Run 1</button>
        <button class="btn" onclick="dtStart('stage1_gate')">Gate 1</button>
-       <button class="btn" onclick="dtStart('stage1_reload')">Reload 1</button>
+       <button class="btn" data-write disabled onclick="dtStart('stage1_reload')">Reload 1</button>
      </div>
    </div>
 
@@ -6889,9 +6908,9 @@ ROUTES.data=()=>page('Data & demo',
      unsure the site is clean.</div>
      <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
        <button class="btn" onclick="dtStart('stage2_check')">Check 2</button>
-       <button class="btn" onclick="dtStart('stage2_run')">Run 2</button>
+       <button class="btn" data-write disabled onclick="dtStart('stage2_run')">Run 2</button>
        <button class="btn" onclick="dtStart('stage2_gate')">Gate 2</button>
-       <button class="btn" onclick="dtStart('stage2_reload')">Reload 2</button>
+       <button class="btn" data-write disabled onclick="dtStart('stage2_reload')">Reload 2</button>
      </div>
    </div>
 
@@ -6906,9 +6925,9 @@ ROUTES.data=()=>page('Data & demo',
      empty flats stay Vacant because nothing touches them.</p>
      <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
        <button class="btn" onclick="dtStart('stage3_check')">Check 3</button>
-       <button class="btn" onclick="dtStart('stage3_run')">Run 3</button>
+       <button class="btn" data-write disabled onclick="dtStart('stage3_run')">Run 3</button>
        <button class="btn" onclick="dtStart('stage3_gate')">Gate 3</button>
-       <button class="btn" onclick="dtStart('stage3_reload')">Reload 3</button>
+       <button class="btn" data-write disabled onclick="dtStart('stage3_reload')">Reload 3</button>
      </div>
      <div class="note">Reload replaces this stage from a corrected worksheet. It refuses once a later stage depends on what it would remove &mdash; before the ledger a correction is a rewrite, after it, cancelling leaves reversing entries behind.</div>
 
@@ -6926,9 +6945,9 @@ ROUTES.data=()=>page('Data & demo',
      can be seen and undone rather than taken on trust.</p>
      <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
        <button class="btn" onclick="dtStart('stage4_check')">Check 4</button>
-       <button class="btn" onclick="dtStart('stage4_run')">Run 4</button>
+       <button class="btn" data-write disabled onclick="dtStart('stage4_run')">Run 4</button>
        <button class="btn" onclick="dtStart('stage4_gate')">Gate 4</button>
-       <button class="btn" onclick="dtStart('stage4_reload')">Reload 4</button>
+       <button class="btn" data-write disabled onclick="dtStart('stage4_reload')">Reload 4</button>
      </div>
    </div>
 
@@ -6946,9 +6965,9 @@ ROUTES.data=()=>page('Data & demo',
      end date already past empties a flat with somebody living in it.</p>
      <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
        <button class="btn" onclick="dtStart('stage5_check')">Check 5</button>
-       <button class="btn" onclick="dtStart('stage5_run')">Run 5</button>
+       <button class="btn" data-write disabled onclick="dtStart('stage5_run')">Run 5</button>
        <button class="btn" onclick="dtStart('stage5_gate')">Gate 5</button>
-       <button class="btn" onclick="dtStart('stage5_reload')">Reload 5</button>
+       <button class="btn" data-write disabled onclick="dtStart('stage5_reload')">Reload 5</button>
      </div>
    </div>
 
@@ -6964,9 +6983,9 @@ ROUTES.data=()=>page('Data & demo',
      equal months would put a figure against August that no cheque supports.</p>
      <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
        <button class="btn" onclick="dtStart('stage6_check')">Check 6</button>
-       <button class="btn" onclick="dtStart('stage6_run')">Run 6</button>
+       <button class="btn" data-write disabled onclick="dtStart('stage6_run')">Run 6</button>
        <button class="btn" onclick="dtStart('stage6_gate')">Gate 6</button>
-       <button class="btn" onclick="dtStart('stage6_reload')">Reload 6</button>
+       <button class="btn" data-write disabled onclick="dtStart('stage6_reload')">Reload 6</button>
      </div>
    </div>
 
@@ -6984,9 +7003,9 @@ ROUTES.data=()=>page('Data & demo',
      bank statement is loaded.</p>
      <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
        <button class="btn" onclick="dtStart('stage7_check')">Check 7</button>
-       <button class="btn" onclick="dtStart('stage7_run')">Run 7</button>
+       <button class="btn" data-write disabled onclick="dtStart('stage7_run')">Run 7</button>
        <button class="btn" onclick="dtStart('stage7_gate')">Gate 7</button>
-       <button class="btn" onclick="dtStart('stage7_reload')">Reload 7</button>
+       <button class="btn" data-write disabled onclick="dtStart('stage7_reload')">Reload 7</button>
      </div>
    </div>
 
@@ -7003,9 +7022,9 @@ ROUTES.data=()=>page('Data & demo',
      1,419,551.</p>
      <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
        <button class="btn" onclick="dtStart('stage8_check')">Check 8</button>
-       <button class="btn" onclick="dtStart('stage8_run')">Run 8</button>
+       <button class="btn" data-write disabled onclick="dtStart('stage8_run')">Run 8</button>
        <button class="btn" onclick="dtStart('stage8_gate')">Gate 8</button>
-       <button class="btn" onclick="dtStart('stage8_reload')">Reload 8</button>
+       <button class="btn" data-write disabled onclick="dtStart('stage8_reload')">Reload 8</button>
      </div>
    </div>
 
@@ -7021,9 +7040,9 @@ ROUTES.data=()=>page('Data & demo',
      <p class="mt" style="max-width:64ch">Drafts, like stage 8. Nothing posts.</p>
      <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
        <button class="btn" onclick="dtStart('stage9_check')">Check 9</button>
-       <button class="btn" onclick="dtStart('stage9_run')">Run 9</button>
+       <button class="btn" data-write disabled onclick="dtStart('stage9_run')">Run 9</button>
        <button class="btn" onclick="dtStart('stage9_gate')">Gate 9</button>
-       <button class="btn" onclick="dtStart('stage9_reload')">Reload 9</button>
+       <button class="btn" data-write disabled onclick="dtStart('stage9_reload')">Reload 9</button>
      </div>
    </div>
 
@@ -7040,9 +7059,9 @@ ROUTES.data=()=>page('Data & demo',
      back to October 2025.</p>
      <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
        <button class="btn" onclick="dtStart('stage10_check')">Check 10</button>
-       <button class="btn" onclick="dtStart('stage10_run')">Run 10</button>
+       <button class="btn" data-write disabled onclick="dtStart('stage10_run')">Run 10</button>
        <button class="btn" onclick="dtStart('stage10_gate')">Gate 10</button>
-       <button class="btn" onclick="dtStart('stage10_reload')">Reload 10</button>
+       <button class="btn" data-write disabled onclick="dtStart('stage10_reload')">Reload 10</button>
      </div>
    </div>
 
@@ -7061,9 +7080,9 @@ ROUTES.data=()=>page('Data & demo',
      twice.</p>
      <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
        <button class="btn" onclick="dtStart('stage11_check')">Check 11</button>
-       <button class="btn" onclick="dtStart('stage11_run')">Run 11</button>
+       <button class="btn" data-write disabled onclick="dtStart('stage11_run')">Run 11</button>
        <button class="btn" onclick="dtStart('stage11_gate')">Gate 11</button>
-       <button class="btn" onclick="dtStart('stage11_reload')">Reload 11</button>
+       <button class="btn" data-write disabled onclick="dtStart('stage11_reload')">Reload 11</button>
      </div>
    </div>
 
@@ -7084,7 +7103,7 @@ ROUTES.data=()=>page('Data & demo',
      <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
        <button class="btn" id="dtRebuild" disabled onclick="dtStart('rebuild')">Purge, seed and verify</button>
        <button class="btn" id="dtPurge" disabled onclick="dtStart('purge')">Purge only</button>
-       <button class="btn" onclick="dtStart('seed')">Seed only</button>
+       <button class="btn" id="dtSeed" data-write disabled onclick="dtStart('seed')">Seed only</button>
        <button class="btn" onclick="dtStart('verify')">Verify only</button>
      </div>
    </div>
@@ -7116,6 +7135,10 @@ window.dtLock=()=>{
   const ok=(document.getElementById('dtConfirm')||{}).value==='REMOVE ALL DARKBROWN DATA';
   ['dtRebuild','dtPurge','dtWipe'].forEach(id=>{const b=document.getElementById(id);if(b)b.disabled=!ok});
 };
+window.dtWriteLock=()=>{
+  const ok=(document.getElementById('dtWriteConfirm')||{}).value==='MODIFY DARKBROWN DATA';
+  document.querySelectorAll('[data-write]').forEach(b=>{b.disabled=!ok});
+};
 window.dtPreview=async()=>{
   const box=document.getElementById('dtCounts'); box.textContent='Counting\u2026';
   try{
@@ -7132,8 +7155,11 @@ window.dtStart=async(action)=>{
   const log=document.getElementById('dtLog');
   if(log) log.textContent=DATA_LOG;
   try{
+    const destructive=['purge','rebuild','stage0_run'].includes(action);
+    const writes=action==='seed'||(/^stage(?:[1-9]|10|11)_(?:run|reload)$/.test(action));
     await dbCall('admin.start',{action,
-      confirm:(document.getElementById('dtConfirm')||{}).value||null,
+      confirm:(destructive?(document.getElementById('dtConfirm')||{}).value:
+               writes?(document.getElementById('dtWriteConfirm')||{}).value:null)||null,
       wide:(document.getElementById('dtWide')||{}).checked?1:0});
     dtPoll();
   }catch(e){ DATA_LOG=e.message; DATA_STATE='failed';
@@ -7211,6 +7237,7 @@ function roleCan(r){
      that cannot open the route it asked for gets sent. */
   if(r==='home'||r==='mywork')return true;
   if(planningDeferred(r))return false;
+  if(dataToolsDeferred(r))return false;
   if(ocrDeferred(r))return false;
   /* Named denial first. The category rules below are broad allows, and a
      broad allow was beating a specific denial: `data` is on RESTRICTED,
@@ -7238,6 +7265,7 @@ function applyRole(){
   document.querySelectorAll('.nv').forEach(n=>{
     const r=n.dataset.r;
     n.hidden=(n.dataset.feature==='planning'&&!PLANNING_ENABLED)||
+      (n.dataset.feature==='data-tools'&&!DATA_TOOLS_ENABLED)||
       (n.dataset.feature==='ocr'&&window.DB_OCR_ENABLED!==true);
     n.style.display=!n.hidden&&roleCan(r)?'':'none'});
   document.querySelectorAll('.grp').forEach(g=>{

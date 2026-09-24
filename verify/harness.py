@@ -2430,6 +2430,43 @@ def t_audit_report_honours_building_scope_and_discloses_real_truncation():
 check("audit report applies building scope without false truncation",
       t_audit_report_honours_building_scope_and_discloses_real_truncation)
 
+def t_admin_data_writes_require_explicit_confirmation():
+    import inspect
+    from darkbrown.api import admin
+    start = inspect.getsource(admin.start)
+    shell = open(REPO + '/darkbrown/shell/index.html').read()
+    assert 'WRITE_CONFIRM = "MODIFY DARKBROWN DATA"' in open(
+        REPO + '/darkbrown/api/admin.py').read()
+    assert 'action == "seed"' in start
+    assert 'action.endswith(("_run", "_reload"))' in start
+    assert 'confirm != WRITE_CONFIRM' in start
+    assert 'id="dtWriteConfirm"' in shell
+    assert shell.count('data-write disabled') == 23
+    assert "document.querySelectorAll('[data-write]')" in shell
+    assert "writes?(document.getElementById('dtWriteConfirm')" in shell
+check("admin seed and import writes require explicit confirmation",
+      t_admin_data_writes_require_explicit_confirmation)
+
+def t_data_and_demo_page_is_deferred_everywhere():
+    shell = open(REPO + '/darkbrown/shell/index.html').read()
+    assert 'const DATA_TOOLS_ENABLED=false;' in shell
+    assert ('data-r="data" data-feature="data-tools" hidden'
+            in shell)
+    router = shell[shell.index('function router(){'):
+                   shell.index('window.toggleNav=', shell.index('function router(){'))]
+    assert 'if(dataToolsDeferred(r)){' in router
+    assert "history.replaceState(null,'',dflt)" in router
+    roles = shell[shell.index('function roleCan(r){'):
+                  shell.index('/* Where a role starts.',
+                              shell.index('function roleCan(r){'))]
+    assert 'if(dataToolsDeferred(r))return false;' in roles
+    gate = shell[shell.index('function applyRole(){'):
+                 shell.index('/* ---------- owner and reserve data ---------- */')]
+    assert "n.dataset.feature==='data-tools'&&!DATA_TOOLS_ENABLED" in gate
+    assert 'ROUTES.data=()=>page(' in shell
+check("Data and demo navigation and direct route stay hidden",
+      t_data_and_demo_page_is_deferred_everywhere)
+
 def t_collection_case_history_uses_recorded_events():
     import inspect
     from darkbrown.api import app
