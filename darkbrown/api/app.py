@@ -23,14 +23,16 @@ SECTIONS_BY_ROLE = {
     "General Manager": {
         "buildings", "units", "cases", "jobs", "moveouts", "tenants",
         "agreements", "invoices", "cheques", "docs", "approvals",
-        "landlords", "billruns",
+        "landlords", "billruns", "staff", "petty",
     },
     "Accounts": {
         "buildings", "units", "cases", "tenants", "agreements", "invoices",
         "cheques", "landlords", "billruns", "batches", "closing",
-        "bankAccounts", "petty",
+        "bankAccounts", "petty", "moveouts", "docs", "staff",
     },
-    "Documentation": {"buildings", "units", "tenants", "agreements", "docs"},
+    "Documentation": {
+        "buildings", "units", "tenants", "landlords", "agreements", "docs",
+    },
     "Maintenance": {"buildings", "units", "jobs"},
 }
 

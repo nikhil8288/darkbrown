@@ -7216,7 +7216,7 @@ const ROLE_DENY={
   /* The General Manager runs everything except the owner's own tools. The
      Command Centre is deliberately not on this list: MD and GM read the same
      dashboard. */
-  GM:['admin','data'],
+  GM:['admin','data','batches','batch','closing'],
   /* Accounts is the money and the books. Not the portfolio's shape, not the
      approval bench - ACC can raise an invoice run, it cannot approve one. */
   ACC:['dash','admin','data','approvals','approval','maint','job','utilities'],
@@ -7224,13 +7224,15 @@ const ROLE_DENY={
      No money screens at all. */
   DOC:['dash','admin','data','approvals','approval','invoices','invoice','generate',
        'billrun','receipts','receipt','amendment','cheques','cheque','batches',
-       'batch','recon','closing','staff','petty','maint','job','utilities'],
+       'batch','recon','closing','staff','petty','maint','job','utilities',
+       'cases','case','moveout','reports'],
   /* Maintenance is jobs and the condition of a unit. It needs buildings and
      units to do that and nothing else. */
   MNT:['dash','admin','data','approvals','approval','invoices','invoice','generate',
        'billrun','receipts','receipt','amendment','cheques','cheque','batches',
        'batch','recon','closing','staff','petty','cases','case','tenants','tenant',
-       'landlords','landlord','agreements','agreement','intake','reports']};
+       'landlords','landlord','agreements','agreement','intake','reports',
+       'moveout','vault']};
 
 function roleCan(r){
   /* Home is the one screen nobody can be shut out of - it is where a role

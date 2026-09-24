@@ -2467,6 +2467,25 @@ def t_data_and_demo_page_is_deferred_everywhere():
 check("Data and demo navigation and direct route stay hidden",
       t_data_and_demo_page_is_deferred_everywhere)
 
+def t_role_navigation_matches_live_payload_and_server_capabilities():
+    from darkbrown.api import app
+    shell = open(REPO + '/darkbrown/shell/index.html').read()
+    matrix = shell[shell.index('const ROLE_DENY='):
+                   shell.index('function roleCan(r){')]
+    assert "GM:['admin','data','batches','batch','closing']" in matrix
+    assert "'cases','case','moveout','reports'" in matrix
+    assert "'moveout','vault']" in matrix
+    assert {'staff', 'petty'} <= app.SECTIONS_BY_ROLE['General Manager']
+    assert {'moveouts', 'docs', 'staff'} <= app.SECTIONS_BY_ROLE['Accounts']
+    assert 'landlords' in app.SECTIONS_BY_ROLE['Documentation']
+    assert not ({'batches', 'closing'} &
+                app.SECTIONS_BY_ROLE['General Manager'])
+    assert not ({'cases', 'moveouts'} &
+                app.SECTIONS_BY_ROLE['Documentation'])
+    assert app.SECTIONS_BY_ROLE['Maintenance'] == {'buildings', 'units', 'jobs'}
+check("role navigation matches live payload and server capabilities",
+      t_role_navigation_matches_live_payload_and_server_capabilities)
+
 def t_collection_case_history_uses_recorded_events():
     import inspect
     from darkbrown.api import app
