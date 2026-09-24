@@ -3092,8 +3092,23 @@ function drawForm(){
   if(multi){
     fb.addEventListener('scroll',spySec);
     fb.addEventListener('change',fieldChanged);
+    if(FKEY==='issue-receipt'||FKEY==='record-payment'){
+      fb.addEventListener('input',refreshMoneyReview);
+      fb.addEventListener('change',refreshMoneyReview);
+    }
     spySec();
   }
+}
+
+/* The money review is also visible while a field still has focus. Keep it
+   in sync without replacing the input or the submit button during a click. */
+function refreshMoneyReview(e){
+  if(!e.target?.hasAttribute('data-k'))return;
+  collect();
+  const index=FKEY==='issue-receipt'?2:1;
+  const review=document.getElementById('fsec_'+index);
+  if(review)review.innerHTML='<h4><span class="n">'+(index+1)+'</span>'+FRM.steps[index].n+'</h4>'+
+    FRM.steps[index].body(FDATA);
 }
 
 /* A committed field may be read by a section other than its own — the payment
@@ -3560,7 +3575,7 @@ const FORMS={
  steps:[
   {n:'Payment',body:d=>`<div class="fg">
     ${fld({k:'tenant',l:'Tenant',t:'sel',o:TENANTS.map(t=>t.n),req:1},d.tenant)}
-    ${fld({k:'amt',l:'Amount received (QAR)',t:'num',step:'100',req:1},d.amt)}
+    ${fld({k:'amt',l:'Amount received (QAR)',t:'num',step:'0.01',req:1},d.amt)}
     ${fld({k:'method',l:'Method',t:'sel',o:['Cheque','Bank transfer','Cash','Card'],req:1},d.method)}
     ${fld({k:'date',l:'Received on',t:'date',req:1},d.date)}
     ${fld({k:'ref',l:'Reference',t:'txt',p:'bank or cash reference',req:1},d.ref)}</div>`,
@@ -3569,23 +3584,23 @@ const FORMS={
     const t=TENANTS.find(x=>x.n===d.tenant); let left=+d.amt||0;
     const open=INV.filter(i=>i.t===(t||{}).id&&invBal(i)>0).slice(0,4);
     const rows=open.map(i=>{const bal=invBal(i), take=Math.min(bal,left); left-=take;
-      return [i.id,i.due,bal.toFixed(1),take.toFixed(1),(bal-take).toFixed(1)]});
+      return [i.id,i.due,bal,take,bal-take]});
     return `<p class="pp">Allocation follows the standing rule: <b>oldest invoice first, rent before recharge</b>.
       You can override on the invoice itself if needed.</p>
      ${rows.length?`<div class="tw"><table><tr><th>Invoice</th><th>Due</th><th class="r">Balance</th><th class="r">Allocated</th><th class="r">Remaining</th></tr>
-      ${rows.map(r=>`<tr><td>${r[0]}</td><td>${r[1]}</td><td class="r num">${n0(r[2])}</td>
-        <td class="r num" style="color:var(--em)">${n0(r[3])}</td><td class="r num">${n0(r[4])}</td></tr>`).join('')}</table></div>`
+      ${rows.map(r=>`<tr><td>${r[0]}</td><td>${r[1]}</td><td class="r num">${qar(r[2])}</td>
+        <td class="r num" style="color:var(--em)">${qar(r[3])}</td><td class="r num">${qar(r[4])}</td></tr>`).join('')}</table></div>`
       :empty('No open invoices for this tenant — the payment will sit on account.')}
-     ${stat([['Received',n0((+d.amt||0))],['Allocated',n0(((+d.amt||0)-Math.max(left,0))),'','g'],
-       ['On account',n0(Math.max(left,0)),'',left>0?'a':'']])}`}}],
+     ${stat([['Received',qar((+d.amt||0))],['Allocated',qar(((+d.amt||0)-Math.max(left,0))),'','g'],
+       ['On account',qar(Math.max(left,0)),'',left>0?'a':'']])}`}}],
  submit:d=>{
   const t=TENANTS.find(x=>x.n===d.tenant); let left=+d.amt||0;
   if(t){INV.filter(i=>i.t===t.id&&invBal(i)>0).forEach(i=>{
      const take=Math.min(invBal(i),left); i.paid=+(i.paid+take).toFixed(1); left-=take;
      i.st=i.paid>=i.amt?'Paid':i.paid>0?'Part paid':'Unpaid'});
    t.arr=Math.max(0,Math.round(t.arr-(+d.amt||0))); t.st=t.arr>25000?'In arrears':t.arr>0?'Late':'Current';}
-  return{title:'Payment posted',msg:k(+d.amt||0)+' received from '+d.tenant,
-   detail:'Allocated oldest-first'+(left>0?' · '+k(left)+' left on account':''),
+  return{title:'Payment posted',msg:'QAR '+qar(+d.amt||0)+' received from '+d.tenant,
+   detail:'Allocated oldest-first'+(left>0?' · QAR '+qar(left)+' left on account':''),
    goto:t?'#/tenant/'+t.id:'#/tenants'}}},
 
 'upload-docs':{t:'Upload for review',s:'Manual intake · OCR deferred',cta:'Upload for review',
@@ -9294,7 +9309,7 @@ FORMS['issue-receipt']={t:'Issue a receipt',s:'Cash on the day · a cheque only 
         A receipt can only be raised against a cheque that has cleared. Mark one cleared on the cheque register first.</div>`}`
     :`<div class="fg">
        ${fld({k:'party',l:'Received from',t:'sel',live:1,o:TENANTS.map(t=>t.n),req:1},d.party)}
-       ${fld({k:'amt',l:'Amount (QAR)',t:'num',step:'100',req:1},d.amt)}
+       ${fld({k:'amt',l:'Amount (QAR)',t:'num',step:'0.01',req:1},d.amt)}
        ${fld({k:'date',l:'Date received',t:'date',req:1},d.date)}
        ${d.kind==='Cash received'&&window.DB_LIVE
          ?`<div class="fl"><span>Collected by</span><b>${esc(window.DB_USER||'Current user')}</b></div>`:
@@ -9311,15 +9326,15 @@ FORMS['issue-receipt']={t:'Issue a receipt',s:'Cash on the day · a cheque only 
    msg:'Fill in everything on this step — a receipt without its evidence is not worth issuing'},
   {n:'Review',body:d=>{const c=d.chq?C(d.chq.split(' · ')[0]):null;
    const party=c?(c.party||c.tn):d.party, amt=c?c.amt:+d.amt||0;
-   return `<div class="kv">${[['Kind',d.kind],['Received from',party],['Amount',k(amt)],['Date',d.date],
+   return `<div class="kv">${[['Kind',d.kind],['Received from',party],['Amount','QAR '+qar(amt)],['Date',d.date],
      ...(d.kind==='Cash received'?[['Collected by',window.DB_LIVE?(window.DB_USER||'Current user'):d.collector],['Collection slip',d.slip]]
        :[['Bank statement',d.stmt||'—']]),
      ...(c?[['Cheque',c.id+' · '+c.bank+' · '+c.no]]:[]),
-     ['Allocation',d.inv||'Oldest open invoice first']].map(r=>`<div><span>${r[0]}</span><b>${r[1]||'—'}</b></div>`).join('')}</div>
+     ['Allocation',d.inv||'Oldest open invoice first']].map(r=>`<div><span>${r[0]}</span><b>${esc(r[1]||'—')}</b></div>`).join('')}</div>
    <div class="note">The receipt is numbered, printable, and cannot be edited once issued. A mistake is corrected by cancelling it and
     issuing another, so the numbering never has a hole in it.</div>`}}],
  submit:d=>{const c=d.chq?C(d.chq.split(' · ')[0]):null;
-  const party=c?(c.party||c.tn):d.party, amt=c?c.amt:+(+d.amt||0).toFixed(1);
+  const party=c?(c.party||c.tn):d.party, amt=c?c.amt:+(+d.amt||0).toFixed(2);
   const t=TENANTS.find(x=>x.n===party);
   const id='RCP-'+String(7001+RCPT.length);
   RCPT.push({id,kind:d.kind,party,t:t?t.id:'',amt,date:d.date,collector:d.collector||'',
@@ -9329,7 +9344,7 @@ FORMS['issue-receipt']={t:'Issue a receipt',s:'Cash on the day · a cheque only 
   const inv=INV.find(x=>x.t===(t&&t.id)&&x.st!=='Paid');
   if(inv){inv.paid=+Math.min(inv.amt,inv.paid+amt).toFixed(1);inv.st=inv.paid>=inv.amt?'Paid':'Part paid'}
   addJrn('Receipt','Receipt '+id+' — '+party,id,[['1010',amt,0],['1100',0,amt]]);
-  return{title:'Receipt issued',msg:id+' · '+party+' · '+k(amt),
+  return{title:'Receipt issued',msg:id+' · '+party+' · QAR '+qar(amt),
    detail:d.kind==='Cheque cleared'?'Raised against '+(c?c.id:'')+' and the statement line '+(d.stmt||'')
     :'Allocated '+(d.inv||'oldest invoice first').toLowerCase(),goto:'#/receipt/'+id}}};
 
@@ -9650,9 +9665,9 @@ const WIRE={
    mode:d.kind==='Cash received'?'Cash':'Bank Transfer',
    invoice:allocId(d.inv),
    reference:d.kind==='Cash received'?d.slip:d.stmt}}),
- ok:(r,d)=>({title:'Receipt issued',msg:k(r.allocated)+' recorded against '+d.party,
+ ok:(r,d)=>({title:'Receipt issued',msg:'QAR '+qar(r.allocated)+' recorded against '+d.party,
    detail:(r.applied&&r.applied.length
-     ? 'Applied to '+r.applied.join(', ')+(r.on_account?' \u00b7 '+k(r.on_account)+' left on account':'')
+     ? 'Applied to '+r.applied.join(', ')+(r.on_account?' \u00b7 QAR '+qar(r.on_account)+' left on account':'')
      : 'Nothing was open \u2014 the whole receipt sits on account')+' \u00b7 '+r.payment_entry})},
 
 'record-payment':{
@@ -9661,7 +9676,7 @@ const WIRE={
  m:'finance.record_receipt',
  a:d=>({payload:{tenant:wTen(d.tenant),amount:wNum(d.amt),on:d.date,
    mode:d.method,invoice:allocId(d.inv),reference:d.ref}}),
- ok:(r,d)=>({title:'Payment posted',msg:k(r.allocated)+' allocated to '+d.tenant,
+ ok:(r,d)=>({title:'Payment posted',msg:'QAR '+qar(r.allocated)+' allocated to '+d.tenant,
    detail:(r.applied&&r.applied.length?'Applied to '+r.applied.join(', ')
      :'Nothing open \u2014 held on account')+' \u00b7 '+r.payment_entry})},
 

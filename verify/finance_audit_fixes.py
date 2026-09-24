@@ -114,6 +114,7 @@ def test_cash_and_duplicate():
     assert result['payment_entry']
     recorded = [c[2] for c in S.CALLS if c[:2] == ('insert', 'Payment Entry')][-1]
     assert recorded['paid_to'] == 'Cash - SYN'
+    assert recorded['custom_remarks'] == 1
     assert recorded['remarks'] == 'Cash collected by acc@example.invalid.'
     assert result['allocated'] == result['on_account'] == 30.55
     for changed in ({**payload, 'reference': ''},

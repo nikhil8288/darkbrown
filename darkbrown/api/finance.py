@@ -1343,6 +1343,9 @@ def _receipt(customer, amount, on, bank_account=None, mode=None,
     pe.reference_no = reference
     pe.reference_date = on
     if collector:
+        # ERPNext generates its own payment summary during validation unless
+        # this flag is set. Preserve the identity of the cash collector.
+        pe.custom_remarks = 1
         pe.remarks = _("Cash collected by {0}.").format(collector)
 
     open_invoices = frappe.get_all(
