@@ -789,14 +789,22 @@ def billruns():
                  list(filter(None, [r.get("approved_by") for r in rows]))):
         users[u] = frappe.db.get_value("User", u, "full_name") or u
 
-    counts = {}
+    counts, included = {}, {}
     for l in frappe.get_all("Invoice Run Line",
                             filters={"parenttype": "Invoice Run"},
-                            fields=["parent", "sales_invoice"]):
+                            fields=["parent", "sales_invoice",
+                                    "charge_snapshot"]):
         c = counts.setdefault(l.parent, [0, 0])
         c[0] += 1
         if l.sales_invoice:
             c[1] += 1
+        flags = included.setdefault(l.parent, set())
+        for charge in frappe.parse_json(l.charge_snapshot or "[]"):
+            kind = charge.get("type")
+            if kind == "Utility Recovery":
+                flags.add("util")
+            elif kind == "Maintenance Recharge":
+                flags.add("mnt")
 
     out = []
     for r in rows:
@@ -826,7 +834,9 @@ def billruns():
             # No endpoint amends a drafted line, so no run carries changes.
             # An empty list is the truth here, not a placeholder.
             "changes": [],
-            "incl": {"util": False, "mnt": False, "arr": False},
+            "incl": {"util": "util" in included.get(r["name"], set()),
+                     "mnt": "mnt" in included.get(r["name"], set()),
+                     "arr": False},
             "lines": [],
         })
     return out

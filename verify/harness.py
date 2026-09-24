@@ -636,6 +636,9 @@ def t_invoice_carries_idempotency_keys():
     assert 'custom_rental_agreement' in src
     assert 'custom_billing_period' in src
     assert 'docstatus' in src
+    assert 'items = []' in src
+    assert 'if flt(line.agreement_amount) > 0:' in src
+    assert 'omit rent completely' in src
     schema = S.SCHEMA['Invoice Run Line']
     assert schema['charge_snapshot'][0] == 'Long Text'
 
@@ -1240,6 +1243,9 @@ def t_billrun_count_is_posted_count():
     src = inspect.getsource(app.billruns)
     assert '"count": issued,' in src
     assert 'issued or drawn' not in src
+    assert '"charge_snapshot"' in src
+    assert 'kind == "Utility Recovery"' in src
+    assert '"util": "util" in included.get' in src
 check("invoice-run count reports issued invoices only", t_billrun_count_is_posted_count)
 
 def t_cancelled_invoice_reopens_run():

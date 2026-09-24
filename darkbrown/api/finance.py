@@ -862,15 +862,20 @@ def _rent_invoice(run, line):
         _mark_source_recharges(snapshots, run.name, existing)
         return existing
     item = _rent_item()
-    items = [{
-        "item_code": item,
-        "item_name": f"Rent — {line.unit}",
-        "description": (f"Rent for {line.unit}, "
-                        f"{run.period_start} to {run.period_end}"),
-        "qty": 1,
-        "rate": flt(line.agreement_amount),
-        "cost_center": _cost_center(run.building),
-    }]
+    items = []
+    # A zero-rate rent item is not harmless in ERPNext: item-price resolution
+    # can replace zero with the item's default selling rate. Recovery-only
+    # invoices therefore omit rent completely instead of posting phantom rent.
+    if flt(line.agreement_amount) > 0:
+        items.append({
+            "item_code": item,
+            "item_name": f"Rent — {line.unit}",
+            "description": (f"Rent for {line.unit}, "
+                            f"{run.period_start} to {run.period_end}"),
+            "qty": 1,
+            "rate": flt(line.agreement_amount),
+            "cost_center": _cost_center(run.building),
+        })
     for charge in snapshots:
         items.append({
             "item_code": item,
