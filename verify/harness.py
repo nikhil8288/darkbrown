@@ -2098,6 +2098,16 @@ def t_utility_recovery_is_part_of_the_accounting_foundation():
 check("utility recovery account is installed and audited",
       t_utility_recovery_is_part_of_the_accounting_foundation)
 
+def t_invoice_run_validation_uses_document_safe_child_assignment():
+    import inspect
+    from darkbrown.darkbrown.doctype.invoice_run import invoice_run
+    validation = inspect.getsource(invoice_run.InvoiceRun.validate)
+    assert 'if hasattr(line, "set")' in validation
+    assert 'line.set("variance", variance)' in validation
+    assert 'elif isinstance(line, dict)' in validation
+check("invoice run validation writes child fields through the document API",
+      t_invoice_run_validation_uses_document_safe_child_assignment)
+
 def t_cancelled_invoice_and_replacement_audit_is_visible():
     import inspect
     from darkbrown.api import app

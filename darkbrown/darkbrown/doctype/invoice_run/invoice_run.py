@@ -15,10 +15,12 @@ class InvoiceRun(Document):
 			self.generated_on = frappe.utils.now()
 		for line in self.lines:
 			variance = (value(line, "invoice_amount") or 0) - (value(line, "agreement_amount") or 0)
-			if hasattr(line, "get"):
+			if hasattr(line, "set"):
+				line.set("variance", variance)
+			elif isinstance(line, dict):
 				line["variance"] = variance
 			else:
-				line.variance = variance
+				setattr(line, "variance", variance)
 			if abs(variance) > 0.005 and not (value(line, "reason") or "").strip():
 				frappe.throw(_("Row {0}: {1} differs from the agreement. "
 				                "Type a reason.").format(
