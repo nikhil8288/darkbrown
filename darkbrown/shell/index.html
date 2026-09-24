@@ -4512,8 +4512,21 @@ window.openPc=id=>go('#/petty');
 ROUTES.petty=()=>{
  const bal=pcBalance(), avg=pcAverage();
  const ym=new Date().toISOString().slice(0,7);
- const rows=PETTY.slice().sort((a,b)=>a.date<b.date?-1:1);
- let run=0; rows.forEach(e=>{run+=pcSign(e)*(+e.amount||0); e.__bal=run});
+ /* Live rows already arrive newest-first with the authoritative balance after
+    each movement. Preserve that same-day creation order: sorting only by the
+    date made equal-date entries compare inconsistently, so a top-up followed
+    by an expense displayed balances of 90 and -10 even though the ledger and
+    headline correctly stood at 90. Prototype rows have no server balance, so
+    only those are calculated locally in their original same-day order. */
+ const liveBalances=PETTY.every(e=>e.balance!==undefined&&e.balance!==null);
+ const rows=liveBalances
+   ?PETTY.slice().reverse()
+   :PETTY.map((e,i)=>({e,i})).sort((a,b)=>a.e.date.localeCompare(b.e.date)||a.i-b.i).map(x=>x.e);
+ let run=0;
+ rows.forEach(e=>{
+   run+=pcSign(e)*(+e.amount||0);
+   e.__bal=liveBalances?(+e.balance||0):run;
+ });
  const shown=rows.slice().reverse();
  const lastTop=rows.filter(e=>e.dir==='Top-up').slice(-1)[0];
  const adj=PETTY.filter(e=>e.dir==='Adjustment');

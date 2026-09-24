@@ -2231,6 +2231,8 @@ def t_petty_cash_movements_post_to_the_ledger():
     assert 'from:bankName(d.from)' in shell
     assert "{h:'Ledger',v:e=>e.je||'\\u2014'}" in shell
     assert 'batches:BATCHES,staff:PEOPLE,petty:PETTY' in shell
+    assert 'e.__bal=liveBalances?(+e.balance||0):run' in shell
+    assert "a.e.date.localeCompare(b.e.date)||a.i-b.i" in shell
 check("petty cash movements are validated and ledger-backed",
       t_petty_cash_movements_post_to_the_ledger)
 
