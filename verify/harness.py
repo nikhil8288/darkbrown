@@ -2486,6 +2486,16 @@ def t_role_navigation_matches_live_payload_and_server_capabilities():
 check("role navigation matches live payload and server capabilities",
       t_role_navigation_matches_live_payload_and_server_capabilities)
 
+def t_staff_and_petty_cash_have_page_titles():
+    shell = open(REPO + '/darkbrown/shell/index.html').read()
+    titles = shell[shell.index("el('#ptop').textContent="):
+                   shell.index("}[r])||'Darkbrown';",
+                               shell.index("el('#ptop').textContent="))]
+    assert "staff:'Staff'" in titles
+    assert "petty:'Petty cash'" in titles
+check("staff and petty cash keep their page titles",
+      t_staff_and_petty_cash_have_page_titles)
+
 def t_collection_case_history_uses_recorded_events():
     import inspect
     from darkbrown.api import app
