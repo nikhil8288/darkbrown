@@ -2402,6 +2402,34 @@ def t_utility_report_separates_allocated_from_invoiced_recovery():
 check("utility report counts only invoiced allocations as recovered",
       t_utility_report_separates_allocated_from_invoiced_recovery)
 
+def t_audit_report_honours_building_scope_and_discloses_real_truncation():
+    reset()
+    S.DB['Building'] = [
+        {'name':'Al Sadd','cost_center':'Al Sadd - DB'},
+        {'name':'West Bay','cost_center':'West Bay - DB'}]
+    S.DB['Unit'] = [
+        {'name':'UNIT-A','building':'Al Sadd'},
+        {'name':'UNIT-B','building':'West Bay'}]
+    S.DB['Version'] = [
+        {'ref_doctype':'Unit','docname':'UNIT-A','owner':'a@example.com',
+         'creation':'2026-09-20 10:00:00',
+         'data':json.dumps({'changed':[['status','Vacant','Occupied']]})},
+        {'ref_doctype':'Unit','docname':'UNIT-B','owner':'b@example.com',
+         'creation':'2026-09-20 11:00:00',
+         'data':json.dumps({'changed':[['status','Vacant','Occupied']]})},
+        {'ref_doctype':'Weekly Closing','docname':'WC-1',
+         'owner':'accounts@example.com','creation':'2026-09-20 12:00:00',
+         'data':json.dumps({'changed':[['status','Open','Closed']]})}]
+    from darkbrown.api import reports
+    scoped = reports._audit('2026-09-01', '2026-09-24', 'Al Sadd')
+    assert [r['record'] for r in scoped['rows']] == ['UNIT-A'], scoped['rows']
+    assert scoped['note'] == '', scoped['note']
+    full = reports._audit('2026-09-01', '2026-09-24')
+    assert {r['record'] for r in full['rows']} == {'UNIT-A','UNIT-B','WC-1'}
+    assert full['note'] == '', full['note']
+check("audit report applies building scope without false truncation",
+      t_audit_report_honours_building_scope_and_discloses_real_truncation)
+
 def t_collection_case_history_uses_recorded_events():
     import inspect
     from darkbrown.api import app

@@ -734,14 +734,113 @@ def _audit(frm, to, building=None):
     is the audit trail; nothing here needed inventing, only reading."""
     watched = ("Tenancy Agreement", "Head Lease", "Sales Invoice",
                "Purchase Invoice", "Payment Entry", "Cheque", "Unit",
-               "Building", "Journal Entry")
-    rows = []
-    for v in frappe.get_all(
-            "Version",
-            filters={"ref_doctype": ["in", watched],
-                     "creation": ["between", [frm, str(getdate(to)) + " 23:59:59"]]},
+               "Building", "Journal Entry", "Security Deposit",
+               "Utility Bill", "Expense Entry", "Deposit Batch",
+               "Petty Cash Entry", "Weekly Closing", "Invoice Run",
+               "Maintenance Request", "Move Out Case", "Collection Case")
+    window = [frm, str(getdate(to)) + " 23:59:59"]
+
+    if building:
+        def names(doctype, filters):
+            return set(frappe.get_all(
+                doctype, filters=filters, pluck="name", limit=20000))
+
+        cost_center = frappe.db.get_value("Building", building, "cost_center")
+        scoped = {
+            "Building": {building},
+            "Unit": names("Unit", {"building": building}),
+            "Tenancy Agreement": names(
+                "Tenancy Agreement", {"building": building}),
+            "Head Lease": names("Head Lease", {"building": building}),
+            "Cheque": names("Cheque", {"building": building}),
+            "Utility Bill": names("Utility Bill", {"building": building}),
+            "Expense Entry": names("Expense Entry", {"building": building}),
+            "Invoice Run": names("Invoice Run", {"building": building}),
+            "Maintenance Request": names(
+                "Maintenance Request", {"building": building}),
+            "Move Out Case": names("Move Out Case", {"building": building}),
+            "Collection Case": names("Collection Case", {"building": building}),
+        }
+        invoice_names = set()
+        if cost_center:
+            scoped["Sales Invoice"] = names(
+                "Sales Invoice", {"cost_center": cost_center})
+            scoped["Sales Invoice"] |= set(frappe.get_all(
+                "Sales Invoice Item", filters={"cost_center": cost_center},
+                pluck="parent", limit=20000))
+            scoped["Purchase Invoice"] = names(
+                "Purchase Invoice", {"cost_center": cost_center})
+            scoped["Purchase Invoice"] |= set(frappe.get_all(
+                "Purchase Invoice Item", filters={"cost_center": cost_center},
+                pluck="parent", limit=20000))
+            scoped["Journal Entry"] = set(frappe.get_all(
+                "Journal Entry Account", filters={"cost_center": cost_center},
+                pluck="parent", limit=20000))
+            invoice_names = (scoped["Sales Invoice"] |
+                             scoped["Purchase Invoice"])
+        else:
+            scoped.update({"Sales Invoice": set(), "Purchase Invoice": set(),
+                           "Journal Entry": set()})
+
+        agreement_names = scoped["Tenancy Agreement"]
+        unit_names = scoped["Unit"]
+        scoped["Security Deposit"] = set()
+        if agreement_names:
+            scoped["Security Deposit"] |= names(
+                "Security Deposit",
+                {"tenancy_agreement": ["in", list(agreement_names)]})
+        if unit_names:
+            scoped["Security Deposit"] |= names(
+                "Security Deposit", {"unit": ["in", list(unit_names)]})
+
+        scoped["Payment Entry"] = set()
+        if invoice_names:
+            scoped["Payment Entry"] |= set(frappe.get_all(
+                "Payment Entry Reference",
+                filters={"reference_doctype": ["in", (
+                             "Sales Invoice", "Purchase Invoice")],
+                         "reference_name": ["in", list(invoice_names)]},
+                pluck="parent", limit=20000))
+        cheque_rows = frappe.get_all(
+            "Cheque", filters={"building": building},
+            fields=["name", "payment_entry"], limit=20000)
+        scoped["Payment Entry"] |= {c.payment_entry for c in cheque_rows
+                                     if c.payment_entry}
+        cheque_names = {c.name for c in cheque_rows}
+        scoped["Deposit Batch"] = set()
+        if cheque_names:
+            scoped["Deposit Batch"] = set(frappe.get_all(
+                "Deposit Batch Line",
+                filters={"cheque": ["in", list(cheque_names)]},
+                pluck="parent", limit=20000))
+
+        # Petty cash and weekly closing are company-wide, not building-scoped.
+        # Omitting them under a building filter is more truthful than attaching
+        # them to an arbitrary property.
+        scoped["Petty Cash Entry"] = set()
+        scoped["Weekly Closing"] = set()
+        versions = []
+        for doctype in watched:
+            docnames = scoped.get(doctype, set())
+            if not docnames:
+                continue
+            versions.extend(frappe.get_all(
+                "Version", filters={"ref_doctype": doctype,
+                                    "docname": ["in", list(docnames)],
+                                    "creation": ["between", window]},
+                fields=["ref_doctype", "docname", "owner", "creation", "data"],
+                order_by="creation desc", limit=1001))
+        versions.sort(key=lambda v: str(v.creation), reverse=True)
+    else:
+        versions = frappe.get_all(
+            "Version", filters={"ref_doctype": ["in", watched],
+                                "creation": ["between", window]},
             fields=["ref_doctype", "docname", "owner", "creation", "data"],
-            order_by="creation desc", limit=1000):
+            order_by="creation desc", limit=1001)
+
+    truncated = len(versions) > 1000
+    rows = []
+    for v in versions[:1000]:
         try:
             changed = frappe.parse_json(v.data or "{}").get("changed") or []
         except Exception:
@@ -757,7 +856,7 @@ def _audit(frm, to, building=None):
     note = "" if rows else (
         "No tracked changes in this window. Frappe records a version only when "
         "a document is edited after submission, so a clean load produces none.")
-    if len(rows) == 1000:
+    if truncated:
         note = "Showing the most recent 1,000 changes. Narrow the window."
     return _pack("audit", cols, rows, {}, note)
 
