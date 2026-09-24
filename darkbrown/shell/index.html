@@ -4916,7 +4916,7 @@ ROUTES.invoice=id=>{const i=id?I(id):INV[0]; if(!i) return notFound('Invoice','#
     {h:'State',v:a=>chip(a.st,a.st==='Approved'?'g':a.st==='Sent back'?'r':'a')}],
     hist.map(a=>({...a,__id:a.id})),{id:'amh',click:'openAMD'})}</div>`:'')+
   `<div class="card"><h3>Invoice lines</h3>${tbl([
-   {h:'Description',v:r=>r[0]},{h:'Income account',v:r=>/recharge/i.test(r[0])?'Maintenance recharge':'Rental income'},
+   {h:'Description',v:r=>r[0]},{h:'Income account',v:r=>r[2]||(/recharge/i.test(r[0])?'Maintenance recharge':'Rental income')},
    {h:'Amount',r:1,mono:1,v:r=>n0(r[1])}],i.lines.map(l=>({...l,__id:l[0]})),
    {id:'ivl',foot:['Allocation order: oldest invoice first · rent before recharge','Total '+n0(i.amt)]})}</div>
   <div class="card"><h3>Payment allocation</h3><div class="list">

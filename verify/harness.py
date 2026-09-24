@@ -2190,6 +2190,17 @@ def t_cancelled_invoice_and_replacement_audit_is_visible():
 check("cancelled invoices and their replacements remain visible and non-payable",
       t_cancelled_invoice_and_replacement_audit_is_visible)
 
+def t_invoice_detail_uses_the_posted_income_account():
+    import inspect
+    from darkbrown.api import app
+    lines = inspect.getsource(app._invoice_lines)
+    assert '"income_account"' in lines
+    assert 'i.income_account or "—"' in lines
+    shell = open(REPO + '/darkbrown/shell/index.html').read()
+    assert "v:r=>r[2]||(/recharge/i.test(r[0])" in shell
+check("invoice detail shows the submitted line income account",
+      t_invoice_detail_uses_the_posted_income_account)
+
 def t_collection_case_history_uses_recorded_events():
     import inspect
     from darkbrown.api import app

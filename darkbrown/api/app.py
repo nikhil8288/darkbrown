@@ -1224,10 +1224,16 @@ def invoices():
 
 
 def _invoice_lines(invoice):
-    return [[i.item_name or i.description or "Rent", _k(i.amount)]
+    # Keep the account recorded on the submitted Sales Invoice Item.  The
+    # shell must not infer an income account from the description: utility
+    # recovery, maintenance recharge and rent can all use the same Item while
+    # posting to different ledger accounts.
+    return [[i.item_name or i.description or "Rent", _k(i.amount),
+             i.income_account or "—"]
             for i in frappe.get_all(
                 "Sales Invoice Item", filters={"parent": invoice},
-                fields=["item_name", "description", "amount"])]
+                fields=["item_name", "description", "amount",
+                        "income_account"])]
 
 
 CHQ_STATE = {"Received": "On hand", "Deposited": "Deposited",
