@@ -50,7 +50,7 @@ CATALOGUE = [
      "Sales and Purchase Invoices, by cost centre"),
     ("spread", "Arbitrage spread analysis",
      "Rent billed against head-lease cost, per building, over the window",
-     "Sales Invoices and Head Lease records"),
+     "Rental-income ledger and Head Lease records"),
     ("arrears", "Arrears ageing",
      "0-30 / 31-60 / 61-90 / 90+ with tenant and unit detail",
      "Unpaid Sales Invoices"),
@@ -197,15 +197,19 @@ def _pl_by_building(frm, to, building=None):
         v = rows_by.get((b, month),
                         {"income": 0.0, "expense": 0.0, "head_lease": 0.0})
         overhead = flt(alloc.get("%s|%s" % (b, month[:7]), 0.0))
-        missing_cost = (v["income"] > 0
-                        and expects_head_lease_cost(b, month)
-                        and abs(v["head_lease"]) < 0.005)
-        net = None if missing_cost else v["income"] - v["expense"] - overhead
+        expects_cost = expects_head_lease_cost(b, month)
+        missing_posting = v["income"] > 0 and abs(v["head_lease"]) < 0.005
+        missing_cost = missing_posting and expects_cost
+        missing_lease = missing_posting and not expects_cost
+        incomplete_row = missing_cost or missing_lease
+        net = (None if incomplete_row
+               else v["income"] - v["expense"] - overhead)
         rows.append({"building": b, "month": month[:7],
                      "income": round(v["income"], 2),
                      "expense": round(v["expense"], 2),
                      "overhead": round(overhead, 2),
                      "cost_status": ("Missing head-lease cost" if missing_cost
+                                     else "No chargeable head lease" if missing_lease
                                      else "Complete" if v["income"]
                                      else "No revenue"),
                      "net": round(net, 2) if net is not None else None,
@@ -221,7 +225,9 @@ def _pl_by_building(frm, to, building=None):
     inc = sum(r["income"] for r in rows)
     exp = sum(r["expense"] for r in rows)
     ovh = sum(r["overhead"] for r in rows)
-    incomplete = any(r["cost_status"] == "Missing head-lease cost" for r in rows)
+    incomplete = any(r["cost_status"] in
+                     ("Missing head-lease cost", "No chargeable head lease")
+                     for r in rows)
     totals = {"income": round(inc, 2), "expense": round(exp, 2),
               "overhead": round(ovh, 2),
               "cost_status": "Incomplete" if incomplete else "Complete",
@@ -241,10 +247,11 @@ def _pl_by_building(frm, to, building=None):
                 "cannot be attributed to a building and is left out rather "
                 "than spread across them.")
     elif incomplete:
-        note += ("One or more revenue rows have an active, chargeable head "
-                 "lease but no Head Lease Rent posting. Their net and margin, "
-                 "and the report totals, are withheld rather than presenting "
-                 "revenue less incomplete cost as profit.")
+        note += ("One or more revenue rows either have no chargeable Head "
+                 "Lease record or have no Head Lease Rent posting for an "
+                 "active lease. Their net and margin, and the report totals, "
+                 "are withheld rather than presenting revenue less incomplete "
+                 "cost as profit.")
     return _pack("pl_by_building", cols, rows, totals, note)
 
 
@@ -254,50 +261,73 @@ def _spread(frm, to, building=None):
     leases = frappe.get_all(
         "Head Lease",
         filters={"status": ["in", ("Active", "Expiring", "Expired")]},
-        fields=["building", "annual_rent", "start_date", "end_date"])
+        fields=["building", "monthly_rent", "annual_rent", "start_date",
+                "end_date", "rent_free_days"])
 
+    # A tenancy invoice can also carry maintenance and utility recoveries.
+    # Grand total is therefore not sublease rent. Read only the Rental Income
+    # ledger postings so recovery-only invoices and recharge lines cannot
+    # inflate the arbitrage spread.
+    rental_accounts = frappe.get_all(
+        "Account", filters={"company": company,
+                            "account_name": "Rental Income", "is_group": 0},
+        pluck="name")
     billed = defaultdict(float)
-    for si in frappe.get_all(
-            "Sales Invoice", filters={"docstatus": 1, "company": company,
-                                      "posting_date": ["between", [frm, to]]},
-            fields=["name", "grand_total", "cost_center"], limit=20000):
-        billed[si.cost_center] += flt(si.grand_total)
+    for gle in frappe.get_all(
+            "GL Entry", filters={"is_cancelled": 0, "company": company,
+                                 "account": ["in", rental_accounts],
+                                 "posting_date": ["between", [frm, to]]},
+            fields=["credit", "debit", "cost_center"], limit=50000):
+        billed[gle.cost_center] += flt(gle.credit) - flt(gle.debit)
     posted_cost = defaultdict(float)
     for pi in frappe.get_all(
             "Purchase Invoice", filters={"docstatus": 1, "company": company,
-                                         "posting_date": ["between", [frm, to]]},
+                                         "posting_date": ["between", [frm, to]],
+                                         "custom_landlord_contract":
+                                             ["is", "set"]},
             fields=["grand_total", "cost_center"], limit=20000):
         posted_cost[pi.cost_center] += flt(pi.grand_total)
     by_cc = {b.cost_center: b.name for b in frappe.get_all(
         "Building", fields=["name", "cost_center"]) if b.cost_center}
 
+    from darkbrown.api.finance import (
+        _head_lease_accrual_window, _prorated_monthly)
     rows = []
     for b in sorted({x.building for x in leases} | set(by_cc.values())):
         if building and b != building:
             continue
         rent = sum(v for cc, v in billed.items() if by_cc.get(cc) == b)
-        cost = 0.0
+        accrued_cost = 0.0
         for lease in [x for x in leases if x.building == b]:
-            monthly = flt(lease.annual_rent) / 12.0
+            monthly = flt(lease.monthly_rent or flt(lease.annual_rent) / 12.0)
             for m in months:
-                if getdate(lease.start_date) <= get_last_day(m) and \
-                        getdate(lease.end_date) >= m:
-                    cost += monthly
+                window = _head_lease_accrual_window(lease, m)
+                if window:
+                    accrued_cost += _prorated_monthly(monthly, *window)
         posted = sum(v for cc, v in posted_cost.items() if by_cc.get(cc) == b)
         units = frappe.db.count("Unit", {"building": b})
+        gap = accrued_cost - posted
+        missing_lease = rent > 0 and accrued_cost <= 0.005
+        missing_posting = rent > 0 and accrued_cost > 0.005 and abs(gap) > 0.005
+        incomplete = missing_lease or missing_posting
         rows.append({"building": b, "units": units,
                      "rent": round(rent, 2), "cost": round(posted, 2),
-                     "spread": round(rent - posted, 2),
-                     "margin": round((rent - posted) / rent * 100, 1)
-                     if rent else None,
-                     "accrued": round(cost, 2),
-                     "gap": round(cost - posted, 2),
-                     "per_unit": round((rent - posted) / units, 2)
-                     if units else None})
+                     "cost_status": ("No chargeable head lease" if missing_lease
+                                     else "Head-lease cost not fully posted"
+                                     if missing_posting else "Complete"),
+                     "spread": (None if incomplete
+                                else round(rent - posted, 2)),
+                     "margin": (None if incomplete or not rent else
+                                round((rent - posted) / rent * 100, 1)),
+                     "accrued": round(accrued_cost, 2),
+                     "gap": round(gap, 2),
+                     "per_unit": (None if incomplete or not units else
+                                  round((rent - posted) / units, 2))})
 
     cols = [_col("building", "Building"), _col("units", "Units", "number"),
             _col("rent", "Sublease revenue", "money"),
             _col("cost", "Head-lease cost", "money"),
+            _col("cost_status", "Cost status"),
             _col("spread", "Spread", "money"),
             _col("margin", "Margin", "percent"),
             _col("accrued", "Cost accrued", "money"),
@@ -306,16 +336,24 @@ def _spread(frm, to, building=None):
     rent = sum(r["rent"] for r in rows)
     cost = sum(r["cost"] for r in rows)
     accrued = sum(r["accrued"] for r in rows)
+    incomplete = any(r["cost_status"] != "Complete" and r["rent"] > 0
+                     for r in rows)
     totals = {"units": sum(r["units"] for r in rows),
               "rent": round(rent, 2), "cost": round(cost, 2),
-              "spread": round(rent - cost, 2),
-              "margin": round((rent - cost) / rent * 100, 1) if rent else None,
+              "cost_status": "Incomplete" if incomplete else "Complete",
+              "spread": None if incomplete else round(rent - cost, 2),
+              "margin": (None if incomplete or not rent
+                         else round((rent - cost) / rent * 100, 1)),
               "accrued": round(accrued, 2), "gap": round(accrued - cost, 2)}
     gap = round(accrued - cost, 2)
-    note = ("Spread and margin use the cost actually posted, so this pack and "
-            "the P&L cannot disagree. Cost accrued is what the head leases say "
+    note = ("Head-lease cost is what actually posted. Cost accrued is what "
+            "the head leases say "
             "is owed across the window; the gap between them is rent that has "
             "not been invoiced by the landlord yet.")
+    if incomplete:
+        note += (" Spread, margin and per-unit spread are withheld wherever "
+                 "the chargeable lease schedule is absent or its accrued cost "
+                 "has not been fully posted, and the totals are withheld too.")
     if gap:
         note += (" %s is accrued and not posted - check the landlord invoices "
                  "for the months at the end of the window." % format(gap, ",.2f"))
