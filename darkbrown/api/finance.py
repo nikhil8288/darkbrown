@@ -495,6 +495,17 @@ def _utility_recovery_account(company):
             "Configure Utility Recovery before billing tenant utility shares."))
     return account
 
+
+def _invoice_run_name(building, period_start):
+    """A stable period name with suffixes for audited replacements."""
+    base = "INV-{0}-{1}".format(building, period_start)
+    name, suffix = base, 2
+    while frappe.db.exists("Invoice Run", name):
+        name = "{0}-{1}".format(base, suffix)
+        suffix += 1
+    return name
+
+
 @frappe.whitelist()
 def build_invoice_run(building, period_start=None):
     """Draft a month of rent for one building.
@@ -533,6 +544,11 @@ def build_invoice_run(building, period_start=None):
         "generated_by": frappe.session.user,
         "generated_on": frappe.utils.now(),
     })
+    # The DocType's format name identifies the period, but a cancelled run is
+    # deliberately retained.  Mark the suffix-aware name as explicit so
+    # Frappe does not reapply the format rule and collide with the audit copy.
+    run.name = _invoice_run_name(building, start)
+    run.flags.name_set = True
 
     maintenance = frappe.get_all(
         "Maintenance Request",

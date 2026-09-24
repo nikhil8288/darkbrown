@@ -2097,6 +2097,9 @@ def t_utility_recovery_is_reserved_for_the_governed_invoice_run():
     assert cancelled['status'] == 'Cancelled', cancelled
     assert cancelled['utility_released'] == 2, cancelled
     assert all(not a['invoice_run'] for a in S.DB['Utility Bill Allocation'])
+    rebuilt = finance.build_invoice_run('Al Sadd', '2026-09-01')
+    assert rebuilt['run'] == made['run'] + '-2', rebuilt
+    assert len(S.DB['Invoice Run']) == 2
 check("utility recovery is reserved for an approved invoice run and reversible",
       t_utility_recovery_is_reserved_for_the_governed_invoice_run)
 
@@ -2140,6 +2143,19 @@ def t_unissued_invoice_run_can_be_cancelled_from_the_live_review():
     assert 'Unissued draft' in shell
 check("unissued invoice runs have an audited cancellation path",
       t_unissued_invoice_run_can_be_cancelled_from_the_live_review)
+
+def t_cancelled_invoice_run_can_be_rebuilt_without_overwriting_audit():
+    import inspect
+    from darkbrown.api import finance
+    naming = inspect.getsource(finance._invoice_run_name)
+    builder = inspect.getsource(finance.build_invoice_run)
+    assert 'base = "INV-{0}-{1}"' in naming
+    assert 'while frappe.db.exists("Invoice Run", name)' in naming
+    assert 'name = "{0}-{1}".format(base, suffix)' in naming
+    assert 'run.name = _invoice_run_name(building, start)' in builder
+    assert 'run.flags.name_set = True' in builder
+check("cancelled invoice run rebuilds receive an audit-safe suffix",
+      t_cancelled_invoice_run_can_be_rebuilt_without_overwriting_audit)
 
 def t_cancelled_invoice_and_replacement_audit_is_visible():
     import inspect
