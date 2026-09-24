@@ -2230,6 +2230,7 @@ def t_petty_cash_movements_post_to_the_ledger():
     assert 'o:BANKS().map(x=>x.label)' in shell
     assert 'from:bankName(d.from)' in shell
     assert "{h:'Ledger',v:e=>e.je||'\\u2014'}" in shell
+    assert 'batches:BATCHES,staff:PEOPLE,petty:PETTY' in shell
 check("petty cash movements are validated and ledger-backed",
       t_petty_cash_movements_post_to_the_ledger)
 
