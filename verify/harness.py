@@ -2320,6 +2320,25 @@ def t_arrears_uses_tenancy_units_and_applies_building_scope():
 check("arrears shows tenancy units and honours building scope",
       t_arrears_uses_tenancy_units_and_applies_building_scope)
 
+def t_cheque_and_occupancy_reports_do_not_publish_false_totals():
+    import inspect
+    from darkbrown.api import reports
+    cheques = inspect.getsource(reports._cheques)
+    occupancy = inspect.getsource(reports._occupancy)
+    renewals = inspect.getsource(reports._renewals)
+    assert '"incoming": amount if c.direction == "Incoming" else None' in cheques
+    assert '"outgoing": amount if c.direction == "Outgoing" else None' in cheques
+    assert '_col("incoming", "Incoming", "money")' in cheques
+    assert '_col("outgoing", "Outgoing", "money")' in cheques
+    assert '"status": ["in", (' in occupancy
+    assert 'missing_rate = void_days > 0 and benchmark <= 0' in occupancy
+    assert '"lost": (None if missing_rate else' in occupancy
+    assert '"valuation": "Incomplete" if incomplete else "Complete"' in occupancy
+    assert '"lost": (None if incomplete else' in occupancy
+    assert '"status": ["in", ("Active", "Expiring", "Expired")]' in renewals
+check("cheque and occupancy reports avoid directionless and unknown totals",
+      t_cheque_and_occupancy_reports_do_not_publish_false_totals)
+
 def t_collection_case_history_uses_recorded_events():
     import inspect
     from darkbrown.api import app

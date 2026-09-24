@@ -444,17 +444,23 @@ def _cheques(frm, to, building=None):
             fields=["name", "direction", "party", "bank", "cheque_no",
                     "cheque_date", "amount", "status", "building", "unit"],
             order_by="cheque_date", limit=20000):
+        amount = round(flt(c.amount), 2)
         rows.append({"cheque": c.name, "direction": c.direction,
                      "party": c.party, "bank": c.bank, "no": c.cheque_no,
                      "date": str(c.cheque_date), "building": c.building,
                      "unit": c.unit, "status": c.status,
-                     "amount": round(flt(c.amount), 2)})
+                     "incoming": amount if c.direction == "Incoming" else None,
+                     "outgoing": amount if c.direction == "Outgoing" else None})
     cols = [_col("cheque", "Ref"), _col("direction", "Direction"),
             _col("party", "Party"), _col("bank", "Bank"), _col("no", "No"),
             _col("date", "Maturity"), _col("building", "Building"),
             _col("unit", "Unit"), _col("status", "Status"),
-            _col("amount", "Amount", "money")]
-    totals = {"amount": round(sum(r["amount"] for r in rows), 2)}
+            _col("incoming", "Incoming", "money"),
+            _col("outgoing", "Outgoing", "money")]
+    totals = {
+        "incoming": round(sum(r["incoming"] or 0 for r in rows), 2),
+        "outgoing": round(sum(r["outgoing"] or 0 for r in rows), 2),
+    }
     note = "" if rows else (
         "No cheques with a maturity date in this window. Historical rent was "
         "loaded as receipts rather than as individual cheques, so the register "
@@ -472,7 +478,9 @@ def _occupancy(frm, to, building=None):
                            order_by="building, unit_no", limit=5000)
     tens = defaultdict(list)
     for t in frappe.get_all("Tenancy Agreement",
-                            filters={"docstatus": ["<", 2]},
+                            filters={"docstatus": ["<", 2],
+                                     "status": ["in", (
+                                         "Active", "Expiring", "Expired")]},
                             fields=["unit", "start_date", "end_date",
                                     "monthly_rent", "status"], limit=20000):
         tens[t.unit].append(t)
@@ -492,34 +500,46 @@ def _occupancy(frm, to, building=None):
                 rent = flt(t.monthly_rent)
         occupied_days = len(covered)
         void_days = span - occupied_days
+        benchmark = flt(u.asking_rent or rent)
+        missing_rate = void_days > 0 and benchmark <= 0
         rows.append({"building": u.building, "unit": u.unit_no,
                      "type": u.unit_type or "", "status": u.status,
                      "occupied": occupied_days, "void": void_days,
                      "pct": round(occupied_days / span * 100, 1)
                      if span else None,
                      "rent": round(rent, 2),
-                     "lost": round(void_days / 30.0 * flt(u.asking_rent or rent), 2)})
+                     "valuation": "Rate missing" if missing_rate else "Complete",
+                     "lost": (None if missing_rate else
+                              round(void_days / 30.0 * benchmark, 2))})
     cols = [_col("building", "Building"), _col("unit", "Unit"),
-            _col("type", "Type"), _col("status", "Status"),
+            _col("type", "Type"), _col("status", "Current status"),
             _col("occupied", "Occupied days", "number"),
             _col("void", "Vacant days", "number"),
             _col("pct", "Occupancy", "percent"),
             _col("rent", "Current rent", "money"),
+            _col("valuation", "Vacancy valuation"),
             _col("lost", "Rent lost to vacancy", "money")]
     occ = sum(r["occupied"] for r in rows)
     tot = span * len(rows)
+    incomplete = any(r["valuation"] == "Rate missing" for r in rows)
     totals = {"occupied": occ, "void": sum(r["void"] for r in rows),
               "pct": round(occ / tot * 100, 1) if tot else None,
               "rent": round(sum(r["rent"] for r in rows), 2),
-              "lost": round(sum(r["lost"] for r in rows), 2)}
+              "valuation": "Incomplete" if incomplete else "Complete",
+              "lost": (None if incomplete else
+                       round(sum(r["lost"] or 0 for r in rows), 2))}
     return _pack("occupancy", cols, rows, totals,
                  "Rent lost to vacancy values a vacant month at the unit's asking "
                  "rent, falling back to its current rent where no asking rent "
-                 "is set. It is an opportunity figure, not a ledger one.")
+                 "is set. A missing rate is shown as unknown and withholds the "
+                 "total rather than valuing vacancy at zero. It is an "
+                 "opportunity figure, not a ledger one.")
 
 
 def _renewals(frm, to, building=None):
-    filters = {"docstatus": ["<", 2], "end_date": ["between", [frm, to]]}
+    filters = {"docstatus": ["<", 2],
+               "status": ["in", ("Active", "Expiring", "Expired")],
+               "end_date": ["between", [frm, to]]}
     if building:
         filters["building"] = building
     rows = []
