@@ -8806,6 +8806,7 @@ function genLiveView(){
   <div class="note">Issuing raises one Sales Invoice per line, in one transaction \u2014 every line or none.
    Amending a drafted line is not built: correct the agreement or its charges, cancel this run, and draft again.</div>
   <div class="genbar">
+   ${GEN.st!=='Issued'?`<button class="btn" onclick="openForm('cancel-invoice-run',{run:'${escA(GEN.run)}'})">Cancel draft</button>`:''}
    <span class="mini">${pending?'waiting on the General Manager'
      :repairable?'cancelled invoice needs controlled replacement'
      :GEN.st==='Issued'?'this run is fully issued'
@@ -9115,6 +9116,18 @@ FORMS['amend-invoice']={t:window.DB_LIVE?'Cancel an issued invoice':'Amend an is
    w:'just now',s:'a',go:'#/amendment/'+id});
   return{title:'Sent to the General Manager',msg:id+' · '+i.id,
    detail:'Nothing has posted. The invoice stands as issued until the amendment is approved.',goto:'#/amendment/'+id}}};
+
+FORMS['cancel-invoice-run']={t:'Cancel draft invoice run',
+ s:'Unissued draft · release reserved recoveries',cta:'Cancel draft',
+ init:ctx=>({run:(ctx&&ctx.run)||''}),
+ steps:[{n:'Reason',body:d=>`<div class="kv" style="margin-bottom:12px">
+   <div><span>Invoice run</span><b>${esc(d.run||'—')}</b></div>
+   <div><span>Ledger impact</span><b>None — this run is unissued</b></div></div>
+   <div class="fg">${fld({k:'why',l:'Why this draft is being cancelled',t:'ta',full:1,req:1,
+     p:'What was wrong with the draft and why it must be rebuilt'},d.why)}</div>
+   <div class="note">The cancelled run remains in the audit trail. Any maintenance or utility recovery reserved by it returns to the queue.</div>`,
+   fields:[{k:'why',req:1}],check:d=>(d.why||'').trim().length>0,
+   msg:'Type the reason for cancelling this draft.'}]};
 
 window.amdApprove=id=>{const a=AM(id);const i=I(a.inv);
  a.st='Approved';a.appBy=roleInfo(ROLEV)[0];a.appOn=fdate(TODAY);
@@ -9638,6 +9651,14 @@ const WIRE={
    detail:r.run+' returned to '+r.run_status+
      ((r.maintenance||[]).length?' · maintenance recharge returned to '+r.maintenance[0].status:''),
    goto:'#/billrun/'+r.run})},
+
+'cancel-invoice-run':{
+ m:'finance.cancel_invoice_run',
+ a:d=>({run:d.__ctx&&d.__ctx.run,reason:d.why}),
+ ok:r=>({title:'Draft cancelled',msg:r.run+' remains in the audit trail',
+   detail:(r.utility_released||0)+' utility allocation'+(r.utility_released===1?'':'s')+
+     ' released · '+(r.maintenance_released||0)+' maintenance recharge'+
+     (r.maintenance_released===1?'':'s')+' released',goto:'#/generate'})},
 
 'approve-decision':{
  m:'approvals.decide',

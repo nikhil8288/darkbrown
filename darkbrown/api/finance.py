@@ -569,20 +569,20 @@ def build_invoice_run(building, period_start=None):
     total, variance_seen = 0, False
     for a in agreements:
         window = _billing_window(a, start)
-        if not window:
-            continue
-        agreed = _prorated_monthly(a.monthly_rent, *window)
+        agreed = (_prorated_monthly(a.monthly_rent, *window)
+                  if window else 0)
         snapshots = []
-        for charge in frappe.get_all(
-                "Tenancy Charge", filters={"parent": a.name},
-                fields=["charge_type", "amount", "frequency",
-                        "income_account", "remarks"]):
-            charge_amount = _charge_amount(charge, a, start, window)
-            if charge_amount:
-                snapshots.append({"type": charge.charge_type,
-                                  "amount": charge_amount,
-                                  "income_account": charge.income_account,
-                                  "remarks": charge.remarks})
+        if window:
+            for charge in frappe.get_all(
+                    "Tenancy Charge", filters={"parent": a.name},
+                    fields=["charge_type", "amount", "frequency",
+                            "income_account", "remarks"]):
+                charge_amount = _charge_amount(charge, a, start, window)
+                if charge_amount:
+                    snapshots.append({"type": charge.charge_type,
+                                      "amount": charge_amount,
+                                      "income_account": charge.income_account,
+                                      "remarks": charge.remarks})
         for job in maintenance:
             belongs = (job.recharge_tenancy == a.name or (
                 not job.recharge_tenancy and job.recharge_to == a.tenant
@@ -615,10 +615,24 @@ def build_invoice_run(building, period_start=None):
                 "source_name": allocation.name,
             })
             queued_utility.add(allocation.name)
+        # Maintenance and utility recoveries are monthly obligations.  A
+        # quarterly or annual rent schedule must not hold them until the next
+        # rent cycle; create a recovery-only line when no rent falls due.
+        if not window and not snapshots:
+            continue
         amount = flt(agreed + sum(x["amount"] for x in snapshots), 2)
         variance = flt(amount - agreed, 2)
         if variance:
             variance_seen = True
+        kinds = {x["type"] for x in snapshots}
+        if kinds == {"Utility Recovery"}:
+            reason = "Utility recovery for this period"
+        elif kinds == {"Maintenance Recharge"}:
+            reason = "Maintenance recharge for this period"
+        elif snapshots:
+            reason = "Recurring charges and recoveries for this period"
+        else:
+            reason = None
         run.append("lines", {
             "tenancy_agreement": a.name,
             "tenant": a.tenant,
@@ -626,7 +640,7 @@ def build_invoice_run(building, period_start=None):
             "agreement_amount": agreed,
             "invoice_amount": amount,
             "variance": variance,
-            "reason": "Recurring charges on the agreement" if variance else None,
+            "reason": reason if variance else None,
             "charge_snapshot": frappe.as_json(snapshots),
         })
         total += amount
@@ -745,6 +759,52 @@ def submit_invoice_run(run):
     doc.status = "Pending GM"
     doc.save(ignore_permissions=True)
     return {"run": doc.name, "status": doc.status}
+
+
+@frappe.whitelist()
+def cancel_invoice_run(run, reason):
+    """Cancel an unissued run and release every reserved recovery.
+
+    Issued runs are corrected invoice-by-invoice so ERPNext can reverse their
+    ledger entries.  This path is only for a draft that has posted nothing.
+    """
+    guard(MD, GM)
+    reason = (reason or "").strip()
+    if not reason:
+        frappe.throw(_("Cancelling an invoice run needs an audit reason."))
+    doc = frappe.get_doc("Invoice Run", run)
+    require_record_access(doc, "write")
+    if doc.status not in ("Draft", "Pending GM"):
+        frappe.throw(_("{0} is {1}; only an unissued run can be cancelled.")
+                     .format(run, doc.status))
+    if any((line.get("sales_invoice") if hasattr(line, "get")
+            else getattr(line, "sales_invoice", None)) for line in doc.lines):
+        frappe.throw(_("{0} already has an invoice; cancel that invoice through "
+                       "the controlled correction workflow.").format(run))
+
+    maintenance = frappe.get_all(
+        "Maintenance Request",
+        filters={"recharge_invoice_run": run,
+                 "recharge_invoice": ["is", "not set"]},
+        pluck="name")
+    for name in maintenance:
+        frappe.db.set_value("Maintenance Request", name, {
+            "recharge_status": "Pending", "recharge_invoice_run": None,
+        })
+    allocations = frappe.get_all(
+        "Utility Bill Allocation",
+        filters={"invoice_run": run, "sales_invoice": ["is", "not set"]},
+        pluck="name")
+    for name in allocations:
+        frappe.db.set_value("Utility Bill Allocation", name,
+                            "invoice_run", None)
+
+    doc.status = "Cancelled"
+    doc.add_comment("Comment", _("Invoice run cancelled: {0}").format(reason))
+    doc.save(ignore_permissions=True)
+    return {"run": doc.name, "status": doc.status,
+            "maintenance_released": len(maintenance),
+            "utility_released": len(allocations)}
 
 
 @frappe.whitelist()

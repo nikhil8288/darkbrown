@@ -1436,10 +1436,13 @@ check("weekly close recomputes discrepancies and stores its audit snapshot",
       t_weekly_close_is_recomputed_and_snapshotted_server_side)
 
 def t_weekly_close_rejects_bad_periods_and_manual_keys():
+    from datetime import date, timedelta
     from darkbrown.api import cashdesk
+    now = date.today()
+    future_thursday = now + timedelta(days=((3 - now.weekday()) % 7 or 7))
     for payload in (
         {'period_end': '2026-09-16', 'status': 'Closed'},
-        {'period_end': '2026-09-24', 'status': 'Closed'},
+        {'period_end': future_thursday.isoformat(), 'status': 'Closed'},
         {'period_end': '2026-09-17', 'status': 'Closed',
          'manual_confirmed': ['invented-check']},
     ):
@@ -2053,23 +2056,34 @@ check("manual utility allocations cannot cross the building boundary",
 
 def t_utility_recovery_is_reserved_for_the_governed_invoice_run():
     _utility_fixture()
-    S.DB['Tenancy Agreement'] = S.DB['Tenancy Agreement'][:1]
+    # September is not a rent month for the quarterly agreement that began in
+    # January. Its monthly utility recovery must still get its own run line.
+    S.DB['Tenancy Agreement'][1]['payment_frequency'] = 'Quarterly'
     S.DB['Utility Bill'].append({
         'name':'UB-1','building':'Al Sadd','utility_type':'Kahramaa',
         'bill_no':'KM-TEST-002','status':'Allocated',
-        'period_end':'2026-09-23','amount':700})
-    S.DB['Utility Bill Allocation'].append({
-        'name':'UBA-1','parent':'UB-1','unit':'UNIT-1','tenant':'CUST-001',
-        'amount':700,'invoice_run':None,'sales_invoice':None})
+        'period_end':'2026-09-23','amount':1000})
+    S.DB['Utility Bill Allocation'].extend([
+        {'name':'UBA-1','parent':'UB-1','unit':'UNIT-1','tenant':'CUST-001',
+         'amount':600,'invoice_run':None,'sales_invoice':None},
+        {'name':'UBA-2','parent':'UB-1','unit':'UNIT-2','tenant':'CUST-002',
+         'amount':400,'invoice_run':None,'sales_invoice':None},
+    ])
     from darkbrown.api import finance
     made = finance.build_invoice_run('Al Sadd','2026-09-01')
     run = S.DB['Invoice Run'][0]
+    assert len(run['lines']) == 2, run['lines']
     charges = json.loads(run['lines'][0]['charge_snapshot'])
     utility = next(c for c in charges
                    if c.get('source_doctype') == 'Utility Bill Allocation')
     assert utility['source_name'] == 'UBA-1', utility
-    assert utility['amount'] == 700, utility
-    assert S.DB['Utility Bill Allocation'][0]['invoice_run'] == made['run']
+    assert utility['amount'] == 600, utility
+    quarterly = run['lines'][1]
+    assert quarterly['agreement_amount'] == 0, quarterly
+    assert quarterly['invoice_amount'] == 400, quarterly
+    assert quarterly['reason'] == 'Utility recovery for this period', quarterly
+    assert all(a['invoice_run'] == made['run']
+               for a in S.DB['Utility Bill Allocation'])
     shell = open(REPO + '/darkbrown/shell/index.html').read()
     assert "m:'utilities.record_bill'" in shell
     assert "fbtn('Record utility bill','record-utility')" in shell
@@ -2078,6 +2092,11 @@ def t_utility_recovery_is_reserved_for_the_governed_invoice_run():
     cancellation = inspect.getsource(invoice_run.on_sales_invoice_cancel)
     assert 'source == "Utility Bill Allocation"' in cancellation
     assert '"status", "Allocated"' in cancellation
+    cancelled = finance.cancel_invoice_run(
+        made['run'], 'Rebuild monthly utility recovery scope')
+    assert cancelled['status'] == 'Cancelled', cancelled
+    assert cancelled['utility_released'] == 2, cancelled
+    assert all(not a['invoice_run'] for a in S.DB['Utility Bill Allocation'])
 check("utility recovery is reserved for an approved invoice run and reversible",
       t_utility_recovery_is_reserved_for_the_governed_invoice_run)
 
@@ -2107,6 +2126,20 @@ def t_invoice_run_validation_uses_document_safe_child_assignment():
     assert 'elif isinstance(line, dict)' in validation
 check("invoice run validation writes child fields through the document API",
       t_invoice_run_validation_uses_document_safe_child_assignment)
+
+def t_unissued_invoice_run_can_be_cancelled_from_the_live_review():
+    import inspect
+    from darkbrown.api import finance
+    endpoint = inspect.getsource(finance.cancel_invoice_run)
+    assert 'doc.status not in ("Draft", "Pending GM")' in endpoint
+    assert '"recharge_invoice_run": None' in endpoint
+    assert '"invoice_run", None' in endpoint
+    shell = open(REPO + '/darkbrown/shell/index.html').read()
+    assert "openForm('cancel-invoice-run',{run:" in shell
+    assert "m:'finance.cancel_invoice_run'" in shell
+    assert 'Unissued draft' in shell
+check("unissued invoice runs have an audited cancellation path",
+      t_unissued_invoice_run_can_be_cancelled_from_the_live_review)
 
 def t_cancelled_invoice_and_replacement_audit_is_visible():
     import inspect
