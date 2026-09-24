@@ -8821,26 +8821,27 @@ function genLiveView(){
 
 function genLanding(){
  return page('Generate invoices','One building at a time · every line is read before anything is issued','',
-  stat([['Runs completed',BILLRUNS.length],['Invoices issued',BILLRUNS.reduce((a,r)=>a+r.count,0)],
-   ['Value',k(BILLRUNS.reduce((a,r)=>a+r.total,0))],
-   ['Runs with changes',BILLRUNS.filter(r=>r.changes.length).length,'','a']])+
+  stat([['Runs completed',BILLRUNS.filter(r=>r.st==='Issued').length],
+   ['Invoices issued',BILLRUNS.filter(r=>r.st==='Issued').reduce((a,r)=>a+r.count,0)],
+   ['Value',k(BILLRUNS.filter(r=>r.st==='Issued').reduce((a,r)=>a+r.total,0))],
+   ['Runs with changes',BILLRUNS.filter(r=>r.st==='Issued'&&r.changes.length).length,'','a']])+
   `<div class="note">Two hundred and seventy-six invoices in one pass is not something a person can check. Fourteen is.
     Each building carries its own run, its own review and its own record.</div>
   <div class="card"><h3>Where each building stands · ${PERIODS[0]}</h3>${tbl([
    {h:'Building',v:b=>b.n},{h:'Area',v:b=>b.area},
    {h:'Agreements',r:1,mono:1,v:b=>AGR.filter(a=>a.b===b.id).length},
    {h:'Falling due',r:1,mono:1,v:b=>dueCount(b.id)},
-   {h:'Status',v:b=>{const r=BILLRUNS.find(x=>x.b===b.id&&x.period===PERIODS[0]);
+   {h:'Status',v:b=>{const r=BILLRUNS.find(x=>x.b===b.id&&x.period===PERIODS[0]&&x.st!=='Cancelled');
      return r?chip((r.st==='Issued'?'Issued · ':r.st+' · ')+k(r.total),
        r.st==='Issued'?'g':'a'):chip('Not yet','a')}},
-   {h:'',v:b=>{const r=BILLRUNS.find(x=>x.b===b.id&&x.period===PERIODS[0]);
+   {h:'',v:b=>{const r=BILLRUNS.find(x=>x.b===b.id&&x.period===PERIODS[0]&&x.st!=='Cancelled');
      return r?`<button class="btn" onclick="event.stopPropagation();${
        window.DB_LIVE?`genOpenRun('${r.id}')`:`go('#/billrun/${r.id}')`}">${
        window.DB_LIVE?'Review the run':'Open the run'}</button>`
       :`<button class="btn" onclick="event.stopPropagation();genStart('${b.n}')">Generate</button>`}}],
    BUILDINGS.map(b=>({...b,__id:b.id})),{id:'bst',
     foot:['a building can only be generated once for a period','type to filter, click a header to sort']})}</div>`+
-  (BILLRUNS.length?`<div class="card"><h3>Completed runs</h3>${tbl([
+  (BILLRUNS.length?`<div class="card"><h3>Run history</h3>${tbl([
     {h:'Run',v:r=>r.id},{h:'Building',v:r=>r.bn},{h:'Period',v:r=>r.period},
     {h:'Invoices',r:1,mono:1,v:r=>r.count},{h:'Value',r:1,mono:1,v:r=>k(r.total)},
     {h:'Changes',r:1,mono:1,v:r=>r.changes.length||'—',style:r=>r.changes.length?'color:var(--amber)':''},

@@ -2141,6 +2141,12 @@ def t_unissued_invoice_run_can_be_cancelled_from_the_live_review():
     assert "openForm('cancel-invoice-run',{run:" in shell
     assert "m:'finance.cancel_invoice_run'" in shell
     assert 'Unissued draft' in shell
+    landing = shell[shell.index('function genLanding(){'):
+                    shell.index('/* ================================================================\n   Cheques',
+                                shell.index('function genLanding(){'))]
+    assert "&&x.st!=='Cancelled'" in landing
+    assert "BILLRUNS.filter(r=>r.st==='Issued').length" in landing
+    assert '<h3>Run history</h3>' in landing
 check("unissued invoice runs have an audited cancellation path",
       t_unissued_invoice_run_can_be_cancelled_from_the_live_review)
 
