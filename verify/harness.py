@@ -2293,16 +2293,17 @@ def t_spread_withholds_profit_until_accrued_lease_cost_is_posted():
     from darkbrown.api import reports
     pack = inspect.getsource(reports._spread)
     assert '_head_lease_accrual_window, _prorated_monthly' in pack
-    assert '"account_name": "Rental Income"' in pack
+    assert '("Rental Income", "Rent Income")' in pack
     assert 'flt(gle.credit) - flt(gle.debit)' in pack
     assert '"custom_landlord_contract":' in pack
     assert '["is", "set"]' in pack
     assert 'monthly_rent or flt(lease.annual_rent) / 12.0' in pack
-    assert 'missing_lease = rent > 0 and accrued_cost <= 0.005' in pack
-    assert 'missing_posting = rent > 0 and accrued_cost > 0.005' in pack
+    assert 'and (rent > 0.005 or posted > 0.005)' in pack
+    assert 'missing_posting = accrued_cost > 0.005' in pack
     assert '"spread": (None if incomplete' in pack
     assert '"margin": (None if incomplete or not rent' in pack
     assert '"per_unit": (None if incomplete or not units' in pack
+    assert 'any(r["cost_status"] != "Complete" for r in rows)' in pack
     assert '"cost_status": "Incomplete" if incomplete else "Complete"' in pack
 check("spread withholds profit until accrued lease cost is fully posted",
       t_spread_withholds_profit_until_accrued_lease_cost_is_posted)

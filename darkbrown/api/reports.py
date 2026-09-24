@@ -270,7 +270,9 @@ def _spread(frm, to, building=None):
     # inflate the arbitrage spread.
     rental_accounts = frappe.get_all(
         "Account", filters={"company": company,
-                            "account_name": "Rental Income", "is_group": 0},
+                            "account_name":
+                                ["in", ("Rental Income", "Rent Income")],
+                            "is_group": 0},
         pluck="name")
     billed = defaultdict(float)
     for gle in frappe.get_all(
@@ -307,8 +309,9 @@ def _spread(frm, to, building=None):
         posted = sum(v for cc, v in posted_cost.items() if by_cc.get(cc) == b)
         units = frappe.db.count("Unit", {"building": b})
         gap = accrued_cost - posted
-        missing_lease = rent > 0 and accrued_cost <= 0.005
-        missing_posting = rent > 0 and accrued_cost > 0.005 and abs(gap) > 0.005
+        missing_lease = (accrued_cost <= 0.005
+                         and (rent > 0.005 or posted > 0.005))
+        missing_posting = accrued_cost > 0.005 and abs(gap) > 0.005
         incomplete = missing_lease or missing_posting
         rows.append({"building": b, "units": units,
                      "rent": round(rent, 2), "cost": round(posted, 2),
@@ -336,8 +339,7 @@ def _spread(frm, to, building=None):
     rent = sum(r["rent"] for r in rows)
     cost = sum(r["cost"] for r in rows)
     accrued = sum(r["accrued"] for r in rows)
-    incomplete = any(r["cost_status"] != "Complete" and r["rent"] > 0
-                     for r in rows)
+    incomplete = any(r["cost_status"] != "Complete" for r in rows)
     totals = {"units": sum(r["units"] for r in rows),
               "rent": round(rent, 2), "cost": round(cost, 2),
               "cost_status": "Incomplete" if incomplete else "Complete",
