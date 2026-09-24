@@ -573,50 +573,104 @@ def _renewals(frm, to, building=None):
 
 
 def _deposits(frm, to, building=None):
-    rows = []
+    rows, covered_agreements = [], set()
+    as_at = getdate(to)
     if frappe.db.exists("DocType", "Security Deposit"):
-        for d in frappe.get_all(
+        deposits = frappe.get_all(
                 "Security Deposit", filters={"docstatus": ["<", 2]},
-                fields=["name", "tenant", "unit", "amount", "status",
-                        "received_on", "refund_amount", "refunded_on"],
-                limit=20000):
+                fields=["name", "tenancy_agreement", "tenant", "unit",
+                        "amount", "status", "received_on", "deductions",
+                        "refund_amount", "refunded_on"], limit=20000)
+        agreement_names = list({d.tenancy_agreement for d in deposits
+                                if d.tenancy_agreement})
+        agreements = {
+            a.name: a for a in frappe.get_all(
+                "Tenancy Agreement",
+                filters={"name": ["in", agreement_names]},
+                fields=["name", "building", "unit"], limit=20000)
+        } if agreement_names else {}
+        unit_names = list({d.unit for d in deposits if d.unit})
+        unit_buildings = {
+            u.name: u.building for u in frappe.get_all(
+                "Unit", filters={"name": ["in", unit_names]},
+                fields=["name", "building"], limit=20000)
+        } if unit_names else {}
+        for d in deposits:
+            if d.received_on and getdate(d.received_on) > as_at:
+                continue
+            agreement = agreements.get(d.tenancy_agreement)
+            deposit_building = ((agreement and agreement.building)
+                                or unit_buildings.get(d.unit))
+            if building and deposit_building != building:
+                continue
+            if d.tenancy_agreement:
+                covered_agreements.add(d.tenancy_agreement)
+            settled_as_at = (d.status != "Held" and
+                             (not d.refunded_on
+                              or getdate(d.refunded_on) <= as_at))
+            refunded = flt(d.refund_amount) if settled_as_at else 0.0
+            deductions = flt(d.deductions) if settled_as_at else 0.0
             rows.append({"ref": d.name,
                          "tenant": frappe.db.get_value(
                              "Customer", d.tenant, "customer_name") or d.tenant,
-                         "unit": d.unit, "held": round(flt(d.amount), 2),
+                         "unit": "%s %s" % (
+                             deposit_building or "", _unit_no(d.unit)),
                          "received": str(d.received_on or ""),
-                         "status": d.status,
-                         "refunded": round(flt(d.refund_amount), 2)})
-    note = ""
-    if not rows:
-        # Fall back to what the agreements say they hold, which is the only
-        # record of a deposit until the deposit module is used.
-        filters = {"docstatus": ["<", 2], "security_deposit": [">", 0]}
-        if building:
-            filters["building"] = building
-        for t in frappe.get_all(
-                "Tenancy Agreement", filters=filters,
-                fields=["name", "tenant", "unit", "building",
-                        "security_deposit", "status", "start_date"],
-                limit=20000):
-            rows.append({"ref": t.name,
-                         "tenant": frappe.db.get_value(
-                             "Customer", t.tenant, "customer_name") or t.tenant,
-                         "unit": "%s %s" % (t.building, _unit_no(t.unit)),
-                         "held": round(flt(t.security_deposit), 2),
-                         "received": str(t.start_date or ""),
-                         "status": t.status, "refunded": 0.0})
-        if rows:
-            note = ("No Security Deposit records exist, so this reads the "
-                    "deposit stated on each tenancy agreement. It is what the "
-                    "contracts say is held, not a ledger balance - deposits "
-                    "are not posted to the ledger by the historical load.")
+                         "status": (d.status if settled_as_at or d.status == "Held"
+                                    else "Held as at date"),
+                         "source": "Deposit record",
+                         "original": round(flt(d.amount), 2),
+                         "liability": (0.0 if settled_as_at else
+                                       round(flt(d.amount), 2)),
+                         "refunded": round(refunded, 2),
+                         "deductions": round(deductions, 2)})
+
+    # Historical agreements can state a deposit without having a Security
+    # Deposit record. Merge those rows instead of hiding all of them as soon
+    # as the first record-backed deposit exists.
+    filters = {"docstatus": ["<", 2], "security_deposit": [">", 0],
+               "status": ["in", ("Active", "Expiring", "Expired",
+                                   "Terminated")]}
+    if building:
+        filters["building"] = building
+    agreement_only = 0
+    for t in frappe.get_all(
+            "Tenancy Agreement", filters=filters,
+            fields=["name", "tenant", "unit", "building",
+                    "security_deposit", "status", "start_date"],
+            limit=20000):
+        if t.name in covered_agreements:
+            continue
+        if t.start_date and getdate(t.start_date) > as_at:
+            continue
+        amount = round(flt(t.security_deposit), 2)
+        rows.append({"ref": t.name,
+                     "tenant": frappe.db.get_value(
+                         "Customer", t.tenant, "customer_name") or t.tenant,
+                     "unit": "%s %s" % (t.building, _unit_no(t.unit)),
+                     "received": str(t.start_date or ""),
+                     "status": t.status, "source": "Agreement only",
+                     "original": amount, "liability": amount,
+                     "refunded": 0.0, "deductions": 0.0})
+        agreement_only += 1
+
     cols = [_col("ref", "Reference"), _col("tenant", "Tenant"),
             _col("unit", "Unit"), _col("received", "Received"),
-            _col("status", "Status"), _col("held", "Held", "money"),
-            _col("refunded", "Refunded", "money")]
-    totals = {"held": round(sum(r["held"] for r in rows), 2),
-              "refunded": round(sum(r["refunded"] for r in rows), 2)}
+            _col("status", "Status"), _col("source", "Source"),
+            _col("original", "Original deposit", "money"),
+            _col("liability", "Liability", "money"),
+            _col("refunded", "Refunded", "money"),
+            _col("deductions", "Deductions", "money")]
+    totals = {key: round(sum(r[key] for r in rows), 2)
+              for key in ("original", "liability", "refunded", "deductions")}
+    note = ("Point-in-time deposit position as at %s. A settled deposit has "
+            "zero remaining liability because its settlement journal clears "
+            "the full liability." % to)
+    if agreement_only:
+        note += (" %s agreement-only row%s show contractual deposits that "
+                 "have no Security Deposit record; they are not confirmed "
+                 "ledger balances." % (agreement_only,
+                                        "" if agreement_only == 1 else "s"))
     if not rows:
         note = "No deposits are recorded, on agreements or as deposit records."
     return _pack("deposits", cols, rows, totals, note)
@@ -625,39 +679,51 @@ def _deposits(frm, to, building=None):
 def _utilities(frm, to, building=None):
     rows = []
     if frappe.db.exists("DocType", "Utility Bill"):
-        filters = {"docstatus": ["<", 2],
-                   "period_start": ["between", [frm, to]]}
+        from darkbrown.api.utilities import _recovered
+
+        filters = {"docstatus": ["<", 2], "status": ["!=", "Cancelled"],
+                   "period_end": ["between", [frm, to]]}
         if building:
             filters["building"] = building
-        agg = defaultdict(lambda: {"billed": 0.0, "recovered": 0.0, "n": 0})
-        for u in frappe.get_all(
+        bills = frappe.get_all(
                 "Utility Bill", filters=filters,
-                fields=["building", "utility_type", "amount",
-                        "allocated_total"], limit=20000):
+                fields=["name", "building", "utility_type", "amount"],
+                limit=20000)
+        allocated_by_bill, recovered_by_bill = _recovered(bills)
+        agg = defaultdict(lambda: {"billed": 0.0, "allocated": 0.0,
+                                   "recovered": 0.0, "n": 0})
+        for u in bills:
             a = agg[(u.building, u.utility_type)]
             a["billed"] += flt(u.amount)
-            a["recovered"] += flt(u.allocated_total)
+            a["allocated"] += flt(allocated_by_bill.get(u.name))
+            a["recovered"] += flt(recovered_by_bill.get(u.name))
             a["n"] += 1
         for (b, kind), a in sorted(agg.items()):
             rows.append({"building": b, "kind": kind, "bills": a["n"],
                          "billed": round(a["billed"], 2),
+                         "allocated": round(a["allocated"], 2),
                          "recovered": round(a["recovered"], 2),
-                         "shortfall": round(a["billed"] - a["recovered"], 2),
+                         "unrecovered": round(a["billed"] - a["recovered"], 2),
                          "pct": round(a["recovered"] / a["billed"] * 100, 1)
                          if a["billed"] else None})
     cols = [_col("building", "Building"), _col("kind", "Utility"),
             _col("bills", "Bills", "number"),
             _col("billed", "Billed", "money"),
+            _col("allocated", "Allocated", "money"),
             _col("recovered", "Recovered", "money"),
-            _col("shortfall", "Shortfall", "money"),
+            _col("unrecovered", "Unrecovered", "money"),
             _col("pct", "Recovery", "percent")]
     billed = sum(r["billed"] for r in rows)
+    allocated = sum(r["allocated"] for r in rows)
     rec = sum(r["recovered"] for r in rows)
     totals = {"bills": sum(r["bills"] for r in rows),
-              "billed": round(billed, 2), "recovered": round(rec, 2),
-              "shortfall": round(billed - rec, 2),
+              "billed": round(billed, 2),
+              "allocated": round(allocated, 2),
+              "recovered": round(rec, 2),
+              "unrecovered": round(billed - rec, 2),
               "pct": round(rec / billed * 100, 1) if billed else None}
-    note = "" if rows else (
+    note = ("Recovered means an allocation linked to a Sales Invoice; "
+            "allocated but uninvoiced amounts remain unrecovered.") if rows else (
         "No utility bills recorded in this window. The pack fills as bills are "
         "entered against meters.")
     return _pack("utilities", cols, rows, totals, note)

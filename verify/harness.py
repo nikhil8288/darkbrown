@@ -2339,6 +2339,69 @@ def t_cheque_and_occupancy_reports_do_not_publish_false_totals():
 check("cheque and occupancy reports avoid directionless and unknown totals",
       t_cheque_and_occupancy_reports_do_not_publish_false_totals)
 
+def t_deposit_report_merges_legacy_contracts_and_uses_remaining_liability():
+    reset()
+    S.DB['DocType'].append({'name':'Security Deposit'})
+    S.DB['Unit'] += [
+        {'name':'UNIT-A','unit_no':'A-01','building':'Al Sadd'},
+        {'name':'UNIT-B','unit_no':'B-01','building':'West Bay'}]
+    S.DB['Tenancy Agreement'] += [
+        {'name':'TA-SETTLED','tenant':'CUST-001','unit':'UNIT-A',
+         'building':'Al Sadd','security_deposit':100,'status':'Expired',
+         'start_date':'2026-01-01','docstatus':1},
+        {'name':'TA-LEGACY','tenant':'CUST-002','unit':'UNIT-B',
+         'building':'West Bay','security_deposit':500,'status':'Active',
+         'start_date':'2026-02-01','docstatus':1}]
+    S.DB['Security Deposit'].append(
+        {'name':'SD-SETTLED','tenancy_agreement':'TA-SETTLED',
+         'tenant':'CUST-001','unit':'UNIT-A','amount':100,
+         'status':'Partially Refunded','received_on':'2026-01-01',
+         'deductions':20,'refund_amount':80,'refunded_on':'2026-08-10',
+         'docstatus':1})
+    from darkbrown.api import reports
+    pack = reports._deposits('2026-01-01', '2026-09-24')
+    by_ref = {r['ref']: r for r in pack['rows']}
+    assert set(by_ref) == {'SD-SETTLED', 'TA-LEGACY'}, by_ref
+    assert by_ref['SD-SETTLED']['original'] == 100
+    assert by_ref['SD-SETTLED']['liability'] == 0
+    assert by_ref['SD-SETTLED']['refunded'] == 80
+    assert by_ref['SD-SETTLED']['deductions'] == 20
+    assert by_ref['TA-LEGACY']['source'] == 'Agreement only'
+    assert by_ref['TA-LEGACY']['liability'] == 500
+    assert pack['totals'] == {'original':600.0, 'liability':500.0,
+                              'refunded':80.0, 'deductions':20.0}, pack['totals']
+    scoped = reports._deposits('2026-01-01', '2026-09-24', 'Al Sadd')
+    assert [r['ref'] for r in scoped['rows']] == ['SD-SETTLED'], scoped['rows']
+check("deposit report merges agreement-only rows and shows true liability",
+      t_deposit_report_merges_legacy_contracts_and_uses_remaining_liability)
+
+def t_utility_report_separates_allocated_from_invoiced_recovery():
+    reset()
+    S.DB['DocType'].append({'name':'Utility Bill'})
+    S.DB['Utility Bill'] = [
+        {'name':'UB-LIVE','building':'Al Sadd','utility_type':'Kahramaa',
+         'amount':100,'period_start':'2026-08-01','period_end':'2026-08-31',
+         'status':'Allocated','docstatus':1},
+        {'name':'UB-CANCELLED','building':'Al Sadd','utility_type':'Kahramaa',
+         'amount':900,'period_start':'2026-08-01','period_end':'2026-08-31',
+         'status':'Cancelled','docstatus':1}]
+    S.DB['Utility Bill Allocation'] = [
+        {'parent':'UB-LIVE','amount':60,'sales_invoice':'SI-1'},
+        {'parent':'UB-LIVE','amount':40,'sales_invoice':None},
+        {'parent':'UB-CANCELLED','amount':900,'sales_invoice':'SI-X'}]
+    from darkbrown.api import reports
+    pack = reports._utilities('2026-08-01', '2026-09-24')
+    assert len(pack['rows']) == 1, pack['rows']
+    row = pack['rows'][0]
+    assert row['billed'] == 100
+    assert row['allocated'] == 100
+    assert row['recovered'] == 60
+    assert row['unrecovered'] == 40
+    assert row['pct'] == 60
+    assert pack['totals']['recovered'] == 60
+check("utility report counts only invoiced allocations as recovered",
+      t_utility_report_separates_allocated_from_invoiced_recovery)
+
 def t_collection_case_history_uses_recorded_events():
     import inspect
     from darkbrown.api import app
