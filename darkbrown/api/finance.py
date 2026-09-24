@@ -1189,11 +1189,38 @@ def record_receipt(payload):
     if not tenant or amount <= 0:
         frappe.throw(_("A receipt needs a tenant and an amount."))
     require_tenant_access(tenant)
+    if (data.get("mode") or "Cheque") == "Cheque":
+        frappe.throw(_("Clear an incoming cheque through the cheque register. "
+                       "Clearing posts its payment and receipt once."))
+
+    reference = (data.get("reference") or "").strip()
+    if not reference:
+        frappe.throw(_("A receipt needs its collection slip or bank reference."))
+    # Lock the customer's row until the request commits. A second submission
+    # for the same tenant must recheck after the first transaction commits.
+    frappe.db.sql("SELECT name FROM `tabCustomer` WHERE name = %s FOR UPDATE",
+                  (tenant,))
+    on = getdate(data.get("on") or today())
+    prior = frappe.get_all(
+        "Payment Entry",
+        filters={"payment_type": "Receive", "party": tenant,
+                 "posting_date": str(on), "reference_no": reference,
+                 "docstatus": 1},
+        fields=["name", "paid_amount", "mode_of_payment"])
+    if any(abs(flt(row.paid_amount) - amount) < 0.005
+           and row.mode_of_payment == (data.get("mode") or "Cheque")
+           for row in prior):
+        frappe.throw(_("This tenant already has a submitted receipt with the "
+                       "same date, reference, amount and method. Cancel the "
+                       "incorrect receipt before recording a replacement."))
 
     pe, applied, on_account = _receipt(
-        tenant, amount, data.get("on") or today(),
+        tenant, amount, on,
         data.get("bank_account"), mode=data.get("mode"),
-        reference=data.get("reference"), invoice=data.get("invoice"))
+        reference=reference, invoice=data.get("invoice"),
+        collector=(frappe.db.get_value("User", frappe.session.user, "full_name")
+                   or frappe.session.user)
+        if data.get("mode") == "Cash" else None)
     return {"payment_entry": pe, "allocated": _kk(amount),
             "applied": [a[0] for a in applied],
             "applied_detail": [{"invoice": a[0], "amount": _kk(a[1])}
@@ -1259,7 +1286,9 @@ def _cash_account(company):
             "company": company, "account_name": label, "is_group": 0,
             "disabled": 0,
         }, "name")
-        if account:
+        if (account and _operational_money_account(account, company)
+                and frappe.db.get_value("Account", account, "account_type")
+                == "Cash"):
             return account
 
     mapped = frappe.db.get_value("Mode of Payment Account", {
@@ -1267,20 +1296,18 @@ def _cash_account(company):
     }, "default_account")
     if not mapped:
         return None
-    details = frappe.db.get_value(
-        "Account", mapped,
-        ["root_type", "account_type", "is_group", "disabled", "account_name"],
-        as_dict=True)
-    if (details and details.root_type == "Asset"
-            and details.account_type == "Cash" and not details.is_group
-            and not details.disabled
-            and details.account_name != "Historical Cutover Control"):
+    details = frappe.db.get_value("Account", mapped,
+                                  ["account_type", "account_name"],
+                                  as_dict=True)
+    if (details and _operational_money_account(mapped, company)
+            and details.account_type == "Cash"
+            and details.account_name != "Petty Cash"):
         return mapped
     return None
 
 
 def _receipt(customer, amount, on, bank_account=None, mode=None,
-             reference=None, invoice=None):
+             reference=None, invoice=None, collector=None):
     """Post a receipt and say where the money went.
 
     Oldest-first remains the rule, because that is what the ageing report
@@ -1291,12 +1318,17 @@ def _receipt(customer, amount, on, bank_account=None, mode=None,
     oldest, so the exception never becomes a way to leave old debt hidden.
     """
     company = _company()
-    account = _paid_to(bank_account or _settings().default_bank_account,
-                       company)
+    # A cash collection is held in the cash ledger until a deposit moves it to
+    # the bank. A deposit batch supplies an explicit bank account: its cash
+    # lines are already banked, so keep that destination.
+    account = (_cash_account(company)
+               if mode == "Cash" and not bank_account
+               else _paid_to(bank_account or _settings().default_bank_account,
+                             company))
     if not account:
         frappe.throw(_(
-            "No bank or cash ledger is configured. Set the Default Bank "
-            "Account in DBR Settings or pass a valid Bank Account."))
+            "No valid cash or bank ledger is configured for this receipt. "
+            "Configure the Cash mode account or the Default Bank Account."))
 
     pe = frappe.new_doc("Payment Entry")
     pe.payment_type = "Receive"
@@ -1310,6 +1342,8 @@ def _receipt(customer, amount, on, bank_account=None, mode=None,
     pe.mode_of_payment = mode or "Cheque"
     pe.reference_no = reference
     pe.reference_date = on
+    if collector:
+        pe.remarks = _("Cash collected by {0}.").format(collector)
 
     open_invoices = frappe.get_all(
         "Sales Invoice",
@@ -1629,8 +1663,8 @@ def nightly():
 
 
 def _kk(v):
-    """Money crosses to the shell in whole riyals. No scaling anywhere."""
-    return round(flt(v))
+    """Keep two decimal places in receipt and other finance API amounts."""
+    return round(flt(v), 2)
 
 
 # ------------------------------------------------------------------- receipts
@@ -1671,9 +1705,11 @@ def _receipt_row(pe, names=None, cheque_refs=None):
         "stmt": pe.reference_no or "",
         "acct": pe.paid_to or "—",
         "un": flt(pe.unallocated_amount),
-        "st": "Cancelled" if pe.docstatus == 2 else "Issued",
-        "alloc": ("Cancelled" if pe.docstatus == 2
-                  else "Part-allocated" if flt(pe.unallocated_amount) > 0.005
+        "st": ("Cancelled" if pe.docstatus == 2 else
+               "Draft" if pe.docstatus == 0 else "Issued"),
+        "alloc": ("Cancelled" if pe.docstatus == 2 else
+                  "Draft" if pe.docstatus == 0 else
+                  "Part-allocated" if flt(pe.unallocated_amount) > 0.005
                   else "Allocated"),
         "by": _short_user(pe.owner),
     }
@@ -1681,7 +1717,7 @@ def _receipt_row(pe, names=None, cheque_refs=None):
 
 @frappe.whitelist()
 def receipts(q=None, limit=None):
-    """Every receipt posted, newest first.
+    """All receipt states, with complete scoped totals and a capped row list.
 
     A receipt is a Payment Entry. There is no separate receipt record and
     there should not be one — the screen had an empty array behind it and a
@@ -1689,23 +1725,31 @@ def receipts(q=None, limit=None):
     exists before the thing it lists does.
     """
     guard(MD, GM, ACC)
-    limit = int(limit or RECEIPT_CAP)
-    rows = frappe.get_all(
-        "Payment Entry",
-        filters={"payment_type": "Receive", "docstatus": ["<", 2]},
-        fields=["name", "party", "paid_amount", "posting_date",
-                "mode_of_payment", "reference_no", "paid_to", "docstatus",
-                "unallocated_amount", "owner"],
-        order_by="posting_date desc, creation desc", limit=limit)
+    limit = max(1, min(int(limit or RECEIPT_CAP), RECEIPT_CAP))
+    filters = {"payment_type": "Receive", "docstatus": ["in", [0, 1, 2]]}
     allowed = allowed_buildings()
     if allowed is not None:
         tenants = set(frappe.get_all(
             "Tenancy Agreement", filters={"building": ["in", sorted(allowed)]},
             pluck="tenant"))
-        rows = [row for row in rows if row.party in tenants]
-    if not rows:
-        return {"rows": [], "total": 0, "value": 0, "unallocated": 0,
-                "capped": False}
+        if not tenants:
+            return {"rows": [], "total": 0, "value": 0,
+                    "unallocated": 0, "capped": False, "counts": {}}
+        filters["party"] = ["in", sorted(tenants)]
+
+    rows = []
+    page_size = 500
+    while True:
+        page = frappe.get_all(
+            "Payment Entry", filters=filters,
+            fields=["name", "party", "paid_amount", "posting_date",
+                    "mode_of_payment", "reference_no", "paid_to", "docstatus",
+                    "unallocated_amount", "owner"],
+            order_by="posting_date desc, creation desc, name desc",
+            limit_start=len(rows), limit_page_length=page_size)
+        rows.extend(page)
+        if len(page) < page_size:
+            break
 
     parties = {r.party for r in rows if r.party}
     names = {}
@@ -1723,12 +1767,21 @@ def receipts(q=None, limit=None):
         needle = str(q).lower()
         out = [r for r in out if needle in " ".join(
             [r["id"], str(r["tn"]), r["ref"], r["mode"]]).lower()]
+    issued = [r for r in out if r["st"] == "Issued"]
     return {
-        "rows": out,
+        "rows": out[:limit],
         "total": len(out),
-        "value": round(sum(r["amt"] for r in out), 2),
-        "unallocated": round(sum(r["un"] for r in out), 2),
-        "capped": len(rows) >= limit,
+        "value": round(sum(r["amt"] for r in issued), 2),
+        "unallocated": round(sum(r["un"] for r in issued), 2),
+        "receipted_cheques": [r["chq"] for r in issued if r["chq"]],
+        "counts": {
+            "issued": len(issued),
+            "draft": sum(r["st"] == "Draft" for r in out),
+            "cancelled": sum(r["st"] == "Cancelled" for r in out),
+            "cash": sum(r["kind"] == "Cash received" for r in issued),
+            "cheque": sum(r["kind"] == "Cheque cleared" for r in issued),
+        },
+        "capped": len(out) > limit,
     }
 
 

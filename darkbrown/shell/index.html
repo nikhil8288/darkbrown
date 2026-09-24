@@ -689,13 +689,13 @@ const R=(s=>()=>{s|=0;s=s+0x6D2B79F5|0;let t=Math.imul(s^s>>>15,1|s);t=t+Math.im
    that arrives with no units — onboarded but not yet filled — made this
    return undefined, and the dereference that followed took the whole app
    down before the first screen rendered. */
-/* Every money value in this shell is whole Qatari riyals. There is no K or M
-   scale anywhere — not in the fields, not on screen, not over the wire. n0 is
-   the only money renderer. */
+/* Counts use whole units; finance figures keep their two QAR decimals. */
 const n0=n=>Math.round(+n||0).toLocaleString('en-US');
+const qar=n=>(+n||0).toLocaleString('en-US',{
+  minimumFractionDigits:2,maximumFractionDigits:2});
 const pick=a=>((a&&a.length)?a[Math.floor(R()*a.length)]:{});
 const ri=(a,b)=>a+Math.floor(R()*(b-a+1));
-const money=n=>n0(n);
+const money=n=>qar(n);
 const esc=s=>String(s).replace(/[<>&]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]));
 /* esc() is for text between tags. A hand-typed value goes back into value="…"
    on the next render, where a quote would close the attribute early. */
@@ -970,8 +970,10 @@ let PETTY=[
 if(window.DB_SEED&&DB_SEED.petty){PETTY.length=0;PETTY.push.apply(PETTY,DB_SEED.petty);}
 const pcSign=e=>e.dir==='Top-up'?1:e.dir==='Expense'?-1:(e.effect==='Increase'?1:-1);
 /* forward from the beginning, so a back-dated entry reshapes what follows */
-const pcBalance=()=>PETTY.slice().sort((a,b)=>a.date<b.date?-1:1)
-  .reduce((t,e)=>t+pcSign(e)*(+e.amount||0),0);
+const pcBalance=()=>window.DB_LIVE&&PETTY.length&&PETTY[0].balance!==undefined
+  ?+PETTY[0].balance||0
+  :PETTY.slice().sort((a,b)=>a.date<b.date?-1:1)
+    .reduce((t,e)=>t+pcSign(e)*(+e.amount||0),0);
 const pcSpendIn=ym=>PETTY.filter(e=>e.dir==='Expense'&&e.date.slice(0,7)===ym)
   .reduce((t,e)=>t+(+e.amount||0),0);
 const pcAverage=()=>{const ms=[...new Set(PETTY.filter(e=>e.dir==='Expense').map(e=>e.date.slice(0,7)))];
@@ -1189,7 +1191,7 @@ function lazy(key,method,args){
   /* An open form can be waiting on this too - the expense form needs the
      chart before it can offer a head. router() redraws the screen behind the
      modal and leaves the modal itself stale, so the form is redrawn as well. */
-  const settle=()=>{router(); if(window.FOPEN&&typeof drawForm==='function'){try{drawForm()}catch(e){console.error(e)}}};
+  const settle=()=>{router(); if(FOPEN&&typeof drawForm==='function'){try{drawForm()}catch(e){console.error(e)}}};
   dbCall(method,args||{})
     .then(d=>{DB_LAZY[key]={state:'ok',data:d};settle();})
     .catch(e=>{DB_LAZY[key]={state:'err',msg:e.message};settle();});
@@ -3553,15 +3555,16 @@ const FORMS={
   return{title:'Cheque logged',msg:id+' recorded for '+t.n,detail:d.bank+' · '+k(d.amt)+' · matures '+d.mat,goto:'#/cheque/'+id}}},
 
 'record-payment':{t:'Record payment',s:'Workflow 2C · allocation',cta:'Post payment',
- init:c=>({tenant:c&&c.n?c.n:'',method:'Cheque'}),
+ init:c=>({tenant:c&&c.n?c.n:'',method:'Bank transfer',
+           date:new Date().toLocaleDateString('sv-SE')}),
  steps:[
   {n:'Payment',body:d=>`<div class="fg">
     ${fld({k:'tenant',l:'Tenant',t:'sel',o:TENANTS.map(t=>t.n),req:1},d.tenant)}
     ${fld({k:'amt',l:'Amount received (QAR)',t:'num',step:'100',req:1},d.amt)}
     ${fld({k:'method',l:'Method',t:'sel',o:['Cheque','Bank transfer','Cash','Card'],req:1},d.method)}
-    ${fld({k:'date',l:'Received on',t:'date',d:'2026-07-26',req:1},d.date)}
-    ${fld({k:'ref',l:'Reference',t:'txt',p:'cheque no or bank ref'},d.ref)}</div>`,
-   fields:[{k:'tenant',req:1},{k:'amt',req:1}]},
+    ${fld({k:'date',l:'Received on',t:'date',req:1},d.date)}
+    ${fld({k:'ref',l:'Reference',t:'txt',p:'bank or cash reference',req:1},d.ref)}</div>`,
+   fields:[{k:'tenant',req:1},{k:'amt',req:1},{k:'date',req:1},{k:'ref',req:1}]},
   {n:'Allocation',body:d=>{
     const t=TENANTS.find(x=>x.n===d.tenant); let left=+d.amt||0;
     const open=INV.filter(i=>i.t===(t||{}).id&&invBal(i)>0).slice(0,4);
@@ -4520,7 +4523,10 @@ ROUTES.staffm=id=>{
 window.openPc=id=>go('#/petty');
 
 ROUTES.petty=()=>{
- const bal=pcBalance(), avg=pcAverage();
+ const summary=window.DB_LIVE?lazy('petty:summary','pettycash.petty_cash_summary'):null;
+ if(summary&&summary.state!=='ok') return lazyPage('Petty cash','Reads the full float',summary);
+ const bal=summary?+summary.data.balance:pcBalance();
+ const avg=summary?+summary.data.average:pcAverage();
  const ym=new Date().toISOString().slice(0,7);
  /* Live rows already arrive newest-first with the authoritative balance after
     each movement. Preserve that same-day creation order: sorting only by the
@@ -4543,10 +4549,12 @@ ROUTES.petty=()=>{
  return page('Petty cash',
   'A float with a balance \u00b7 spend is portfolio overhead and does not touch building margin',
   fbtn('Record a movement','petty-entry')+fbtn('Count the box','petty-count'),
-  stat([['Balance in the box','QAR '+n0(bal)],
-   ['Spent this month','QAR '+n0(pcSpendIn(ym))],
-   ['Monthly average','QAR '+n0(Math.round(avg))],
-   ['Last top-up',lastTop?fdate(new Date(lastTop.date)):'\u2014']])+
+  stat([['Balance in the box','QAR '+qar(bal)],
+   ['Spent this month','QAR '+qar(summary?summary.data.thisMonth:pcSpendIn(ym))],
+   ['Monthly average','QAR '+qar(avg)],
+   ['Last top-up',summary?(summary.data.lastTopUp?fdate(new Date(summary.data.lastTopUp)):'\u2014'):
+     lastTop?fdate(new Date(lastTop.date)):'\u2014']])+
+  (window.DB_LIVE&&PETTY.length===200?`<div class="note">Showing the latest 200 movements. The balance and spend summaries include the full register.</div>`:'')+
   `<div class="note">The balance is worked out from the movements every time and never stored,
     because a stored balance and a movement history can disagree and there is then no way to tell
     which one lied. Top-ups name the account the cash came from, so an ATM withdrawal recorded
@@ -4560,12 +4568,12 @@ ROUTES.petty=()=>{
    {h:'Category',v:e=>e.cat||(e.dir==='Top-up'?e.from||'\u2014':'\u2014')},
    {h:'What for',v:e=>e.what||e.reason||e.ref||'\u2014'},
    {h:'Ledger',v:e=>e.je||'\u2014'},
-   {h:'In',r:1,mono:1,v:e=>pcSign(e)>0?n0(e.amount):''},
-   {h:'Out',r:1,mono:1,v:e=>pcSign(e)<0?n0(e.amount):''},
-   {h:'Balance',r:1,mono:1,v:e=>n0(e.__bal)}],
+   {h:'In',r:1,mono:1,v:e=>pcSign(e)>0?qar(e.amount):''},
+   {h:'Out',r:1,mono:1,v:e=>pcSign(e)<0?qar(e.amount):''},
+   {h:'Balance',r:1,mono:1,v:e=>qar(e.__bal)}],
    shown.map(e=>({...e,__id:e.id})),
    {id:'pc',click:'openPc',
-    foot:[shown.length+' movements','Balance QAR '+n0(bal)]})}</div>`);
+    foot:[shown.length+' movements','Balance QAR '+qar(bal)]})}</div>`);
 };
 
 ROUTES.landlords=()=>{
@@ -6737,10 +6745,10 @@ function expLive(d){
   return page('Expenses',
    `${fdate(d.frm)} to ${fdate(d.to)} \u00b7 ${d.count} entries \u00b7 head decides whether a cost is a building's or the company's`,
    periodBar()+fbtn('Record an expense','record-expense'),
-   stat([['Total',money(d.total),'','',{k:'b',v:''}],
-     ['Direct to buildings',money(d.direct),'','',{k:'b',v:'Building'}],
-     ['Common',money(d.common),'shared out','a',{k:'b',v:'Common'}],
-     ['Still unpaid',money(d.unpaid),'',d.unpaid?'r':'g']])+
+   stat([['Total',qar(d.total),'','',{k:'b',v:''}],
+     ['Direct to buildings',qar(d.direct),'','',{k:'b',v:'Building'}],
+     ['Common',qar(d.common),'shared out','a',{k:'b',v:'Common'}],
+     ['Still unpaid',qar(d.unpaid),'',d.unpaid?'r':'g']])+
    (f?fchip(f==='Building'?'building costs only':'common costs only','b'):'')+
    (d.capped?`<div class="note">Showing ${d.returned||rows.length} of ${d.count}
      entries. The summary totals and common-cost pool include the full selected
@@ -6752,7 +6760,7 @@ function expLive(d){
      {h:'Basis',v:r=>chip(r.basis,r.basis==='Building'?'g':'a')},
      {h:'Building',v:r=>esc(r.bn)},{h:'What for',v:r=>esc(r.what)},
      {h:'Settled',v:r=>r.mode==='Unpaid'?chip('Unpaid','r'):chip(r.mode,'n')},
-     {h:'Amount',r:1,mono:1,v:r=>money(r.amount)}],
+     {h:'Amount',r:1,mono:1,v:r=>qar(r.amount)}],
      rows.map(r=>({...r,__id:r.je||r.id})),
      {id:'exl',click:'openExpJ',
       foot:[rows.length+(f?' of '+d.count:'')+' entries','click a row for its journal']})
@@ -6761,17 +6769,17 @@ function expLive(d){
    <div class="card" style="margin-top:14px"><h3>How the common cost divides</h3>
     ${al&&al.rows&&al.rows.length?tbl([
       {h:'Building',v:r=>esc(r.label)},
-      {h:'Share of the common pool',r:1,mono:1,v:r=>money(r.amount)}],
+      {h:'Share of the common pool',r:1,mono:1,v:r=>qar(r.amount)}],
       al.rows.map(r=>({...r,__id:r.building})),
       {id:'alc',foot:[al.rows.length+' buildings carried a share',
-        'pool '+money(al.total)+(al.unallocated?' \u00b7 '+money(al.unallocated)+' unallocated':'')]})
+        'pool '+qar(al.total)+(al.unallocated?' \u00b7 '+qar(al.unallocated)+' unallocated':'')]})
      :empty(al?'No common cost to divide in this window.':'Reading the split\u2026')}
-    <div class="note">Weighted by head-lease cost, in whole riyals, across the
+    <div class="note">Weighted by head-lease cost, to two decimal places, across the
     buildings that were Active or on Notice Period in each month. A building
     that had not been handed over does not carry that month. The shares add
-    back to the pool exactly \u2014 the odd riyal goes to whichever buildings were
+    back to the pool exactly \u2014 the odd dirham goes to whichever buildings were
     rounded down hardest rather than to nobody.
-    ${al&&al.unallocated?`<br><b>${money(al.unallocated)} could not be divided</b>
+    ${al&&al.unallocated?`<br><b>${qar(al.unallocated)} could not be divided</b>
     because no building was live in the month it was posted. It stays on
     Overhead.`:''}</div></div>`);
 }
@@ -9255,7 +9263,9 @@ function allocField(party,val){
      open.length===1?'':'s'} \u00b7 ${k(+total.toFixed(2))} outstanding</div>`;
 }
 FORMS['issue-receipt']={t:'Issue a receipt',s:'Cash on the day · a cheque only once the bank confirms it',cta:'Issue the receipt',
- init:ctx=>({kind:(ctx&&ctx.kind)||'Cash received',date:'2026-07-27',collector:'Yusuf K.'}),
+ init:ctx=>({kind:(ctx&&ctx.kind)||'Cash received',
+   date:new Date().toLocaleDateString('sv-SE'),
+   collector:window.DB_LIVE?(window.DB_USER||'Current user'):'Yusuf K.'}),
  steps:[
   {n:'What was received',body:d=>`<div class="fg">${fld({k:'kind',l:'Kind of receipt',t:'sel',req:1,live:1,
      o:['Cash received','Cheque cleared','Bank transfer received']},d.kind)}</div>
@@ -9286,8 +9296,10 @@ FORMS['issue-receipt']={t:'Issue a receipt',s:'Cash on the day · a cheque only 
        ${fld({k:'party',l:'Received from',t:'sel',live:1,o:TENANTS.map(t=>t.n),req:1},d.party)}
        ${fld({k:'amt',l:'Amount (QAR)',t:'num',step:'100',req:1},d.amt)}
        ${fld({k:'date',l:'Date received',t:'date',req:1},d.date)}
-       ${d.kind==='Cash received'?fld({k:'collector',l:'Collected by',t:'sel',
-         o:['Yusuf K.','Anoop M.','Aisha R.'],req:1},d.collector):
+       ${d.kind==='Cash received'&&window.DB_LIVE
+         ?`<div class="fl"><span>Collected by</span><b>${esc(window.DB_USER||'Current user')}</b></div>`:
+         d.kind==='Cash received'?fld({k:'collector',l:'Collected by',t:'sel',
+           o:['Yusuf K.','Anoop M.','Aisha R.'],req:1},d.collector):
         fld({k:'stmt',l:'Bank statement reference',t:'txt',req:1,p:'QNB 04/26 line 8851'},d.stmt)}
        ${d.kind==='Cash received'?fld({k:'slip',l:'Collection slip reference',t:'txt',req:1,p:'CS-4431',
          hint:'written on the slip the tenant signs'},d.slip):''}
@@ -9295,12 +9307,12 @@ FORMS['issue-receipt']={t:'Issue a receipt',s:'Cash on the day · a cheque only 
       ${d.kind==='Cash received'?`<div class="note">The slip reference is what the deposit is matched against at reconciliation.
         Three quarters of our inflow arrives with no payer identity, so the slip is the only link back to the tenant.</div>`:''}`},
    fields:[{k:'date',req:1}],
-   check:d=>d.kind==='Cheque cleared'?!!(d.chq&&d.stmt):!!(d.party&&d.amt&&(d.kind!=='Cash received'||(d.collector&&d.slip))),
+   check:d=>d.kind==='Cheque cleared'?!!(d.chq&&d.stmt):!!(d.party&&d.amt&&(d.kind!=='Cash received'||d.slip)),
    msg:'Fill in everything on this step — a receipt without its evidence is not worth issuing'},
   {n:'Review',body:d=>{const c=d.chq?C(d.chq.split(' · ')[0]):null;
    const party=c?(c.party||c.tn):d.party, amt=c?c.amt:+d.amt||0;
    return `<div class="kv">${[['Kind',d.kind],['Received from',party],['Amount',k(amt)],['Date',d.date],
-     ...(d.kind==='Cash received'?[['Collected by',d.collector],['Collection slip',d.slip]]
+     ...(d.kind==='Cash received'?[['Collected by',window.DB_LIVE?(window.DB_USER||'Current user'):d.collector],['Collection slip',d.slip]]
        :[['Bank statement',d.stmt||'—']]),
      ...(c?[['Cheque',c.id+' · '+c.bank+' · '+c.no]]:[]),
      ['Allocation',d.inv||'Oldest open invoice first']].map(r=>`<div><span>${r[0]}</span><b>${r[1]||'—'}</b></div>`).join('')}</div>
@@ -9332,15 +9344,22 @@ ROUTES.receipts=()=>{
    return lazyPage('Receipts','Reads payment entries in ERPNext',c);
  if(c.state==='ok'&&!c.applied){c.applied=1;
    RCPT.length=0;(c.data.rows||[]).forEach(r=>RCPT.push(r));}
- const pend=CHQ.filter(c=>c.st==='Cleared'&&c.dir!=='out'&&!RCPT.some(r=>r.chq===c.id));
+ const receipted=c.state==='ok'&&c.data.receipted_cheques
+   ?new Set(c.data.receipted_cheques):null;
+ const pend=CHQ.filter(ch=>ch.st==='Cleared'&&ch.dir!=='out'&&
+   !(receipted?receipted.has(ch.id):RCPT.some(r=>r.st==='Issued'&&r.chq===ch.id)));
+ const counts=c.state==='ok'?(c.data.counts||{}):{};
  return page('Receipts','Cash on the day · a cheque only once the bank confirms the clearing',
   fbtn('Issue a receipt','issue-receipt'),
-  stat([['Issued',RCPT.filter(r=>r.st==='Issued').length],
-   ['Cash',RCPT.filter(r=>r.kind==='Cash received').length],
-   ['From cleared cheques',RCPT.filter(r=>r.kind==='Cheque cleared').length],
-   ['Value',n0(RCPT.filter(r=>r.st==='Issued').reduce((a,r)=>a+r.amt,0))],
+  stat([['Issued',counts.issued??RCPT.filter(r=>r.st==='Issued').length],
+   ['Cash',counts.cash??RCPT.filter(r=>r.st==='Issued'&&r.kind==='Cash received').length],
+   ['From cleared cheques',counts.cheque??RCPT.filter(r=>r.st==='Issued'&&r.kind==='Cheque cleared').length],
+   ['Value',qar(c.state==='ok'?c.data.value:
+     RCPT.filter(r=>r.st==='Issued').reduce((a,r)=>a+r.amt,0))],
    ['Awaiting a receipt',pend.length,'cheques cleared, not yet receipted',pend.length?'a':'g'],
-   ['Cancelled',RCPT.filter(r=>r.st==='Cancelled').length]])+
+   ['Draft',counts.draft??RCPT.filter(r=>r.st==='Draft').length],
+   ['Cancelled',counts.cancelled??RCPT.filter(r=>r.st==='Cancelled').length]])+
+  (c.data&&c.data.capped?`<div class="note">Showing ${RCPT.length} of ${c.data.total} receipt records. Totals include all authorised records.</div>`:'')+
   (pend.length?`<div class="card"><h3>Cleared cheques with no receipt yet</h3>${tbl([
     {h:'Cheque',v:c=>c.id},{h:'Drawer',v:c=>c.party||c.tn},{h:'Bank',v:c=>c.bank},
     {h:'Amount',r:1,mono:1,v:c=>n0(c.amt)},{h:'Cleared',r:1,v:c=>c.mat},
@@ -9351,7 +9370,7 @@ ROUTES.receipts=()=>{
   `<div class="card">${RCPT.length?tbl([
    {h:'Receipt',v:r=>r.id},{h:'Kind',v:r=>chip(r.kind.replace(' received','').replace(' cleared',''),
      r.kind==='Cash received'?'a':'n')},
-   {h:'Received from',v:r=>r.party},{h:'Amount',r:1,mono:1,v:r=>n0(r.amt)},{h:'Date',r:1,v:r=>r.date},
+   {h:'Received from',v:r=>r.party},{h:'Amount',r:1,mono:1,v:r=>qar(r.amt)},{h:'Date',r:1,v:r=>r.date},
    {h:'Evidence',v:r=>r.slip?'Slip '+r.slip:r.stmt?r.stmt:'—'},
    {h:'Issued by',v:r=>r.by},{h:'Status',v:r=>chip(r.st,r.st==='Issued'?'g':'r')}],
    RCPT.map(r=>({...r,__id:r.id})),{id:'rcl',click:'openRC'})
@@ -9367,28 +9386,30 @@ ROUTES.receipt=id=>{
    if(c.state!=='ok') return lazyPage('Receipt',id,c);
    const d=c.data;
    return crumb([['Receipts','#/receipts'],[d.id,'']])+page(d.id,
-    `${d.party} \u00b7 ${n0(d.amt)} \u00b7 ${d.date}`,
-    actbtn('Print','Receipt printed'),
+    `${d.party} \u00b7 ${qar(d.amt)} \u00b7 ${d.date}`,
+    (d.st==='Issued'?actbtn('Print','Receipt printed'):''),
     (d.st==='Cancelled'?`<div class="note" style="border-left-color:var(--red)"><b>Cancelled.</b>
-      The number stays used so the sequence has no hole in it.</div>`:'')+
-    `<div class="card receipt"><h3>Official receipt</h3>
+      The number stays used so the sequence has no hole in it.</div>`:
+     d.st==='Draft'?`<div class="note"><b>Draft.</b> This payment has not been posted and is not an issued receipt.</div>`:'')+
+    `<div class="card receipt"><h3>${d.st==='Draft'?'Draft payment':'Official receipt'}</h3>
      <div class="kv">${[['Receipt number',d.id],['Date',d.date],['Received from',esc(String(d.party||'\u2014'))],
-       ['Amount',n0(d.amt)],['Method',esc(d.mode)],['Paid into',esc(d.acct)],
+       ['Amount',qar(d.amt)],['Method',esc(d.mode)],['Paid into',esc(d.acct)],
        ...(d.ref&&d.ref!=='\u2014'?[['Reference',esc(d.ref)]]:[]),
        ...(d.cheque?[['Cheque',esc(d.cheque.id)+' \u00b7 '+esc(d.cheque.st)]]:[]),
-       ['Issued by',esc(d.by)]]
+       ['Issued by',esc(d.by)],
+       ...(d.remarks?[['Collection note',esc(d.remarks)]]:[])]
       .map(x=>`<div><span>${x[0]}</span><b>${x[1]}</b></div>`).join('')}</div>
      <div class="foot"><span>DarkBrown Real Estate \u00b7 Doha, Qatar</span>
-      <span>${d.st==='Cancelled'?'cancelled':'posted to the ledger'}</span></div></div>
+      <span>${d.st==='Cancelled'?'cancelled':d.st==='Draft'?'not posted':'posted to the ledger'}</span></div></div>
     <div class="card"><h3>What it settled</h3>
      ${(d.applied||[]).length?`<div class="tw"><table><thead><tr><th>Invoice</th>
        <th class="r">Invoice total</th><th class="r">Applied here</th><th class="r">Still open</th>
        </tr></thead><tbody>${d.applied.map(a=>`<tr><td>${esc(a.id)}</td>
-       <td class="r num">${a.total?n0(a.total):'\u2014'}</td>
-       <td class="r num">${n0(a.alloc)}</td>
-       <td class="r num">${a.left===null?'\u2014':n0(a.left)}</td></tr>`).join('')}</tbody></table></div>`
+       <td class="r num">${a.total?qar(a.total):'\u2014'}</td>
+       <td class="r num">${qar(a.alloc)}</td>
+       <td class="r num">${a.left===null?'\u2014':qar(a.left)}</td></tr>`).join('')}</tbody></table></div>`
       :empty('Nothing was open to settle, so the whole receipt sits unallocated.')}
-     ${d.un>0.005?`<div class="note"><b>${n0(d.un)} is unallocated.</b> It stays on the
+     ${d.st==='Issued'&&d.un>0.005?`<div class="note"><b>${qar(d.un)} is unallocated.</b> It stays on the
        tenant's account and will settle the next invoice raised against them.</div>`:''}
      <div class="foot"><span>oldest open invoice first, unless one was named</span>
       <span>allocation is what moves the tenant's balance, not the header</span></div></div>`);
@@ -9635,6 +9656,8 @@ const WIRE={
      : 'Nothing was open \u2014 the whole receipt sits on account')+' \u00b7 '+r.payment_entry})},
 
 'record-payment':{
+ guard:d=>d.method==='Cheque'
+  ?'Clear the incoming cheque on its register; that step posts the payment once.':null,
  m:'finance.record_receipt',
  a:d=>({payload:{tenant:wTen(d.tenant),amount:wNum(d.amt),on:d.date,
    mode:d.method,invoice:allocId(d.inv),reference:d.ref}}),

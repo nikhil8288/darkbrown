@@ -74,7 +74,9 @@ def heads():
         "missing": missing,
         "banks": [a.name for a in frappe.get_all(
             "Account", filters={"company": company, "is_group": 0,
-                                "account_type": ["in", ("Bank", "Cash")]},
+                                "account_type": ["in", ("Bank", "Cash")],
+                                "account_name": ["not in", (
+                                    "Petty Cash", "Historical Cutover Control")]},
             fields=["name"], order_by="account_name", limit=100)],
         "buildings": [{"id": b.name, "label": b.building_name or b.name,
                        "status": b.status}

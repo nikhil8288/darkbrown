@@ -68,6 +68,12 @@ class ExpenseEntry(Document):
             if acc_type not in ("Bank", "Cash"):
                 frappe.throw(_("{0} is not a bank or cash account.")
                              .format(self.paid_from))
+            account_name = frappe.db.get_value("Account", self.paid_from,
+                                                "account_name")
+            if account_name == "Petty Cash":
+                frappe.throw(_("Record spending from Petty Cash as a petty "
+                               "cash movement so its register and ledger "
+                               "remain in agreement."))
             self.supplier = None
 
         self.cost_center = self._cost_center()

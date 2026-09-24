@@ -51,8 +51,8 @@ FIELD_DENY_BY_ROLE = {
 }
 
 def _k(v):
-    """Money crosses to the shell in whole riyals. No scaling anywhere."""
-    return round(flt(v))
+    """Keep dirhams in the boot payload for downstream balance calculations."""
+    return round(flt(v), 2)
 
 
 def _has(doctype, fields):

@@ -20,17 +20,18 @@ Three decisions, each of which changes the answer:
     over before the month ended and not exited before it began. A building
     that opened in May does not carry March's salary.
 
-    Every share is a whole riyal, and the shares add back to the total exactly.
-    Rounding each share independently leaves a few riyals in nobody's column,
+    Every share is a whole dirham, and the shares add back to the total exactly.
+    Rounding each share independently leaves a few dirhams in nobody's column,
     which is how a reconciliation starts failing for no reason anyone can find.
     The largest-remainder method rounds everything down, then gives the
-    leftover riyals one at a time to whichever buildings were rounded down
+    leftover dirhams one at a time to whichever buildings were rounded down
     hardest.
 
 Nothing here writes. It reads the ledger and returns numbers.
 """
 
 from collections import defaultdict
+from decimal import Decimal, ROUND_DOWN, ROUND_HALF_UP
 
 import frappe
 from frappe.utils import (add_months, flt, get_first_day, get_last_day,
@@ -101,9 +102,9 @@ def live_buildings(month_start, month_end):
 # -------------------------------------------------------------- the arithmetic
 
 def split(total, weights):
-    """Divide `total` across `weights` in whole units, summing back exactly.
+    """Divide QAR in integer dirhams, summing to the original cent exactly.
 
-    `weights` is a dict of key -> weight. Returns key -> integer amount.
+    `weights` is a dict of key -> weight. Returns key -> QAR amount.
 
     Where every weight is zero the split is even, because the alternative is
     returning nothing at all and quietly losing the cost. Where there are no
@@ -113,19 +114,21 @@ def split(total, weights):
     if not keys:
         return {}
 
-    total = flt(total)
-    sign = -1 if total < 0 else 1
-    amount = abs(total)
+    cents = int((Decimal(str(total)) * 100).quantize(
+        Decimal("1"), rounding=ROUND_HALF_UP))
+    sign = -1 if cents < 0 else 1
+    amount = abs(cents)
 
-    base = {k: flt(weights[k]) for k in keys}
+    base = {k: Decimal(str(flt(weights[k]))) for k in keys}
     denom = sum(base.values())
     if denom <= 0:
-        base = {k: 1.0 for k in keys}
-        denom = float(len(keys))
+        base = {k: Decimal(1) for k in keys}
+        denom = Decimal(len(keys))
 
-    exact = {k: amount * base[k] / denom for k in keys}
-    floors = {k: int(exact[k]) for k in keys}
-    left = int(round(amount)) - sum(floors.values())
+    exact = {k: Decimal(amount) * base[k] / denom for k in keys}
+    floors = {k: int(exact[k].to_integral_value(rounding=ROUND_DOWN))
+              for k in keys}
+    left = amount - sum(floors.values())
 
     # Biggest fractional part first; ties broken on the key so the same inputs
     # always produce the same output.
@@ -142,7 +145,7 @@ def split(total, weights):
             left += 1
         i += 1
 
-    return {k: sign * v for k, v in floors.items()}
+    return {k: sign * v / 100 for k, v in floors.items()}
 
 
 # ------------------------------------------------------------------ the pool

@@ -239,9 +239,18 @@ def _match_or(row, or_filters):
 
 
 def _get_all(dt, filters=None, fields=None, pluck=None, limit=None,
-             order_by=None, as_dict=True, or_filters=None, **kw):
+             order_by=None, as_dict=True, or_filters=None,
+             limit_start=0, limit_page_length=None, **kw):
     rows = [r for r in DB.get(dt, [])
             if _match(r, filters) and _match_or(r, or_filters)]
+    if order_by:
+        for term in reversed(order_by.split(',')):
+            parts = term.strip().split()
+            key = parts[0].split('.')[-1]
+            rows.sort(key=lambda r: str(r.get(key) or ''),
+                      reverse=len(parts) > 1 and parts[1].lower() == 'desc')
+    rows = rows[int(limit_start or 0):]
+    if limit_page_length is not None: rows = rows[:limit_page_length]
     if limit: rows = rows[:limit]
     if pluck: return [r.get(pluck) for r in rows]
     out = []

@@ -96,19 +96,32 @@ def _window(frm=None, to=None):
 
 # ------------------------------------------------------------------- reading
 
-def _gl(company, frm, to, accounts=None, limit=20000):
+def _gl(company, frm, to, accounts=None, limit=None):
     filters = {"is_cancelled": 0, "posting_date": ["between", [frm, to]]}
     if company:
         filters["company"] = company
     if accounts:
         filters["account"] = ["in", accounts]
-    return frappe.get_all(
-        "GL Entry",
-        filters=filters,
-        fields=["posting_date", "account", "debit", "credit", "voucher_type",
-                "voucher_no", "remarks", "party", "against", "owner"],
-        order_by="posting_date desc, creation desc",
-        limit=limit)
+    # The voucher list is capped later, but account balances must include all
+    # GL movements. Page the query so the first 20,000 rows cannot silently
+    # become the whole reporting window when volume grows.
+    rows = []
+    page_size = 500
+    while True:
+        size = min(page_size, limit - len(rows)) if limit is not None else page_size
+        if size <= 0:
+            break
+        page = frappe.get_all(
+            "GL Entry", filters=filters,
+            fields=["posting_date", "account", "debit", "credit",
+                    "voucher_type", "voucher_no", "remarks", "party",
+                    "against", "owner"],
+            order_by="posting_date desc, creation desc, name desc",
+            limit_start=len(rows), limit_page_length=size)
+        rows.extend(page)
+        if len(page) < size:
+            break
+    return rows
 
 
 def _short_user(user):
