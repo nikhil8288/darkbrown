@@ -103,6 +103,22 @@ def _map_mode(company, mode, account):
     return True
 
 
+def ensure_utility_recovery_account(company=None):
+    """Ensure the non-posting income leaf used by utility recoveries.
+
+    Migrate remains the normal setup path.  This narrow idempotent helper also
+    lets the invoice workflow recover safely when a deployment skipped its
+    after-migrate hook; it creates no voucher or GL Entry.
+    """
+    company = company or _company()
+    if not company:
+        frappe.throw("A company is required for Utility Recovery.")
+    if frappe.db.get_value("Company", company, "default_currency") != "QAR":
+        frappe.throw("DarkBrown launch accounting requires a QAR company.")
+    return _ensure_account(
+        company, ("Utility Recovery",), "Income", ("Direct Income", "Income"))
+
+
 def ensure_launch_foundation(company=None):
     """Create missing semantic accounts and mode mappings, never vouchers."""
     company = company or _company()

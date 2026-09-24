@@ -2082,12 +2082,19 @@ check("utility recovery is reserved for an approved invoice run and reversible",
       t_utility_recovery_is_reserved_for_the_governed_invoice_run)
 
 def t_utility_recovery_is_part_of_the_accounting_foundation():
+    import inspect
+    from darkbrown.api import finance
     from darkbrown.utils import accounting_foundation, accounting_setup
     requirements = {role: labels for role, labels, _root, _parents
                     in accounting_setup.ACCOUNT_REQUIREMENTS}
     assert requirements["utility_recovery"] == ("Utility Recovery",)
     assert accounting_foundation.ACCOUNT_ROLES["utility_recovery"] == (
         "Income", ("Utility Recovery",))
+    fallback = inspect.getsource(finance._utility_recovery_account)
+    assert "ensure_utility_recovery_account" in fallback
+    helper = inspect.getsource(accounting_setup.ensure_utility_recovery_account)
+    assert '("Utility Recovery",), "Income"' in helper
+    assert "GL Entry" in helper
 check("utility recovery account is installed and audited",
       t_utility_recovery_is_part_of_the_accounting_foundation)
 

@@ -483,6 +483,14 @@ def _utility_recovery_account(company):
                     "account_name": "Utility Recovery",
                     "root_type": "Income", "is_group": 0}, "name")
     if not account:
+        # A deploy can update Python without running after_migrate.  The
+        # foundation normally creates this leaf there; recover idempotently at
+        # the first draft rather than making every utility allocation unusable.
+        # The helper creates an Account only — never a voucher or GL Entry.
+        from darkbrown.utils.accounting_setup import \
+            ensure_utility_recovery_account
+        account = ensure_utility_recovery_account(company)
+    if not account:
         frappe.throw(_(
             "Configure Utility Recovery before billing tenant utility shares."))
     return account
