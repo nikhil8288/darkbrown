@@ -2201,6 +2201,38 @@ def t_invoice_detail_uses_the_posted_income_account():
 check("invoice detail shows the submitted line income account",
       t_invoice_detail_uses_the_posted_income_account)
 
+def t_petty_cash_movements_post_to_the_ledger():
+    import inspect
+    from darkbrown.api import pettycash
+    from darkbrown.utils import accounting_foundation, accounting_setup
+    endpoint = inspect.getsource(pettycash.record_entry)
+    poster = inspect.getsource(pettycash._post_movement)
+    count = inspect.getsource(pettycash.record_count)
+    assert 'doc.adjustment_effect = p.get("effect")' in endpoint
+    assert '_assert_non_negative_after(entry_date, delta)' in endpoint
+    assert 'journal = _post_movement(doc)' in endpoint
+    assert 'doc.db_set("journal_entry", journal' in endpoint
+    assert '"doctype": "Journal Entry"' in poster
+    assert '"debit_in_account_currency": amount' in poster
+    assert '"credit_in_account_currency": amount' in poster
+    assert '_bank_gl_account(doc.funded_from, company)' in poster
+    assert 'journal = _post_movement(doc)' in count
+    roles = accounting_foundation.ACCOUNT_ROLES
+    assert roles['petty_cash_asset'] == ('Asset', ('Petty Cash',))
+    assert roles['petty_cash_expense'] == ('Expense', ('Petty Cash Expenses',))
+    requirements = {role: labels for role, labels, _root, _parents
+                    in accounting_setup.ACCOUNT_REQUIREMENTS}
+    assert requirements['petty_cash_asset'] == ('Petty Cash',)
+    assert requirements['petty_cash_expense'] == ('Petty Cash Expenses',)
+    setup = inspect.getsource(accounting_setup.ensure_petty_cash_accounts)
+    assert 'account_type="Cash"' in setup
+    shell = open(REPO + '/darkbrown/shell/index.html').read()
+    assert 'o:BANKS().map(x=>x.label)' in shell
+    assert 'from:bankName(d.from)' in shell
+    assert "{h:'Ledger',v:e=>e.je||'\\u2014'}" in shell
+check("petty cash movements are validated and ledger-backed",
+      t_petty_cash_movements_post_to_the_ledger)
+
 def t_collection_case_history_uses_recorded_events():
     import inspect
     from darkbrown.api import app

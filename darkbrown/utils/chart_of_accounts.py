@@ -114,6 +114,9 @@ HEADS = [
     ("Utility Expenses", "Operating Expenses", COMMON),
     ("Vehicle Fuel", "Operating Expenses", COMMON),
     ("Wifi & Mobile Office", "Operating Expenses", COMMON),
+    # The source record retains the detailed cash category.  The ledger uses
+    # one common operating head so each cash-box expense posts exactly once.
+    ("Petty Cash Expenses", "Operating Expenses", COMMON),
 
     # ---------------------------------------------- depreciation, amortisation
     ("Depreciation", "Depreciation and Amortisation", COMMON),

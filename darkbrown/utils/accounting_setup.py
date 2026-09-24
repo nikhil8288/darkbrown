@@ -18,6 +18,10 @@ ACCOUNT_REQUIREMENTS = (
      ("Direct Income", "Income")),
     ("utility_recovery", ("Utility Recovery",), "Income",
      ("Direct Income", "Income")),
+    ("petty_cash_asset", ("Petty Cash",), "Asset",
+     ("Cash and Bank Accounts", "Current Assets", "Assets")),
+    ("petty_cash_expense", ("Petty Cash Expenses",), "Expense",
+     ("Operating Expenses", "Indirect Expenses", "Expenses")),
     ("cheque_clearing", ("Cheques in Hand", "Cheque Clearing"), "Asset",
      ("Cash and Bank Accounts", "Current Assets", "Assets")),
 )
@@ -44,25 +48,32 @@ def _parent(company, root_type, preferred):
     }, "name"))
 
 
-def _ensure_account(company, labels, root_type, preferred_parents):
+def _ensure_account(company, labels, root_type, preferred_parents,
+                    account_type=None):
     for label in labels:
         existing = frappe.db.get_value(
             "Account", {"company": company, "account_name": label},
-            ["name", "root_type", "is_group"], as_dict=True)
+            ["name", "root_type", "is_group", "account_type"], as_dict=True)
         if not existing:
             continue
         if existing.root_type != root_type or existing.is_group:
             frappe.throw(
                 f"{label} exists but is not a {root_type} leaf account.")
+        if account_type and existing.account_type != account_type:
+            frappe.throw(
+                f"{label} exists but is not typed as {account_type}.")
         return existing.name
     label = labels[0]
     parent = _parent(company, root_type, preferred_parents)
     if not parent:
         frappe.throw(f"No {root_type} group exists for {label}.")
-    return frappe.get_doc({
+    values = {
         "doctype": "Account", "account_name": label, "company": company,
         "parent_account": parent, "root_type": root_type, "is_group": 0,
-    }).insert(ignore_permissions=True).name
+    }
+    if account_type:
+        values["account_type"] = account_type
+    return frappe.get_doc(values).insert(ignore_permissions=True).name
 
 
 def _find_cash_account(company):
@@ -119,6 +130,24 @@ def ensure_utility_recovery_account(company=None):
         company, ("Utility Recovery",), "Income", ("Direct Income", "Income"))
 
 
+def ensure_petty_cash_accounts(company=None):
+    """Ensure the two leaves required by the ledger-backed cash float."""
+    company = company or _company()
+    if not company:
+        frappe.throw("A company is required for Petty Cash.")
+    if frappe.db.get_value("Company", company, "default_currency") != "QAR":
+        frappe.throw("DarkBrown launch accounting requires a QAR company.")
+    return {
+        "cash": _ensure_account(
+            company, ("Petty Cash",), "Asset",
+            ("Cash and Bank Accounts", "Current Assets", "Assets"),
+            account_type="Cash"),
+        "expense": _ensure_account(
+            company, ("Petty Cash Expenses",), "Expense",
+            ("Operating Expenses", "Indirect Expenses", "Expenses")),
+    }
+
+
 def ensure_launch_foundation(company=None):
     """Create missing semantic accounts and mode mappings, never vouchers."""
     company = company or _company()
@@ -129,7 +158,9 @@ def ensure_launch_foundation(company=None):
 
     accounts = {}
     for role, labels, root_type, parents in ACCOUNT_REQUIREMENTS:
-        accounts[role] = _ensure_account(company, labels, root_type, parents)
+        accounts[role] = _ensure_account(
+            company, labels, root_type, parents,
+            account_type="Cash" if role == "petty_cash_asset" else None)
     cash = _find_cash_account(company)
     if not cash:
         frappe.throw("A Cash in Hand or Cash Clearing account is required.")

@@ -27,12 +27,20 @@ import json
 import frappe
 from frappe.utils import add_months, flt, get_first_day, getdate, today
 from darkbrown.guards import guard, ACC, GM, MD
+from darkbrown.utils.accounting_setup import ensure_petty_cash_accounts
+from darkbrown.utils.chart_of_accounts import ensure_overhead_cost_center
 
 
 def _payload(payload):
     if isinstance(payload, str):
         payload = json.loads(payload)
     return payload or {}
+
+
+def _company():
+    return (frappe.db.get_single_value("DBR Settings", "default_company")
+            or frappe.defaults.get_global_default("company")
+            or (frappe.get_all("Company", limit=1) or [{}])[0].get("name"))
 
 
 def _signed(row):
@@ -69,6 +77,99 @@ def float_balance(on=None):
     for r in rows:
         total += _signed(r)
     return total
+
+
+def _assert_non_negative_after(on, delta):
+    """Reject a back-dated cash-out if a later balance would fall below 0."""
+    on = getdate(on)
+    running = float_balance(on) + flt(delta)
+    if running < -0.005:
+        frappe.throw("This movement would take the petty cash float below zero. "
+                     "Record the missing top-up first or correct the amount.")
+    later = frappe.get_all(
+        "Petty Cash Entry", filters={"entry_date": [">", on]},
+        fields=["direction", "amount", "adjustment_effect"],
+        order_by="entry_date asc, creation asc", ignore_permissions=True)
+    for row in later:
+        running += _signed(row)
+        if running < -0.005:
+            frappe.throw("This back-dated movement would make the petty cash "
+                         "float negative later in the recorded history.")
+
+
+def _bank_gl_account(bank_account, company):
+    row = frappe.db.get_value(
+        "Bank Account", bank_account,
+        ["account", "company", "is_company_account"], as_dict=True)
+    if not row or not row.account or row.company != company or \
+            not row.is_company_account:
+        frappe.throw("Choose a company Bank Account that is linked to its "
+                     "ledger account.")
+    account = frappe.db.get_value(
+        "Account", row.account,
+        ["company", "root_type", "account_type", "is_group", "disabled"],
+        as_dict=True)
+    if not account or account.company != company or account.root_type != "Asset" \
+            or account.account_type != "Bank" or account.is_group or \
+            account.disabled:
+        frappe.throw("The selected Bank Account is not linked to an active "
+                     "bank ledger on this company.")
+    return row.account
+
+
+def _post_movement(doc):
+    """Post the movement once to ERPNext's ledger and return the Journal."""
+    company = _company()
+    if not company:
+        frappe.throw("Configure the DarkBrown company before using Petty Cash.")
+    accounts = ensure_petty_cash_accounts(company)
+    amount = flt(doc.amount)
+    cost_center = ensure_overhead_cost_center(company)
+    if not cost_center:
+        frappe.throw("There is no Overhead cost centre for petty cash spend.")
+
+    if doc.direction == "Top-up":
+        source = _bank_gl_account(doc.funded_from, company)
+        lines = [
+            {"account": accounts["cash"],
+             "debit_in_account_currency": amount},
+            {"account": source,
+             "credit_in_account_currency": amount},
+        ]
+    elif doc.direction == "Expense" or \
+            (doc.direction == "Adjustment" and
+             doc.adjustment_effect == "Decrease"):
+        lines = [
+            {"account": accounts["expense"],
+             "debit_in_account_currency": amount,
+             "cost_center": cost_center},
+            {"account": accounts["cash"],
+             "credit_in_account_currency": amount},
+        ]
+    else:
+        # Cash found over the book reverses the cash-over/short expense.  The
+        # source record and journal narration retain the count explanation.
+        lines = [
+            {"account": accounts["cash"],
+             "debit_in_account_currency": amount},
+            {"account": accounts["expense"],
+             "credit_in_account_currency": amount,
+             "cost_center": cost_center},
+        ]
+
+    narration = "Petty cash {0}: {1}".format(
+        (doc.direction or "movement").lower(),
+        doc.description or doc.reason or doc.reference or doc.name)
+    je = frappe.get_doc({
+        "doctype": "Journal Entry", "voucher_type": "Journal Entry",
+        "company": company, "posting_date": doc.entry_date,
+        "user_remark": "{0} · {1}".format(narration, doc.name),
+        "accounts": lines,
+    })
+    je.flags.ignore_permissions = True
+    je.insert()
+    je.submit()
+    return je.name
 
 
 def monthly_spend_average(months=3, on=None):
@@ -119,7 +220,7 @@ def entries(limit=100, direction=None):
         "Petty Cash Entry", filters=filters,
         fields=["name", "entry_date", "direction", "amount", "category",
                 "description", "funded_from", "reference", "reason",
-                "adjustment_effect", "notes"],
+                "adjustment_effect", "notes", "journal_entry"],
         order_by="entry_date asc, creation asc", ignore_permissions=True)
 
     running = 0.0
@@ -136,6 +237,7 @@ def entries(limit=100, direction=None):
             "what": r.description or "", "from": r.funded_from or "",
             "ref": r.reference or "", "reason": r.reason or "",
             "effect": r.adjustment_effect or "",
+            "je": r.journal_entry or "",
             "balance": r["balance"],
         })
     return out
@@ -162,19 +264,45 @@ def petty_cash_summary(on=None):
 def record_entry(payload):
     guard(MD, GM, ACC)
     p = _payload(payload)
+    entry_date = getdate(p.get("date") or today())
+    direction = p.get("dir") or "Expense"
+    amount = flt(p.get("amount"))
+    if entry_date > getdate(today()):
+        frappe.throw("A petty cash movement cannot be dated in the future.")
+    if direction not in ("Expense", "Top-up", "Adjustment"):
+        frappe.throw("Choose Expense, Top-up or Adjustment.")
+    if amount <= 0:
+        frappe.throw("A petty cash movement needs a positive amount.")
+    if direction == "Expense" and (not p.get("cat") or not p.get("what")):
+        frappe.throw("A petty cash expense needs its category and purpose.")
+    if direction == "Top-up" and not p.get("from"):
+        frappe.throw("A petty cash top-up needs the company Bank Account it "
+                     "came from.")
+    if direction == "Adjustment" and (
+            p.get("effect") not in ("Increase", "Decrease") or
+            not p.get("reason")):
+        frappe.throw("A petty cash adjustment needs its direction and reason.")
+    delta = (amount if direction == "Top-up" or (
+        direction == "Adjustment" and p.get("effect") == "Increase")
+        else -amount)
+    _assert_non_negative_after(entry_date, delta)
+
     doc = frappe.new_doc("Petty Cash Entry")
-    doc.entry_date = getdate(p.get("date") or today())
-    doc.direction = p.get("dir") or "Expense"
-    doc.amount = flt(p.get("amount"))
+    doc.entry_date = entry_date
+    doc.direction = direction
+    doc.amount = amount
     doc.category = p.get("cat")
     doc.description = p.get("what")
     doc.funded_from = p.get("from")
     doc.reference = p.get("ref")
     doc.reason = p.get("reason")
+    doc.adjustment_effect = p.get("effect")
     doc.notes = p.get("notes")
     doc.insert()
-    frappe.db.commit()
-    return {"id": doc.name, "balance": float_balance()}
+    journal = _post_movement(doc)
+    doc.db_set("journal_entry", journal, update_modified=False)
+    return {"id": doc.name, "journal": journal,
+            "balance": float_balance()}
 
 
 @frappe.whitelist()
@@ -189,6 +317,10 @@ def record_count(counted, on=None, reason=None):
     """
     guard(MD, ACC)
     on = getdate(on or today())
+    if on > getdate(today()):
+        frappe.throw("A petty cash count cannot be dated in the future.")
+    if flt(counted) < 0:
+        frappe.throw("Physical cash counted cannot be negative.")
     book = float_balance(on)
     diff = round(flt(counted) - book, 2)
     if abs(diff) < 0.005:
@@ -209,7 +341,10 @@ def record_count(counted, on=None, reason=None):
     doc.reference = "Count on {0}".format(on)
     doc.notes = ("Book stood at {0}, counted {1}."
                  .format(round(book, 2), flt(counted)))
+    _assert_non_negative_after(on, diff)
     doc.insert()
-    frappe.db.commit()
+    journal = _post_movement(doc)
+    doc.db_set("journal_entry", journal, update_modified=False)
     return {"agreed": False, "book": book, "counted": flt(counted),
-            "diff": diff, "id": doc.name, "balance": float_balance()}
+            "diff": diff, "id": doc.name, "journal": journal,
+            "balance": float_balance()}

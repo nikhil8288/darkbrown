@@ -17,6 +17,8 @@ ACCOUNT_ROLES = {
     "tenant_recharge": ("Income", ("Tenant Recharge Income", "Tenant Recharges")),
     "utility_recovery": ("Income", ("Utility Recovery",)),
     "maintenance_expense": ("Expense", ("Building Maintenance",)),
+    "petty_cash_asset": ("Asset", ("Petty Cash",)),
+    "petty_cash_expense": ("Expense", ("Petty Cash Expenses",)),
     "cash_clearing": ("Asset", ("Cash Clearing", "Cash in Hand")),
     "cheque_clearing": ("Asset", ("Cheques in Hand", "Cheque Clearing")),
 }

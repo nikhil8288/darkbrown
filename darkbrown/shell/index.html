@@ -4536,6 +4536,7 @@ ROUTES.petty=()=>{
    {h:'Movement',v:e=>chip(e.dir,e.dir==='Top-up'?'g':e.dir==='Adjustment'?'r':'n')},
    {h:'Category',v:e=>e.cat||(e.dir==='Top-up'?e.from||'\u2014':'\u2014')},
    {h:'What for',v:e=>e.what||e.reason||e.ref||'\u2014'},
+   {h:'Ledger',v:e=>e.je||'\u2014'},
    {h:'In',r:1,mono:1,v:e=>pcSign(e)>0?n0(e.amount):''},
    {h:'Out',r:1,mono:1,v:e=>pcSign(e)<0?n0(e.amount):''},
    {h:'Balance',r:1,mono:1,v:e=>n0(e.__bal)}],
@@ -6125,7 +6126,8 @@ FORMS['petty-entry']={t:'Record a petty cash movement',
      o:['Office supplies','Fuel and transport','Government fees','Staff welfare',
         'Building consumables','Hospitality','Courier and postage','Other']},d.cat):''}
    ${d.dir==='Expense'?fld({k:'what',l:'What it was for',t:'txt',req:1,p:'printer toner and paper'},d.what):''}
-   ${d.dir==='Top-up'?fld({k:'from',l:'Funded from',t:'sel',req:1,o:BANKS()},d.from):''}
+   ${d.dir==='Top-up'?fld({k:'from',l:'Funded from',t:'sel',req:1,
+     o:BANKS().map(x=>x.label)},d.from):''}
    ${d.dir==='Adjustment'?fld({k:'effect',l:'Which way',t:'sel',o:['Decrease','Increase'],req:1,live:1,
      hint:'a shortfall in the box decreases the book'},d.effect):''}
    ${d.dir==='Adjustment'?fld({k:'reason',l:'Reason',t:'ta',req:1,full:1,
@@ -9478,13 +9480,15 @@ const WIRE={
  guard:d=>{
    const amt=+d.amount||0;
    if(!(amt>0)) return 'An amount is needed, and it is always positive.';
-   if(d.dir==='Adjustment'&&!d.reason) return 'An adjustment needs a reason.';
+   if(d.dir==='Expense'&&(!d.cat||!d.what)) return 'An expense needs its category and purpose.';
+   if(d.dir==='Top-up'&&!d.from) return 'A top-up needs the company bank account it came from.';
+   if(d.dir==='Adjustment'&&(!d.effect||!d.reason)) return 'An adjustment needs its direction and reason.';
    return null},
  m:'pettycash.record_entry',
  a:d=>({payload:{date:d.date,dir:d.dir,amount:+d.amount||0,cat:d.cat,what:d.what,
-   from:d.from,effect:d.effect,reason:d.reason,ref:d.ref}}),
+   from:bankName(d.from),effect:d.effect,reason:d.reason,ref:d.ref}}),
  ok:(r,d)=>({title:'Recorded',msg:d.dir+' of QAR '+n0(+d.amount||0),
-   detail:'Float now stands at QAR '+n0(r.balance),goto:'#/petty'})},
+   detail:'Float now stands at QAR '+n0(r.balance)+' · journal '+r.journal,goto:'#/petty'})},
 
 'petty-count':{
  m:'pettycash.record_count',
