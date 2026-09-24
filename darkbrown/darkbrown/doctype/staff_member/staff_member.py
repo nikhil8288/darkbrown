@@ -21,6 +21,12 @@ class StaffMember(Document):
     """
 
     def validate(self):
+        if flt(self.basic_salary) <= 0:
+            frappe.throw("Basic salary must be greater than zero.")
+        if flt(self.allowances) < 0:
+            frappe.throw("Allowances cannot be negative.")
+        if self.status == "Left" and not self.left_on:
+            frappe.throw("A staff member marked as left needs a leaving date.")
         self.monthly_cost = flt(self.basic_salary) + flt(self.allowances)
         if self.status == "Active":
             self.left_on = None

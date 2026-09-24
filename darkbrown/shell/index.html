@@ -9518,6 +9518,7 @@ const WIRE={
  guard:d=>{
    if(d.status==='Left'&&!d.left) return 'A staff member marked as left needs a leaving date.';
    if(!(+d.basic>0)) return 'A basic salary is needed \u2014 gratuity is computed on it later.';
+   if((+d.allow||0)<0) return 'Allowances cannot be negative.';
    return null},
  m:'people.save_staff',
  a:d=>({payload:{name:d.name,title:d.title,dept:d.dept,status:d.status,qid:d.qid,

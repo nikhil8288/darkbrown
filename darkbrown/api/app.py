@@ -562,7 +562,10 @@ def _staff_seed():
     is applied there, so a General Manager's boot payload never carries a
     salary at all — it is not sent and then hidden."""
     from darkbrown.api.people import staff_list
-    return staff_list().get("rows") or []
+    # The screen owns the complete employment register. Excluding departed
+    # people here made its "left" count permanently zero and made a former
+    # employee impossible to reopen even though the UI retains those records.
+    return staff_list(include_left=1).get("rows") or []
 
 
 def seed():

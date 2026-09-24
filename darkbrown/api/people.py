@@ -116,6 +116,13 @@ def save_staff(payload):
     p = _payload(payload)
     name = p.get("id")
 
+    if "basic" in p and flt(p.get("basic")) <= 0:
+        frappe.throw("Basic salary must be greater than zero.")
+    if "allow" in p and flt(p.get("allow")) < 0:
+        frappe.throw("Allowances cannot be negative.")
+    if p.get("status") == "Left" and not p.get("left"):
+        frappe.throw("A staff member marked as left needs a leaving date.")
+
     doc = (frappe.get_doc("Staff Member", name) if name
            else frappe.new_doc("Staff Member"))
 

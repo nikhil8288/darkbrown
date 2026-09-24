@@ -2236,6 +2236,25 @@ def t_petty_cash_movements_post_to_the_ledger():
 check("petty cash movements are validated and ledger-backed",
       t_petty_cash_movements_post_to_the_ledger)
 
+def t_staff_register_retains_leavers_and_rejects_invalid_pay():
+    import inspect
+    from darkbrown.api import app, people
+    from darkbrown.darkbrown.doctype.staff_member import staff_member
+    seed = inspect.getsource(app._staff_seed)
+    endpoint = inspect.getsource(people.save_staff)
+    validate = inspect.getsource(staff_member.StaffMember.validate)
+    shell = open(REPO + '/darkbrown/shell/index.html').read()
+    assert "staff_list(include_left=1)" in seed
+    assert 'flt(p.get("basic")) <= 0' in endpoint
+    assert 'flt(p.get("allow")) < 0' in endpoint
+    assert 'p.get("status") == "Left" and not p.get("left")' in endpoint
+    assert "flt(self.basic_salary) <= 0" in validate
+    assert "flt(self.allowances) < 0" in validate
+    assert 'self.status == "Left" and not self.left_on' in validate
+    assert "if((+d.allow||0)<0) return 'Allowances cannot be negative.'" in shell
+check("staff register retains leavers and rejects invalid pay",
+      t_staff_register_retains_leavers_and_rejects_invalid_pay)
+
 def t_collection_case_history_uses_recorded_events():
     import inspect
     from darkbrown.api import app
