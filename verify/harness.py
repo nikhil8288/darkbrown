@@ -675,17 +675,20 @@ def t_head_lease_accrues_monthly():
     assert finance._prorated_monthly(3100, *feb) == 3100
     assert finance._prorated_monthly(3100, *mar) == 1000
 
-def t_head_lease_payable_is_draft_and_approved():
+def t_head_lease_payable_posts_from_agreement():
     import inspect
     from darkbrown.api import finance
     build = inspect.getsource(finance.build_head_lease_payable)
-    issue = inspect.getsource(finance.issue_head_lease_payable)
-    assert '.submit()' not in build
+    scheduled = inspect.getsource(finance.generate_head_lease_bills)
+    nightly = inspect.getsource(finance.nightly)
+    assert 'pi.submit()' in build
+    assert 'old.submit()' in build
     assert 'custom_landlord_contract' in build
     assert 'custom_billing_period' in build
     assert 'expense_account' in build and 'cost_center' in build
-    assert 'guard(MD, GM)' in issue and 'guard(MD, GM, ACC)' not in issue
-    assert 'pi.submit()' in issue
+    assert 'LANDLORD_BILLING_START' in build and 'LANDLORD_BILLING_START' in scheduled
+    assert 'build_head_lease_payable(building, str(start))' in scheduled
+    assert 'generate_head_lease_bills()' in nightly
 
 def t_invoice_reference_repair_is_registered():
     import inspect
@@ -704,7 +707,7 @@ check("only GM or MD can issue an approved run", t_issue_requires_approval_and_m
 check("rent invoices carry persisted idempotency keys", t_invoice_carries_idempotency_keys)
 check("Head Lease rent-free days reduce the first accrual", t_head_lease_rent_free_accrual)
 check("Head Lease cost accrues monthly despite quarterly payment", t_head_lease_accrues_monthly)
-check("Head Lease payable stays draft until GM or MD approval", t_head_lease_payable_is_draft_and_approved)
+check("Head Lease bill posts automatically from agreement after cutover", t_head_lease_payable_posts_from_agreement)
 check("invoice reference links are repaired after DocType rename", t_invoice_reference_repair_is_registered)
 
 # ---- W. Stage 0 wipe
@@ -1286,11 +1289,10 @@ def t_finance_ui_and_label_patch_are_wired():
     patches = open(REPO + '/darkbrown/patches.txt').read()
     label_patch = open(
         REPO + '/darkbrown/patches/normalize_invoice_reference_labels.py').read()
-    assert 'Draft landlord accrual' in shell
-    assert "finance.build_head_lease_payable" in shell
-    assert "'head-lease-accrual'" in shell
-    assert 'period_start:d.period' in shell
-    assert "t:'date'" in shell
+    assert 'Monthly landlord bills are generated from active Head Lease agreements' in shell
+    assert 'Draft landlord accrual' not in shell
+    assert 'Issue bill</button>' not in shell
+    assert "m:'finance.record_landlord_payment'" in shell
     assert 'utils.invoice_run.on_sales_invoice_cancel' in hooks
     assert 'darkbrown.patches.normalize_invoice_reference_labels' in patches
     assert '"Tenancy Agreement", "Tenancy Agreement"' in label_patch

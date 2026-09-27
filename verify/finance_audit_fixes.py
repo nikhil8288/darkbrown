@@ -343,25 +343,64 @@ def test_landlord_cash_uses_cash_ledger():
     assert len(posted) == 1 and posted[0]['paid_from'] == 'Cash - SYN'
 
 
-def test_landlord_draft_requires_issue_before_payment():
+def test_agreement_bills_post_automatically_from_cutover():
     landlord_fixture()
+    S.DB['Head Lease'][0].update(start_date='2026-09-15',
+        end_date='2027-09-14', rent_free_days=0, monthly_rent=3100,
+        annual_rent=37200, cost_center='CC-A', status='Active')
+    S.DB['Purchase Invoice'] = []
+    S.DB['Account'].append({'name': 'Head Lease Rent - SYN',
+        'account_name': 'Head Lease Rent', 'company': 'SYN', 'is_group': 0})
+    S.DB['Cost Center'] = [{'name': 'CC-A'}]
+    S.DB['Item Group'] = [{'name': 'Services', 'item_group_name': 'Services'}]
+    assert finance.generate_head_lease_bills('2026-09-27')['created'] == []
+    assert not S.DB['Purchase Invoice']
+    try:
+        finance.generate_head_lease_bills('2027-10-01')
+    except S.ValidationError as exc:
+        assert 'future month' in str(exc)
+    else:
+        raise AssertionError('future landlord bills were allowed')
+    result = finance.build_head_lease_payable('A', '2026-10-01')
+    assert result['created'] and result['status'] == 'Submitted', result
+    bill = next(c[2] for c in S.CALLS if c[:2] == ('insert', 'Purchase Invoice'))
+    assert bill['posting_date'].isoformat() == '2026-10-01'
+    assert bill['items'][0]['rate'] == 3100
+    assert not [c for c in S.CALLS if c[:2] == ('insert', 'Payment Entry')]
+    assert any(c[:2] == ('submit', 'Purchase Invoice') for c in S.CALLS)
+    S.DB['Purchase Invoice'][0].update(docstatus=1, grand_total=3100)
+    again = finance.build_head_lease_payable('A', '2026-10-01')
+    assert not again['created'] and again['invoice'] == result['invoice']
+    assert len(S.DB['Purchase Invoice']) == 1
+
+
+def test_landlord_legacy_draft_must_match_agreement():
+    landlord_fixture()
+    S.DB['Head Lease'][0].update(start_date='2026-01-01',
+        end_date='2027-01-01', rent_free_days=0, monthly_rent=150,
+        annual_rent=1800, cost_center='CC-A', status='Active')
+    S.DB['Account'].append({'name': 'Head Lease Rent - SYN',
+        'account_name': 'Head Lease Rent', 'company': 'SYN', 'is_group': 0})
     S.DB['Purchase Invoice'].append({
         'name': 'PI-DRAFT', 'supplier': 'SUP-A', 'company': 'SYN',
         'custom_landlord_contract': 'HL-A', 'docstatus': 0,
-        'grand_total': 150, 'outstanding_amount': 0,
-        'posting_date': finance.today(), 'due_date': finance.today()})
+        'custom_billing_period': '2026-10-01', 'grand_total': 150,
+        'outstanding_amount': 0, 'posting_date': '2026-10-01',
+        'due_date': '2026-10-31', 'items': [{'item_code': 'Other',
+        'qty': 1, 'rate': 150, 'expense_account': 'Head Lease Rent - SYN',
+        'cost_center': 'CC-A'}]})
     drafts = [r for r in finance.landlord_payments()['rows']
-              if r['status'] == 'Draft']
+              if r['status'] == 'Needs review']
     assert len(drafts) == 1 and drafts[0]['amount'] == 150
     try:
-        finance.record_landlord_payment({
-            'invoice': 'PI-DRAFT', 'amount': 150, 'mode': 'Cash'})
+        finance.build_head_lease_payable('A', '2026-10-01')
     except S.ValidationError as exc:
-        assert 'not issued' in str(exc)
+        assert 'differs from the agreement' in str(exc)
     else:
-        raise AssertionError('a draft landlord bill was paid')
-    S.SESSION['roles'] = ['General Manager']
-    result = finance.issue_head_lease_payable('PI-DRAFT')
+        raise AssertionError('a mismatched draft landlord bill was posted')
+    assert not any(c[:2] == ('submit', 'Purchase Invoice') for c in S.CALLS)
+    S.DB['Purchase Invoice'][-1]['items'][0]['item_code'] = 'Landlord Rent'
+    result = finance.build_head_lease_payable('A', '2026-10-01')
     assert result['status'] == 'Submitted'
     assert any(c[:2] == ('submit', 'Purchase Invoice') for c in S.CALLS)
 
@@ -477,7 +516,8 @@ for test in (test_states_and_totals, test_caps_and_scope,
              test_landlords_without_bills_remain_visible,
              test_landlord_scope_and_cheque_details,
              test_landlord_cash_uses_cash_ledger,
-             test_landlord_draft_requires_issue_before_payment,
+             test_agreement_bills_post_automatically_from_cutover,
+             test_landlord_legacy_draft_must_match_agreement,
              test_schedule_only_landlord_payment_is_blocked,
              test_new_batch_rejects_missing_cheques,
              test_received_cheque_batch_derives_identity_and_presents_once,

@@ -33,6 +33,11 @@ _FREQUENCY_MONTHS = {
     "Annual": 12,
 }
 
+# The real-data accounting opening date agreed for this site. Existing
+# agreements may predate it, but this automated process must not post a bill
+# into the pre-opening test-data period.
+LANDLORD_BILLING_START = "2026-10-01"
+
 def _settings():
     return frappe.get_single("DBR Settings")
 
@@ -1158,17 +1163,19 @@ def _landlord_rent_item():
     return doc.insert(ignore_permissions=True).name
 
 
-@frappe.whitelist()
 def build_head_lease_payable(building, period_start=None):
-    """Create one draft monthly landlord accrual for a Building.
+    """Post one monthly landlord bill from the active Head Lease.
 
     Payment frequency belongs to the payment schedule. Expense recognition is
     monthly under the launch accrual policy, including calendar-day proration
-    and rent-free days. This endpoint never submits or posts the invoice.
+    and rent-free days. Paying this bill is a separate, later decision.
     """
     guard(MD, GM, ACC)
     require_building_access(building)
     start = getdate(period_start or today()).replace(day=1)
+    if start < getdate(LANDLORD_BILLING_START):
+        frappe.throw(_("Automatic landlord billing starts on {0}.").format(
+            LANDLORD_BILLING_START))
     period = str(start)
     leases = frappe.get_all(
         "Head Lease",
@@ -1189,22 +1196,40 @@ def build_head_lease_payable(building, period_start=None):
             "overlap before generating payables.").format(building))
 
     lease, window = eligible[0]
+    # A scheduled run and a manual retry must not both create this month.
+    frappe.db.sql("SELECT name FROM `tabHead Lease` WHERE name = %s FOR UPDATE",
+                  (lease.name,))
+    company = lease.company or _company()
+    monthly = flt(lease.monthly_rent or flt(lease.annual_rent) / 12, 2)
+    amount = _prorated_monthly(monthly, *window)
+    if amount <= 0:
+        frappe.throw(_("The Head Lease bill amount must be positive."))
     existing = frappe.db.get_value(
         "Purchase Invoice",
         {"custom_landlord_contract": lease.name,
          "custom_billing_period": period,
          "docstatus": ["<", 2]}, ["name", "grand_total", "docstatus"], as_dict=True)
     if existing:
+        if existing.docstatus == 0:
+            old = frappe.get_doc("Purchase Invoice", existing.name)
+            expected_account = _head_lease_expense_account(company)
+            expected_center = lease.cost_center or _cost_center(building)
+            items = old.get("items") or []
+            if (old.supplier != lease.landlord or old.company != company
+                    or abs(flt(existing.grand_total, 2) - flt(amount, 2)) > 0.01
+                    or len(items) != 1 or items[0].get("item_code") != "Landlord Rent"
+                    or flt(items[0].get("qty")) != 1
+                    or abs(flt(items[0].get("rate"), 2) - flt(amount, 2)) > 0.01
+                    or items[0].get("expense_account") != expected_account
+                    or items[0].get("cost_center") != expected_center):
+                frappe.throw(_("Unsubmitted landlord bill {0} differs from the agreement. Correct it before automatic posting.").format(existing.name))
+            old.flags.ignore_permissions = True
+            old.submit()
         return {"invoice": existing.name, "created": False,
-                "status": "Submitted" if existing.docstatus == 1 else "Draft",
+                "status": "Submitted",
                 "amount": _kk(existing.grand_total),
                 "head_lease": lease.name}
 
-    company = lease.company or _company()
-    monthly = flt(lease.monthly_rent or flt(lease.annual_rent) / 12, 2)
-    amount = _prorated_monthly(monthly, *window)
-    if amount <= 0:
-        frappe.throw(_("The Head Lease accrual amount must be positive."))
     cost_center = lease.cost_center or _cost_center(building)
     pi = frappe.get_doc({
         "doctype": "Purchase Invoice",
@@ -1218,8 +1243,8 @@ def build_head_lease_payable(building, period_start=None):
         "currency": "QAR",
         "custom_landlord_contract": lease.name,
         "custom_billing_period": period,
-        "remarks": ("Monthly Head Lease accrual for {0}: {1} to {2}. "
-                    "Payment remains controlled by the lease schedule.").format(
+        "remarks": ("Monthly Head Lease rent for {0}: {1} to {2}. "
+                    "Payment is recorded separately when made.").format(
                         building, window[0], window[1]),
         "items": [{
             "item_code": _landlord_rent_item(),
@@ -1233,37 +1258,54 @@ def build_head_lease_payable(building, period_start=None):
         }],
     })
     pi.flags.ignore_mandatory = True
+    pi.flags.ignore_permissions = True
     pi.insert(ignore_permissions=True)
-    return {"invoice": pi.name, "created": True, "status": "Draft",
+    pi.submit()
+    return {"invoice": pi.name, "created": True, "status": "Submitted",
             "amount": _kk(amount), "head_lease": lease.name}
 
 
 @frappe.whitelist()
-def issue_head_lease_payable(invoice):
-    """GM/MD approval boundary for a generated landlord accrual."""
-    guard(MD, GM)
-    pi = frappe.get_doc("Purchase Invoice", invoice)
-    lease_name = pi.get("custom_landlord_contract")
-    if not lease_name:
-        frappe.throw(_("{0} is not a generated Head Lease payable.").format(
-            invoice))
-    lease = frappe.get_doc("Head Lease", lease_name)
-    require_record_access(lease, "read")
-    require_building_access(lease.building)
-    if pi.supplier != lease.landlord or pi.company != (lease.company or _company()):
-        frappe.throw(_("The landlord bill does not match its Head Lease."))
-    if pi.docstatus == 1:
-        return {"invoice": pi.name, "status": "Submitted"}
-    if pi.docstatus != 0:
-        frappe.throw(_("{0} is cancelled and cannot be issued.").format(invoice))
-    pi.flags.ignore_permissions = True
-    pi.submit()
-    return {"invoice": pi.name, "status": "Submitted"}
+def generate_head_lease_bills(on=None):
+    """Fill the current month's agreement bills; safe to run every day.
+
+    A failure on one lease must not leave a half-created bill or prevent the
+    other buildings from being billed. The per-building savepoint also makes
+    a retry safe after account setup is corrected.
+    """
+    guard(MD, GM, ACC)
+    start = getdate(on or today()).replace(day=1)
+    if start > getdate(today()).replace(day=1):
+        frappe.throw(_("Cannot post landlord bills for a future month."))
+    if start < getdate(LANDLORD_BILLING_START):
+        return {"period": str(start), "created": [], "existing": [],
+                "failed": [], "starts_on": LANDLORD_BILLING_START}
+    end = _month_end(start)
+    leases = frappe.get_all("Head Lease", filters={
+        "status": ["in", ("Active", "Expiring")],
+        "start_date": ["<=", end], "end_date": [">=", start]},
+        fields=["name", "building", "start_date", "end_date", "rent_free_days"],
+        limit_page_length=10000)
+    created, existing, failed = [], [], []
+    for index, building in enumerate(sorted({l.building for l in leases
+            if l.building and _head_lease_accrual_window(l, start)})):
+        point = "landlord_bill_{0}".format(index)
+        frappe.db.savepoint(point)
+        try:
+            result = build_head_lease_payable(building, str(start))
+            (created if result["created"] else existing).append(result["invoice"])
+        except Exception:
+            frappe.db.rollback(save_point=point)
+            failed.append(building)
+            frappe.log_error(frappe.get_traceback(),
+                             "Landlord bill generation failed for {0}".format(building))
+    return {"period": str(start), "created": created,
+            "existing": existing, "failed": failed}
 
 
 @frappe.whitelist()
 def landlord_payments():
-    """Draft and outstanding Head Lease bills with their controlled building."""
+    """Agreement landlords and posted outstanding bills by building."""
     guard(MD, GM, ACC)
     rows = []
     while True:
@@ -1312,7 +1354,7 @@ def landlord_payments():
                     "landlord": lease.landlord,
                     "landlord_name": suppliers.get(lease.landlord) or lease.landlord,
                     "amount": amount,
-                    "status": "Draft" if r.docstatus == 0 else "Outstanding",
+                    "status": "Needs review" if r.docstatus == 0 else "Outstanding",
                     "due_date": str(r.due_date or "")})
     # A landlord is visible even when no monthly bill has been generated.
     # Outstanding means submitted unpaid bills, not the monthly rent estimate.
@@ -2066,6 +2108,7 @@ def pay_head_lease(head_lease, row, payload=None):
 def nightly():
     """Cheques maturing today are surfaced for presentation, and anything
     presented long ago without an outcome is flagged rather than forgotten."""
+    generate_head_lease_bills()
     notice = int(_settings().presentation_notice_days or 14)
     horizon = add_days(today(), notice)
     due = frappe.get_all(

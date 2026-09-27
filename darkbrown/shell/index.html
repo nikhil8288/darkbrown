@@ -3474,20 +3474,6 @@ const FORMS={
    msg:'The selected building needs at least one live tenancy for this bill period.'}],
  submit:()=>({title:'Nothing was saved',msg:'This form needs the server'})},
 
-'head-lease-accrual':{t:'Draft landlord accrual',
- s:'Monthly Head Lease expense · saved as a draft Purchase Invoice',
- cta:'Create draft',
- init:c=>({building:c&&c.b||'',building_name:c&&c.bn||'',period:periodStart()}),
- steps:[{n:'Accrual',body:d=>`<p class="pp">This recognises one month of
-   landlord rent for <b>${esc(d.building_name||BUILDINGS.find(b=>b.id===d.building)?.n||d.building||'the selected building')}</b>. It creates
-   a draft only; GM or MD submission remains a separate approval.</p><div class="fg">
-   ${d.__ctx&&d.__ctx.b?fld({k:'building_name',l:'Building',t:'ro'},esc(d.building_name||d.building)):
-     fld({k:'building',l:'Building',t:'sel',o:['',...BUILDINGS.map(b=>b.id)],req:1},d.building)}
-   ${fld({k:'period',l:'Accrual month',t:'date',req:1},d.period)}</div>`,
-   fields:[{k:'period',req:1}],
-   check:d=>!!d.building&&/^\d{4}-\d{2}-01$/.test(String(d.period||'')),
-   msg:'Choose a building and the first day of the accrual month.'}]},
-
 'declare-cash':{t:'Update cash position',s:'Counted balances, one per account',cta:'Declare balances',
  steps:[{n:'Balances',body:d=>{
    const b=BANKS();
@@ -3647,28 +3633,14 @@ const FORMS={
    detail:'Allocated oldest-first'+(left>0?' · QAR '+qar(left)+' left on account':''),
    goto:t?'#/tenant/'+t.id:'#/tenants'}}},
 
-'issue-landlord-bill':{t:'Issue landlord bill',s:'Approve the monthly Head Lease accrual',cta:'Issue bill',
- init:c=>{const cache=window.DB_LAZY['landlord:payments'];
-   const row=cache&&cache.state==='ok'?(cache.data.rows||[]).find(r=>r.invoice===(c&&c.invoice)):null;
-   return{invoice:c&&c.invoice||'',building:row&&row.building_name||'',
-     landlord:row&&row.landlord_name||'',amount:row&&row.amount||0,
-     status:row&&row.status||''}},
- steps:[{n:'Confirm',body:d=>`<p class="pp">Issuing this bill posts the landlord rent payable. Accounts can then record its payment.</p>
-   <div class="kv">${[['Building',d.building],['Landlord',d.landlord],
-     ['Bill',d.invoice],['Amount',qar(d.amount)]].map(([label,value])=>
-       `<div><span>${label}</span><b>${esc(value)}</b></div>`).join('')}</div>`,
-   check:d=>!!d.invoice&&d.status==='Draft',
-   msg:'Open a draft landlord bill first.'}],
- submit:()=>({title:'Not saved',msg:'Issuing a bill needs the live server'})},
-
-'landlord-payment':{t:'Record landlord payment',s:'Settle an approved Head Lease bill',cta:'Post payment',
+'landlord-payment':{t:'Record landlord payment',s:'Pay an outstanding agreement bill',cta:'Post payment',
  init:c=>{const cache=window.DB_LAZY['landlord:payments'];
    const row=cache&&cache.state==='ok'?(cache.data.rows||[]).find(r=>r.invoice===(c&&c.invoice)):null;
    return{invoice:c&&c.invoice||'',building:row&&row.building_name||'',
      landlord:row&&row.landlord_name||'',balance:row&&row.amount||0,
      amt:row&&row.amount||'',method:'',bank:'',other_bank:'',
      date:new Date().toLocaleDateString('sv-SE'),request_id:crypto.randomUUID()}},
- steps:[{n:'Payment',body:d=>`<p class="pp">This payment is applied to the selected approved landlord bill. A partial payment leaves the remaining balance open.</p>
+ steps:[{n:'Payment',body:d=>`<p class="pp">This payment is applied to the selected landlord bill. A partial payment leaves the remaining balance open.</p>
    <div class="fg">
     ${fld({k:'building',l:'Building',t:'ro'},esc(d.building))}
     ${fld({k:'landlord',l:'Landlord',t:'ro'},esc(d.landlord))}
@@ -4393,7 +4365,6 @@ ROUTES.building=id=>{const b=id?B(id):BUILDINGS[0]; if(!b) return notFound('Buil
   /* Handover is offered while the building is still onboarding. Once it is
      Active the button goes, because recording it twice is not a thing. */
   (b.st==='Onboarding'?fbtn('Record handover','record-handover',{b:b.id,bn:b.n}):'')
-   +fbtn('Draft landlord accrual','head-lease-accrual',{b:b.id,bn:b.n})
    +fbtn('New unit','add-unit',{b:b.id,bn:b.n})+fbtn('Log maintenance','raise-job',{bn:b.n}),
   (b.st==='Onboarding'?`<div class="note" style="border-left-color:var(--amber)">
     <b>This building is still onboarding.</b> It has no handover date, so vacant days
@@ -4666,44 +4637,38 @@ ROUTES.landlordpayments=()=>{
  const landlords=new Map();
  for(const r of rows){const key=r.building+'|'+r.landlord;
    if(!landlords.has(key))landlords.set(key,{building_name:r.building_name,
-     landlord_name:r.landlord_name,amount:0,bills:0,drafts:0});
+     landlord_name:r.landlord_name,amount:0,bills:0});
    const x=landlords.get(key);
    if(r.status==='Outstanding'){x.amount+=+r.amount||0;x.bills++}
-   if(r.status==='Draft')x.drafts++;
  }
  return page('Landlord Payments','All landlords and their outstanding bills',
-   fbtn('Draft monthly rent','head-lease-accrual'),
+   '',
   stat([['Landlords',new Set(rows.map(r=>r.landlord)).size],
-        ['Amount to pay',qar(rows.filter(r=>r.status==='Outstanding').reduce((sum,r)=>sum+(+r.amount||0),0))],
-        ['Awaiting issue',rows.filter(r=>r.status==='Draft').length]])+
+        ['Amount to pay',qar(rows.filter(r=>r.status==='Outstanding').reduce((sum,r)=>sum+(+r.amount||0),0))]])+
+  `<div class="note">Monthly landlord bills are generated from active Head Lease agreements from 1 October 2026. Record payments whenever they are made; unpaid balances stay open.</div>`+
   `<div class="card"><h3>Landlords and balances</h3>${landlords.size?tbl([
    {h:'Building',v:r=>esc(r.building_name)},
    {h:'Landlord',v:r=>esc(r.landlord_name)},
    {h:'Outstanding (QAR)',r:1,mono:1,v:r=>qar(r.amount)},
-   {h:'Open bills',r:1,v:r=>r.bills},
-   {h:'Draft bills',r:1,v:r=>r.drafts}],
+   {h:'Open bills',r:1,v:r=>r.bills}],
    [...landlords.values()].map((r,i)=>({...r,__id:String(i)})),{id:'landlordbalances'})
    :empty('No landlords on file.')}</div>`+
-  `<div class="card"><h3>Bills to issue or pay</h3>${rows.some(r=>r.invoice)?tbl([
+  `<div class="card"><h3>Landlord bills</h3>${rows.some(r=>r.invoice)?tbl([
    {h:'Building',v:r=>esc(r.building_name)},
    {h:'Landlord',v:r=>esc(r.landlord_name)},
    {h:'Amount',r:1,mono:1,v:r=>qar(r.amount)},
    {h:'Bill',v:r=>esc(r.invoice)},
    {h:'Due',v:r=>esc(r.due_date||'—')},
-   {h:'Status',v:r=>chip(r.status,r.status==='Draft'?'a':'r')},
-   {h:'',v:r=>r.status==='Draft'&&['MD','GM'].includes(ROLEV)
-     ?`<button type="button" class="btn" data-id="${escA(r.invoice)}"
-       onclick="event.stopPropagation();openLandlordIssue(this.dataset.id)">Issue bill</button>`
-     :r.status==='Outstanding'&&['MD','ACC'].includes(ROLEV)
+   {h:'Status',v:r=>chip(r.status,r.status==='Needs review'?'a':'r')},
+   {h:'',v:r=>r.status==='Outstanding'&&['MD','ACC'].includes(ROLEV)
      ?`<button type="button" class="btn" data-id="${escA(r.invoice)}"
        onclick="event.stopPropagation();openLandlordPay(this.dataset.id)">Record payment</button>`
      :''}],
    rows.filter(r=>r.invoice).map(r=>({...r,__id:r.invoice})),{id:'landlordpay',
-    foot:['Draft bills must be issued by GM/MD before a payment can be posted.']})
-   :empty(window.DB_LIVE?'No landlord bills are awaiting issue or payment. Draft monthly rent to start.':'Connect to the live server to read landlord bills.')}</div>`);
+    foot:['A bill marked Needs review differs from its agreement; correct the agreement or bill before the next automatic run.']})
+   :empty(window.DB_LIVE?'No landlord bill is awaiting payment.':'Connect to the live server to read landlord bills.')}</div>`);
 };
 window.openLandlordPay=id=>openForm('landlord-payment',{invoice:id});
-window.openLandlordIssue=id=>openForm('issue-landlord-bill',{invoice:id});
 
 ROUTES.landlords=()=>{
  /* Reads the Supplier records flagged as landlords. An empty list is a real
@@ -9612,14 +9577,6 @@ const WIRE={
      ' · recovery waits for the next approved invoice run',
    goto:'#/utilities'})},
 
-'head-lease-accrual':{
- m:'finance.build_head_lease_payable',
- a:d=>({building:d.building,period_start:d.period}),
- ok:r=>({title:r.created?'Draft created':'Bill already exists',
-   msg:r.invoice+' · QAR '+n0(r.amount||0),
-   detail:'Head Lease '+(r.head_lease||'')+' · '+r.status,
-   goto:'#/landlordpayments'})},
-
 /* ---------------- people ---------------- */
 
 'record-expense':{
@@ -9802,14 +9759,6 @@ const WIRE={
    msg:'QAR '+qar(r.amount)+' paid for '+d.building,
    detail:'Applied to bill '+r.invoice+' · '+r.payment_entry+
       (r.cheque?' · cheque '+r.cheque+' awaits bank reconciliation':''),
-   goto:'#/landlordpayments'})},
-
-'issue-landlord-bill':{
- guard:d=>d.invoice&&d.status==='Draft'?null:'Open a draft landlord bill first.',
- m:'finance.issue_head_lease_payable',
- a:d=>({invoice:d.invoice}),
- ok:r=>({title:'Bill issued',msg:r.invoice+' is '+r.status,
-   detail:'It is ready for payment in Landlord Payments.',
    goto:'#/landlordpayments'})},
 
 'create-batch':{
