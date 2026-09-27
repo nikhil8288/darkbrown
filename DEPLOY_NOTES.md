@@ -1,27 +1,19 @@
-# DarkBrown finance screen fixes
+# DarkBrown finance update — 27 September 2026
 
-Based on `main` commit `dfbc7be` (27 September 2026). Copy the included `darkbrown/` and `verify/` paths into the same paths in the GitHub repository, then commit and deploy. Keep the directory structure. The two DocType JSON changes require Frappe migration during deployment.
+This consolidated package supersedes both earlier finance ZIP files. It is based on `nikhil8288/darkbrown` main commit `dfbc7be`. Preserve the directory structure when adding these files to the GitHub repository. Deploy the code and run the normal Frappe migration because DocType JSON files changed. Do not add the ZIP itself as a repository file.
 
-## Changes
+## What changed
 
-- Invoice list: building and unit search/filter and a Unit column, drawn from the invoice run line. The boot list now includes up to the latest 1,000 invoices; if it reaches that limit the screen says so.
-- Payment: initial amount from the selected invoice balance (or tenant open balance); explicit method selection; optional reference with a stable internal reference for a blank reference and protection against a repeated form submission.
-- Deposit batch: server-backed posted cash receipts and incoming cheques, with source-derived tenant/unit/amount. No manual matching step. Bank destination starts blank and must be a valid company bank account. Banking an already-posted cash receipt creates a bank debit and cash credit, without another Payment Entry. Receipts that cannot resolve to one unit are withheld and counted for an unrestricted Accounts user.
-- Expense: select a unit within the selected building or Whole building; server checks the unit/building pair. The register shows unit attribution and pages through all entries. The common-cost split table is removed from this screen.
+- Invoice list: search and filter by building and unit, with a Unit column.
+- Payment: amount starts at the selected invoice balance (or the tenant's open balance), method starts blank, and reference is optional. Cheque is no longer a selectable payment method.
+- Cheques: navigation, direct routes, entry forms, Accounts home widgets, and cheque dashboard widgets are deferred. New cheque logging is rejected by the server. Historical cheque records remain stored for audit; no data is deleted. Cheque terms in an agreement may be managed in the manual register without requiring an in-app cheque count for activation.
+- Deposit batches: candidates come from posted, unbanked cash receipts. Tenant, unit, building, and amount are read from the receipt; new batches reject cheque lines. Destination bank starts blank. The optional JPG/PNG deposit slip image uploads privately, attaches to the saved batch, and appears on its detail page. The person who prepared a batch may bank it without entering a reason. Banking transfers existing cash receipts from Cash to Bank without posting another tenant payment. Old draft batches containing cheques remain visible but cannot be banked in the app while the cheque workflow is deferred.
+- Expenses: unit within building or Whole building; unit attribution in the register; paged lifetime entries; no common-cost split table on the entry screen.
 
-## Source checks run
+## Checks performed
 
-`python verify/finance_audit_fixes.py` — 7 passed.
-`python verify/harness.py` — 141 passed, 0 failed.
-Python compilation, JSON validation, browser script parsing, `git diff --check` — passed.
+- `python verify/finance_audit_fixes.py`: 10 passed, including cheque deferral, same-person banking, new-batch cheque rejection, and private slip attachment.
+- `python verify/harness.py`: 132 passed, 0 failed. Nine checks for the deferred cheque workflow were skipped and remain in the file for its return.
+- Python compilation, DocType JSON validation, JavaScript syntax parsing, and `git diff --check`: passed.
 
-These are source/stub checks. A Frappe Cloud run is required to verify DocType migration, posting and browser behavior on the deployed build.
-
-## Focused post-deployment check with synthetic records
-
-1. Open Invoices: filter building and unit, search an invoice or tenant, open a row, and record a partial payment. Verify amount starts at that invoice balance and method starts empty. Save with no reference; verify one Payment Entry and a generated `DBR-...` internal reference. Refresh and check balance.
-2. Record a Cash receipt linked to one unit. Open Create deposit batch: only posted, unbanked cash receipts and incoming cheques should appear, with tenant, building, unit, and amount already populated. The bank selector should be blank. Create a batch and have a different user mark it banked. Confirm one Bank Entry journal debits the selected bank and credits Cash for the receipt amount, with no second tenant Payment Entry.
-3. Record a building expense once for one unit and once for Whole building. Check the unit column and journal. Try a unit from another building via the API: the save must be refused. Inspect Expenses > Lifetime and navigate the pages.
-4. On a scope-limited Accounts user, confirm the deposit picker and expense unit choices contain only permitted buildings. Preserve existing cheque clearing and bank statement matching behavior.
-
-Do not use real tenant cash for the first post-deployment check; the new cash-to-bank Journal Entry has not yet been validated in the actual Frappe runtime.
+These are local source and stub checks. Confirm upload, migration, permissions, and cash-to-bank posting on the deployed Frappe site with synthetic records before using real cash.

@@ -161,8 +161,7 @@ def _missing(doc):
         out.append("tenant contact not captured")
     if not flt(doc.monthly_rent):
         out.append("rent not set")
-    if doc.payment_mode == "Cheque" and not int(doc.cheques_held or 0):
-        out.append("no cheques logged")
+    # Cheque schedules are kept manually while the in-app register is deferred.
     return out
 
 

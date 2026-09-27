@@ -615,7 +615,6 @@ body.focus main{max-width:none}
     <div class="nv" data-r="invoices">Invoices</div>
     <div class="nv" data-r="generate">Generate invoices</div>
     <div class="nv" data-r="receipts">Receipts</div>
-    <div class="nv" data-r="cheques">Cheques</div>
     <div class="nv" data-r="batches">Batches</div>
     <div class="nv" data-r="expenses">Expenses</div>
     <div class="nv" data-r="recon">Reconciliation <span class="b r" id="nbRecon">9</span></div>
@@ -1294,11 +1293,14 @@ const ROUTES={};
    it applies equally to every login, including the Managing Director. */
 const PLANNING_ENABLED=false;
 const DATA_TOOLS_ENABLED=false;
+const CHEQUES_ENABLED=false;
 const DEFERRED_PLANNING_ROUTES=['planning','capacity','forecast','fva',
  'scenarios','scenario','compare','model','portfolioplan','unitplan','targets',
  'solver','risks','optimise','cfo','pactions','pconfig'];
 const DEFERRED_PLANNING_FORMS=['new-scenario','new-target','model-building'];
 const planningDeferred=r=>!PLANNING_ENABLED&&DEFERRED_PLANNING_ROUTES.includes(r);
+const chequesDeferred=r=>!CHEQUES_ENABLED&&['cheques','cheque'].includes(r);
+const DEFERRED_CHEQUE_FORMS=['log-cheque','cheque-action','landlord-cheque','post-reconciled-batch'];
 const dataToolsDeferred=r=>!DATA_TOOLS_ENABLED&&r==='data';
 const ocrDeferred=r=>r==='intake'&&window.DB_OCR_ENABLED!==true;
 
@@ -1408,6 +1410,10 @@ function router(){
     if(location.hash!=='#/vault') history.replaceState(null,'','#/vault');
     r=safe; rawId=undefined;
   }
+  if(chequesDeferred(r)){
+    if(location.hash!=='#/receipts') history.replaceState(null,'','#/receipts');
+    r='receipts'; rawId=undefined;
+  }
   /* Real docnames contain spaces — "Najma Tower", "Najma Tower-501" — and the
      hash encodes them. Without decoding, every lookup missed and the
      ||first-row fallbacks rendered the wrong record without saying so. */
@@ -1443,7 +1449,7 @@ function router(){
    agreements:'Agreements',agreement:'Agreement',cases:'Collection cases',case:'Collection case',
    moveout:'Move-out',maint:'Maintenance',job:'Maintenance job',utilities:'Utilities',intake:'Document intake',
    vault:'Document vault',invoices:'Invoices',invoice:'Invoice',cheques:'Cheques',cheque:'Cheque',
-   batches:'Cheque batches',recon:'Reconciliation',closing:'Weekly closing',approvals:'Approvals',
+   batches:'Deposit batches',recon:'Reconciliation',closing:'Weekly closing',approvals:'Approvals',
    approval:'Approval',reports:'Reports',admin:'Admin',ledger:'General ledger',coa:'Chart of accounts',
    journal:'Journal entries',trial:'Trial balance',account:'Account ledger',
    pl:'Profit and loss',bs:'Balance sheet',cf:'Cash flow',expenses:'Expenses',
@@ -1869,7 +1875,8 @@ function renderKPIs(p){
     d:'',s:live?'':spk([2,3,5,3,4,3,4],'#A63D2F'),c:(P.apOld||0)>0}
   ];
   renderWall();
-  $('#kpis').innerHTML=cells.map(c=>`<div class="kpi ${c.c?'crit':c.w?'warn':''}" onclick="go('#/reports')" title="Drills to source">
+  $('#kpis').innerHTML=cells.filter(c=>CHEQUES_ENABLED||
+    !['PDC in', 'Bounce rate'].some(x=>c.l.startsWith(x))).map(c=>`<div class="kpi ${c.c?'crit':c.w?'warn':''}" onclick="go('#/reports')" title="Drills to source">
     <div class="l">${c.l}</div><div class="row"><span class="v">${c.v}</span>${c.s}</div>
     <div style="margin-top:2px">${c.n?`<span style="font:500 10px var(--mono);color:var(--amber)">${c.n}</span>`:c.d}</div></div>`).join('');
   $('#pl1').textContent=P.label; $('#pl2').textContent=P.label; $('#pl3').textContent=P.label;
@@ -2708,6 +2715,12 @@ document.addEventListener('change',e=>{if(e.target.id==='ckExp')renderRunway()})
 
 function renderDash(){
 bindDash();
+if(!CHEQUES_ENABLED){
+  ['.card.hero','.rail','#bounces'].forEach(sel=>{
+    const node=$(sel);if(node)(sel==='#bounces'?node.parentElement:node).style.display='none';
+  });
+  const ticker=document.getElementById('ticker');if(ticker)ticker.style.display='none';
+}
 const db=$('#declareBtn'); if(db) db.style.display=window.DB_LIVE?'':'none';
 const cn=$('#cashNote'); if(cn&&!window.DB_LIVE) cn.textContent='';
 renderKPIs('jul');renderRunway();renderLadder();renderCheques();renderApprovals();renderExceptions();
@@ -2744,6 +2757,8 @@ const PANEL_TAGS={pdcLadder:'undepTag',voids:'voidTag',exceptions:'exTag',
 
 function gateChrome(){
   const sy=document.getElementById('sync');
+  const ticker=document.getElementById('ticker');
+  if(ticker&&!CHEQUES_ENABLED) ticker.style.display='none';
   if(sy) sy.textContent='Live \u00b7 '+new Date().toLocaleString('en-GB',
     {hour:'2-digit',minute:'2-digit',day:'2-digit',month:'short'});
   const tk=document.getElementById('tickAmt'), td=document.getElementById('tickDays');
@@ -2966,6 +2981,9 @@ function formSnap(){
 function formBaseline(){collect();FINIT=formSnap()}
 
 window.openForm=(key,ctx)=>{
+  if(!CHEQUES_ENABLED&&DEFERRED_CHEQUE_FORMS.includes(key)){
+    toast('The cheque register is deferred for this version');return;
+  }
   if(!PLANNING_ENABLED&&DEFERRED_PLANNING_FORMS.includes(key)){
     toast('Planning is not available');return;
   }
@@ -3347,6 +3365,7 @@ async function submitLive(w){
     if(!w.pre){
       try{
         const up=await uploadFiles(w.attach?w.attach(out,FDATA):null);
+        if(up&&w.afterUpload) await w.afterUpload(up,out,FDATA);
         if(up) res.detail=(res.detail?res.detail+' \u00b7 ':'')+up.count+
           ' file'+(up.count===1?'':'s')+(w.attach?' attached':' uploaded');
       }catch(fe){
@@ -3588,11 +3607,13 @@ const FORMS={
   {n:'Payment',body:d=>`<div class="fg">
     ${fld({k:'tenant',l:'Tenant',t:'sel',o:['',...TENANTS.map(t=>t.n)],req:1,live:1},d.tenant)}
     ${fld({k:'amt',l:'Amount received (QAR)',t:'num',step:'0.01',req:1},d.amt)}
-    ${fld({k:'method',l:'Method',t:'sel',o:['','Cheque','Bank transfer','Cash','Card'],req:1},d.method)}
+    ${fld({k:'method',l:'Method',t:'sel',o:['','Bank transfer','Cash','Card'],req:1,live:1},d.method)}
     ${fld({k:'date',l:'Received on',t:'date',req:1},d.date)}
-    ${fld({k:'ref',l:'Reference (optional)',t:'txt',p:'bank or cash reference'},d.ref)}</div>`,
+    ${fld({k:'ref',l:'Reference (optional)',t:'txt',p:'bank or cash reference'},d.ref)}</div>
+    `,
    fields:[{k:'tenant',req:1},{k:'amt',req:1},{k:'method',req:1},{k:'date',req:1}],
-   check:d=>+d.amt>0,msg:'Enter a positive amount received.'},
+   check:d=>+d.amt>0,
+   msg:'Enter a positive amount.'},
   {n:'Allocation',body:d=>{
     const t=TENANTS.find(x=>x.n===d.tenant); let left=+d.amt||0;
     const open=INV.filter(i=>i.t===(t||{}).id&&invBal(i)>0).slice(0,4);
@@ -3688,18 +3709,13 @@ const FORMS={
  submit:()=>({title:'Nothing was saved',msg:'This form needs the server',
    detail:'Opened without a live connection \u2014 the files were not uploaded'})},
 
-'deposit-batch':{t:'Mark the batch banked',s:'The slip went in · cheques presented, cash receipted',
+'deposit-batch':{t:'Mark the batch banked',s:'Confirm the cash deposit',
  cta:'Confirm it was banked',
  init:ctx=>({id:(ctx&&ctx.id)||'',prepared:(ctx&&ctx.prepared)||'',date:ISO(TODAY)}),
- steps:[{n:'Confirm',body:d=>`<p class="pp">This presents every cheque in the slip and posts each cash line as a receipt
-   against the tenant. It is not reversible from here.</p>
+ steps:[{n:'Confirm',body:d=>`<p class="pp">This transfers the posted cash receipts in this batch to the selected bank. The tenant payments are already recorded. It is not reversible from here.</p>
   <div class="fg">${fld({k:'id',l:'Batch',t:'ro'},d.id)}
    ${fld({k:'prepared',l:'Prepared by',t:'ro'},d.prepared)}
-   ${fld({k:'date',l:'Date it went in',t:'date',req:1},d.date)}
-   ${fld({k:'reason',l:'Reason, if you prepared it yourself',t:'ta',full:1,
-     p:'e.g. Yusuf on leave'},d.reason)}</div>
-  <div class="note">A batch prepared and banked by the same person needs a reason. If a second person is banking it,
-   leave this empty \u2014 the reason is only recorded when one is given.</div>`,
+   ${fld({k:'date',l:'Date it went in',t:'date',req:1},d.date)}</div>`,
   fields:[{k:'date',req:1}]}],
  submit:()=>({title:'Nothing was saved',msg:'This form needs the server'})},
 
@@ -4139,31 +4155,12 @@ function homeACC(){
   const arrears=owed.reduce((t,i)=>t+((i.amt||0)-(i.paid||0)),0);
   const late=owed.filter(i=>(i.dueD||0)<0);
   return {
-   sub:'Accounts \u00b7 cheques, runs and what is still owed',
-   tiles:[['Cheques due \u2264 7d',paySent('cheques')?due.length:'\u2014','to present or clear',
-            due.length?'a':''],
-          ['Returned',paySent('cheques')?bad.length:'\u2014','need a case',bad.length?'r':''],
-          ['Runs not issued',paySent('billruns')?runs.length:'\u2014','',runs.length?'a':''],
-          ['Owed',paySent('invoices')?n0(arrears):'\u2014',
+   sub:'Accounts · invoice runs and what is still owed',
+   tiles:[['Runs not issued',paySent('billruns')?runs.length:'—','',runs.length?'a':''],
+          ['Owed',paySent('invoices')?n0(arrears):'—',
             paySent('invoices')?late.length+' past due':'',late.length?'r':''],
-          ['Open invoices',paySent('invoices')?owed.length:'\u2014']],
+          ['Open invoices',paySent('invoices')?owed.length:'—']],
    body:`<div class="grid2">
-    ${panel('Cheques due this week','cheques',()=>due.length?tbl(
-      [{h:'Cheque',v:c=>c.no||c.id},{h:'Party',v:c=>c.tn},
-       {h:'Bank',v:c=>c.bank},{h:'Amount',r:1,mono:1,v:c=>n0(c.amt)},
-       {h:'Matures',r:1,v:c=>c.mat},
-       {h:'Status',v:c=>chip(c.st,stChip(c.st))}],
-      due.slice(0,15).map(c=>({...c,__id:c.id})),{id:'hac',click:'openC'})
-      :empty('No cheque matures inside seven days'))}
-    ${panel('Returned cheques','cheques',()=>bad.length?tbl(
-      [{h:'Cheque',v:c=>c.no||c.id},{h:'Party',v:c=>c.tn},
-       {h:'Amount',r:1,mono:1,v:c=>n0(c.amt)},
-       {h:'Reason',v:c=>esc(c.reason||'\u2014')}],
-      bad.map(c=>({...c,__id:c.id})),{id:'hab',click:'openC'})
-      :empty('Nothing has come back'),
-      bad.length?'A return opens a collection case on its own \u2014 check Cases before chasing by hand.':'')}
-   </div>
-   <div class="grid2">
     ${panel('Invoice runs not issued','billruns',()=>runs.length?tbl(
       [{h:'Run',v:r=>r.id},{h:'Building',v:r=>r.bn||r.b},{h:'Period',v:r=>r.period},
        {h:'Total',r:1,mono:1,v:r=>n0(r.total)},
@@ -4648,7 +4645,7 @@ ROUTES.landlord=id=>{const l=L_(id);
  const bs=BUILDINGS.filter(b=>(l.buildings||[]).includes(b.id));
  return crumb([['Landlords','#/landlords'],[l.n,'']])+page(l.n,
   `${l.type} · ${l.idno} · on file since ${l.since}`,
-  fbtn('Record cheque to landlord','landlord-cheque',{ll:l.n})+actbtn('Send a document','Document sent'),
+  actbtn('Send a document','Document sent'),
   stat([['Buildings',bs.length],['Head-lease cost',k(bs.reduce((a,b)=>a+b.cost,0))],
    ['Documents',(l.docs||[]).length,'',(l.docs||[]).length?'g':'r'],
    ['Payable',(!l.bank||l.bank==='—')?'no bank on file':'bank on file','',(!l.bank||l.bank==='—')?'r':'g']])+
@@ -5041,64 +5038,57 @@ const BT=id=>BATCHES.find(x=>x.id===id);
 ROUTES.batches=()=>{
  const draft=BATCHES.filter(b=>b.st==='Draft');
  const banked=BATCHES.filter(b=>b.st==='Deposited');
- const over=BATCHES.filter(b=>b.override||b.same);
- const head=page('Cheque batches','Deposit batches to bank · two-person control',
+ const head=page('Deposit batches','Posted cash receipts going to the bank',
   fbtn('New batch','create-batch'),'');
  if(!BATCHES.length) return head+`<div class="card">${
    dbMissing('batches')==='error'
     ? uw('The server could not build the batch list.'+
         (dbWhy('batches')?'<br><span class="mini">'+dbWhy('batches')+'</span>':''))
     : empty(window.DB_LIVE
-      ? 'No deposit batch has been raised yet. A batch is made before the money leaves the office, so the slip can be matched to the statement line later.'
+      ? 'No deposit batch has been raised yet. Select posted cash receipts to create one.'
       : 'No batches in the demo data.')}</div>`;
  return head+
   stat([['Awaiting the bank',draft.length,'',draft.length?'a':'g'],
    ['Banked, not reconciled',banked.length,'',banked.length?'a':'g'],
-   ['Value on the way',k(draft.reduce((a,b)=>a+b.total,0))],
-   ['Single-handed',over.length,'',over.length?'r':'g']])+
+   ['Value on the way',k(draft.reduce((a,b)=>a+b.total,0))]])+
   `<div class="card">${tbl([
    {h:'Batch',v:b=>b.id},{h:'Date',r:1,v:b=>b.date},{h:'Bank',v:b=>b.bank},
    {h:'Slip',v:b=>b.slip},
-   {h:'Cheques',r:1,mono:1,v:b=>b.cheques||'—'},{h:'Cash',r:1,mono:1,v:b=>b.cash||'—'},
+   {h:'Cash',r:1,mono:1,v:b=>b.cash||'—'},
    {h:'Value',r:1,mono:1,v:b=>k(b.total)},
    {h:'Prepared by',v:b=>b.prepared},
-   {h:'Banked by',v:b=>b.deposited+(b.same?' '+chip('SAME PERSON','r'):'')},
+   {h:'Banked by',v:b=>b.deposited},
    {h:'Status',v:b=>chip(b.st,stChip(b.st))}],
    BATCHES.map(b=>({...b,__id:b.id})),{id:'btl',click:'openBT',
-    foot:['a batch prepared and banked by one person is flagged, not blocked',
-     'the slip number is what the statement line is matched against']})}</div>`+
-  (over.length?`<div class="warn" style="margin-top:10px">${over.map(b=>
-    b.id+' was prepared and banked by '+b.prepared+
-    (b.override?' — reason given: "'+b.override+'"':' with no reason recorded')).join('<br>')}</div>`:'');
+    foot:['cash receipts are already posted','the deposit moves cash into the bank']})}</div>`;
 };
 window.openBT=id=>go('#/batch/'+id);
 
 ROUTES.batch=id=>{
  const b=BT(id);
- if(!b) return crumb([['Cheque batches','#/batches'],['Not found','']])+
+ if(!b) return crumb([['Deposit batches','#/batches'],['Not found','']])+
    page('Batch not found','No deposit batch matches '+(id||'that reference'),'',
     `<div class="card">${empty('Open the list and pick it from there.')}</div>`);
- return crumb([['Cheque batches','#/batches'],[b.id,'']])+page(b.id,
+ const scan=String(b.slip_scan||'');
+ const slipLink=scan.startsWith('/private/files/')||scan.startsWith('/files/')
+   ?`<a href="${escA(scan)}" target="_blank" rel="noopener">View deposit slip image</a>`:'';
+ return crumb([['Deposit batches','#/batches'],[b.id,'']])+page(b.id,
   b.bank+' · '+b.date+' · slip '+b.slip+' · '+b.st,
- b.st==='Draft'?fbtn('Mark it banked','deposit-batch',{id:b.id,prepared:b.prepared}):
-  (b.st==='Reconciled'&&b.pending_cheques
-   ?fbtn('Post cleared cheques','post-reconciled-batch',{id:b.id}):''),
-  stat([['Lines',b.count],['Value',k(b.total)],['Cheques',b.cheques],
-   ['Cash',k(b.cashValue)],['Prepared by',b.prepared],
-   ['Banked by',b.deposited,'',b.same?'r':''],
+ b.st==='Draft'&&!b.cheques?fbtn('Mark it banked','deposit-batch',{id:b.id,prepared:b.prepared}):'',
+  stat([['Lines',b.count],['Value',k(b.total)],['Cash',k(b.cashValue)],
+   ['Prepared by',b.prepared],['Banked by',b.deposited],
    ...(b.st==='Reconciled'?[['Reconciled by',b.reconciled_by],
      ['Statement',b.recon_import,b.reconciled_on,'g']]:[])])+
-  (b.same?`<div class="warn">${b.prepared} both prepared and banked this batch. ${
-    b.override?'Reason recorded: "'+b.override+'"':'No reason was recorded.'}</div>`:'')+
+  (slipLink?`<div class="note">${slipLink}</div>`:'')+
+  (b.st==='Draft'&&b.cheques?`<div class="note">This older draft contains cheques and cannot be banked through the app while the cheque register is deferred.</div>`:'')+
   `<div class="card"><h3>What is in the slip</h3>${b.lines&&b.lines.length?tbl([
    {h:'Kind',v:l=>chip(l.ty,l.ty==='Cash'?'a':'n')},
-   {h:'Cheque',v:l=>l.chq},{h:'Collection slip',v:l=>l.slip},
+   {h:'Collection slip',v:l=>l.slip},
    {h:'Tenant',v:l=>l.tn},{h:'Unit',v:l=>l.u},
    {h:'Amount',r:1,mono:1,v:l=>k(l.amt)},{h:'Note',v:l=>l.note||'—'}],
    (b.lines||[]).map((l,i)=>({...l,__id:String(i)})),{id:'btd'})
   :empty('This batch has no lines.')}</div>
-  <div class="note">Banking it presents every cheque in the slip and turns each cash line into a receipt against
-   the tenant. That is one action, so the batch is the unit of work, not the individual cheque.</div>`);
+  <div class="note">Banking the batch moves its posted cash receipts into the bank. It does not charge the tenant a second time.</div>`);
 };
 
 /* ---------------- Reconciliation (2C) ---------------- */
@@ -6318,20 +6308,20 @@ function depositData(){
   const c=lazy('deposit:candidates','finance.deposit_candidates');
   return c.state==='ok'?c.data:(c.state==='err'?{error:c.msg}:null);
 }
-FORMS['create-batch']={t:'Create deposit batch',s:'Posted cash receipts and incoming cheques',cta:'Create batch',
+FORMS['create-batch']={t:'Create deposit batch',s:'Posted cash receipts',cta:'Create batch',
  init:()=>({sel:{},bank:'',date:new Date().toLocaleDateString('sv-SE')}),
  steps:[
   {n:'Select receipts',body:d=>{
     const D=depositData();
-    if(!D) return '<div class="note">Reading undeposited receipts and cheques from the server…</div>';
+    if(!D) return '<div class="note">Reading undeposited receipts from the server…</div>';
     if(D.error) return `<div class="note bad">Could not read deposit candidates: ${esc(D.error)}</div>`;
     const sel=d.sel||{}, q=(d.bq||'').toLowerCase();
-    const chq=D.cheques||[], cash=D.cash||[];
-    const picked=[...chq.filter(c=>sel['c_'+c.id]),...cash.filter(c=>sel['h_'+c.id])];
+    const cash=D.cash||[];
+    const picked=cash.filter(c=>sel['h_'+c.id]);
     const total=picked.reduce((n,c)=>n+(+c.amount||0),0);
-    return `<p class="pp">Choose the posted receipts or registered incoming cheques that are physically going to the bank. The unit and tenant come from each source record.</p>
+    return `<p class="pp">Choose the posted cash receipts going to the bank. Tenant, building, unit and amount come from each receipt.</p>
      <div class="bsearch"><div class="vsearch"><span>⌕</span><input id="bq" value="${escA(d.bq||'')}"
-       placeholder="Search receipt, tenant, unit or cheque" oninput="bSearch(this.value)"></div>
+       placeholder="Search receipt, tenant, building or unit" oninput="bSearch(this.value)"></div>
        <span class="chip ${picked.length?'g':'n'}">${picked.length} selected · ${qar(total)}</span></div>
      <div class="bsec">Cash receipts <span class="m">${cash.length} unbanked</span></div>
      <div class="tw"><table><tr><th></th><th>Receipt</th><th>Tenant</th><th>Building</th><th>Unit</th><th>Reference</th><th class="r">Amount</th><th>Received</th></tr>
@@ -6340,27 +6330,21 @@ FORMS['create-batch']={t:'Create deposit batch',s:'Posted cash receipts and inco
        <td>${esc(c.id)}</td><td>${esc(c.name)}</td><td>${esc(c.building)}</td><td>${esc(c.unit)}</td><td>${esc(c.reference||'—')}</td>
        <td class="r num">${qar(c.amount)}</td><td>${esc(c.date)}</td></tr>`).join('')}</table></div>
      ${D.unresolved?`<div class="note bad">${D.unresolved} cash receipt${D.unresolved===1?'':'s'} cannot be batched yet because the receipt does not identify one unit. Review the receipt allocation before depositing.</div>`:''}
-     <div class="bsec">Incoming cheques <span class="m">${chq.length} on hand</span></div>
-     <div class="tw"><table><tr><th></th><th>Cheque</th><th>Tenant</th><th>Building</th><th>Unit</th><th>Bank</th><th>Number</th><th class="r">Amount</th></tr>
-     ${chq.filter(c=>!q||[c.id,c.name,c.unit,c.building,c.number].some(v=>String(v||'').toLowerCase().includes(q)))
-       .map(c=>`<tr class="drill" data-key="${escA('c_'+c.id)}" onclick="bToggle(this.dataset.key)"><td><input type="checkbox" data-key="${escA('c_'+c.id)}" ${sel['c_'+c.id]?'checked':''} onclick="event.stopPropagation();bToggle(this.dataset.key)"></td>
-       <td>${esc(c.id)}</td><td>${esc(c.name)}</td><td>${esc(c.building)}</td><td>${esc(c.unit)}</td><td>${esc(c.bank)}</td><td>${esc(c.number)}</td>
-       <td class="r num">${qar(c.amount)}</td></tr>`).join('')}</table></div>
-     ${picked.length?`<div class="note">${picked.length} source record${picked.length===1?'':'s'} selected. Their tenant, unit and amount are locked to the receipt or cheque.</div>`:''}`},
-   check:d=>{const D=depositData();return !!(D&&!D.error&&[...(D.cash||[]).map(c=>'h_'+c.id),
-     ...(D.cheques||[]).map(c=>'c_'+c.id)].some(k=>(d.sel||{})[k]))},
-   msg:'Select at least one posted cash receipt or incoming cheque.'},
+     ${picked.length?`<div class="note">${picked.length} receipt${picked.length===1?'':'s'} selected. Tenant, unit and amount are locked to the receipt.</div>`:''}`},
+   check:d=>{const D=depositData();return !!(D&&!D.error&&(D.cash||[]).some(c=>(d.sel||{})['h_'+c.id]))},
+   msg:'Select at least one posted cash receipt.'},
   {n:'Deposit',body:d=>{
     const D=depositData()||{}, sel=d.sel||{};
-    const items=[...(D.cheques||[]).filter(c=>sel['c_'+c.id]),
-      ...(D.cash||[]).filter(c=>sel['h_'+c.id])];
+    const items=(D.cash||[]).filter(c=>sel['h_'+c.id]);
     return `<div class="fg">
       ${fld({k:'bank',l:'Deposit to',t:'sel',o:['',...(D.banks||[]).map(b=>b.id)],req:1},d.bank)}
       ${fld({k:'date',l:'Deposit date',t:'date',req:1},d.date)}
-      ${fld({k:'slip',l:'Deposit slip number',t:'txt',p:'Bank deposit slip'},d.slip)}</div>
+      ${fld({k:'slip',l:'Deposit slip number',t:'txt',p:'Bank deposit slip'},d.slip)}
+      ${fld({k:'slip_image',l:'Deposit slip image (optional)',t:'file',
+        accept:'.jpg,.jpeg,.png,.JPG,.JPEG,.PNG',hint:'JPG or PNG · max 10 MB'},d.slip_image)}</div>
      ${stat([['Items',items.length],['Total',qar(items.reduce((n,c)=>n+(+c.amount||0),0))],
-       ['Cash',items.filter(c=>!!sel['h_'+c.id]).length],['Destination',d.bank||'Choose a bank']])}
-     <div class="note">Creating the batch records the slip. A second person records when it is banked; posted cash receipts are transferred from cash to that bank then, without charging the tenant twice.</div>`},
+       ['Destination',d.bank||'Choose a bank']])}
+     <div class="note">The person banking this batch can be the person who created it. The posted cash receipts are transferred to the bank on confirmation, without charging the tenants twice.</div>`},
    fields:[{k:'bank',req:1},{k:'date',req:1}],
    check:d=>{const D=depositData();return !!(D&&!D.error&&(D.banks||[]).some(b=>b.id===d.bank))},
    msg:'Choose a valid company bank account.'}],
@@ -7251,6 +7235,7 @@ function roleCan(r){
      that cannot open the route it asked for gets sent. */
   if(r==='home'||r==='mywork')return true;
   if(planningDeferred(r))return false;
+  if(chequesDeferred(r))return false;
   if(dataToolsDeferred(r))return false;
   if(ocrDeferred(r))return false;
   /* Named denial first. The category rules below are broad allows, and a
@@ -9266,12 +9251,12 @@ function allocField(party,val){
      open.length===1?'':'s'} \u00b7 ${k(+total.toFixed(2))} outstanding</div>`;
 }
 FORMS['issue-receipt']={t:'Issue a receipt',s:'Cash on the day · a cheque only once the bank confirms it',cta:'Issue the receipt',
- init:ctx=>({kind:(ctx&&ctx.kind)||'Cash received',
+ init:ctx=>({kind:(ctx&&ctx.kind)==='Bank transfer received'?'Bank transfer received':'Cash received',
    date:new Date().toLocaleDateString('sv-SE'),
    collector:window.DB_LIVE?(window.DB_USER||'Current user'):'Yusuf K.'}),
  steps:[
   {n:'What was received',body:d=>`<div class="fg">${fld({k:'kind',l:'Kind of receipt',t:'sel',req:1,live:1,
-     o:['Cash received','Cheque cleared','Bank transfer received']},d.kind)}</div>
+     o:['Cash received','Bank transfer received']},d.kind)}</div>
    ${d.kind==='Cash received'
     ?`<div class="note">A cash receipt is issued at the moment the money changes hands, because the tenant is standing there.
        It carries the collection slip reference, which is what the bank deposit will later be matched against.</div>`
@@ -9349,21 +9334,21 @@ ROUTES.receipts=()=>{
    RCPT.length=0;(c.data.rows||[]).forEach(r=>RCPT.push(r));}
  const receipted=c.state==='ok'&&c.data.receipted_cheques
    ?new Set(c.data.receipted_cheques):null;
- const pend=CHQ.filter(ch=>ch.st==='Cleared'&&ch.dir!=='out'&&
-   !(receipted?receipted.has(ch.id):RCPT.some(r=>r.st==='Issued'&&r.chq===ch.id)));
+ const pend=CHEQUES_ENABLED?CHQ.filter(ch=>ch.st==='Cleared'&&ch.dir!=='out'&&
+   !(receipted?receipted.has(ch.id):RCPT.some(r=>r.st==='Issued'&&r.chq===ch.id))):[];
  const counts=c.state==='ok'?(c.data.counts||{}):{};
- return page('Receipts','Cash on the day · a cheque only once the bank confirms the clearing',
+ return page('Receipts','Posted payments and receipt records',
   fbtn('Issue a receipt','issue-receipt'),
   stat([['Issued',counts.issued??RCPT.filter(r=>r.st==='Issued').length],
    ['Cash',counts.cash??RCPT.filter(r=>r.st==='Issued'&&r.kind==='Cash received').length],
-   ['From cleared cheques',counts.cheque??RCPT.filter(r=>r.st==='Issued'&&r.kind==='Cheque cleared').length],
+
    ['Value',qar(c.state==='ok'?c.data.value:
      RCPT.filter(r=>r.st==='Issued').reduce((a,r)=>a+r.amt,0))],
-   ['Awaiting a receipt',pend.length,'cheques cleared, not yet receipted',pend.length?'a':'g'],
+
    ['Draft',counts.draft??RCPT.filter(r=>r.st==='Draft').length],
    ['Cancelled',counts.cancelled??RCPT.filter(r=>r.st==='Cancelled').length]])+
   (c.data&&c.data.capped?`<div class="note">Showing ${RCPT.length} of ${c.data.total} receipt records. Totals include all authorised records.</div>`:'')+
-  (pend.length?`<div class="card"><h3>Cleared cheques with no receipt yet</h3>${tbl([
+  (CHEQUES_ENABLED&&pend.length?`<div class="card"><h3>Cleared cheques with no receipt yet</h3>${tbl([
     {h:'Cheque',v:c=>c.id},{h:'Drawer',v:c=>c.party||c.tn},{h:'Bank',v:c=>c.bank},
     {h:'Amount',r:1,mono:1,v:c=>n0(c.amt)},{h:'Cleared',r:1,v:c=>c.mat},
     {h:'',v:c=>`<button class="btn" onclick="event.stopPropagation();openForm('issue-receipt',{kind:'Cheque cleared'})">Issue the receipt</button>`}],
@@ -9377,7 +9362,7 @@ ROUTES.receipts=()=>{
    {h:'Evidence',v:r=>r.slip?'Slip '+r.slip:r.stmt?r.stmt:'—'},
    {h:'Issued by',v:r=>r.by},{h:'Status',v:r=>chip(r.st,r.st==='Issued'?'g':'r')}],
    RCPT.map(r=>({...r,__id:r.id})),{id:'rcl',click:'openRC'})
-  :empty('No receipts yet — issue one from a cash collection or a cleared cheque')}</div>`)};
+  :empty('No receipts yet — issue one from a cash collection or bank transfer')}</div>`)};
 window.openRC=id=>go('#/receipt/'+id);
 
 ROUTES.receipt=id=>{
@@ -9620,9 +9605,9 @@ const WIRE={
 'deposit-batch':{
  guard:d=>d.id?null:'Open the batch first \u2014 this banks a specific slip.',
  m:'finance.deposit_batch',
- a:d=>({batch:d.id,on:d.date,reason:(d.reason||'').trim()||null}),
+ a:d=>({batch:d.id,on:d.date}),
  ok:r=>({title:'Banked',msg:r.batch+' is '+r.status,
-   detail:'Cheques in the slip are presented and cash lines are receipted',
+   detail:'Posted cash receipts transferred to the bank',
    goto:'#/batch/'+r.batch})},
 
 'start-close':{
@@ -9677,13 +9662,14 @@ const WIRE={
  m:'finance.create_deposit_batch',
  a:d=>{const sel=d.sel||{};
    const D=depositData()||{};
-   const lines=[...(D.cheques||[]).filter(c=>sel['c_'+c.id])
-     .map(c=>({type:'Cheque',cheque:c.id,amount:c.amount})),
-     ...(D.cash||[]).filter(c=>sel['h_'+c.id])
+   const lines=[...(D.cash||[]).filter(c=>sel['h_'+c.id])
      .map(c=>({type:'Cash',payment_entry:c.id,amount:c.amount}))];
    return {payload:{date:d.date,bank_account:d.bank,slip_no:d.slip,lines}}},
+ attach:r=>({doctype:'Deposit Batch',docname:r.batch}),
+ afterUpload:(up,r)=>dbCall('finance.attach_deposit_slip',
+   {batch:r.batch,file_url:up.urls[0]}),
  ok:(r,d)=>({title:'Batch created',msg:'Batch '+r.batch+' created',
-   detail:'Banking it is a second person\u2019s job \u2014 the batch is not deposited yet',
+   detail:'The batch is ready to bank',
    goto:'#/batches'})},
 
 'cheque-action':{

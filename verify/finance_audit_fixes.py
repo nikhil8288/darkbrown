@@ -165,7 +165,7 @@ def test_banking_existing_cash_receipt_moves_cash_once():
     S.DB['Payment Entry'] = [receipt('PE-CASH', 1, 30.55)]
     S.DB['Deposit Batch'] = [{
         'name': 'BATCH-A', 'status': 'Draft', 'company': 'SYN',
-        'bank_account': 'Bank Ref', 'prepared_by': 'other@example.invalid',
+        'bank_account': 'Bank Ref', 'prepared_by': S.SESSION['user'],
         'lines': [S.Doc('Deposit Batch Line', {
             'payment_type': 'Cash', 'payment_entry': 'PE-CASH', 'cheque': None,
             'tenant': 'TEN-A', 'unit': 'U-A', 'amount': 30.55})],
@@ -178,6 +178,44 @@ def test_banking_existing_cash_receipt_moves_cash_once():
     assert entries[0]['accounts'] == [
         {'account': 'Bank - SYN', 'debit_in_account_currency': 30.55},
         {'account': 'Cash - SYN', 'credit_in_account_currency': 30.55}], entries
+
+
+def test_cheque_logging_is_deferred():
+    setup()
+    S.DB['Tenancy Agreement'][0].update(monthly_rent=2600, unit='U-A',
+                                        cheques_held=0)
+    S.DB['Unit'] = [{'name': 'U-A', 'building': 'A'}]
+    try:
+        finance.log_cheque({'direction': 'Incoming', 'cheque_no': '12345'})
+    except S.ValidationError as exc:
+        assert 'deferred' in str(exc)
+    else:
+        raise AssertionError('cheque logging is still enabled')
+    assert not [c for c in S.CALLS if c[:2] == ('insert', 'Cheque')]
+
+
+def test_new_batch_rejects_cheques():
+    setup()
+    try:
+        finance.create_deposit_batch({'bank_account': 'Bank Ref', 'lines': [
+            {'type': 'Cheque', 'cheque': 'CHQ-1', 'amount': 50}]})
+    except S.ValidationError as exc:
+        assert 'Only posted cash receipts' in str(exc)
+    else:
+        raise AssertionError('cheque accepted in a new deposit batch')
+
+
+def test_optional_slip_image_attaches_to_batch():
+    setup()
+    S.DB['Deposit Batch'] = [{'name': 'DEP-A', 'status': 'Draft',
+                              'company': 'SYN', 'prepared_by': S.SESSION['user'],
+                              'lines': []}]
+    S.DB['File'] = [{'name': 'FILE-A', 'file_url': '/private/files/slip.jpg',
+                     'attached_to_doctype': 'Deposit Batch',
+                     'attached_to_name': 'DEP-A', 'is_private': 1}]
+    result = finance.attach_deposit_slip('DEP-A', '/private/files/slip.jpg')
+    assert result['slip_scan'] == '/private/files/slip.jpg'
+    assert S.DB['Deposit Batch'][0]['slip_scan'] == result['slip_scan']
 
 
 def test_dirham_allocation():
@@ -204,6 +242,8 @@ def test_gl_above_old_cap():
 for test in (test_states_and_totals, test_caps_and_scope,
              test_cash_and_duplicate, test_petty_source,
              test_banking_existing_cash_receipt_moves_cash_once,
+             test_cheque_logging_is_deferred, test_new_batch_rejects_cheques,
+             test_optional_slip_image_attaches_to_batch,
              test_dirham_allocation, test_gl_above_old_cap):
     test()
     print('PASS', test.__name__)

@@ -853,14 +853,13 @@ def batches():
     The slip is the only link back to the tenant for three quarters of what
     lands in the account, so this list is the spine of reconciliation rather
     than a cash-office formality. Who prepared it and who banked it are
-    carried because a batch handled end to end by one person is the control
-    failure the screen is there to surface.
+    carried for the audit trail, including when the same person does both.
     """
     rows = frappe.get_all(
         "Deposit Batch",
         fields=_has("Deposit Batch", [
             "name", "deposit_date", "bank_account", "status", "total_amount",
-            "slip_no", "prepared_by", "deposited_by", "override_reason",
+            "slip_no", "slip_scan", "prepared_by", "deposited_by",
             "bank_statement_import", "reconciled_by", "reconciled_on",
             "creation"]),
         order_by="deposit_date desc, creation desc", limit=100)
@@ -933,6 +932,7 @@ def batches():
             "date": _fdate(r.get("deposit_date")),
             "bank": banks.get(r.get("bank_account"), r.get("bank_account") or "—"),
             "slip": r.get("slip_no") or "—",
+            "slip_scan": r.get("slip_scan") or "",
             "st": effective_status,
             "total": _k(r.get("total_amount")),
             "count": len(ls),
@@ -943,10 +943,6 @@ def batches():
                                    if cheque_status.get(l.cheque) != "Cleared"),
             "prepared": names.get(prepared, prepared or "—"),
             "deposited": names.get(deposited, "—") if deposited else "—",
-            # One person on both ends is the thing worth seeing, so it is a
-            # field rather than something the screen has to work out.
-            "same": 1 if (prepared and deposited and prepared == deposited) else 0,
-            "override": r.get("override_reason") or "",
             "recon_import": recon_import or "",
             "reconciled_by": names.get(reconciled_by, reconciled_by or "—"),
             "reconciled_on": _fdate(reconciled_on),
