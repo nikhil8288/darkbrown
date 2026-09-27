@@ -21,6 +21,7 @@ import frappe
 from frappe.utils import add_months, flt, get_first_day, getdate, today
 
 from darkbrown.guards import ACC, GM, MD, guard
+from darkbrown.permissions import allowed_buildings, require_building_access
 from darkbrown.utils import allocation
 from darkbrown.utils.chart_of_accounts import (BUILDING, COMMON, GROUPS,
                                                HEADS, basis_of, ensure_chart,
@@ -54,6 +55,9 @@ def heads():
     """
     guard(MD, GM, ACC)
     company = _company()
+    scope = allowed_buildings()
+    building_filter = {"name": ["in", sorted(scope)]} if scope is not None else {}
+    unit_filter = {"building": ["in", sorted(scope)]} if scope is not None else {}
     existing = {a.account_name: a.name for a in frappe.get_all(
         "Account", filters={"company": company, "root_type": "Expense",
                             "is_group": 0},
@@ -83,7 +87,12 @@ def heads():
                       for b in frappe.get_all(
                           "Building", fields=["name", "building_name",
                                               "status"],
+                          filters=building_filter,
                           order_by="building_name", limit=500)],
+        "units": [{"id": u.name, "building": u.building}
+                  for u in frappe.get_all("Unit", filters=unit_filter,
+                                          fields=["name", "building"],
+                                          order_by="name", limit=5000)],
         "suppliers": [s.name for s in frappe.get_all(
             "Supplier", fields=["name"], order_by="name", limit=500)],
     }
@@ -100,13 +109,17 @@ def record(payload):
         frappe.throw("An expense needs a head.")
     if not basis_of(head):
         frappe.throw("%s is not one of the expense heads on the chart." % head)
+    building = d.get("building") or None
+    if building:
+        require_building_access(building)
 
     doc = frappe.get_doc({
         "doctype": "Expense Entry",
         "expense_date": d.get("date") or today(),
         "expense_head": head,
         "amount": flt(d.get("amount")),
-        "building": d.get("building") or None,
+        "building": building,
+        "unit": d.get("unit") or None,
         "payment_mode": d.get("mode") or "Bank",
         "paid_from": d.get("paid_from") or None,
         "supplier": d.get("supplier") or None,
@@ -128,7 +141,7 @@ def record(payload):
 # --------------------------------------------------------------- the register
 
 @frappe.whitelist()
-def register(frm=None, to=None, basis=None, building=None, limit=None):
+def register(frm=None, to=None, basis=None, building=None, start=0, limit=None):
     """Expenses in a window, with totals over the complete filtered set.
 
     The row list is deliberately capped for the browser. Totals must not be:
@@ -145,13 +158,15 @@ def register(frm=None, to=None, basis=None, building=None, limit=None):
     if building:
         filters["building"] = building
 
+    start = max(0, min(int(start or 0), 1000000))
+    page_size = max(1, min(int(limit or REGISTER_CAP), REGISTER_CAP))
     rows = frappe.get_all(
         "Expense Entry", filters=filters,
         fields=["name", "expense_date", "expense_head", "amount", "basis",
-                "building", "payment_mode", "supplier", "paid_from",
+                "building", "unit", "payment_mode", "supplier", "paid_from",
                 "reference", "description", "journal_entry"],
         order_by="expense_date desc, name desc",
-        limit=int(limit or REGISTER_CAP))
+        limit_start=start, limit_page_length=page_size)
 
     names = {b.name: b.building_name for b in frappe.get_all(
         "Building", fields=["name", "building_name"], limit=500)}
@@ -170,6 +185,7 @@ def register(frm=None, to=None, basis=None, building=None, limit=None):
             "basis": r.basis or "",
             "b": r.building or "",
             "bn": names.get(r.building, r.building or "\u2014"),
+            "unit": r.unit or ("Whole building" if r.basis == BUILDING else "\u2014"),
             "mode": r.payment_mode or "",
             "party": r.supplier or r.paid_from or "",
             "ref": r.reference or "",
@@ -213,7 +229,8 @@ def register(frm=None, to=None, basis=None, building=None, limit=None):
             "unpaid": round(unpaid, 2),
             "count": total_count,
             "returned": len(out),
-            "capped": total_count > len(out),
+            "start": start,
+            "capped": total_count > start + len(out),
             "by_group": by_group}
 
 

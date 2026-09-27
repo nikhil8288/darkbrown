@@ -1102,7 +1102,7 @@ def invoices():
             "name", "customer", "grand_total", "outstanding_amount",
             "due_date", "status", "docstatus", "creation", "modified",
             "custom_rental_agreement", "custom_billing_period"]),
-        order_by="due_date desc", limit=300)
+        order_by="due_date desc", limit=1000)
     if not rows:
         return []
 
@@ -1147,7 +1147,10 @@ def invoices():
 
     ta_b = {t.name: t for t in frappe.get_all(
         "Tenancy Agreement",
-        fields=["name", "building", "unit"])} if link else {}
+        filters={"name": ["in", list(agreements | {
+            l.tenancy_agreement for l in link.values()
+            if l.tenancy_agreement})]},
+        fields=["name", "building", "unit"])} if (agreements or link) else {}
     bnames = _building_names([t.building for t in ta_b.values()])
 
     cancelled = [r.name for r in rows if r.docstatus == 2]
@@ -1195,7 +1198,8 @@ def invoices():
         paid = (0 if si.docstatus == 2
                 else flt(si.grand_total) - flt(si.outstanding_amount))
         l = link.get(si.name)
-        ta = ta_b.get(l.tenancy_agreement) if l else None
+        ta = ta_b.get(l.tenancy_agreement if l else
+                      si.get("custom_rental_agreement"))
         due_d = date_diff(si.due_date, today()) if si.due_date else 0
         if si.docstatus == 2:
             st = "Cancelled"
@@ -1209,10 +1213,11 @@ def invoices():
             "id": si.name,
             "t": si.customer,
             "tn": tnames.get(si.customer, si.customer),
-            "a": l.tenancy_agreement if l else "—",
+            "a": l.tenancy_agreement if l else (si.get("custom_rental_agreement") or "—"),
             "run": l.parent if l else None,
             "b": ta.building if ta else "—",
             "bn": bnames.get(ta.building, "—") if ta else "—",
+            "u": (l.unit if l and l.unit else ta.unit if ta else "—"),
             "amt": _k(si.grand_total),
             "paid": _k(paid),
             "balance": 0 if si.docstatus == 2 else _k(si.outstanding_amount),

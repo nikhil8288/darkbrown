@@ -12,6 +12,7 @@ question asked later is always "what happened", not "what is it now".
 """
 
 import calendar
+import secrets
 
 import frappe
 from frappe import _
@@ -1189,13 +1190,23 @@ def record_receipt(payload):
     if not tenant or amount <= 0:
         frappe.throw(_("A receipt needs a tenant and an amount."))
     require_tenant_access(tenant)
-    if (data.get("mode") or "Cheque") == "Cheque":
+    mode = data.get("mode")
+    if mode not in ("Cash", "Bank transfer", "Bank Transfer", "Card", "Cheque"):
+        frappe.throw(_("Choose how the payment was received."))
+    if mode == "Cheque":
         frappe.throw(_("Clear an incoming cheque through the cheque register. "
                        "Clearing posts its payment and receipt once."))
 
     reference = (data.get("reference") or "").strip()
+    # Some cash collections have no external reference. Give the Payment Entry
+    # a distinct internal identifier; never pretend it is a bank reference.
     if not reference:
-        frappe.throw(_("A receipt needs its collection slip or bank reference."))
+        request_id = str(data.get("request_id") or "")
+        if request_id and (len(request_id.replace("-", "")) < 12 or
+                           not all(c in "0123456789abcdefABCDEF-" for c in request_id)):
+            frappe.throw(_("Invalid receipt request identifier."))
+        reference = "DBR-" + (request_id.replace("-", "").upper()[:24]
+                              if request_id else secrets.token_hex(12).upper())
     # Lock the customer's row until the request commits. A second submission
     # for the same tenant must recheck after the first transaction commits.
     frappe.db.sql("SELECT name FROM `tabCustomer` WHERE name = %s FOR UPDATE",
@@ -1208,7 +1219,7 @@ def record_receipt(payload):
                  "docstatus": 1},
         fields=["name", "paid_amount", "mode_of_payment"])
     if any(abs(flt(row.paid_amount) - amount) < 0.005
-           and row.mode_of_payment == (data.get("mode") or "Cheque")
+           and row.mode_of_payment == mode
            for row in prior):
         frappe.throw(_("This tenant already has a submitted receipt with the "
                        "same date, reference, amount and method. Cancel the "
@@ -1216,7 +1227,7 @@ def record_receipt(payload):
 
     pe, applied, on_account = _receipt(
         tenant, amount, on,
-        data.get("bank_account"), mode=data.get("mode"),
+        data.get("bank_account"), mode=mode,
         reference=reference, invoice=data.get("invoice"),
         collector=(frappe.db.get_value("User", frappe.session.user, "full_name")
                    or frappe.session.user)
@@ -1462,6 +1473,98 @@ def _supplier_payment(supplier, amount, on, bank_account=None, mode=None,
 
 # ------------------------------------------------------------- deposit batches
 
+def _depositable_cash_account(account, company):
+    details = frappe.db.get_value("Account", account,
+                                  ["account_type", "account_name"],
+                                  as_dict=True)
+    return bool(details and details.account_type == "Cash"
+                and details.account_name != "Petty Cash"
+                and _operational_money_account(account, company))
+
+def _receipt_unit(pe):
+    """Use the invoice recorded on the receipt; never guess among units."""
+    invoice_names = [r.reference_name for r in pe.references or []
+                     if r.reference_doctype == "Sales Invoice"
+                     and r.reference_name]
+    units = set()
+    for name in invoice_names:
+        agreement = frappe.db.get_value(
+            "Sales Invoice", name, "custom_rental_agreement")
+        if agreement:
+            unit = frappe.db.get_value("Tenancy Agreement", agreement, "unit")
+            if unit:
+                units.add(unit)
+    if not invoice_names:
+        units = set(frappe.get_all("Tenancy Agreement",
+                                   filters={"tenant": pe.party}, pluck="unit"))
+        units.discard(None)
+    return next(iter(units)) if len(units) == 1 else None
+
+
+@frappe.whitelist()
+def deposit_candidates():
+    """Eligible unbanked receipts and incoming cheques, with real bank choices."""
+    guard(MD, ACC)
+    company = _company()
+    bank_rows = frappe.get_all(
+        "Bank Account", filters={"company": company},
+        fields=["name", "account", "account_name"], order_by="account_name")
+    banks = [{"id": b.name, "label": b.account_name or b.name}
+             for b in bank_rows if _paid_to(b.name, company)
+             and frappe.db.get_value("Account", b.account, "account_type") == "Bank"]
+    cash = []
+    skipped = 0
+    scope = allowed_buildings()
+    for r in frappe.get_all(
+            "Payment Entry",
+            filters={"payment_type": "Receive", "docstatus": 1,
+                     "mode_of_payment": "Cash"},
+            fields=["name", "party", "paid_amount", "paid_to",
+                    "posting_date", "reference_no", "owner"],
+            order_by="posting_date desc, creation desc", limit=1000):
+        if not _depositable_cash_account(r.paid_to, company):
+            continue
+        existing = frappe.db.get_value("Deposit Batch Line",
+                                       {"payment_entry": r.name}, "parent")
+        if existing and frappe.db.get_value("Deposit Batch", existing, "status") \
+                != "Cancelled":
+            continue
+        pe = frappe.get_doc("Payment Entry", r.name)
+        unit = _receipt_unit(pe)
+        if not unit:
+            if scope is None:
+                skipped += 1  # Never reveal another scope's receipt count.
+            continue
+        building = frappe.db.get_value("Unit", unit, "building")
+        if scope is not None and building not in scope:
+            continue
+        cash.append({"id": r.name, "tenant": r.party,
+                     "name": frappe.db.get_value("Customer", r.party,
+                                                 "customer_name") or r.party,
+                     "unit": unit, "building": building,
+                     "amount": _kk(r.paid_amount), "date": str(r.posting_date),
+                     "reference": r.reference_no or "", "by": r.owner})
+    cheques = []
+    for c in frappe.get_all(
+            "Cheque", filters={"direction": "Incoming", "status": "Received"},
+            fields=["name", "party", "unit", "amount", "bank",
+                    "cheque_no", "cheque_date", "deposit_batch"],
+            order_by="cheque_date asc", limit=1000):
+        if c.deposit_batch or not c.unit:
+            continue
+        building = frappe.db.get_value("Unit", c.unit, "building")
+        if scope is not None and building not in scope:
+            continue
+        cheques.append({"id": c.name, "tenant": c.party,
+                        "name": frappe.db.get_value("Customer", c.party,
+                                                    "customer_name") or c.party,
+                        "unit": c.unit, "building": building,
+                        "amount": _kk(c.amount), "bank": c.bank or "",
+                        "number": c.cheque_no or "",
+                        "date": str(c.cheque_date)})
+    return {"cash": cash, "cheques": cheques, "banks": banks,
+            "unresolved": skipped}
+
 @frappe.whitelist()
 def create_deposit_batch(payload):
     """Cash and cheques going to the bank as one slip.
@@ -1476,15 +1579,17 @@ def create_deposit_batch(payload):
     lines = data.get("lines") or []
     if not lines:
         frappe.throw(_("A deposit needs at least one line."))
-    bank_account = (data.get("bank_account")
-                    or _settings().default_bank_account)
-    if not bank_account or not frappe.db.exists("Bank Account", bank_account):
+    bank_account = data.get("bank_account")
+    if not bank_account or not _paid_to(bank_account, _company()) or \
+            frappe.db.get_value("Account", _paid_to(bank_account, _company()),
+                                "account_type") != "Bank":
         frappe.throw(_("Choose a valid company Bank Account for the deposit."))
 
     # Treat every browser value as untrusted.  In particular, a caller must
     # not be able to deposit one of our outgoing cheques, reuse a cheque in
     # two open slips, or change its amount/tenant while building the batch.
     seen_cheques = set()
+    seen_receipts = set()
     checked_lines = []
     for line in lines:
         payment_type = line.get("type") or "Cash"
@@ -1525,6 +1630,38 @@ def create_deposit_batch(payload):
             checked["tenant"] = cheque.party
             checked["unit"] = cheque.unit
             checked["amount"] = flt(cheque.amount)
+            checked["payment_entry"] = None
+
+        else:
+            receipt_name = line.get("payment_entry")
+            if not receipt_name or receipt_name in seen_receipts:
+                frappe.throw(_("Choose each posted cash receipt only once."))
+            seen_receipts.add(receipt_name)
+            # Serialise competing batch creations against the same receipt.
+            frappe.db.sql("SELECT name FROM `tabPayment Entry` WHERE name = %s "
+                          "FOR UPDATE", (receipt_name,))
+            pe = frappe.get_doc("Payment Entry", receipt_name)
+            require_tenant_access(pe.party)
+            if (pe.docstatus != 1 or pe.payment_type != "Receive"
+                    or pe.mode_of_payment != "Cash"
+                    or not _depositable_cash_account(pe.paid_to, _company())):
+                frappe.throw(_("{0} is not a posted cash receipt.").format(
+                    receipt_name))
+            unit = _receipt_unit(pe)
+            if not unit:
+                frappe.throw(_("{0} has no unambiguous unit on its receipt.")
+                             .format(receipt_name))
+            previous = frappe.db.get_value("Deposit Batch Line",
+                                           {"payment_entry": receipt_name},
+                                           "parent")
+            if previous and frappe.db.get_value("Deposit Batch", previous,
+                                                "status") != "Cancelled":
+                frappe.throw(_("{0} is already in deposit batch {1}.").format(
+                    receipt_name, previous))
+            checked.update({"tenant": pe.party, "unit": unit,
+                            "amount": flt(pe.paid_amount),
+                            "slip_no": pe.reference_no,
+                            "cheque": None})
 
         if checked.get("unit"):
             require_building_access(frappe.db.get_value(
@@ -1554,6 +1691,7 @@ def create_deposit_batch(payload):
             "payment_type": l.get("type") or "Cash",
             "collection_slip_no": l.get("slip_no"),
             "cheque": l.get("cheque"),
+            "payment_entry": l.get("payment_entry"),
             "tenant": l.get("tenant"),
             "unit": l.get("unit"),
             "amount": amount,
@@ -1578,6 +1716,8 @@ def deposit_batch(batch, on=None, reason=None):
     recorded on the batch.
     """
     guard(MD, GM, ACC)
+    frappe.db.sql("SELECT name FROM `tabDeposit Batch` WHERE name = %s "
+                  "FOR UPDATE", (batch,))
     doc = frappe.get_doc("Deposit Batch", batch)
     for line in doc.lines:
         if line.unit:
@@ -1607,9 +1747,34 @@ def deposit_batch(batch, on=None, reason=None):
             present_cheque(l.cheque, doc.bank_account, on or today())
             frappe.db.set_value("Cheque", l.cheque, "deposit_batch", doc.name,
                                 update_modified=False)
-        elif l.tenant:
-            _receipt(l.tenant, flt(l.amount), on or today(), doc.bank_account,
-                     mode="Cash", reference=doc.slip_no or doc.name)
+        elif l.payment_entry:
+            pe = frappe.get_doc("Payment Entry", l.payment_entry)
+            if (pe.docstatus != 1 or pe.payment_type != "Receive"
+                    or pe.mode_of_payment != "Cash" or pe.party != l.tenant
+                    or _receipt_unit(pe) != l.unit
+                    or flt(pe.paid_amount) != flt(l.amount)
+                    or not _depositable_cash_account(pe.paid_to, doc.company)):
+                frappe.throw(_("Cash receipt {0} changed; review the batch.")
+                             .format(l.payment_entry))
+            source = pe.paid_to
+            target = _paid_to(doc.bank_account, doc.company)
+            if source == target or not target:
+                frappe.throw(_("Choose a bank account distinct from cash."))
+            je = frappe.get_doc({
+                "doctype": "Journal Entry", "voucher_type": "Bank Entry",
+                "company": doc.company, "posting_date": on or today(),
+                "user_remark": "Deposit batch {0}: cash receipt {1}".format(
+                    doc.name, pe.name),
+                "accounts": [
+                    {"account": target, "debit_in_account_currency": flt(l.amount)},
+                    {"account": source, "credit_in_account_currency": flt(l.amount)},
+                ],
+            })
+            je.insert(ignore_permissions=True)
+            je.submit()
+        else:
+            frappe.throw(_("Cash line has no posted receipt. Correct the draft "
+                           "batch before banking it."))
 
     doc.status = "Deposited"
     doc.deposited_by = frappe.session.user

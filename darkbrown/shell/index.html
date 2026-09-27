@@ -2797,7 +2797,7 @@ function fld(f,v){
   const req=f.req?' <b class="rq">*</b>':'';
   if(f.t==='ro') return `<div class="fl"><span>${f.l}</span><div class="rov">${val||'—'}</div></div>`;
   if(f.t==='sel') return `<label class="fl"><span>${f.l}${req}</span><select id="${id}" data-k="${f.k}" ${f.live?`onchange="liveUpdate('${id}')"`:''}>${
-    f.o.map(o=>`<option ${String(o)===val?'selected':''}>${o}</option>`).join('')}</select></label>`;
+    f.o.map(o=>`<option value="${escA(o)}" ${String(o)===val?'selected':''}>${esc(o)}</option>`).join('')}</select></label>`;
   /* Type it, do not choose it. A select can only ever hold the list somebody
      wrote months ago; the first value that falls outside it has nowhere to go.
      A combo takes free text and offers what has been used before as
@@ -3194,7 +3194,16 @@ window.jumpField=k=>{
   spySec();
 };
 
-window.liveUpdate=id=>{collect();scheduleRedraw()};
+window.liveUpdate=id=>{
+  collect();
+  if(FKEY==='record-payment'&&id==='f_tenant'){
+    const t=TENANTS.find(x=>x.n===FDATA.tenant);
+    FDATA.amt=t?INV.filter(i=>i.t===t.id&&i.st!=='Cancelled'&&i.st!=='Draft')
+      .reduce((n,i)=>n+invBal(i),0).toFixed(2):'';
+  }
+  if(FKEY==='record-expense'&&id==='f_building') FDATA.unit='Whole building';
+  scheduleRedraw();
+};
 window.formBack=()=>{};   /* kept so an older call site does nothing rather than throw */
 
 /* ---- the check, run once, on save ----
@@ -3570,16 +3579,20 @@ const FORMS={
   return{title:'Cheque logged',msg:id+' recorded for '+t.n,detail:d.bank+' · '+k(d.amt)+' · matures '+d.mat,goto:'#/cheque/'+id}}},
 
 'record-payment':{t:'Record payment',s:'Workflow 2C · allocation',cta:'Post payment',
- init:c=>({tenant:c&&c.n?c.n:'',method:'Bank transfer',
+ init:c=>({tenant:c&&c.n?c.n:'',method:'',
+           request_id:crypto.randomUUID(),
+           amt:c&&c.id&&I(c.id)?invBal(I(c.id)):
+             INV.filter(i=>i.tn===(c&&c.n)&&i.st!=='Cancelled').reduce((n,i)=>n+invBal(i),0)||'',
            date:new Date().toLocaleDateString('sv-SE')}),
  steps:[
   {n:'Payment',body:d=>`<div class="fg">
-    ${fld({k:'tenant',l:'Tenant',t:'sel',o:TENANTS.map(t=>t.n),req:1},d.tenant)}
+    ${fld({k:'tenant',l:'Tenant',t:'sel',o:['',...TENANTS.map(t=>t.n)],req:1,live:1},d.tenant)}
     ${fld({k:'amt',l:'Amount received (QAR)',t:'num',step:'0.01',req:1},d.amt)}
-    ${fld({k:'method',l:'Method',t:'sel',o:['Cheque','Bank transfer','Cash','Card'],req:1},d.method)}
+    ${fld({k:'method',l:'Method',t:'sel',o:['','Cheque','Bank transfer','Cash','Card'],req:1},d.method)}
     ${fld({k:'date',l:'Received on',t:'date',req:1},d.date)}
-    ${fld({k:'ref',l:'Reference',t:'txt',p:'bank or cash reference',req:1},d.ref)}</div>`,
-   fields:[{k:'tenant',req:1},{k:'amt',req:1},{k:'date',req:1},{k:'ref',req:1}]},
+    ${fld({k:'ref',l:'Reference (optional)',t:'txt',p:'bank or cash reference'},d.ref)}</div>`,
+   fields:[{k:'tenant',req:1},{k:'amt',req:1},{k:'method',req:1},{k:'date',req:1}],
+   check:d=>+d.amt>0,msg:'Enter a positive amount received.'},
   {n:'Allocation',body:d=>{
     const t=TENANTS.find(x=>x.n===d.tenant); let left=+d.amt||0;
     const open=INV.filter(i=>i.t===(t||{}).id&&invBal(i)>0).slice(0,4);
@@ -4908,20 +4921,35 @@ ROUTES.intake=()=>page('Document intake','Deferred for launch','',
 window.openDoc=id=>openForm('review-document',{id});
 
 /* ---------------- Invoices ---------------- */
-ROUTES.invoices=()=>page('Invoices','Raised by an invoice run, one building at a time',
+ROUTES.invoices=()=>{
+ const f=qs(), q=(f.q||'').toLowerCase();
+ const buildings=[...new Set(INV.map(i=>i.bn).filter(x=>x&&x!=='—'))].sort();
+ const units=[...new Set(INV.filter(i=>!f.b||i.bn===f.b).map(i=>i.u).filter(x=>x&&x!=='—'))].sort();
+ const rows=INV.filter(i=>(!f.b||i.bn===f.b)&&(!f.u||i.u===f.u)
+   &&(!q||[i.id,i.tn,i.bn,i.u].some(v=>String(v||'').toLowerCase().includes(q))));
+ return page('Invoices','Raised by an invoice run, one building at a time',
  `<button class="btn" onclick="go('#/generate')">Generate invoices</button>`,
  stat([['Issued',INV.filter(i=>i.st!=='Draft'&&i.st!=='Cancelled').length],['Paid',INV.filter(i=>i.st==='Paid').length,'','g'],
   ['Part paid',INV.filter(i=>i.st==='Part paid').length,'','a'],
   ['Unpaid',INV.filter(i=>i.st==='Unpaid').length,'','r'],
   ['Cancelled',INV.filter(i=>i.st==='Cancelled').length,'','n'],
   ['Outstanding',n0(INV.reduce((a,i)=>a+invBal(i),0)),'','r']])+
- `<div class="card">${tbl([
+ `<div class="card"><div class="fg" style="margin-bottom:14px">
+   <label class="fl"><span>Find invoice, tenant, building or unit</span><input value="${escA(f.q||'')}"
+     onkeydown="if(event.key==='Enter')qsSet('q',this.value)" onchange="qsSet('q',this.value)"
+     placeholder="Search invoices"></label>
+   <label class="fl"><span>Building</span><select onchange="qsSet('u','');qsSet('b',this.value)">
+     ${['',...buildings].map(b=>`<option value="${escA(b)}" ${f.b===b?'selected':''}>${esc(b||'All buildings')}</option>`).join('')}</select></label>
+   <label class="fl"><span>Unit</span><select onchange="qsSet('u',this.value)">
+     ${['',...units].map(u=>`<option value="${escA(u)}" ${f.u===u?'selected':''}>${esc(u||'All units')}</option>`).join('')}</select></label>
+   <div class="fl"><span>Results</span><div class="rov">${rows.length} invoices${INV.length>=1000?' · latest 1,000 loaded':''}</div></div></div>${tbl([
   {h:'Invoice',v:i=>i.id},{h:'Tenant',v:i=>i.tn},{h:'Building',v:i=>i.bn},
+  {h:'Unit',v:i=>i.u||'—'},
   {h:'Amount',r:1,mono:1,v:i=>n0(i.amt)},{h:'Paid',r:1,mono:1,v:i=>n0(i.paid)},
   {h:'Balance',r:1,mono:1,v:i=>n0(invBal(i)),style:i=>invBal(i)>0?'color:var(--red)':''},
   {h:'Due',r:1,v:i=>i.due},{h:'Status',v:i=>chip(i.st,stChip(i.st))},
   {h:'Audit',v:i=>i.replaced_by?'Replaced by '+i.replaced_by:i.replaces?'Replaces '+i.replaces:'—'}],
-  INV.map(i=>({...i,__id:i.id})),{id:'il',click:'openI',
+  rows.map(i=>({...i,__id:i.id})),{id:'il',click:'openI',
    foot:['active and cancelled invoices share one audit register','replacement lineage is preserved']})}</div>`+
  (AMEND.filter(a=>a.st==='Pending GM approval').length
   ?`<div class="card"><h3>Amendments waiting on the General Manager</h3>${tbl([
@@ -4929,7 +4957,7 @@ ROUTES.invoices=()=>page('Invoices','Raised by an invoice run, one building at a
     {h:'From',r:1,mono:1,v:a=>k(a.from)},{h:'To',r:1,mono:1,v:a=>k(a.to)},
     {h:'Reason',v:a=>a.why},{h:'Raised by',v:a=>a.by}],
     AMEND.filter(a=>a.st==='Pending GM approval').map(a=>({...a,__id:a.id})),{id:'amw',click:'openAMD',
-     foot:['nothing posts until the GM decides','the invoice stands as issued in the meantime']})}</div>`:''));
+     foot:['nothing posts until the GM decides','the invoice stands as issued in the meantime']})}</div>`:''));};
 window.openI=id=>go('#/invoice/'+id);
 
 ROUTES.invoice=id=>{const i=id?I(id):INV[0]; if(!i) return notFound('Invoice','#/invoices');
@@ -4937,7 +4965,7 @@ ROUTES.invoice=id=>{const i=id?I(id):INV[0]; if(!i) return notFound('Invoice','#
  const hist=AMEND.filter(a=>a.inv===i.id);
  const active=i.st!=='Cancelled'&&i.st!=='Draft';
  return crumb([['Invoices','#/invoices'],[i.id,'']])+page(i.id,`${i.tn} · ${i.bn} · due ${i.due}`,
-  (active?fbtn('Record payment','record-payment',{n:i.tn}):'')+
+  (active?fbtn('Record payment','record-payment',{n:i.tn,id:i.id}):'')+
   (pend?`<button class="btn" onclick="go('#/amendment/${pend.id}')">Amendment with the GM</button>`
     :(window.DB_LIVE
       ?(active&&(ROLEV==='GM'||ROLEV==='MD')?fbtn('Cancel this invoice','amend-invoice',{id:i.id}):'')
@@ -6129,7 +6157,10 @@ FORMS['record-expense']={t:'Record an expense',
    ${fld({k:'date',l:'Date',t:'date',req:1},d.date)}
    ${fld({k:'amount',l:'Amount (QAR)',t:'num',step:'10',req:1,live:1},d.amount)}
    ${basis==='Building'?fld({k:'building',l:'Building',t:'sel',req:1,
-     o:['',...H.buildings.map(b=>b.label)]},d.building):''}
+     o:['',...H.buildings.map(b=>b.label)],live:1},d.building):''}
+   ${basis==='Building'&&d.building?fld({k:'unit',l:'Applies to',t:'sel',req:1,
+     o:['Whole building',...H.units.filter(u=>u.building===(H.buildings.find(b=>b.label===d.building)||{}).id)
+       .map(u=>u.id)]},d.unit||'Whole building'):''}
    ${fld({k:'mode',l:'Settled by',t:'sel',o:['Bank','Cash','Unpaid'],req:1,live:1,
      hint:'petty cash has its own screen \u2014 keying it here too would double the spend'},d.mode)}
    ${d.mode!=='Unpaid'?fld({k:'paid_from',l:'Paid from',t:'sel',req:1,o:['',...H.banks]},d.paid_from):''}
@@ -6150,6 +6181,8 @@ FORMS['record-expense']={t:'Record an expense',
    if(!(+d.amount>0)) return false;
    if(!d.what) return false;
    if(cur.basis==='Building'&&!d.building) return false;
+   if(cur.basis==='Building'&&d.unit&&d.unit!=='Whole building'&&
+      !H.units.some(u=>u.id===d.unit&&u.building===(H.buildings.find(b=>b.label===d.building)||{}).id)) return false;
    if(d.mode==='Unpaid'?!d.supplier:!d.paid_from) return false;
    return true},
   msg:'A head, a date, a positive amount and a description. A building head needs its building; a paid expense needs the account it left, an unpaid one needs the supplier.'}],
@@ -6281,83 +6314,57 @@ FORMS['add-staff']={t:'Add a staff member',s:'Payroll overhead \u00b7 reaches th
    detail:'QAR '+n0(basic+allow)+' a month \u00b7 portfolio overhead, no building affected',
    goto:'#/staffm/'+id}}};
 
-FORMS['create-batch']={t:'Create deposit batch',s:'Cheques and cash · two-person control applies',cta:'Create batch',
- init:()=>({sel:{},bank:'QNB — 0021 4478'}),
+function depositData(){
+  const c=lazy('deposit:candidates','finance.deposit_candidates');
+  return c.state==='ok'?c.data:(c.state==='err'?{error:c.msg}:null);
+}
+FORMS['create-batch']={t:'Create deposit batch',s:'Posted cash receipts and incoming cheques',cta:'Create batch',
+ init:()=>({sel:{},bank:'',date:new Date().toLocaleDateString('sv-SE')}),
  steps:[
-  {n:'Find payments',body:d=>{
-    /* A deposit slip is money coming into our bank. Outgoing landlord
-       cheques can also display as "On hand" while still in our custody, but
-       they must never appear in this picker. */
-    const chq=CHQ.filter(c=>c.dir==='in'&&c.st==='On hand').slice(0,10);
-    const sel=d.sel||{};
-    const tot=chq.filter(c=>sel['c_'+c.id]).reduce((a,c)=>a+c.amt,0)
-      +CASH.filter(c=>sel['h_'+c.id]).reduce((a,c)=>a+c.amt,0);
-    const cnt=Object.values(sel).filter(Boolean).length;
-    return `<p class="pp">Pick up the instruments sitting undeposited. Cheques on hand and cash receipts appear together —
-      a batch can contain both.</p>
-     <div class="bsearch"><div class="vsearch"><span>⌕</span><input id="bq" value="${d.bq||''}"
-       placeholder="Search tenant, cheque number or amount" oninput="bSearch(this.value)"></div>
-       <span class="chip ${cnt?'g':'n'}">${cnt} selected · ${n0(tot)}</span></div>
-     <div class="bsec">Cheques on hand <span class="m">${chq.length} available</span></div>
-     <div class="tw"><table><tr><th></th><th>Ref</th><th>Tenant</th><th>Bank</th><th>Cheque no</th>
-       <th class="r">Amount</th><th class="r">Matures</th></tr>
-     ${chq.filter(c=>!d.bq||(c.tn+c.no+c.amt).toLowerCase().includes((d.bq||'').toLowerCase()))
-       .map(c=>`<tr onclick="bToggle('c_${c.id}')" class="drill"><td><input type="checkbox" ${sel['c_'+c.id]?'checked':''} onclick="event.stopPropagation();bToggle('c_${c.id}')"></td>
-       <td>${c.id}</td><td>${c.tn}</td><td>${c.bank}</td><td>${c.no}</td>
-       <td class="r num">${n0(c.amt)}</td><td class="r">${c.mat}</td></tr>`).join('')}</table></div>
-     <div class="bsec">Cash receipts <span class="m">${CASH.length} undeposited</span></div>
-     <div class="tw"><table><tr><th></th><th>Ref</th><th>Tenant</th><th>Unit</th><th>Received by</th>
-       <th class="r">Amount</th><th class="r">Received</th></tr>
-     ${CASH.filter(c=>!d.bq||(c.tn+c.amt).toLowerCase().includes((d.bq||'').toLowerCase()))
-       .map(c=>`<tr onclick="bToggle('h_${c.id}')" class="drill"><td><input type="checkbox" ${sel['h_'+c.id]?'checked':''} onclick="event.stopPropagation();bToggle('h_${c.id}')"></td>
-       <td>${c.id}</td><td>${c.tn}</td><td>${(AGR.find(a=>a.t===c.t)||{u:"—"}).u}</td><td>${c.by}</td>
-       <td class="r num">${n0(c.amt)}</td><td class="r">${c.when}</td></tr>`).join('')}</table></div>`},
-   check:d=>Object.values(d.sel||{}).some(Boolean),msg:'Select at least one cheque or cash receipt'},
-  {n:'Match to units',body:d=>{
-    const sel=d.sel||{};
-    const items=[...CHQ.filter(c=>sel['c_'+c.id]).map(c=>({...c,kind:'Cheque'})),
-                 ...CASH.filter(c=>sel['h_'+c.id]).map(c=>({...c,kind:'Cash'}))];
-    return `<p class="pp">Confirm which unit and invoice each payment settles. Suggestions come from the tenant's
-      open invoices, oldest first — change any that look wrong.</p>
-     <div class="tw"><table><tr><th>Payment</th><th>Type</th><th>Tenant</th><th class="r">Amount</th><th>Unit</th><th>Applies to</th></tr>
-     ${items.map((it,i)=>{
-       const ag=AGR.find(a=>a.t===it.t)||{u:'—'};
-       const inv=INV.find(x=>x.t===it.t&&x.amt-x.paid>0);
-       const units=UNITS.filter(u=>u.b===(ag.b||'B01')).slice(0,6).map(u=>u.id);
-       return `<tr><td>${it.id}</td><td>${chip(it.kind,it.kind==='Cash'?'a':'n')}</td><td>${it.tn}</td>
-        <td class="r num">${n0(it.amt)}</td>
-        <td><select data-k="u_${it.id}">${[ag.u,...units.filter(u=>u!==ag.u)].map(u=>`<option>${u}</option>`).join('')}</select></td>
-        <td><select data-k="i_${it.id}">${[inv?inv.id+' · '+inv.due:'On account',...INV.filter(x=>x.t===it.t&&x!==inv).slice(0,3).map(x=>x.id+' · '+x.due),'On account']
-          .filter((v,ix,arr)=>arr.indexOf(v)===ix).map(o=>`<option>${o}</option>`).join('')}</select></td></tr>`}).join('')}
-     </table></div>
-     ${stat([['Items',items.length],['Cheques',items.filter(i=>i.kind==='Cheque').length],
-       ['Cash',items.filter(i=>i.kind==='Cash').length],
-       ['Batch value',n0(items.reduce((a,i)=>a+i.amt,0)),'','g']])}
-     <div class="note">Allocation still follows the standing rule — oldest invoice first, rent before recharge —
-       unless you override it here.</div>`}},
+  {n:'Select receipts',body:d=>{
+    const D=depositData();
+    if(!D) return '<div class="note">Reading undeposited receipts and cheques from the server…</div>';
+    if(D.error) return `<div class="note bad">Could not read deposit candidates: ${esc(D.error)}</div>`;
+    const sel=d.sel||{}, q=(d.bq||'').toLowerCase();
+    const chq=D.cheques||[], cash=D.cash||[];
+    const picked=[...chq.filter(c=>sel['c_'+c.id]),...cash.filter(c=>sel['h_'+c.id])];
+    const total=picked.reduce((n,c)=>n+(+c.amount||0),0);
+    return `<p class="pp">Choose the posted receipts or registered incoming cheques that are physically going to the bank. The unit and tenant come from each source record.</p>
+     <div class="bsearch"><div class="vsearch"><span>⌕</span><input id="bq" value="${escA(d.bq||'')}"
+       placeholder="Search receipt, tenant, unit or cheque" oninput="bSearch(this.value)"></div>
+       <span class="chip ${picked.length?'g':'n'}">${picked.length} selected · ${qar(total)}</span></div>
+     <div class="bsec">Cash receipts <span class="m">${cash.length} unbanked</span></div>
+     <div class="tw"><table><tr><th></th><th>Receipt</th><th>Tenant</th><th>Building</th><th>Unit</th><th>Reference</th><th class="r">Amount</th><th>Received</th></tr>
+     ${cash.filter(c=>!q||[c.id,c.name,c.unit,c.building,c.reference].some(v=>String(v||'').toLowerCase().includes(q)))
+       .map(c=>`<tr class="drill" data-key="${escA('h_'+c.id)}" onclick="bToggle(this.dataset.key)"><td><input type="checkbox" data-key="${escA('h_'+c.id)}" ${sel['h_'+c.id]?'checked':''} onclick="event.stopPropagation();bToggle(this.dataset.key)"></td>
+       <td>${esc(c.id)}</td><td>${esc(c.name)}</td><td>${esc(c.building)}</td><td>${esc(c.unit)}</td><td>${esc(c.reference||'—')}</td>
+       <td class="r num">${qar(c.amount)}</td><td>${esc(c.date)}</td></tr>`).join('')}</table></div>
+     ${D.unresolved?`<div class="note bad">${D.unresolved} cash receipt${D.unresolved===1?'':'s'} cannot be batched yet because the receipt does not identify one unit. Review the receipt allocation before depositing.</div>`:''}
+     <div class="bsec">Incoming cheques <span class="m">${chq.length} on hand</span></div>
+     <div class="tw"><table><tr><th></th><th>Cheque</th><th>Tenant</th><th>Building</th><th>Unit</th><th>Bank</th><th>Number</th><th class="r">Amount</th></tr>
+     ${chq.filter(c=>!q||[c.id,c.name,c.unit,c.building,c.number].some(v=>String(v||'').toLowerCase().includes(q)))
+       .map(c=>`<tr class="drill" data-key="${escA('c_'+c.id)}" onclick="bToggle(this.dataset.key)"><td><input type="checkbox" data-key="${escA('c_'+c.id)}" ${sel['c_'+c.id]?'checked':''} onclick="event.stopPropagation();bToggle(this.dataset.key)"></td>
+       <td>${esc(c.id)}</td><td>${esc(c.name)}</td><td>${esc(c.building)}</td><td>${esc(c.unit)}</td><td>${esc(c.bank)}</td><td>${esc(c.number)}</td>
+       <td class="r num">${qar(c.amount)}</td></tr>`).join('')}</table></div>
+     ${picked.length?`<div class="note">${picked.length} source record${picked.length===1?'':'s'} selected. Their tenant, unit and amount are locked to the receipt or cheque.</div>`:''}`},
+   check:d=>{const D=depositData();return !!(D&&!D.error&&[...(D.cash||[]).map(c=>'h_'+c.id),
+     ...(D.cheques||[]).map(c=>'c_'+c.id)].some(k=>(d.sel||{})[k]))},
+   msg:'Select at least one posted cash receipt or incoming cheque.'},
   {n:'Deposit',body:d=>{
-    const sel=d.sel||{};
-    const items=[...CHQ.filter(c=>sel['c_'+c.id]),...CASH.filter(c=>sel['h_'+c.id])];
-    const tot=items.reduce((a,i)=>a+i.amt,0);
+    const D=depositData()||{}, sel=d.sel||{};
+    const items=[...(D.cheques||[]).filter(c=>sel['c_'+c.id]),
+      ...(D.cash||[]).filter(c=>sel['h_'+c.id])];
     return `<div class="fg">
-      ${fld({k:'bank',l:'Deposit to',t:'sel',o:['QNB — 0021 4478','Doha Bank — 7741 2200','CBQ — 3390 8871'],req:1},d.bank)}
-      ${fld({k:'date',l:'Deposit date',t:'date',d:ISO(TODAY),req:1},d.date)}
-      ${fld({k:'slip',l:'Deposit slip number',t:'txt',p:'DS-88214'},d.slip)}
-      ${fld({k:'recon',l:'Reconciled by',t:'sel',o:['Yusuf K.','Anoop M.','Aisha R.'],req:1,live:1},d.recon)}</div>
-     ${stat([['Items',items.length],['Total',n0(tot)],['Created by','Managing Director'],['Account',(d.bank||'').split(' — ')[0]]])}
-     ${d.recon==='Managing Director'?'<div class="merr" style="display:block">Same user cannot create and reconcile — an override reason will be required.</div>'
-       :'<div class="note">Two-person control satisfied: created by the MD, reconciled by '+(d.recon||'another user')+'.</div>'}`},
-   fields:[{k:'bank',req:1},{k:'date',req:1},{k:'recon',req:1}]}],
- submit:d=>{
-  const sel=d.sel||{};
-  const chq=CHQ.filter(c=>sel['c_'+c.id]), cash=CASH.filter(c=>sel['h_'+c.id]);
-  const tot=[...chq,...cash].reduce((a,i)=>a+i.amt,0);
-  chq.forEach(c=>c.st='Deposited'); cash.forEach(c=>c.st='Deposited');
-  addJrn('Receipt','Deposit batch — '+chq.length+' cheques, '+cash.length+' cash receipts','BATCH-0873',
-    [['1010',+tot.toFixed(1),0],['1100',0,+tot.toFixed(1)]]);
-  return{title:'Batch created',msg:'BATCH-0873 · '+chq.length+' cheques and '+cash.length+' cash receipts',
-   detail:k(tot)+' to '+(d.bank||'')+' · posted to the ledger · awaiting reconciliation by '+(d.recon||''),
-   goto:'#/ledger'}}};
+      ${fld({k:'bank',l:'Deposit to',t:'sel',o:['',...(D.banks||[]).map(b=>b.id)],req:1},d.bank)}
+      ${fld({k:'date',l:'Deposit date',t:'date',req:1},d.date)}
+      ${fld({k:'slip',l:'Deposit slip number',t:'txt',p:'Bank deposit slip'},d.slip)}</div>
+     ${stat([['Items',items.length],['Total',qar(items.reduce((n,c)=>n+(+c.amount||0),0))],
+       ['Cash',items.filter(c=>!!sel['h_'+c.id]).length],['Destination',d.bank||'Choose a bank']])}
+     <div class="note">Creating the batch records the slip. A second person records when it is banked; posted cash receipts are transferred from cash to that bank then, without charging the tenant twice.</div>`},
+   fields:[{k:'bank',req:1},{k:'date',req:1}],
+   check:d=>{const D=depositData();return !!(D&&!D.error&&(D.banks||[]).some(b=>b.id===d.bank))},
+   msg:'Choose a valid company bank account.'}],
+ submit:()=>({title:'Not saved',msg:'This batch requires the live server'})};
 window.bToggle=k=>{collect();FDATA.sel=FDATA.sel||{};FDATA.sel[k]=!FDATA.sel[k];drawForm();
   const i=document.getElementById('bq'); if(i)i.focus()};
 window.bSearch=v=>{FDATA.bq=v;clearTimeout(window.__bq);window.__bq=setTimeout(()=>{drawForm();
@@ -6742,21 +6749,12 @@ ROUTES.cf=()=>{
 };
 
 /* ---------- Expenses ----------
-   Everything on the cost side used to arrive through the cutover journal, so
-   from go-live the only spend the system could see was head-lease rent. This
-   is where the rest of it is keyed.
-
-   The screen's real job is the second card. A building cost lands on that
-   building and is the end of it; a common cost lands on Overhead and is
-   divided by head-lease weight across the buildings that were live that
-   month. Someone is going to ask why their building is carrying nine
-   thousand of salary, and the answer has to be on the screen rather than in
-   somebody's head. */
+   Keep the entry register foremost and page through the complete period.
+   Summary totals come from the full server result, not the current page. */
 function expLive(d){
   const f=qs().b||'';
-  const rows=f?(d.rows||[]).filter(r=>r.basis===f):(d.rows||[]);
-  const a=window.DB_LAZY['alloc:'+acctPeriod().k];
-  const al=(a&&a.state==='ok')?a.data:null;
+  const rows=d.rows||[];
+  const pg=Math.max(0,parseInt(qs().ep||'0',10)||0), pages=Math.max(1,Math.ceil(d.count/500));
   return page('Expenses',
    `${fdate(d.frm)} to ${fdate(d.to)} \u00b7 ${d.count} entries \u00b7 head decides whether a cost is a building's or the company's`,
    periodBar()+fbtn('Record an expense','record-expense'),
@@ -6765,45 +6763,35 @@ function expLive(d){
      ['Common',qar(d.common),'shared out','a',{k:'b',v:'Common'}],
      ['Still unpaid',qar(d.unpaid),'',d.unpaid?'r':'g']])+
    (f?fchip(f==='Building'?'building costs only':'common costs only','b'):'')+
-   (d.capped?`<div class="note">Showing ${d.returned||rows.length} of ${d.count}
-     entries. The summary totals and common-cost pool include the full selected
-     period; narrow the period to inspect every row.</div>`:'')+
+   `<div class="mini">Showing ${d.count?d.start+1:0}–${d.start+rows.length} of ${d.count} entries in this period.</div>`+
    `<div class="card"><h3>Entries</h3>
     ${rows.length?tbl([
      {h:'Date',r:1,v:r=>fdate(r.date)},{h:'Head',v:r=>esc(r.head)},
      {h:'Group',v:r=>chip(r.group||'\u2014','n')},
      {h:'Basis',v:r=>chip(r.basis,r.basis==='Building'?'g':'a')},
-     {h:'Building',v:r=>esc(r.bn)},{h:'What for',v:r=>esc(r.what)},
+     {h:'Building',v:r=>esc(r.bn)},{h:'Unit',v:r=>esc(r.unit)},
+     {h:'What for',v:r=>esc(r.what)},
      {h:'Settled',v:r=>r.mode==='Unpaid'?chip('Unpaid','r'):chip(r.mode,'n')},
      {h:'Amount',r:1,mono:1,v:r=>qar(r.amount)}],
      rows.map(r=>({...r,__id:r.je||r.id})),
      {id:'exl',click:'openExpJ',
       foot:[rows.length+(f?' of '+d.count:'')+' entries','click a row for its journal']})
-     :empty(f?'Nothing '+f.toLowerCase()+' in this window.'
-             :'No expense has been keyed in this window.')}</div>
-   <div class="card" style="margin-top:14px"><h3>How the common cost divides</h3>
-    ${al&&al.rows&&al.rows.length?tbl([
-      {h:'Building',v:r=>esc(r.label)},
-      {h:'Share of the common pool',r:1,mono:1,v:r=>qar(r.amount)}],
-      al.rows.map(r=>({...r,__id:r.building})),
-      {id:'alc',foot:[al.rows.length+' buildings carried a share',
-        'pool '+qar(al.total)+(al.unallocated?' \u00b7 '+qar(al.unallocated)+' unallocated':'')]})
-     :empty(al?'No common cost to divide in this window.':'Reading the split\u2026')}
-    <div class="note">Weighted by head-lease cost, to two decimal places, across the
-    buildings that were Active or on Notice Period in each month. A building
-    that had not been handed over does not carry that month. The shares add
-    back to the pool exactly \u2014 the odd dirham goes to whichever buildings were
-    rounded down hardest rather than to nobody.
-    ${al&&al.unallocated?`<br><b>${qar(al.unallocated)} could not be divided</b>
-    because no building was live in the month it was posted. It stays on
-    Overhead.`:''}</div></div>`);
+     :empty(f?'Nothing '+f.toLowerCase()+' on this page.'
+             :'No expense has been keyed in this window.')}
+    <div class="genbar">
+      <button class="btn" ${pg===0?'disabled':''} onclick="qsSet('ep','${pg-1}')">Previous</button>
+      <span class="mini">Page ${pg+1} of ${pages}</span>
+      <button class="btn" ${pg+1>=pages?'disabled':''} onclick="qsSet('ep','${pg+1}')">Next</button>
+    </div></div>`);
 }
 window.openExpJ=id=>{ if(id&&String(id).indexOf('EXP-')!==0) go('#/journal/'+id) };
 
 ROUTES.expenses=()=>{
   const P=acctPeriod();
-  const c=lazy('exp:'+P.k,'expenses.register',{frm:P.frm,to:P.to});
-  if(c.state==='ok') lazy('alloc:'+P.k,'expenses.allocation_preview',{frm:P.frm,to:P.to});
+  const pg=Math.max(0,parseInt(qs().ep||'0',10)||0);
+  const f=qs().b||'';
+  const c=lazy('exp:'+P.k+':'+f+':'+pg,'expenses.register',
+    {frm:P.frm,to:P.to,basis:f||null,start:pg*500});
   if(c.state!=='ok'&&c.state!=='demo')
     return lazyPage('Expenses','Reads what has been keyed against the expense chart',c);
   if(c.state==='ok') return expLive(c.data);
@@ -9547,7 +9535,8 @@ const WIRE={
    const cur=(H.heads||[]).find(h=>h.head===d.head)||{};
    const b=(H.buildings||[]).find(x=>x.label===d.building);
    return {payload:{head:cur.account||d.head,date:d.date,amount:+d.amount||0,
-     building:b?b.id:(d.building||null),mode:d.mode,paid_from:d.paid_from,
+     building:b?b.id:(d.building||null),unit:d.unit&&d.unit!=='Whole building'?d.unit:null,
+     mode:d.mode,paid_from:d.paid_from,
      supplier:d.supplier,what:d.what,ref:d.ref}}},
  ok:(r,d)=>({title:'Recorded',
    msg:'QAR '+n0(+d.amount||0)+' to '+d.head,
@@ -9675,23 +9664,24 @@ const WIRE={
   ?'Clear the incoming cheque on its register; that step posts the payment once.':null,
  m:'finance.record_receipt',
  a:d=>({payload:{tenant:wTen(d.tenant),amount:wNum(d.amt),on:d.date,
-   mode:d.method,invoice:allocId(d.inv),reference:d.ref}}),
+   mode:d.method,invoice:allocId(d.inv),reference:d.ref,
+   request_id:d.request_id}}),
  ok:(r,d)=>({title:'Payment posted',msg:'QAR '+qar(r.allocated)+' allocated to '+d.tenant,
    detail:(r.applied&&r.applied.length?'Applied to '+r.applied.join(', ')
      :'Nothing open \u2014 held on account')+' \u00b7 '+r.payment_entry})},
 
 'create-batch':{
- guard:d=>{const sel=d.sel||{};
-   return Object.keys(sel).some(x=>sel[x]&&x[0]==='h')
-    ?'Cash receipts are not read from the server yet, so the cash rows in this list are prototype data. Deselect them and batch the cheques, or capture the cash through Issue a receipt first.':null},
+ guard:d=>{const D=depositData();
+   return !D||D.error?'The live receipt register could not be read. Reopen the form.':
+     !(D.banks||[]).some(b=>b.id===d.bank)?'Choose the bank that will receive this batch.':null},
  m:'finance.create_deposit_batch',
  a:d=>{const sel=d.sel||{};
-   const lines=CHQ.filter(c=>sel['c_'+c.id]).map(c=>({type:'Cheque',cheque:c.id,
-     tenant:c.t,unit:(AGR.find(a=>a.t===c.t)||{}).u,amount:c.amt,
-     remarks:'Batched on '+d.date}));
-   /* the bank shown here is a label, not a Bank Account docname; the API
-      falls back to the configured default, which is the real one */
-   return {payload:{date:d.date,bank_account:null,slip_no:d.slip,lines}}},
+   const D=depositData()||{};
+   const lines=[...(D.cheques||[]).filter(c=>sel['c_'+c.id])
+     .map(c=>({type:'Cheque',cheque:c.id,amount:c.amount})),
+     ...(D.cash||[]).filter(c=>sel['h_'+c.id])
+     .map(c=>({type:'Cash',payment_entry:c.id,amount:c.amount}))];
+   return {payload:{date:d.date,bank_account:d.bank,slip_no:d.slip,lines}}},
  ok:(r,d)=>({title:'Batch created',msg:'Batch '+r.batch+' created',
    detail:'Banking it is a second person\u2019s job \u2014 the batch is not deposited yet',
    goto:'#/batches'})},

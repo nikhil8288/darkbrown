@@ -117,14 +117,27 @@ def test_cash_and_duplicate():
     assert recorded['custom_remarks'] == 1
     assert recorded['remarks'] == 'Cash collected by acc@example.invalid.'
     assert result['allocated'] == result['on_account'] == 30.55
-    for changed in ({**payload, 'reference': ''},
-                    {**payload, 'mode': 'Cheque'}):
-        try:
-            finance.record_receipt(changed)
-        except S.ValidationError:
-            pass
-        else:
-            raise AssertionError('unsupported receipt was posted')
+    result = finance.record_receipt({**payload, 'reference': '',
+                                     'request_id': 'abcdef0123456789'})
+    assert result['payment_entry']
+    recorded = [c[2] for c in S.CALLS if c[:2] == ('insert', 'Payment Entry')][-1]
+    assert recorded['reference_no'].startswith('DBR-')
+    # The stub's submit() does not persist docstatus back to its in-memory DB.
+    S.DB['Payment Entry'][-1]['docstatus'] = 1
+    S.DB['Payment Entry'][-1]['posting_date'] = '2026-09-24'
+    try:
+        finance.record_receipt({**payload, 'reference': '',
+                                'request_id': 'abcdef0123456789'})
+    except S.ValidationError:
+        pass
+    else:
+        raise AssertionError('a retried blank-reference receipt was posted twice')
+    try:
+        finance.record_receipt({**payload, 'mode': 'Cheque'})
+    except S.ValidationError:
+        pass
+    else:
+        raise AssertionError('cheque receipt was posted twice')
 
 
 def test_petty_source():
@@ -143,6 +156,28 @@ def test_petty_source():
         assert 'petty cash movement' in str(exc), exc
     else:
         raise AssertionError('expense form bypassed petty register')
+
+
+def test_banking_existing_cash_receipt_moves_cash_once():
+    setup()
+    S.DB['Unit'] = [{'name': 'U-A', 'building': 'A'}]
+    S.DB['Tenancy Agreement'][0]['unit'] = 'U-A'
+    S.DB['Payment Entry'] = [receipt('PE-CASH', 1, 30.55)]
+    S.DB['Deposit Batch'] = [{
+        'name': 'BATCH-A', 'status': 'Draft', 'company': 'SYN',
+        'bank_account': 'Bank Ref', 'prepared_by': 'other@example.invalid',
+        'lines': [S.Doc('Deposit Batch Line', {
+            'payment_type': 'Cash', 'payment_entry': 'PE-CASH', 'cheque': None,
+            'tenant': 'TEN-A', 'unit': 'U-A', 'amount': 30.55})],
+    }]
+    result = finance.deposit_batch('BATCH-A', on='2026-09-25')
+    assert result['status'] == 'Deposited'
+    assert not [c for c in S.CALLS if c[:2] == ('insert', 'Payment Entry')]
+    entries = [c[2] for c in S.CALLS if c[:2] == ('insert', 'Journal Entry')]
+    assert len(entries) == 1, entries
+    assert entries[0]['accounts'] == [
+        {'account': 'Bank - SYN', 'debit_in_account_currency': 30.55},
+        {'account': 'Cash - SYN', 'credit_in_account_currency': 30.55}], entries
 
 
 def test_dirham_allocation():
@@ -168,6 +203,7 @@ def test_gl_above_old_cap():
 
 for test in (test_states_and_totals, test_caps_and_scope,
              test_cash_and_duplicate, test_petty_source,
+             test_banking_existing_cash_receipt_moves_cash_once,
              test_dirham_allocation, test_gl_above_old_cap):
     test()
     print('PASS', test.__name__)

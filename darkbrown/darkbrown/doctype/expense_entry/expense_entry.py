@@ -18,6 +18,7 @@ from frappe.utils import flt, getdate
 
 from darkbrown.utils.chart_of_accounts import (BUILDING, COMMON, basis_of,
                                                ensure_overhead_cost_center)
+from darkbrown.permissions import require_building_access
 
 
 class ExpenseEntry(Document):
@@ -49,11 +50,22 @@ class ExpenseEntry(Document):
             frappe.throw(_(
                 "{0} is a building cost, so it needs the building it belongs "
                 "to.").format(self.expense_head))
+        if self.basis == BUILDING:
+            require_building_access(self.building)
+
+        if self.get("unit"):
+            if self.basis != BUILDING or not self.building:
+                frappe.throw(_("A unit expense needs a building expense head."))
+            actual_building = frappe.db.get_value("Unit", self.unit, "building")
+            if not actual_building or actual_building != self.building:
+                frappe.throw(_("Unit {0} is not in building {1}.").format(
+                    self.unit, self.building))
 
         if self.basis == COMMON and self.building:
             # Not an error worth stopping for, but the building would be a lie
             # on the record: the posting does not go there.
             self.building = None
+            self.unit = None
 
         if self.payment_mode == "Unpaid":
             if not self.supplier:

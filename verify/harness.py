@@ -1339,7 +1339,12 @@ check("deposit batches reject outgoing and amount-tampered cheques",
 
 def t_deposit_batch_picker_only_shows_incoming_cheques():
     shell = open(REPO + '/darkbrown/shell/index.html').read()
-    assert "CHQ.filter(c=>c.dir==='in'&&c.st==='On hand')" in shell
+    assert "lazy('deposit:candidates','finance.deposit_candidates')" in shell
+    from darkbrown.api import finance
+    import inspect
+    src = inspect.getsource(finance.deposit_candidates)
+    assert '"direction": "Incoming", "status": "Received"' in src
+    assert '"payment_type": "Receive", "docstatus": 1' in src
 check("deposit batch picker excludes outgoing cheques",
       t_deposit_batch_picker_only_shows_incoming_cheques)
 
@@ -1617,10 +1622,10 @@ def t_expense_register_totals_are_not_limited_with_rows():
     src = inspect.getsource(expenses.register)
     assert 'group by expense_head, basis, payment_mode' in src
     assert '"returned": len(out)' in src
-    assert '"capped": total_count > len(out)' in src
+    assert '"capped": total_count > start + len(out)' in src
     assert 'total = sum(flt(r.amount) for r in summary)' in src
     shell = open(REPO + '/darkbrown/shell/index.html').read()
-    assert 'The summary totals and common-cost pool include the full selected' in shell
+    assert "start:pg*500" in shell and "Page ${pg+1} of ${pages}" in shell
 check("expense totals cover the full period when register rows are capped",
       t_expense_register_totals_are_not_limited_with_rows)
 

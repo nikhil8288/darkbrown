@@ -23,6 +23,7 @@
   "column_break_1",
   "basis",
   "building",
+  "unit",
   "cost_center",
   "section_settlement",
   "payment_mode",
@@ -94,6 +95,15 @@
    "depends_on": "eval:doc.basis=='Building'",
    "mandatory_depends_on": "eval:doc.basis=='Building'",
    "description": "Required for a building head. A building cost with no building is a cost that can never be found again."
+  },
+  {
+   "fieldname": "unit",
+   "fieldtype": "Link",
+   "options": "Unit",
+   "label": "Unit",
+   "in_list_view": 1,
+   "depends_on": "eval:doc.basis=='Building'",
+   "description": "Leave empty for the whole building. A unit must belong to the selected building."
   },
   {
    "fieldname": "cost_center",
