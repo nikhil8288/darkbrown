@@ -615,6 +615,7 @@ body.focus main{max-width:none}
     <div class="nv" data-r="invoices">Invoices</div>
     <div class="nv" data-r="generate">Generate invoices</div>
     <div class="nv" data-r="receipts">Receipts</div>
+    <div class="nv" data-r="landlordpayments">Landlord Payments</div>
     <div class="nv" data-r="batches">Batches</div>
     <div class="nv" data-r="expenses">Expenses</div>
     <div class="nv" data-r="recon">Reconciliation <span class="b r" id="nbRecon">9</span></div>
@@ -1449,7 +1450,7 @@ function router(){
    agreements:'Agreements',agreement:'Agreement',cases:'Collection cases',case:'Collection case',
    moveout:'Move-out',maint:'Maintenance',job:'Maintenance job',utilities:'Utilities',intake:'Document intake',
    vault:'Document vault',invoices:'Invoices',invoice:'Invoice',cheques:'Cheques',cheque:'Cheque',
-   batches:'Deposit batches',recon:'Reconciliation',closing:'Weekly closing',approvals:'Approvals',
+   batches:'Deposit batches',landlordpayments:'Landlord Payments',recon:'Reconciliation',closing:'Weekly closing',approvals:'Approvals',
    approval:'Approval',reports:'Reports',admin:'Admin',ledger:'General ledger',coa:'Chart of accounts',
    journal:'Journal entries',trial:'Trial balance',account:'Account ledger',
    pl:'Profit and loss',bs:'Balance sheet',cf:'Cash flow',expenses:'Expenses',
@@ -3475,15 +3476,16 @@ const FORMS={
 'head-lease-accrual':{t:'Draft landlord accrual',
  s:'Monthly Head Lease expense · saved as a draft Purchase Invoice',
  cta:'Create draft',
- init:c=>({building:c&&c.b,building_name:c&&c.bn,period:periodStart()}),
+ init:c=>({building:c&&c.b||'',building_name:c&&c.bn||'',period:periodStart()}),
  steps:[{n:'Accrual',body:d=>`<p class="pp">This recognises one month of
-   landlord rent for <b>${esc(d.building_name||d.building||'')}</b>. It creates
+   landlord rent for <b>${esc(d.building_name||BUILDINGS.find(b=>b.id===d.building)?.n||d.building||'the selected building')}</b>. It creates
    a draft only; GM or MD submission remains a separate approval.</p><div class="fg">
-   ${fld({k:'building_name',l:'Building',t:'ro'},d.building_name||d.building)}
+   ${d.__ctx&&d.__ctx.b?fld({k:'building_name',l:'Building',t:'ro'},esc(d.building_name||d.building)):
+     fld({k:'building',l:'Building',t:'sel',o:['',...BUILDINGS.map(b=>b.id)],req:1},d.building)}
    ${fld({k:'period',l:'Accrual month',t:'date',req:1},d.period)}</div>`,
    fields:[{k:'period',req:1}],
-   check:d=>/^\d{4}-\d{2}-01$/.test(String(d.period||'')),
-   msg:'Choose the first day of the accrual month.'}]},
+   check:d=>!!d.building&&/^\d{4}-\d{2}-01$/.test(String(d.period||'')),
+   msg:'Choose a building and the first day of the accrual month.'}]},
 
 'declare-cash':{t:'Update cash position',s:'Counted balances, one per account',cta:'Declare balances',
  steps:[{n:'Balances',body:d=>{
@@ -3607,13 +3609,15 @@ const FORMS={
   {n:'Payment',body:d=>`<div class="fg">
     ${fld({k:'tenant',l:'Tenant',t:'sel',o:['',...TENANTS.map(t=>t.n)],req:1,live:1},d.tenant)}
     ${fld({k:'amt',l:'Amount received (QAR)',t:'num',step:'0.01',req:1},d.amt)}
-    ${fld({k:'method',l:'Method',t:'sel',o:['','Bank transfer','Cash','Card'],req:1,live:1},d.method)}
-    ${fld({k:'date',l:'Received on',t:'date',req:1},d.date)}
+    ${fld({k:'method',l:'Method',t:'sel',o:['','Bank transfer','Cash','Card','Cheque'],req:1,live:1},d.method)}
+    ${fld({k:'date',l:d.method==='Cheque'?'Cleared on':'Received on',t:'date',req:1},d.date)}
+    ${d.method==='Cheque'?fld({k:'bank',l:'Bank where cheque cleared',t:'sel',o:['',...BANKS().map(b=>b.name)],req:1},d.bank):''}
     ${fld({k:'ref',l:'Reference (optional)',t:'txt',p:'bank or cash reference'},d.ref)}</div>
-    `,
+    ${d.method==='Cheque'?`<div class="note">Keep the cheque in your manual register until the bank confirms it cleared. Record its payment here once: this posts the receipt and reduces the invoice balance.</div>
+      ${fld({k:'cleared',l:'I confirm this cheque has cleared at the bank',t:'chk'},d.cleared)}`:''}`,
    fields:[{k:'tenant',req:1},{k:'amt',req:1},{k:'method',req:1},{k:'date',req:1}],
-   check:d=>+d.amt>0,
-   msg:'Enter a positive amount.'},
+   check:d=>+d.amt>0&&(d.method!=='Cheque'||!!(d.bank&&d.cleared)),
+   msg:'Enter a positive amount. For a cheque, choose its bank and confirm that it cleared.'},
   {n:'Allocation',body:d=>{
     const t=TENANTS.find(x=>x.n===d.tenant); let left=+d.amt||0;
     const open=INV.filter(i=>i.t===(t||{}).id&&invBal(i)>0).slice(0,4);
@@ -3636,6 +3640,46 @@ const FORMS={
   return{title:'Payment posted',msg:'QAR '+qar(+d.amt||0)+' received from '+d.tenant,
    detail:'Allocated oldest-first'+(left>0?' · QAR '+qar(left)+' left on account':''),
    goto:t?'#/tenant/'+t.id:'#/tenants'}}},
+
+'issue-landlord-bill':{t:'Issue landlord bill',s:'Approve the monthly Head Lease accrual',cta:'Issue bill',
+ init:c=>{const cache=window.DB_LAZY['landlord:payments'];
+   const row=cache&&cache.state==='ok'?(cache.data.rows||[]).find(r=>r.invoice===(c&&c.invoice)):null;
+   return{invoice:c&&c.invoice||'',building:row&&row.building_name||'',
+     landlord:row&&row.landlord_name||'',amount:row&&row.amount||0,
+     status:row&&row.status||''}},
+ steps:[{n:'Confirm',body:d=>`<p class="pp">Issuing this bill posts the landlord rent payable. Accounts can then record its payment.</p>
+   <div class="kv">${[['Building',d.building],['Landlord',d.landlord],
+     ['Bill',d.invoice],['Amount',qar(d.amount)]].map(([label,value])=>
+       `<div><span>${label}</span><b>${esc(value)}</b></div>`).join('')}</div>`,
+   check:d=>!!d.invoice&&d.status==='Draft',
+   msg:'Open a draft landlord bill first.'}],
+ submit:()=>({title:'Not saved',msg:'Issuing a bill needs the live server'})},
+
+'landlord-payment':{t:'Record landlord payment',s:'Settle an approved Head Lease bill',cta:'Post payment',
+ init:c=>{const cache=window.DB_LAZY['landlord:payments'];
+   const row=cache&&cache.state==='ok'?(cache.data.rows||[]).find(r=>r.invoice===(c&&c.invoice)):null;
+   return{invoice:c&&c.invoice||'',building:row&&row.building_name||'',
+     landlord:row&&row.landlord_name||'',balance:row&&row.amount||0,
+     amt:row&&row.amount||'',method:'',bank:'',
+     date:new Date().toLocaleDateString('sv-SE'),request_id:crypto.randomUUID()}},
+ steps:[{n:'Payment',body:d=>`<p class="pp">This payment is applied to the selected approved landlord bill. A partial payment leaves the remaining balance open.</p>
+   <div class="fg">
+    ${fld({k:'building',l:'Building',t:'ro'},esc(d.building))}
+    ${fld({k:'landlord',l:'Landlord',t:'ro'},esc(d.landlord))}
+    ${fld({k:'invoice',l:'Bill',t:'ro'},esc(d.invoice))}
+    ${fld({k:'balance',l:'Balance (QAR)',t:'ro'},qar(d.balance))}
+    ${fld({k:'amt',l:'Amount paid (QAR)',t:'num',step:'0.01',req:1},d.amt)}
+    ${fld({k:'method',l:'Method',t:'sel',o:['','Bank transfer','Cash','Cheque'],req:1,live:1},d.method)}
+    ${d.method&&d.method!=='Cash'?fld({k:'bank',l:'Paid from bank',t:'sel',o:['',...BANKS().map(b=>b.name)],req:1},d.bank):''}
+    ${fld({k:'date',l:d.method==='Cheque'?'Cleared on':'Paid on',t:'date',req:1},d.date)}
+    ${fld({k:'ref',l:'Reference (optional)',t:'txt',p:'bank or cash reference'},d.ref)}</div>
+    ${d.method==='Cheque'?`<div class="note">Keep the outgoing cheque in your manual register until it clears. Record the landlord payment here after bank confirmation.</div>
+      ${fld({k:'cleared',l:'I confirm this cheque has cleared at the bank',t:'chk'},d.cleared)}`:''}`,
+   fields:[{k:'amt',req:1},{k:'method',req:1},{k:'date',req:1}],
+   check:d=>+d.amt>0&&+d.amt<=+d.balance&&
+     (d.method==='Cash'||!!d.bank)&&(d.method!=='Cheque'||!!d.cleared),
+   msg:'Enter an amount up to the bill balance, choose the payment method and bank, and confirm cheque clearance when applicable.'}],
+ submit:()=>({title:'Not saved',msg:'This payment needs the live server'})},
 
 'upload-docs':{t:'Upload for review',s:'Manual intake · OCR deferred',cta:'Upload for review',
  init:()=>({type:'Other'}),
@@ -4600,6 +4644,37 @@ ROUTES.petty=()=>{
    {id:'pc',click:'openPc',
     foot:[shown.length+' movements','Balance QAR '+qar(bal)]})}</div>`);
 };
+
+ROUTES.landlordpayments=()=>{
+ const c=lazy('landlord:payments','finance.landlord_payments');
+ if(c.state==='load'||c.state==='err')
+   return lazyPage('Landlord Payments','Head Lease bills and payments',c);
+ const rows=c.state==='ok'?(c.data.rows||[]):[];
+ return page('Landlord Payments','Building, landlord and bill amount',
+   fbtn('Draft monthly rent','head-lease-accrual'),
+  stat([['Bills outstanding',rows.filter(r=>r.status==='Outstanding').length],
+        ['Amount to pay',qar(rows.filter(r=>r.status==='Outstanding').reduce((sum,r)=>sum+(+r.amount||0),0))],
+        ['Awaiting issue',rows.filter(r=>r.status==='Draft').length]])+
+  `<div class="card">${rows.length?tbl([
+   {h:'Building',v:r=>esc(r.building_name)},
+   {h:'Landlord',v:r=>esc(r.landlord_name)},
+   {h:'Amount',r:1,mono:1,v:r=>qar(r.amount)},
+   {h:'Bill',v:r=>esc(r.invoice)},
+   {h:'Due',v:r=>esc(r.due_date||'—')},
+   {h:'Status',v:r=>chip(r.status,r.status==='Draft'?'a':'r')},
+   {h:'',v:r=>r.status==='Draft'&&['MD','GM'].includes(ROLEV)
+     ?`<button type="button" class="btn" data-id="${escA(r.invoice)}"
+       onclick="event.stopPropagation();openLandlordIssue(this.dataset.id)">Issue bill</button>`
+     :r.status==='Outstanding'&&['MD','ACC'].includes(ROLEV)
+     ?`<button type="button" class="btn" data-id="${escA(r.invoice)}"
+       onclick="event.stopPropagation();openLandlordPay(this.dataset.id)">Record payment</button>`
+     :''}],
+   rows.map(r=>({...r,__id:r.invoice})),{id:'landlordpay',
+    foot:['Draft bills must be issued by GM/MD before a payment can be posted.']})
+   :empty(window.DB_LIVE?'No landlord bills are awaiting issue or payment. Draft monthly rent to start.':'Connect to the live server to read landlord bills.')}</div>`);
+};
+window.openLandlordPay=id=>openForm('landlord-payment',{invoice:id});
+window.openLandlordIssue=id=>openForm('issue-landlord-bill',{invoice:id});
 
 ROUTES.landlords=()=>{
  /* Reads the Supplier records flagged as landlords. An empty list is a real
@@ -7219,12 +7294,14 @@ const ROLE_DENY={
   /* Documentation is intake, the vault and the paperwork behind an agreement.
      No money screens at all. */
   DOC:['dash','admin','data','approvals','approval','invoices','invoice','generate',
+       'landlordpayments',
        'billrun','receipts','receipt','amendment','cheques','cheque','batches',
        'batch','recon','closing','staff','petty','maint','job','utilities',
        'cases','case','moveout','reports'],
   /* Maintenance is jobs and the condition of a unit. It needs buildings and
      units to do that and nothing else. */
   MNT:['dash','admin','data','approvals','approval','invoices','invoice','generate',
+       'landlordpayments',
        'billrun','receipts','receipt','amendment','cheques','cheque','batches',
        'batch','recon','closing','staff','petty','cases','case','tenants','tenant',
        'landlords','landlord','agreements','agreement','intake','reports',
@@ -9338,7 +9415,7 @@ ROUTES.receipts=()=>{
    !(receipted?receipted.has(ch.id):RCPT.some(r=>r.st==='Issued'&&r.chq===ch.id))):[];
  const counts=c.state==='ok'?(c.data.counts||{}):{};
  return page('Receipts','Posted payments and receipt records',
-  fbtn('Issue a receipt','issue-receipt'),
+  fbtn('Issue a receipt','issue-receipt')+fbtn('Record payment','record-payment'),
   stat([['Issued',counts.issued??RCPT.filter(r=>r.st==='Issued').length],
    ['Cash',counts.cash??RCPT.filter(r=>r.st==='Issued'&&r.kind==='Cash received').length],
 
@@ -9500,9 +9577,10 @@ const WIRE={
 'head-lease-accrual':{
  m:'finance.build_head_lease_payable',
  a:d=>({building:d.building,period_start:d.period}),
- ok:r=>({title:r.created?'Draft created':'Already drafted',
+ ok:r=>({title:r.created?'Draft created':'Bill already exists',
    msg:r.invoice+' · QAR '+n0(r.amount||0),
-   detail:'Head Lease '+(r.head_lease||'')+' · Purchase Invoice remains Draft'})},
+   detail:'Head Lease '+(r.head_lease||'')+' · '+r.status,
+   goto:'#/landlordpayments'})},
 
 /* ---------------- people ---------------- */
 
@@ -9645,15 +9723,37 @@ const WIRE={
      : 'Nothing was open \u2014 the whole receipt sits on account')+' \u00b7 '+r.payment_entry})},
 
 'record-payment':{
- guard:d=>d.method==='Cheque'
-  ?'Clear the incoming cheque on its register; that step posts the payment once.':null,
+ guard:d=>d.method==='Cheque'&&!d.cleared
+  ?'Confirm the cheque cleared at the bank before posting its payment.':null,
  m:'finance.record_receipt',
  a:d=>({payload:{tenant:wTen(d.tenant),amount:wNum(d.amt),on:d.date,
    mode:d.method,invoice:allocId(d.inv),reference:d.ref,
+   bank_account:d.method==='Cheque'?d.bank:null,cleared:d.method==='Cheque'&&!!d.cleared,
    request_id:d.request_id}}),
  ok:(r,d)=>({title:'Payment posted',msg:'QAR '+qar(r.allocated)+' allocated to '+d.tenant,
    detail:(r.applied&&r.applied.length?'Applied to '+r.applied.join(', ')
      :'Nothing open \u2014 held on account')+' \u00b7 '+r.payment_entry})},
+
+'landlord-payment':{
+ guard:d=>!d.invoice?'Open a landlord bill first.':
+   d.method==='Cheque'&&!d.cleared?'Confirm that the cheque cleared at the bank first.':
+   d.method!=='Cash'&&!d.bank?'Choose the bank this payment came from.':null,
+ m:'finance.record_landlord_payment',
+ a:d=>({payload:{invoice:d.invoice,amount:wNum(d.amt),mode:d.method,
+   bank_account:d.method==='Cash'?null:d.bank,on:d.date,reference:d.ref,
+   cleared:d.method==='Cheque'&&!!d.cleared,request_id:d.request_id}}),
+ ok:(r,d)=>({title:'Landlord payment posted',
+   msg:'QAR '+qar(r.amount)+' paid for '+d.building,
+   detail:'Applied to bill '+r.invoice+' · '+r.payment_entry,
+   goto:'#/landlordpayments'})},
+
+'issue-landlord-bill':{
+ guard:d=>d.invoice&&d.status==='Draft'?null:'Open a draft landlord bill first.',
+ m:'finance.issue_head_lease_payable',
+ a:d=>({invoice:d.invoice}),
+ ok:r=>({title:'Bill issued',msg:r.invoice+' is '+r.status,
+   detail:'It is ready for payment in Landlord Payments.',
+   goto:'#/landlordpayments'})},
 
 'create-batch':{
  guard:d=>{const D=depositData();

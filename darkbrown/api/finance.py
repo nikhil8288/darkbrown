@@ -1109,10 +1109,11 @@ def build_head_lease_payable(building, period_start=None):
         "Purchase Invoice",
         {"custom_landlord_contract": lease.name,
          "custom_billing_period": period,
-         "docstatus": ["<", 2]}, ["name", "grand_total"], as_dict=True)
+         "docstatus": ["<", 2]}, ["name", "grand_total", "docstatus"], as_dict=True)
     if existing:
         return {"invoice": existing.name, "created": False,
-                "status": "Draft", "amount": _kk(existing.grand_total),
+                "status": "Submitted" if existing.docstatus == 1 else "Draft",
+                "amount": _kk(existing.grand_total),
                 "head_lease": lease.name}
 
     company = lease.company or _company()
@@ -1164,6 +1165,9 @@ def issue_head_lease_payable(invoice):
             invoice))
     lease = frappe.get_doc("Head Lease", lease_name)
     require_record_access(lease, "read")
+    require_building_access(lease.building)
+    if pi.supplier != lease.landlord or pi.company != (lease.company or _company()):
+        frappe.throw(_("The landlord bill does not match its Head Lease."))
     if pi.docstatus == 1:
         return {"invoice": pi.name, "status": "Submitted"}
     if pi.docstatus != 0:
@@ -1171,6 +1175,118 @@ def issue_head_lease_payable(invoice):
     pi.flags.ignore_permissions = True
     pi.submit()
     return {"invoice": pi.name, "status": "Submitted"}
+
+
+@frappe.whitelist()
+def landlord_payments():
+    """Draft and outstanding Head Lease bills with their controlled building."""
+    guard(MD, GM, ACC)
+    rows = frappe.get_all(
+        "Purchase Invoice",
+        filters={"docstatus": ["in", [0, 1]],
+                 "custom_landlord_contract": ["is", "set"]},
+        fields=["name", "supplier", "company", "docstatus",
+                "grand_total", "outstanding_amount",
+                "due_date", "custom_landlord_contract"],
+        order_by="due_date asc, creation asc", limit_page_length=1000)
+    rows = [r for r in rows if r.custom_landlord_contract]
+    if not rows:
+        return {"rows": []}
+    leases = {l.name: l for l in frappe.get_all(
+        "Head Lease", filters={"name": ["in", list({
+            r.custom_landlord_contract for r in rows})]},
+        fields=["name", "building", "landlord", "company"])}
+    scope = allowed_buildings()
+    buildings = {b.name: b.building_name for b in frappe.get_all(
+        "Building", filters={"name": ["in", list({
+            l.building for l in leases.values() if l.building})]},
+        fields=["name", "building_name"])}
+    suppliers = {s.name: s.supplier_name for s in frappe.get_all(
+        "Supplier", filters={"name": ["in", list({
+            l.landlord for l in leases.values() if l.landlord})]},
+        fields=["name", "supplier_name"])}
+    out = []
+    for r in rows:
+        lease = leases.get(r.custom_landlord_contract)
+        if (not lease or r.supplier != lease.landlord
+                or r.company != (lease.company or _company())
+                or (scope is not None and lease.building not in scope)):
+            continue
+        amount = flt(r.grand_total if r.docstatus == 0
+                     else r.outstanding_amount, 2)
+        if amount <= 0:
+            continue
+        out.append({"invoice": r.name, "head_lease": lease.name,
+                    "building": lease.building,
+                    "building_name": buildings.get(lease.building) or lease.building,
+                    "landlord": lease.landlord,
+                    "landlord_name": suppliers.get(lease.landlord) or lease.landlord,
+                    "amount": amount,
+                    "status": "Draft" if r.docstatus == 0 else "Outstanding",
+                    "due_date": str(r.due_date or "")})
+    return {"rows": out}
+
+
+@frappe.whitelist()
+def record_landlord_payment(payload):
+    """Settle a specific approved Head Lease bill once via Payment Entry."""
+    guard(MD, ACC)
+    data = frappe.parse_json(payload)
+    invoice = data.get("invoice")
+    if not invoice:
+        frappe.throw(_("Choose a landlord bill to pay."))
+    frappe.db.sql("SELECT name FROM `tabPurchase Invoice` WHERE name = %s "
+                  "FOR UPDATE", (invoice,))
+    pi = frappe.get_doc("Purchase Invoice", invoice)
+    lease_name = pi.get("custom_landlord_contract")
+    if pi.docstatus != 1 or not lease_name or flt(pi.outstanding_amount) <= 0:
+        frappe.throw(_("This landlord bill is not issued and outstanding."))
+    lease = frappe.get_doc("Head Lease", lease_name)
+    require_building_access(lease.building)
+    if (pi.supplier != lease.landlord or pi.company != (lease.company or _company())
+            or pi.company != _company()):
+        frappe.throw(_("The landlord bill does not match its Head Lease."))
+    amount = flt(data.get("amount"), 2)
+    if amount <= 0 or amount > flt(pi.outstanding_amount, 2):
+        frappe.throw(_("Amount must be greater than zero and no more than the bill balance."))
+    mode = data.get("mode")
+    if mode not in ("Bank transfer", "Cash", "Cheque"):
+        frappe.throw(_("Choose the landlord payment method."))
+    if mode == "Cheque" and data.get("cleared") not in (True, 1):
+        frappe.throw(_("Record a landlord cheque payment only after it clears."))
+    bank = data.get("bank_account")
+    if mode != "Cash":
+        account = (frappe.db.get_value("Bank Account", {
+            "name": bank, "company": pi.company}, "account") if bank else None)
+        if not account or _paid_to(bank, pi.company) != account or \
+                frappe.db.get_value("Account", account, "account_type") != "Bank":
+            frappe.throw(_("Choose a valid company bank account."))
+    reference = (data.get("reference") or "").strip()
+    if not reference:
+        request_id = str(data.get("request_id") or "")
+        if request_id and (len(request_id.replace("-", "")) < 12 or
+                           not all(c in "0123456789abcdefABCDEF-" for c in request_id)):
+            frappe.throw(_("Invalid payment request identifier."))
+        reference = "DBR-" + (request_id.replace("-", "").upper()[:24]
+                              if request_id else secrets.token_hex(12).upper())
+    on = getdate(data.get("on") or today())
+    if mode == "Cheque" and on > getdate(today()):
+        frappe.throw(_("The cheque clearing date cannot be in the future."))
+    prior = frappe.get_all(
+        "Payment Entry", filters={"payment_type": "Pay", "party": pi.supplier,
+                                  "posting_date": str(on), "reference_no": reference,
+                                  "docstatus": 1},
+        fields=["name", "paid_amount", "mode_of_payment"])
+    if any(abs(flt(row.paid_amount) - amount) < 0.005
+           and row.mode_of_payment == mode for row in prior):
+        frappe.throw(_("This landlord payment is already recorded."))
+    payment, applied, unused = _supplier_payment(
+        pi.supplier, amount, on, bank_account=bank, mode=mode,
+        reference=reference, invoice=pi.name, head_lease=lease.name)
+    if unused or not applied or applied[0][0] != pi.name:
+        frappe.throw(_("Payment could not be allocated to the selected landlord bill."))
+    return {"payment_entry": payment, "invoice": pi.name,
+            "building": lease.building, "amount": flt(amount, 2)}
 
 
 # ------------------------------------------------------------------- receipts
@@ -1193,9 +1309,15 @@ def record_receipt(payload):
     mode = data.get("mode")
     if mode not in ("Cash", "Bank transfer", "Bank Transfer", "Card", "Cheque"):
         frappe.throw(_("Choose how the payment was received."))
+    if mode == "Cheque" and data.get("cleared") not in (True, 1):
+        frappe.throw(_("Record a cheque payment only after the bank confirms it cleared."))
     if mode == "Cheque":
-        frappe.throw(_("Clear an incoming cheque through the cheque register. "
-                       "Clearing posts its payment and receipt once."))
+        bank = data.get("bank_account")
+        account = (frappe.db.get_value("Bank Account", {
+            "name": bank, "company": _company()}, "account") if bank else None)
+        if not account or _paid_to(bank, _company()) != account or \
+                frappe.db.get_value("Account", account, "account_type") != "Bank":
+            frappe.throw(_("Choose the bank where the cheque cleared."))
 
     reference = (data.get("reference") or "").strip()
     # Some cash collections have no external reference. Give the Payment Entry
@@ -1212,6 +1334,8 @@ def record_receipt(payload):
     frappe.db.sql("SELECT name FROM `tabCustomer` WHERE name = %s FOR UPDATE",
                   (tenant,))
     on = getdate(data.get("on") or today())
+    if mode == "Cheque" and on > getdate(today()):
+        frappe.throw(_("The cheque clearing date cannot be in the future."))
     prior = frappe.get_all(
         "Payment Entry",
         filters={"payment_type": "Receive", "party": tenant,
@@ -1414,8 +1538,9 @@ def _supplier_payment(supplier, amount, on, bank_account=None, mode=None,
     if amount <= 0:
         frappe.throw(_("A supplier payment amount must be greater than zero."))
     company = _company()
-    account = _paid_to(bank_account or _settings().default_bank_account,
-                       company)
+    account = (_cash_account(company) if mode == "Cash" else
+               _paid_to(bank_account or _settings().default_bank_account,
+                        company))
     if not account:
         frappe.throw(_(
             "No bank ledger is configured. Set the Default Bank Account in "
@@ -1741,30 +1866,10 @@ def deposit_batch(batch, on=None, reason=None):
 
 @frappe.whitelist()
 def pay_head_lease(head_lease, row, payload=None):
-    """Rent out to the landlord. The other half of the spread."""
+    """Legacy schedule-only action; use a posted bill and Payment Entry."""
     guard(MD, ACC)
-    data = frappe.parse_json(payload) if payload else {}
-    hl = frappe.get_doc("Head Lease", head_lease)
-    require_record_access(hl, "write")
-    line = None
-    for p in hl.payments:
-        if p.name == row:
-            line = p
-            break
-    if not line:
-        frappe.throw(_("That payment is not on {0}.").format(head_lease))
-    if line.status == "Cleared":
-        frappe.throw(_("That payment is already settled."))
-
-    # Cleared, not Paid. The cheque lifecycle already owns this vocabulary and
-    # a second word for the same state drifts apart from the first.
-    line.status = "Cleared"
-    line.paid_on = data.get("on") or today()
-    line.payment_mode = data.get("mode") or line.payment_mode
-    if data.get("cheque"):
-        line.cheque = data["cheque"]
-    hl.save(ignore_permissions=True)
-    return {"head_lease": hl.name, "paid": _kk(flt(line.amount))}
+    frappe.throw(_("Use Landlord Payments to pay an issued Head Lease bill. "
+                   "A schedule status alone does not post a payment."))
 
 
 # --------------------------------------------------------------------- nightly

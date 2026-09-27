@@ -22,7 +22,8 @@ def setup(scoped=False):
         'DBR Settings': [{'default_company': 'SYN',
                           'default_bank_account': 'Bank Ref'}],
         'Company': [{'name': 'SYN'}],
-        'Bank Account': [{'name': 'Bank Ref', 'account': 'Bank - SYN'}],
+        'Bank Account': [{'name': 'Bank Ref', 'account': 'Bank - SYN',
+                          'company': 'SYN'}],
         'Account': [
             {'name': 'Bank - SYN', 'account_name': 'Bank', 'company': 'SYN',
              'root_type': 'Asset', 'account_type': 'Bank', 'is_group': 0,
@@ -194,6 +195,142 @@ def test_cheque_logging_is_deferred():
     assert not [c for c in S.CALLS if c[:2] == ('insert', 'Cheque')]
 
 
+def test_cleared_cheque_posts_one_tenant_payment():
+    setup()
+    S.DB['Sales Invoice'] = [{'name': 'SI-A', 'customer': 'TEN-A',
+                              'posting_date': finance.today(), 'docstatus': 1,
+                              'outstanding_amount': 100}]
+    payload = {'tenant': 'TEN-A', 'amount': 100, 'on': finance.today(),
+               'mode': 'Cheque', 'invoice': 'SI-A', 'bank_account': 'Bank Ref',
+               'reference': 'BANK-CLEAR-1'}
+    try:
+        finance.record_receipt(payload)
+    except S.ValidationError as exc:
+        assert 'after the bank confirms' in str(exc)
+    else:
+        raise AssertionError('an uncleared cheque settled an invoice')
+    assert not [c for c in S.CALLS if c[:2] == ('insert', 'Payment Entry')]
+    result = finance.record_receipt(dict(payload, cleared=True))
+    posted = [c[2] for c in S.CALLS if c[:2] == ('insert', 'Payment Entry')]
+    assert len(posted) == 1 and posted[0]['paid_to'] == 'Bank - SYN', posted
+    assert posted[0]['mode_of_payment'] == 'Cheque'
+    assert posted[0]['references'][0]['reference_name'] == 'SI-A'
+    assert result['applied'] == ['SI-A']
+
+
+def landlord_fixture(scoped=False):
+    setup(scoped=scoped)
+    S.DB['Building'] = [{'name': 'A', 'building_name': 'Building A'},
+                        {'name': 'B', 'building_name': 'Building B'}]
+    S.DB['Supplier'] = [{'name': 'SUP-A', 'supplier_name': 'Landlord A'},
+                        {'name': 'SUP-B', 'supplier_name': 'Landlord B'}]
+    S.DB['Head Lease'] = [{'name': 'HL-A', 'building': 'A',
+                           'landlord': 'SUP-A', 'company': 'SYN'},
+                          {'name': 'HL-B', 'building': 'B',
+                           'landlord': 'SUP-B', 'company': 'SYN'}]
+    S.DB['Purchase Invoice'] = [
+        {'name': 'PI-A', 'supplier': 'SUP-A', 'company': 'SYN',
+         'custom_landlord_contract': 'HL-A', 'docstatus': 1,
+         'outstanding_amount': 500, 'posting_date': finance.today(),
+         'due_date': finance.today()},
+        {'name': 'PI-B', 'supplier': 'SUP-B', 'company': 'SYN',
+         'custom_landlord_contract': 'HL-B', 'docstatus': 1,
+         'outstanding_amount': 200, 'posting_date': finance.today(),
+         'due_date': finance.today()}]
+
+
+def test_landlord_payments_post_to_selected_bill():
+    landlord_fixture()
+    rows = finance.landlord_payments()['rows']
+    assert [(r['building'], r['landlord'], r['amount']) for r in rows] == [
+        ('A', 'SUP-A', 500), ('B', 'SUP-B', 200)]
+    base = {'invoice': 'PI-A', 'amount': 300, 'mode': 'Bank transfer',
+            'bank_account': 'Bank Ref', 'on': finance.today(),
+            'reference': 'LANDLORD-001'}
+    result = finance.record_landlord_payment(base)
+    posted = [c[2] for c in S.CALLS if c[:2] == ('insert', 'Payment Entry')]
+    assert len(posted) == 1 and posted[0]['paid_from'] == 'Bank - SYN', posted
+    assert posted[0]['references'] == [{
+        'reference_doctype': 'Purchase Invoice', 'reference_name': 'PI-A',
+        'allocated_amount': 300}], posted
+    assert result['invoice'] == 'PI-A'
+    # The stub records submit() without persisting its docstatus in the DB row.
+    S.DB['Payment Entry'][0]['docstatus'] = 1
+    S.DB['Payment Entry'][0]['posting_date'] = finance.today()
+    try:
+        finance.record_landlord_payment(base)
+    except S.ValidationError as exc:
+        assert 'already recorded' in str(exc)
+    else:
+        raise AssertionError('duplicate landlord payment posted')
+
+
+def test_landlord_scope_and_cheque_confirmation():
+    landlord_fixture(scoped=True)
+    assert [r['invoice'] for r in finance.landlord_payments()['rows']] == ['PI-A']
+    base = {'invoice': 'PI-A', 'amount': 100, 'mode': 'Cheque',
+            'bank_account': 'Bank Ref', 'on': finance.today()}
+    try:
+        finance.record_landlord_payment(base)
+    except S.ValidationError as exc:
+        assert 'after it clears' in str(exc)
+    else:
+        raise AssertionError('uncleared landlord cheque posted')
+    try:
+        finance.record_landlord_payment(dict(base, invoice='PI-B', cleared=True))
+    except S.PermissionError_:
+        pass
+    else:
+        raise AssertionError('payment to another building was permitted')
+    result = finance.record_landlord_payment(dict(
+        base, cleared=True, reference='CHQ-CLEARED-1'))
+    assert result['invoice'] == 'PI-A'
+    posted = [c[2] for c in S.CALLS if c[:2] == ('insert', 'Payment Entry')]
+    assert len(posted) == 1 and posted[0]['paid_from'] == 'Bank - SYN'
+
+
+def test_landlord_cash_uses_cash_ledger():
+    landlord_fixture()
+    finance.record_landlord_payment({
+        'invoice': 'PI-A', 'amount': 100, 'mode': 'Cash',
+        'on': finance.today(), 'reference': 'CASH-RECEIPT-1'})
+    posted = [c[2] for c in S.CALLS if c[:2] == ('insert', 'Payment Entry')]
+    assert len(posted) == 1 and posted[0]['paid_from'] == 'Cash - SYN'
+
+
+def test_landlord_draft_requires_issue_before_payment():
+    landlord_fixture()
+    S.DB['Purchase Invoice'].append({
+        'name': 'PI-DRAFT', 'supplier': 'SUP-A', 'company': 'SYN',
+        'custom_landlord_contract': 'HL-A', 'docstatus': 0,
+        'grand_total': 150, 'outstanding_amount': 0,
+        'posting_date': finance.today(), 'due_date': finance.today()})
+    drafts = [r for r in finance.landlord_payments()['rows']
+              if r['status'] == 'Draft']
+    assert len(drafts) == 1 and drafts[0]['amount'] == 150
+    try:
+        finance.record_landlord_payment({
+            'invoice': 'PI-DRAFT', 'amount': 150, 'mode': 'Cash'})
+    except S.ValidationError as exc:
+        assert 'not issued' in str(exc)
+    else:
+        raise AssertionError('a draft landlord bill was paid')
+    S.SESSION['roles'] = ['General Manager']
+    result = finance.issue_head_lease_payable('PI-DRAFT')
+    assert result['status'] == 'Submitted'
+    assert any(c[:2] == ('submit', 'Purchase Invoice') for c in S.CALLS)
+
+
+def test_schedule_only_landlord_payment_is_blocked():
+    landlord_fixture()
+    try:
+        finance.pay_head_lease('HL-A', 'ROW-A')
+    except S.ValidationError as exc:
+        assert 'does not post a payment' in str(exc)
+    else:
+        raise AssertionError('schedule marked paid without a Payment Entry')
+
+
 def test_new_batch_rejects_cheques():
     setup()
     try:
@@ -242,7 +379,14 @@ def test_gl_above_old_cap():
 for test in (test_states_and_totals, test_caps_and_scope,
              test_cash_and_duplicate, test_petty_source,
              test_banking_existing_cash_receipt_moves_cash_once,
-             test_cheque_logging_is_deferred, test_new_batch_rejects_cheques,
+             test_cheque_logging_is_deferred,
+             test_cleared_cheque_posts_one_tenant_payment,
+             test_landlord_payments_post_to_selected_bill,
+             test_landlord_scope_and_cheque_confirmation,
+             test_landlord_cash_uses_cash_ledger,
+             test_landlord_draft_requires_issue_before_payment,
+             test_schedule_only_landlord_payment_is_blocked,
+             test_new_batch_rejects_cheques,
              test_optional_slip_image_attaches_to_batch,
              test_dirham_allocation, test_gl_above_old_cap):
     test()

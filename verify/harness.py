@@ -1316,7 +1316,7 @@ def t_existing_accrual_returns_truthful_summary():
     import inspect
     from darkbrown.api import finance
     src = inspect.getsource(finance.build_head_lease_payable)
-    assert '["name", "grand_total"], as_dict=True' in src
+    assert '["name", "grand_total", "docstatus"], as_dict=True' in src
     assert '"amount": _kk(existing.grand_total)' in src
     assert '"head_lease": lease.name' in src
 check("duplicate Head Lease accrual returns its amount and source",
