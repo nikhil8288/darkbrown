@@ -3,15 +3,15 @@ statement import.
 
 Three rules hold this module together:
 
-    Matching is identification, not posting. The auto-matcher marks a bank
-    line as recognised; it never clears a cheque and never creates a payment
-    entry. Money moves only through the named workflows that already exist.
+    A uniquely matched deposited batch clears its tenant cheques and posts
+    their receipts once. Ambiguous statement lines remain unmatched.
 
     A match the matcher is not sure of does not happen. Credits are tried
     against deposit batches first — slip-to-deposit is the architecture this
     business needs, since three quarters of inflows carry no payer name —
     then against deposited cheques. Debits are tried against scheduled
-    head-lease payments. Everything else stays Unmatched, visibly.
+    head-lease payments and issued company cheques. Everything else stays
+    Unmatched, visibly.
 
     A declared balance is a fact with an author and a timestamp. It is the
     only cash position this system will ever show, because the bank balance
@@ -302,7 +302,7 @@ def _already_matched(kind):
 @frappe.whitelist()
 def import_statement(payload):
     """Creates the import with its lines and runs the conservative matcher.
-    Nothing is posted; unmatched lines surface on the Command Centre."""
+    Matched deposit cheques are cleared; unmatched lines remain for review."""
     guard(MD, ACC)
     p = _payload(payload)
     lines = p.get("lines") or []
@@ -312,7 +312,10 @@ def import_statement(payload):
         frappe.throw("A statement import is limited to 5,000 lines.")
 
     bank_account = p.get("bank_account")
-    if not bank_account or not frappe.db.exists("Bank Account", bank_account):
+    company = frappe.get_single("DBR Settings").default_company
+    if not bank_account or not frappe.db.exists("Bank Account", {
+            "name": bank_account, "company": company,
+            "is_company_account": 1}):
         frappe.throw("Choose a valid company Bank Account.")
     if not p.get("from_date") or not p.get("to_date"):
         frappe.throw("The statement needs a period from and to date.")
@@ -399,7 +402,7 @@ def import_statement(payload):
                   and abs(total_amount - %s) <= %s
                   and abs(datediff(deposit_date, %s)) <= %s
                 order by abs(datediff(deposit_date, %s))""",
-                (bank_account, amt, MATCH_TOL, d, MATCH_DAYS, d))
+                (bank_account, amt, 0.01, d, MATCH_DAYS, d))
             mtype = "Deposit Batch" if mref else None
             if not mref:
                 mref = take("Cheque", """
@@ -426,6 +429,30 @@ def import_statement(payload):
                                                 hp.due_date), %s))""",
                 (bank_account, amt, MATCH_TOL, d, MATCH_DAYS, d))
             mtype = "Head Lease Payment" if mref else None
+            if not mref:
+                evidence = (ln["ref"] + " " + ln["narrative"]).strip()
+                if evidence:
+                    mref = take("Cheque", """
+                        select name from `tabCheque`
+                        where direction = 'Outgoing' and bank_account = %s
+                          and status in ('Issued', 'Presented')
+                          and payment_entry is not null and payment_entry != ''
+                          and abs(amount - %s) <= 0.01
+                          and cheque_no != ''
+                          and locate(cheque_no, %s) > 0""",
+                        (bank_account, amt, evidence))
+            if not mref:
+                mref = take("Cheque", """
+                    select name from `tabCheque`
+                    where direction = 'Outgoing' and bank_account = %s
+                      and status in ('Issued', 'Presented')
+                      and payment_entry is not null and payment_entry != ''
+                      and abs(amount - %s) <= 0.01
+                      and abs(datediff(cheque_date, %s)) <= %s
+                    order by abs(datediff(cheque_date, %s))""",
+                    (bank_account, amt, d, 45, d))
+            if mref and not mtype:
+                mtype = "Cheque"
         if mref:
             status = "Matched"
         doc.append("lines", {
@@ -452,6 +479,14 @@ def import_statement(payload):
                 "reconciled_by": frappe.session.user,
                 "reconciled_on": now_datetime(),
             })
+            post_reconciled_batch(line.matched_ref)
+        elif (line.status == "Matched" and line.matched_type == "Cheque"
+              and line.matched_ref):
+            from darkbrown.api.finance import clear_cheque
+            cheque_direction = frappe.db.get_value("Cheque", line.matched_ref,
+                                                    "direction")
+            if cheque_direction == "Outgoing":
+                clear_cheque(line.matched_ref, str(line.txn_date))
     return {"name": doc.name, "total": doc.total_lines,
             "matched": doc.matched, "unmatched": doc.unmatched}
 
@@ -693,21 +728,22 @@ def classify_line(line, classification, note=None):
 def post_reconciled_batch(batch):
     """Post the tenant receipts proven by a matched deposit-batch line.
 
-    Matching is still identification, not posting: the import never creates
-    money entries by itself. This explicit action is the review boundary for
-    workflow 2C step 4. It is idempotent because ``clear_cheque`` returns an
-    existing Payment Entry when a cheque is already cleared.
+    A statement import invokes this after a unique exact batch match. It can
+    also finish an older reconciled batch; existing receipts are reused.
     """
     guard(MD, ACC)
     match = frappe.db.get_value(
         "Bank Statement Line",
         {"status": "Matched", "matched_type": "Deposit Batch",
          "matched_ref": batch},
-        ["parent", "txn_date"], as_dict=True)
+        ["parent", "txn_date", "amount"], as_dict=True)
     if not match:
         frappe.throw("No matched bank-statement line proves this batch cleared.")
 
     doc = frappe.get_doc("Deposit Batch", batch)
+    if any(line.cheque for line in doc.lines) and abs(
+            flt(doc.total_amount) - flt(match.amount)) > 0.01:
+        frappe.throw("The bank statement amount differs from the cheque batch. Review the match before clearing receipts.")
     from darkbrown.api.finance import clear_cheque
 
     posted, existing = [], []

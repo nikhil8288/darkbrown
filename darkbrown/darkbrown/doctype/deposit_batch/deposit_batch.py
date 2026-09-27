@@ -22,7 +22,7 @@ class DepositBatch(Document):
 					values["status"] = "Deposited"
 				elif self.status == "Cancelled":
 					values = {"deposit_batch": None, "status": "Received"}
-				# Reconciled deliberately changes no cheque status: the explicit
-				# posting action owns the transition to Cleared.
+				# Reconciled deliberately changes no cheque status: the matched
+				# statement posting owns the transition to Cleared.
 				frappe.db.set_value("Cheque", line.cheque, values,
 				                    update_modified=False)

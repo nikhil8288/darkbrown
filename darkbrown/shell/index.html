@@ -1301,7 +1301,7 @@ const DEFERRED_PLANNING_ROUTES=['planning','capacity','forecast','fva',
 const DEFERRED_PLANNING_FORMS=['new-scenario','new-target','model-building'];
 const planningDeferred=r=>!PLANNING_ENABLED&&DEFERRED_PLANNING_ROUTES.includes(r);
 const chequesDeferred=r=>!CHEQUES_ENABLED&&['cheques','cheque'].includes(r);
-const DEFERRED_CHEQUE_FORMS=['log-cheque','cheque-action','landlord-cheque','post-reconciled-batch'];
+const DEFERRED_CHEQUE_FORMS=['log-cheque','cheque-action','landlord-cheque'];
 const dataToolsDeferred=r=>!DATA_TOOLS_ENABLED&&r==='data';
 const ocrDeferred=r=>r==='intake'&&window.DB_OCR_ENABLED!==true;
 
@@ -3217,6 +3217,7 @@ window.liveUpdate=id=>{
   collect();
   if(FKEY==='record-payment'&&id==='f_tenant'){
     const t=TENANTS.find(x=>x.n===FDATA.tenant);
+    FDATA.inv=ALLOC_OLDEST;
     FDATA.amt=t?INV.filter(i=>i.t===t.id&&i.st!=='Cancelled'&&i.st!=='Draft')
       .reduce((n,i)=>n+invBal(i),0).toFixed(2):'';
   }
@@ -3599,9 +3600,10 @@ const FORMS={
     st:d.loc==='Deposited'?'Deposited':'On hand',reason:'',act:''});
   return{title:'Cheque logged',msg:id+' recorded for '+t.n,detail:d.bank+' · '+k(d.amt)+' · matures '+d.mat,goto:'#/cheque/'+id}}},
 
-'record-payment':{t:'Record payment',s:'Workflow 2C · allocation',cta:'Post payment',
+'record-payment':{t:'Record payment',s:'Tenant receipt · cheque clears at bank reconciliation',cta:'Record payment',
  init:c=>({tenant:c&&c.n?c.n:'',method:'',
            request_id:crypto.randomUUID(),
+           inv:c&&c.id&&I(c.id)?allocLabel(I(c.id)):ALLOC_OLDEST,
            amt:c&&c.id&&I(c.id)?invBal(I(c.id)):
              INV.filter(i=>i.tn===(c&&c.n)&&i.st!=='Cancelled').reduce((n,i)=>n+invBal(i),0)||'',
            date:new Date().toLocaleDateString('sv-SE')}),
@@ -3610,20 +3612,24 @@ const FORMS={
     ${fld({k:'tenant',l:'Tenant',t:'sel',o:['',...TENANTS.map(t=>t.n)],req:1,live:1},d.tenant)}
     ${fld({k:'amt',l:'Amount received (QAR)',t:'num',step:'0.01',req:1},d.amt)}
     ${fld({k:'method',l:'Method',t:'sel',o:['','Bank transfer','Cash','Card','Cheque'],req:1,live:1},d.method)}
-    ${fld({k:'date',l:d.method==='Cheque'?'Cleared on':'Received on',t:'date',req:1},d.date)}
-    ${d.method==='Cheque'?fld({k:'bank',l:'Bank where cheque cleared',t:'sel',o:['',...BANKS().map(b=>b.name)],req:1},d.bank):''}
+    ${fld({k:'date',l:'Received on',t:'date',req:1},d.date)}
+    ${d.method==='Cheque'?`
+      ${fld({k:'cheque_no',l:'Cheque number',t:'txt',req:1},d.cheque_no)}
+      ${fld({k:'cheque_bank',l:'Bank on cheque',t:'txt',req:1},d.cheque_bank)}
+      ${fld({k:'cheque_date',l:'Cheque date',t:'date',req:1},d.cheque_date)}
+      ${fld({k:'cheque_image',l:'Cheque image (optional)',t:'file',accept:'.jpg,.jpeg,.png,.JPG,.JPEG,.PNG'},d.cheque_image)}`:''}
     ${fld({k:'ref',l:'Reference (optional)',t:'txt',p:'bank or cash reference'},d.ref)}</div>
-    ${d.method==='Cheque'?`<div class="note">Keep the cheque in your manual register until the bank confirms it cleared. Record its payment here once: this posts the receipt and reduces the invoice balance.</div>
-      ${fld({k:'cleared',l:'I confirm this cheque has cleared at the bank',t:'chk'},d.cleared)}`:''}`,
+    <div class="fg">${allocField(d.tenant,d.inv)}</div>
+    ${d.method==='Cheque'?`<div class="note">The cheque will appear in Deposit batches. The invoice balance changes when the deposit matches an imported bank statement.</div>`:''}`,
    fields:[{k:'tenant',req:1},{k:'amt',req:1},{k:'method',req:1},{k:'date',req:1}],
-   check:d=>+d.amt>0&&(d.method!=='Cheque'||!!(d.bank&&d.cleared)),
-   msg:'Enter a positive amount. For a cheque, choose its bank and confirm that it cleared.'},
+   check:d=>+d.amt>0&&(d.method!=='Cheque'||!!(d.cheque_no&&d.cheque_bank&&d.cheque_date)),
+   msg:'Enter a positive amount and, for a cheque, its number, bank and date.'},
   {n:'Allocation',body:d=>{
     const t=TENANTS.find(x=>x.n===d.tenant); let left=+d.amt||0;
     const open=INV.filter(i=>i.t===(t||{}).id&&invBal(i)>0).slice(0,4);
     const rows=open.map(i=>{const bal=invBal(i), take=Math.min(bal,left); left-=take;
       return [i.id,i.due,bal,take,bal-take]});
-    return `<p class="pp">Allocation follows the standing rule: <b>oldest invoice first, rent before recharge</b>.
+    return `<p class="pp">${d.method==='Cheque'?'Planned allocation after bank reconciliation':'Allocation'} follows the standing rule: <b>oldest invoice first, rent before recharge</b>.
       You can override on the invoice itself if needed.</p>
      ${rows.length?`<div class="tw"><table><tr><th>Invoice</th><th>Due</th><th class="r">Balance</th><th class="r">Allocated</th><th class="r">Remaining</th></tr>
       ${rows.map(r=>`<tr><td>${r[0]}</td><td>${r[1]}</td><td class="r num">${qar(r[2])}</td>
@@ -3660,7 +3666,7 @@ const FORMS={
    const row=cache&&cache.state==='ok'?(cache.data.rows||[]).find(r=>r.invoice===(c&&c.invoice)):null;
    return{invoice:c&&c.invoice||'',building:row&&row.building_name||'',
      landlord:row&&row.landlord_name||'',balance:row&&row.amount||0,
-     amt:row&&row.amount||'',method:'',bank:'',
+     amt:row&&row.amount||'',method:'',bank:'',other_bank:'',
      date:new Date().toLocaleDateString('sv-SE'),request_id:crypto.randomUUID()}},
  steps:[{n:'Payment',body:d=>`<p class="pp">This payment is applied to the selected approved landlord bill. A partial payment leaves the remaining balance open.</p>
    <div class="fg">
@@ -3670,15 +3676,22 @@ const FORMS={
     ${fld({k:'balance',l:'Balance (QAR)',t:'ro'},qar(d.balance))}
     ${fld({k:'amt',l:'Amount paid (QAR)',t:'num',step:'0.01',req:1},d.amt)}
     ${fld({k:'method',l:'Method',t:'sel',o:['','Bank transfer','Cash','Cheque'],req:1,live:1},d.method)}
-    ${d.method&&d.method!=='Cash'?fld({k:'bank',l:'Paid from bank',t:'sel',o:['',...BANKS().map(b=>b.name)],req:1},d.bank):''}
-    ${fld({k:'date',l:d.method==='Cheque'?'Cleared on':'Paid on',t:'date',req:1},d.date)}
+    ${d.method&&d.method!=='Cash'?fld({k:'bank',l:'Paid from bank',t:'sel',o:['',...BANKS().slice(0,2).map(b=>b.name),'Other bank'],req:1,live:1},d.bank):''}
+    ${d.bank==='Other bank'?fld({k:'other_bank',l:'Other company bank account',t:'sel',
+       o:['',...BANKS().slice(2).map(b=>b.name)],req:1},d.other_bank):''}
+    ${d.bank==='Other bank'&&!BANKS().slice(2).length?'<div class="note">Add this company-owned bank and its ledger account in Bank Accounts before posting from it.</div>':''}
+    ${fld({k:'date',l:'Paid on',t:'date',req:1},d.date)}
+    ${d.method==='Cheque'?`
+      ${fld({k:'cheque_no',l:'Cheque number',t:'txt',req:1},d.cheque_no)}
+      ${fld({k:'cheque_date',l:'Cheque date',t:'date',req:1},d.cheque_date)}
+      ${fld({k:'cheque_image',l:'Cheque image (optional)',t:'file',accept:'.jpg,.jpeg,.png,.JPG,.JPEG,.PNG'},d.cheque_image)}`:''}
     ${fld({k:'ref',l:'Reference (optional)',t:'txt',p:'bank or cash reference'},d.ref)}</div>
-    ${d.method==='Cheque'?`<div class="note">Keep the outgoing cheque in your manual register until it clears. Record the landlord payment here after bank confirmation.</div>
-      ${fld({k:'cleared',l:'I confirm this cheque has cleared at the bank',t:'chk'},d.cleared)}`:''}`,
+    ${d.method==='Cheque'?`<div class="note">This records the issued cheque and pays the landlord bill once. Its clearing date is set when the bank statement matches it.</div>`:''}`,
    fields:[{k:'amt',req:1},{k:'method',req:1},{k:'date',req:1}],
    check:d=>+d.amt>0&&+d.amt<=+d.balance&&
-     (d.method==='Cash'||!!d.bank)&&(d.method!=='Cheque'||!!d.cleared),
-   msg:'Enter an amount up to the bill balance, choose the payment method and bank, and confirm cheque clearance when applicable.'}],
+     (d.method==='Cash'||!!(d.bank&&(d.bank!=='Other bank'||d.other_bank)))&&
+     (d.method!=='Cheque'||!!(d.cheque_no&&d.cheque_date)),
+   msg:'Enter an amount up to the bill balance, choose the company bank, and enter the cheque number and date when applicable.'}],
  submit:()=>({title:'Not saved',msg:'This payment needs the live server'})},
 
 'upload-docs':{t:'Upload for review',s:'Manual intake · OCR deferred',cta:'Upload for review',
@@ -4650,12 +4663,28 @@ ROUTES.landlordpayments=()=>{
  if(c.state==='load'||c.state==='err')
    return lazyPage('Landlord Payments','Head Lease bills and payments',c);
  const rows=c.state==='ok'?(c.data.rows||[]):[];
- return page('Landlord Payments','Building, landlord and bill amount',
+ const landlords=new Map();
+ for(const r of rows){const key=r.building+'|'+r.landlord;
+   if(!landlords.has(key))landlords.set(key,{building_name:r.building_name,
+     landlord_name:r.landlord_name,amount:0,bills:0,drafts:0});
+   const x=landlords.get(key);
+   if(r.status==='Outstanding'){x.amount+=+r.amount||0;x.bills++}
+   if(r.status==='Draft')x.drafts++;
+ }
+ return page('Landlord Payments','All landlords and their outstanding bills',
    fbtn('Draft monthly rent','head-lease-accrual'),
-  stat([['Bills outstanding',rows.filter(r=>r.status==='Outstanding').length],
+  stat([['Landlords',new Set(rows.map(r=>r.landlord)).size],
         ['Amount to pay',qar(rows.filter(r=>r.status==='Outstanding').reduce((sum,r)=>sum+(+r.amount||0),0))],
         ['Awaiting issue',rows.filter(r=>r.status==='Draft').length]])+
-  `<div class="card">${rows.length?tbl([
+  `<div class="card"><h3>Landlords and balances</h3>${landlords.size?tbl([
+   {h:'Building',v:r=>esc(r.building_name)},
+   {h:'Landlord',v:r=>esc(r.landlord_name)},
+   {h:'Outstanding (QAR)',r:1,mono:1,v:r=>qar(r.amount)},
+   {h:'Open bills',r:1,v:r=>r.bills},
+   {h:'Draft bills',r:1,v:r=>r.drafts}],
+   [...landlords.values()].map((r,i)=>({...r,__id:String(i)})),{id:'landlordbalances'})
+   :empty('No landlords on file.')}</div>`+
+  `<div class="card"><h3>Bills to issue or pay</h3>${rows.some(r=>r.invoice)?tbl([
    {h:'Building',v:r=>esc(r.building_name)},
    {h:'Landlord',v:r=>esc(r.landlord_name)},
    {h:'Amount',r:1,mono:1,v:r=>qar(r.amount)},
@@ -4669,7 +4698,7 @@ ROUTES.landlordpayments=()=>{
      ?`<button type="button" class="btn" data-id="${escA(r.invoice)}"
        onclick="event.stopPropagation();openLandlordPay(this.dataset.id)">Record payment</button>`
      :''}],
-   rows.map(r=>({...r,__id:r.invoice})),{id:'landlordpay',
+   rows.filter(r=>r.invoice).map(r=>({...r,__id:r.invoice})),{id:'landlordpay',
     foot:['Draft bills must be issued by GM/MD before a payment can be posted.']})
    :empty(window.DB_LIVE?'No landlord bills are awaiting issue or payment. Draft monthly rent to start.':'Connect to the live server to read landlord bills.')}</div>`);
 };
@@ -5113,14 +5142,14 @@ const BT=id=>BATCHES.find(x=>x.id===id);
 ROUTES.batches=()=>{
  const draft=BATCHES.filter(b=>b.st==='Draft');
  const banked=BATCHES.filter(b=>b.st==='Deposited');
- const head=page('Deposit batches','Posted cash receipts going to the bank',
+ const head=page('Deposit batches','Posted cash receipts and received cheques going to the bank',
   fbtn('New batch','create-batch'),'');
  if(!BATCHES.length) return head+`<div class="card">${
    dbMissing('batches')==='error'
     ? uw('The server could not build the batch list.'+
         (dbWhy('batches')?'<br><span class="mini">'+dbWhy('batches')+'</span>':''))
     : empty(window.DB_LIVE
-      ? 'No deposit batch has been raised yet. Select posted cash receipts to create one.'
+      ? 'No deposit batch has been raised yet. Select cash receipts or received cheques to create one.'
       : 'No batches in the demo data.')}</div>`;
  return head+
   stat([['Awaiting the bank',draft.length,'',draft.length?'a':'g'],
@@ -5130,12 +5159,13 @@ ROUTES.batches=()=>{
    {h:'Batch',v:b=>b.id},{h:'Date',r:1,v:b=>b.date},{h:'Bank',v:b=>b.bank},
    {h:'Slip',v:b=>b.slip},
    {h:'Cash',r:1,mono:1,v:b=>b.cash||'—'},
+   {h:'Cheques',r:1,mono:1,v:b=>b.cheques||'—'},
    {h:'Value',r:1,mono:1,v:b=>k(b.total)},
    {h:'Prepared by',v:b=>b.prepared},
    {h:'Banked by',v:b=>b.deposited},
    {h:'Status',v:b=>chip(b.st,stChip(b.st))}],
    BATCHES.map(b=>({...b,__id:b.id})),{id:'btl',click:'openBT',
-    foot:['cash receipts are already posted','the deposit moves cash into the bank']})}</div>`;
+    foot:['cash receipts are already posted','cheque receipts post after the matched bank statement']})}</div>`;
 };
 window.openBT=id=>go('#/batch/'+id);
 
@@ -5149,21 +5179,21 @@ ROUTES.batch=id=>{
    ?`<a href="${escA(scan)}" target="_blank" rel="noopener">View deposit slip image</a>`:'';
  return crumb([['Deposit batches','#/batches'],[b.id,'']])+page(b.id,
   b.bank+' · '+b.date+' · slip '+b.slip+' · '+b.st,
- b.st==='Draft'&&!b.cheques?fbtn('Mark it banked','deposit-batch',{id:b.id,prepared:b.prepared}):'',
+ (b.st==='Draft'?fbtn('Mark it banked','deposit-batch',{id:b.id,prepared:b.prepared}):'')+
+ (b.st==='Reconciled'&&b.pending_cheques?fbtn('Post cleared cheque receipts','post-reconciled-batch',{id:b.id}):''),
   stat([['Lines',b.count],['Value',k(b.total)],['Cash',k(b.cashValue)],
    ['Prepared by',b.prepared],['Banked by',b.deposited],
    ...(b.st==='Reconciled'?[['Reconciled by',b.reconciled_by],
      ['Statement',b.recon_import,b.reconciled_on,'g']]:[])])+
   (slipLink?`<div class="note">${slipLink}</div>`:'')+
-  (b.st==='Draft'&&b.cheques?`<div class="note">This older draft contains cheques and cannot be banked through the app while the cheque register is deferred.</div>`:'')+
   `<div class="card"><h3>What is in the slip</h3>${b.lines&&b.lines.length?tbl([
    {h:'Kind',v:l=>chip(l.ty,l.ty==='Cash'?'a':'n')},
-   {h:'Collection slip',v:l=>l.slip},
+   {h:'Collection slip / cheque',v:l=>l.chq&&l.chq!=='—'?l.chq:l.slip},
    {h:'Tenant',v:l=>l.tn},{h:'Unit',v:l=>l.u},
    {h:'Amount',r:1,mono:1,v:l=>k(l.amt)},{h:'Note',v:l=>l.note||'—'}],
    (b.lines||[]).map((l,i)=>({...l,__id:String(i)})),{id:'btd'})
   :empty('This batch has no lines.')}</div>
-  <div class="note">Banking the batch moves its posted cash receipts into the bank. It does not charge the tenant a second time.</div>`);
+  <div class="note">Banking moves posted cash into the bank and presents cheques. Matched bank statement lines clear cheques and post their tenant receipts once.</div>`);
 };
 
 /* ---------------- Reconciliation (2C) ---------------- */
@@ -6383,7 +6413,7 @@ function depositData(){
   const c=lazy('deposit:candidates','finance.deposit_candidates');
   return c.state==='ok'?c.data:(c.state==='err'?{error:c.msg}:null);
 }
-FORMS['create-batch']={t:'Create deposit batch',s:'Posted cash receipts',cta:'Create batch',
+FORMS['create-batch']={t:'Create deposit batch',s:'Cash receipts and received cheques',cta:'Create batch',
  init:()=>({sel:{},bank:'',date:new Date().toLocaleDateString('sv-SE')}),
  steps:[
   {n:'Select receipts',body:d=>{
@@ -6391,10 +6421,10 @@ FORMS['create-batch']={t:'Create deposit batch',s:'Posted cash receipts',cta:'Cr
     if(!D) return '<div class="note">Reading undeposited receipts from the server…</div>';
     if(D.error) return `<div class="note bad">Could not read deposit candidates: ${esc(D.error)}</div>`;
     const sel=d.sel||{}, q=(d.bq||'').toLowerCase();
-    const cash=D.cash||[];
-    const picked=cash.filter(c=>sel['h_'+c.id]);
+    const cash=D.cash||[], cheques=D.cheques||[];
+    const picked=[...cash.filter(c=>sel['h_'+c.id]),...cheques.filter(c=>sel['c_'+c.id])];
     const total=picked.reduce((n,c)=>n+(+c.amount||0),0);
-    return `<p class="pp">Choose the posted cash receipts going to the bank. Tenant, building, unit and amount come from each receipt.</p>
+    return `<p class="pp">Choose posted cash receipts and received cheques. Tenant, building, unit and amount come from each source record.</p>
      <div class="bsearch"><div class="vsearch"><span>⌕</span><input id="bq" value="${escA(d.bq||'')}"
        placeholder="Search receipt, tenant, building or unit" oninput="bSearch(this.value)"></div>
        <span class="chip ${picked.length?'g':'n'}">${picked.length} selected · ${qar(total)}</span></div>
@@ -6404,13 +6434,22 @@ FORMS['create-batch']={t:'Create deposit batch',s:'Posted cash receipts',cta:'Cr
        .map(c=>`<tr class="drill" data-key="${escA('h_'+c.id)}" onclick="bToggle(this.dataset.key)"><td><input type="checkbox" data-key="${escA('h_'+c.id)}" ${sel['h_'+c.id]?'checked':''} onclick="event.stopPropagation();bToggle(this.dataset.key)"></td>
        <td>${esc(c.id)}</td><td>${esc(c.name)}</td><td>${esc(c.building)}</td><td>${esc(c.unit)}</td><td>${esc(c.reference||'—')}</td>
        <td class="r num">${qar(c.amount)}</td><td>${esc(c.date)}</td></tr>`).join('')}</table></div>
+     <div class="bsec">Received cheques <span class="m">${cheques.length} awaiting deposit</span></div>
+     <div class="tw"><table><tr><th></th><th>Cheque</th><th>Tenant</th><th>Building</th><th>Unit</th><th>Bank</th><th class="r">Amount</th><th>Dated</th></tr>
+     ${cheques.filter(c=>!q||[c.id,c.name,c.unit,c.building,c.number,c.bank].some(v=>String(v||'').toLowerCase().includes(q)))
+       .map(c=>`<tr class="drill" data-key="${escA('c_'+c.id)}" onclick="bToggle(this.dataset.key)"><td><input type="checkbox" data-key="${escA('c_'+c.id)}" ${sel['c_'+c.id]?'checked':''} onclick="event.stopPropagation();bToggle(this.dataset.key)"></td>
+       <td>${esc(c.number)} · ${esc(c.id)}</td><td>${esc(c.name)}</td><td>${esc(c.building)}</td><td>${esc(c.unit)}</td><td>${esc(c.bank)}</td>
+       <td class="r num">${qar(c.amount)}</td><td>${esc(c.date)}</td></tr>`).join('')}</table></div>
      ${D.unresolved?`<div class="note bad">${D.unresolved} cash receipt${D.unresolved===1?'':'s'} cannot be batched yet because the receipt does not identify one unit. Review the receipt allocation before depositing.</div>`:''}
      ${picked.length?`<div class="note">${picked.length} receipt${picked.length===1?'':'s'} selected. Tenant, unit and amount are locked to the receipt.</div>`:''}`},
-   check:d=>{const D=depositData();return !!(D&&!D.error&&(D.cash||[]).some(c=>(d.sel||{})['h_'+c.id]))},
-   msg:'Select at least one posted cash receipt.'},
+   check:d=>{const D=depositData();return !!(D&&!D.error&&[
+      ...(D.cash||[]).map(c=>'h_'+c.id),...(D.cheques||[]).map(c=>'c_'+c.id)
+    ].some(k=>(d.sel||{})[k]))},
+   msg:'Select at least one cash receipt or received cheque.'},
   {n:'Deposit',body:d=>{
     const D=depositData()||{}, sel=d.sel||{};
-    const items=(D.cash||[]).filter(c=>sel['h_'+c.id]);
+    const items=[...(D.cash||[]).filter(c=>sel['h_'+c.id]),
+                 ...(D.cheques||[]).filter(c=>sel['c_'+c.id])];
     return `<div class="fg">
       ${fld({k:'bank',l:'Deposit to',t:'sel',o:['',...(D.banks||[]).map(b=>b.id)],req:1},d.bank)}
       ${fld({k:'date',l:'Deposit date',t:'date',req:1},d.date)}
@@ -6419,7 +6458,7 @@ FORMS['create-batch']={t:'Create deposit batch',s:'Posted cash receipts',cta:'Cr
         accept:'.jpg,.jpeg,.png,.JPG,.JPEG,.PNG',hint:'JPG or PNG · max 10 MB'},d.slip_image)}</div>
      ${stat([['Items',items.length],['Total',qar(items.reduce((n,c)=>n+(+c.amount||0),0))],
        ['Destination',d.bank||'Choose a bank']])}
-     <div class="note">The person banking this batch can be the person who created it. The posted cash receipts are transferred to the bank on confirmation, without charging the tenants twice.</div>`},
+     <div class="note">Banking transfers cash and presents cheques. Cheque payments post only after this batch matches the imported statement.</div>`},
    fields:[{k:'bank',req:1},{k:'date',req:1}],
    check:d=>{const D=depositData();return !!(D&&!D.error&&(D.banks||[]).some(b=>b.id===d.bank))},
    msg:'Choose a valid company bank account.'}],
@@ -9104,7 +9143,7 @@ FORMS['cheque-action']={t:'Update the cheque',s:'Every change is kept on the che
    detail:/returned/i.test(a)?(d.reason||'')+' · '+(d.next||''):'Recorded on the cheque history',goto:'#/cheque/'+c.id}}};
 
 FORMS['post-reconciled-batch']={t:'Post reconciled batch',
- s:'Bank match confirmed · clear its cheques and allocate tenant receipts',
+ s:'Complete outstanding receipts on a matched batch',
  cta:'Post the receipts',
  init:c=>({id:c&&c.id}),
  steps:[{n:'Confirm',body:d=>{const b=BT(d.id)||{};return `<p class="pp">The
@@ -9112,8 +9151,7 @@ FORMS['post-reconciled-batch']={t:'Post reconciled batch',
    its ${b.pending_cheques||0} uncleared cheque${b.pending_cheques===1?'':'s'}
    cleared and creates the corresponding Payment Entr${b.pending_cheques===1?'y':'ies'},
    allocated against each tenant’s oldest open invoice.</p>
-   <div class="note">This is the accounting step. Running it again is safe:
-   an existing Payment Entry is reused rather than posted twice.</div>`}}]};
+   <div class="note">New statement imports perform this step automatically. This action completes older reconciled batches with pending cheques. Running it again reuses existing Payment Entries.</div>`}}]};
 
 ROUTES.cheques=()=>page('Cheques','Money in and money out · custody, presentation, clearing, return',
  fbtn('Log a cheque','log-cheque'),
@@ -9327,7 +9365,7 @@ function allocField(party,val){
    `<div class="mini" style="grid-column:1/-1;margin-top:-6px">${open.length} open invoice${
      open.length===1?'':'s'} \u00b7 ${k(+total.toFixed(2))} outstanding</div>`;
 }
-FORMS['issue-receipt']={t:'Issue a receipt',s:'Cash on the day · a cheque only once the bank confirms it',cta:'Issue the receipt',
+FORMS['issue-receipt']={t:'Issue a receipt',s:'Cash or bank transfer receipt',cta:'Issue the receipt',
  init:ctx=>({kind:(ctx&&ctx.kind)==='Bank transfer received'?'Bank transfer received':'Cash received',
    date:new Date().toLocaleDateString('sv-SE'),
    collector:window.DB_LIVE?(window.DB_USER||'Current user'):'Yusuf K.'}),
@@ -9711,7 +9749,7 @@ const WIRE={
 
 'issue-receipt':{
  guard:d=>d.kind==='Cheque cleared'
-  ?'Clearing the cheque already posted the money against the tenant. Issuing a receipt here would post it a second time. Mark the cheque cleared on the register instead \u2014 that is the receipt.':null,
+  ?'The matched deposit batch posts the cheque receipt once. Record cheques through Record payment.':null,
  m:'finance.record_receipt',
  a:d=>({payload:{tenant:wTen(d.party),amount:wNum(d.amt),on:d.date,
    mode:d.kind==='Cash received'?'Cash':'Bank Transfer',
@@ -9723,28 +9761,47 @@ const WIRE={
      : 'Nothing was open \u2014 the whole receipt sits on account')+' \u00b7 '+r.payment_entry})},
 
 'record-payment':{
- guard:d=>d.method==='Cheque'&&!d.cleared
-  ?'Confirm the cheque cleared at the bank before posting its payment.':null,
- m:'finance.record_receipt',
- a:d=>({payload:{tenant:wTen(d.tenant),amount:wNum(d.amt),on:d.date,
-   mode:d.method,invoice:allocId(d.inv),reference:d.ref,
-   bank_account:d.method==='Cheque'?d.bank:null,cleared:d.method==='Cheque'&&!!d.cleared,
-   request_id:d.request_id}}),
- ok:(r,d)=>({title:'Payment posted',msg:'QAR '+qar(r.allocated)+' allocated to '+d.tenant,
-   detail:(r.applied&&r.applied.length?'Applied to '+r.applied.join(', ')
-     :'Nothing open \u2014 held on account')+' \u00b7 '+r.payment_entry})},
+ guard:d=>{
+   if(d.method!=='Cheque'&&window.FFILES)delete FFILES.cheque_image;
+   return d.method==='Cheque'&&(FFILES.cheque_image||[]).some(f=>
+     !/\.(jpe?g|png)$/i.test(f.name))?'Choose a JPG or PNG cheque image.':null},
+ calls:async d=>d.method==='Cheque'
+   ?dbCall('finance.record_incoming_cheque',{payload:{tenant:wTen(d.tenant),
+       amount:wNum(d.amt),on:d.date,cheque_no:d.cheque_no,
+       cheque_bank:d.cheque_bank,cheque_date:d.cheque_date,
+       invoice:allocId(d.inv),reference:d.ref}})
+   :dbCall('finance.record_receipt',{payload:{tenant:wTen(d.tenant),
+       amount:wNum(d.amt),on:d.date,mode:d.method,
+       invoice:allocId(d.inv),reference:d.ref,request_id:d.request_id}}),
+ attach:(r,d)=>d.method==='Cheque'?{doctype:'Cheque',docname:r.cheque}:null,
+ afterUpload:(up,r,d)=>d.method==='Cheque'
+   ?dbCall('finance.attach_payment_cheque_image',{cheque:r.cheque,file_url:up.urls[0]}):null,
+ ok:(r,d)=>d.method==='Cheque'
+   ?{title:'Cheque received',msg:'QAR '+qar(r.amount)+' recorded from '+d.tenant,
+      detail:'Cheque '+r.cheque+' is ready for a deposit batch. The invoice remains outstanding until bank reconciliation.'}
+   :{title:'Payment posted',msg:'QAR '+qar(r.allocated)+' allocated to '+d.tenant,
+      detail:(r.applied&&r.applied.length?'Applied to '+r.applied.join(', ')
+        :'Nothing open \u2014 held on account')+' \u00b7 '+r.payment_entry}},
 
 'landlord-payment':{
- guard:d=>!d.invoice?'Open a landlord bill first.':
-   d.method==='Cheque'&&!d.cleared?'Confirm that the cheque cleared at the bank first.':
-   d.method!=='Cash'&&!d.bank?'Choose the bank this payment came from.':null,
+ guard:d=>{if(d.method!=='Cheque'&&window.FFILES)delete FFILES.cheque_image;
+   return d.method==='Cheque'&&(FFILES.cheque_image||[]).some(f=>
+       !/\.(jpe?g|png)$/i.test(f.name))?'Choose a JPG or PNG cheque image.':
+   !d.invoice?'Open a landlord bill first.':
+   d.method!=='Cash'&&!d.bank?'Choose the bank this payment came from.':
+   d.bank==='Other bank'&&!d.other_bank?'Choose a configured other company bank account.':null},
  m:'finance.record_landlord_payment',
  a:d=>({payload:{invoice:d.invoice,amount:wNum(d.amt),mode:d.method,
    bank_account:d.method==='Cash'?null:d.bank,on:d.date,reference:d.ref,
-   cleared:d.method==='Cheque'&&!!d.cleared,request_id:d.request_id}}),
+   other_bank:d.other_bank,cheque_no:d.cheque_no,cheque_date:d.cheque_date,
+   request_id:d.request_id}}),
+ attach:r=>r.cheque?{doctype:'Cheque',docname:r.cheque}:null,
+ afterUpload:(up,r)=>r.cheque
+   ?dbCall('finance.attach_payment_cheque_image',{cheque:r.cheque,file_url:up.urls[0]}):null,
  ok:(r,d)=>({title:'Landlord payment posted',
    msg:'QAR '+qar(r.amount)+' paid for '+d.building,
-   detail:'Applied to bill '+r.invoice+' · '+r.payment_entry,
+   detail:'Applied to bill '+r.invoice+' · '+r.payment_entry+
+      (r.cheque?' · cheque '+r.cheque+' awaits bank reconciliation':''),
    goto:'#/landlordpayments'})},
 
 'issue-landlord-bill':{
@@ -9763,7 +9820,9 @@ const WIRE={
  a:d=>{const sel=d.sel||{};
    const D=depositData()||{};
    const lines=[...(D.cash||[]).filter(c=>sel['h_'+c.id])
-     .map(c=>({type:'Cash',payment_entry:c.id,amount:c.amount}))];
+     .map(c=>({type:'Cash',payment_entry:c.id,amount:c.amount})),
+     ...(D.cheques||[]).filter(c=>sel['c_'+c.id])
+     .map(c=>({type:'Cheque',cheque:c.id,amount:c.amount}))];
    return {payload:{date:d.date,bank_account:d.bank,slip_no:d.slip,lines}}},
  attach:r=>({doctype:'Deposit Batch',docname:r.batch}),
  afterUpload:(up,r)=>dbCall('finance.attach_deposit_slip',

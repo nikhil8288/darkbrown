@@ -635,8 +635,11 @@ def refresh():
 
 
 def bank_accounts():
-    rows = frappe.get_all("Bank Account", filters={"is_company_account": 1},
-                          fields=["name", "account_name", "bank"])
+    company = frappe.get_single("DBR Settings").default_company
+    rows = frappe.get_all("Bank Account", filters={"is_company_account": 1,
+                                                   "company": company},
+                          fields=["name", "account_name", "bank"],
+                          order_by="creation asc")
     return [{"name": r.name,
              "label": f"{r.bank} — {r.account_name}" if r.bank
              else r.account_name} for r in rows]

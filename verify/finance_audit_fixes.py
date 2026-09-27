@@ -23,7 +23,7 @@ def setup(scoped=False):
                           'default_bank_account': 'Bank Ref'}],
         'Company': [{'name': 'SYN'}],
         'Bank Account': [{'name': 'Bank Ref', 'account': 'Bank - SYN',
-                          'company': 'SYN'}],
+                          'company': 'SYN', 'is_company_account': 1}],
         'Account': [
             {'name': 'Bank - SYN', 'account_name': 'Bank', 'company': 'SYN',
              'root_type': 'Asset', 'account_type': 'Bank', 'is_group': 0,
@@ -42,11 +42,17 @@ def setup(scoped=False):
              'company': 'SYN', 'root_type': 'Expense', 'is_group': 0}],
         'Customer': [{'name': 'TEN-A', 'customer_name': 'Synthetic tenant A'},
                      {'name': 'TEN-B', 'customer_name': 'Synthetic tenant B'}],
+        'Building': [{'name': 'A', 'building_name': 'Building A'},
+                     {'name': 'B', 'building_name': 'Building B'}],
+        'Unit': [{'name': 'UNIT-A', 'building': 'A'},
+                 {'name': 'UNIT-B', 'building': 'B'}],
         'Payment Entry': [], 'Sales Invoice': [], 'Cheque': [],
         'User Permission': ([{'user': S.SESSION['user'], 'allow': 'Building',
                              'for_value': 'A'}] if scoped else []),
-        'Tenancy Agreement': [{'name': 'TA-A', 'tenant': 'TEN-A', 'building': 'A'},
-                              {'name': 'TA-B', 'tenant': 'TEN-B', 'building': 'B'}],
+        'Tenancy Agreement': [{'name': 'TA-A', 'tenant': 'TEN-A', 'building': 'A',
+                               'unit': 'UNIT-A', 'status': 'Active'},
+                              {'name': 'TA-B', 'tenant': 'TEN-B', 'building': 'B',
+                               'unit': 'UNIT-B', 'status': 'Active'}],
     })
 
 
@@ -195,27 +201,49 @@ def test_cheque_logging_is_deferred():
     assert not [c for c in S.CALLS if c[:2] == ('insert', 'Cheque')]
 
 
-def test_cleared_cheque_posts_one_tenant_payment():
+def test_received_cheque_waits_for_batch_and_clearing():
     setup()
     S.DB['Sales Invoice'] = [{'name': 'SI-A', 'customer': 'TEN-A',
                               'posting_date': finance.today(), 'docstatus': 1,
-                              'outstanding_amount': 100}]
+                              'outstanding_amount': 100,
+                              'custom_rental_agreement': 'TA-A'}]
     payload = {'tenant': 'TEN-A', 'amount': 100, 'on': finance.today(),
                'mode': 'Cheque', 'invoice': 'SI-A', 'bank_account': 'Bank Ref',
                'reference': 'BANK-CLEAR-1'}
     try:
-        finance.record_receipt(payload)
+        finance.record_receipt(dict(payload, cleared=True))
     except S.ValidationError as exc:
-        assert 'after the bank confirms' in str(exc)
+        assert 'deposit it in a batch' in str(exc)
     else:
-        raise AssertionError('an uncleared cheque settled an invoice')
+        raise AssertionError('direct cheque receipt settled an invoice')
+    recorded = finance.record_incoming_cheque(dict(payload,
+        cheque_no='12345', cheque_bank='Drawer Bank', cheque_date=finance.today()))
+    assert recorded['status'] == 'Received'
     assert not [c for c in S.CALLS if c[:2] == ('insert', 'Payment Entry')]
-    result = finance.record_receipt(dict(payload, cleared=True))
+    assert S.DB['Cheque'][0]['unit'] == 'UNIT-A'
+    assert S.DB['Cheque'][0]['sales_invoice'] == 'SI-A'
+    candidates = finance.deposit_candidates()['cheques']
+    assert len(candidates) == 1 and candidates[0]['id'] == recorded['cheque']
+    finance.present_cheque(recorded['cheque'], 'Bank Ref', finance.today())
+    try:
+        finance.clear_cheque(recorded['cheque'])
+    except S.ValidationError as exc:
+        assert 'matched bank statement' in str(exc)
+    else:
+        raise AssertionError('a cheque cleared without a bank statement')
+    S.DB['Cheque'][0]['deposit_batch'] = 'BATCH-A'
+    S.DB['Bank Statement Import'] = [{'name': 'STMT-A', 'bank_account': 'Bank Ref'}]
+    S.DB['Bank Statement Line'] = [{'name': 'LINE-A', 'parent': 'STMT-A',
+        'status': 'Matched', 'matched_type': 'Deposit Batch',
+        'matched_ref': 'BATCH-A', 'txn_date': finance.today()}]
+    result = finance.clear_cheque(recorded['cheque'], finance.today())
     posted = [c[2] for c in S.CALLS if c[:2] == ('insert', 'Payment Entry')]
     assert len(posted) == 1 and posted[0]['paid_to'] == 'Bank - SYN', posted
     assert posted[0]['mode_of_payment'] == 'Cheque'
     assert posted[0]['references'][0]['reference_name'] == 'SI-A'
-    assert result['applied'] == ['SI-A']
+    assert result['payment_entry']
+    assert finance.clear_cheque(recorded['cheque'])['payment_entry'] == result['payment_entry']
+    assert len([c for c in S.CALLS if c[:2] == ('insert', 'Payment Entry')]) == 1
 
 
 def landlord_fixture(scoped=False):
@@ -265,7 +293,18 @@ def test_landlord_payments_post_to_selected_bill():
         raise AssertionError('duplicate landlord payment posted')
 
 
-def test_landlord_scope_and_cheque_confirmation():
+def test_landlords_without_bills_remain_visible():
+    landlord_fixture()
+    S.DB['Supplier'].append({'name': 'SUP-C', 'supplier_name': 'Landlord C',
+                              'db_is_landlord': 1})
+    S.DB['Building'].append({'name': 'C', 'building_name': 'Building C',
+                              'landlord': 'SUP-C'})
+    rows = finance.landlord_payments()['rows']
+    assert any(r['landlord'] == 'SUP-C' and r['amount'] == 0
+               and not r['invoice'] for r in rows)
+
+
+def test_landlord_scope_and_cheque_details():
     landlord_fixture(scoped=True)
     assert [r['invoice'] for r in finance.landlord_payments()['rows']] == ['PI-A']
     base = {'invoice': 'PI-A', 'amount': 100, 'mode': 'Cheque',
@@ -273,18 +312,21 @@ def test_landlord_scope_and_cheque_confirmation():
     try:
         finance.record_landlord_payment(base)
     except S.ValidationError as exc:
-        assert 'after it clears' in str(exc)
+        assert 'cheque number and date' in str(exc)
     else:
-        raise AssertionError('uncleared landlord cheque posted')
+        raise AssertionError('landlord cheque without details posted')
     try:
-        finance.record_landlord_payment(dict(base, invoice='PI-B', cleared=True))
+        finance.record_landlord_payment(dict(base, invoice='PI-B',
+            cheque_no='45678', cheque_date=finance.today()))
     except S.PermissionError_:
         pass
     else:
         raise AssertionError('payment to another building was permitted')
     result = finance.record_landlord_payment(dict(
-        base, cleared=True, reference='CHQ-CLEARED-1'))
+        base, cheque_no='45678', cheque_date=finance.today()))
     assert result['invoice'] == 'PI-A'
+    assert result['cheque'] and S.DB['Cheque'][0]['purchase_invoice'] == 'PI-A'
+    assert S.DB['Cheque'][0]['status'] == 'Issued'
     posted = [c[2] for c in S.CALLS if c[:2] == ('insert', 'Payment Entry')]
     assert len(posted) == 1 and posted[0]['paid_from'] == 'Bank - SYN'
 
@@ -331,15 +373,62 @@ def test_schedule_only_landlord_payment_is_blocked():
         raise AssertionError('schedule marked paid without a Payment Entry')
 
 
-def test_new_batch_rejects_cheques():
+def test_new_batch_rejects_missing_cheques():
     setup()
     try:
         finance.create_deposit_batch({'bank_account': 'Bank Ref', 'lines': [
             {'type': 'Cheque', 'cheque': 'CHQ-1', 'amount': 50}]})
     except S.ValidationError as exc:
-        assert 'Only posted cash receipts' in str(exc)
+        assert 'not a received tenant cheque' in str(exc) or 'CHQ-1' in str(exc)
     else:
-        raise AssertionError('cheque accepted in a new deposit batch')
+        raise AssertionError('missing cheque accepted in a new deposit batch')
+
+
+def test_received_cheque_batch_derives_identity_and_presents_once():
+    setup()
+    S.DB['Cheque'] = [{'name': 'CHQ-A', 'direction': 'Incoming',
+        'status': 'Received', 'company': 'SYN', 'party': 'TEN-A',
+        'cheque_no': '112233', 'cheque_date': finance.today(),
+        'unit': 'UNIT-A', 'building': 'A', 'amount': 75,
+        'deposit_batch': None, 'payment_entry': None}]
+    original = S.Doc.append
+    def typed_append(doc, key, row):
+        return original(doc, key, S.Doc('Deposit Batch Line', row))
+    S.Doc.append = typed_append
+    try:
+        result = finance.create_deposit_batch({'bank_account': 'Bank Ref',
+            'date': finance.today(), 'lines': [
+                {'type': 'Cheque', 'cheque': 'CHQ-A', 'amount': 999,
+                 'tenant': 'TEN-B', 'unit': 'UNIT-B'}]})
+        batch = S.DB['Deposit Batch'][0]
+        assert result['total'] == 75 and batch['lines'][0]['tenant'] == 'TEN-A'
+        assert batch['lines'][0]['unit'] == 'UNIT-A'
+        assert S.DB['Cheque'][0]['status'] == 'Received'
+        finance.deposit_batch(result['batch'], on=finance.today())
+        assert S.DB['Cheque'][0]['status'] == 'Deposited'
+        assert S.DB['Cheque'][0]['bank_account'] == 'Bank Ref'
+        assert not [c for c in S.CALLS if c[:2] == ('insert', 'Payment Entry')]
+    finally:
+        S.Doc.append = original
+
+
+def test_cheque_image_must_be_private_and_attached():
+    setup()
+    S.DB['Cheque'] = [{'name': 'CHQ-A', 'direction': 'Incoming',
+        'party': 'TEN-A', 'building': 'A', 'unit': 'UNIT-A',
+        'amount': 75, 'cheque_no': '112233', 'status': 'Received'}]
+    S.DB['File'] = [{'name': 'FILE-A', 'file_url': '/private/files/cheque.png',
+        'attached_to_doctype': 'Cheque', 'attached_to_name': 'CHQ-A',
+        'is_private': 1}]
+    try:
+        finance.attach_payment_cheque_image('CHQ-A', '/files/public.png')
+    except S.ValidationError as exc:
+        assert 'private image' in str(exc)
+    else:
+        raise AssertionError('public cheque image accepted')
+    result = finance.attach_payment_cheque_image(
+        'CHQ-A', '/private/files/cheque.png')
+    assert result['scan'] == S.DB['Cheque'][0]['scan']
 
 
 def test_optional_slip_image_attaches_to_batch():
@@ -380,13 +469,16 @@ for test in (test_states_and_totals, test_caps_and_scope,
              test_cash_and_duplicate, test_petty_source,
              test_banking_existing_cash_receipt_moves_cash_once,
              test_cheque_logging_is_deferred,
-             test_cleared_cheque_posts_one_tenant_payment,
+             test_received_cheque_waits_for_batch_and_clearing,
              test_landlord_payments_post_to_selected_bill,
-             test_landlord_scope_and_cheque_confirmation,
+             test_landlords_without_bills_remain_visible,
+             test_landlord_scope_and_cheque_details,
              test_landlord_cash_uses_cash_ledger,
              test_landlord_draft_requires_issue_before_payment,
              test_schedule_only_landlord_payment_is_blocked,
-             test_new_batch_rejects_cheques,
+             test_new_batch_rejects_missing_cheques,
+             test_received_cheque_batch_derives_identity_and_presents_once,
+             test_cheque_image_must_be_private_and_attached,
              test_optional_slip_image_attaches_to_batch,
              test_dirham_allocation, test_gl_above_old_cap):
     test()
