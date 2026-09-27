@@ -4637,20 +4637,33 @@ ROUTES.landlordpayments=()=>{
  const landlords=new Map();
  for(const r of rows){const key=r.building+'|'+r.landlord;
    if(!landlords.has(key))landlords.set(key,{building_name:r.building_name,
-     landlord_name:r.landlord_name,amount:0,bills:0});
+     landlord_name:r.landlord_name,amount:0,bills:0,payable:[]});
    const x=landlords.get(key);
-   if(r.status==='Outstanding'){x.amount+=+r.amount||0;x.bills++}
+   if(r.status==='Outstanding'){
+     x.amount+=+r.amount||0;x.bills++;x.payable.push(r);
+   }
  }
  return page('Landlord Payments','All landlords and their outstanding bills',
    '',
   stat([['Landlords',new Set(rows.map(r=>r.landlord)).size],
         ['Amount to pay',qar(rows.filter(r=>r.status==='Outstanding').reduce((sum,r)=>sum+(+r.amount||0),0))]])+
-  `<div class="note">Monthly landlord bills are generated from active Head Lease agreements from 1 October 2026. Record payments whenever they are made; unpaid balances stay open.</div>`+
+  `<div class="note">Use <b>Record payment</b> beside a landlord with an outstanding bill. Monthly landlord bills are generated from active Head Lease agreements from 1 October 2026. A landlord with no posted bill cannot be paid from this screen yet.</div>`+
   `<div class="card"><h3>Landlords and balances</h3>${landlords.size?tbl([
    {h:'Building',v:r=>esc(r.building_name)},
    {h:'Landlord',v:r=>esc(r.landlord_name)},
    {h:'Outstanding (QAR)',r:1,mono:1,v:r=>qar(r.amount)},
-   {h:'Open bills',r:1,v:r=>r.bills}],
+   {h:'Open bills',r:1,v:r=>r.bills},
+   {h:'Payment',v:r=>!['MD','ACC'].includes(ROLEV)?'—':
+     r.payable.length===1
+     ?`<button type="button" class="btn" data-id="${escA(r.payable[0].invoice)}"
+         onclick="event.stopPropagation();openLandlordPay(this.dataset.id)">Record payment</button>`
+     :r.payable.length>1
+     ?`<select aria-label="Choose bill to pay for ${escA(r.landlord_name)}"
+         onchange="if(this.value)openLandlordPay(this.value)">
+         <option value="">Choose bill to pay…</option>
+         ${r.payable.map(b=>`<option value="${escA(b.invoice)}">${esc(b.invoice)} · QAR ${qar(b.amount)}</option>`).join('')}
+       </select>`
+     :'<span class="mini">No posted bill</span>'}],
    [...landlords.values()].map((r,i)=>({...r,__id:String(i)})),{id:'landlordbalances'})
    :empty('No landlords on file.')}</div>`+
   `<div class="card"><h3>Landlord bills</h3>${rows.some(r=>r.invoice)?tbl([

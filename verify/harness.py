@@ -1293,6 +1293,9 @@ def t_finance_ui_and_label_patch_are_wired():
     assert 'Draft landlord accrual' not in shell
     assert 'Issue bill</button>' not in shell
     assert "m:'finance.record_landlord_payment'" in shell
+    assert 'r.payable.length===1' in shell
+    assert 'Choose bill to pay…' in shell
+    assert 'No posted bill' in shell
     assert 'utils.invoice_run.on_sales_invoice_cancel' in hooks
     assert 'darkbrown.patches.normalize_invoice_reference_labels' in patches
     assert '"Tenancy Agreement", "Tenancy Agreement"' in label_patch
