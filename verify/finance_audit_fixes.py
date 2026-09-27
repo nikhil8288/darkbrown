@@ -173,6 +173,7 @@ def test_banking_existing_cash_receipt_moves_cash_once():
     S.DB['Deposit Batch'] = [{
         'name': 'BATCH-A', 'status': 'Draft', 'company': 'SYN',
         'bank_account': 'Bank Ref', 'prepared_by': S.SESSION['user'],
+        'slip_no': None,
         'lines': [S.Doc('Deposit Batch Line', {
             'payment_type': 'Cash', 'payment_entry': 'PE-CASH', 'cheque': None,
             'tenant': 'TEN-A', 'unit': 'U-A', 'amount': 30.55})],
@@ -182,6 +183,8 @@ def test_banking_existing_cash_receipt_moves_cash_once():
     assert not [c for c in S.CALLS if c[:2] == ('insert', 'Payment Entry')]
     entries = [c[2] for c in S.CALLS if c[:2] == ('insert', 'Journal Entry')]
     assert len(entries) == 1, entries
+    assert entries[0]['cheque_no'] == 'BATCH-A'
+    assert entries[0]['cheque_date'] == '2026-09-25'
     assert entries[0]['accounts'] == [
         {'account': 'Bank - SYN', 'debit_in_account_currency': 30.55},
         {'account': 'Cash - SYN', 'credit_in_account_currency': 30.55}], entries

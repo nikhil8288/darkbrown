@@ -2027,6 +2027,11 @@ def deposit_batch(batch, on=None, reason=None):
             je = frappe.get_doc({
                 "doctype": "Journal Entry", "voucher_type": "Bank Entry",
                 "company": doc.company, "posting_date": on or today(),
+                # ERPNext requires both Reference No and Reference Date on a
+                # Bank Entry. The slip number is the external reference; a
+                # batch without one still has a stable internal reference.
+                "cheque_no": doc.slip_no or doc.name,
+                "cheque_date": on or today(),
                 "user_remark": "Deposit batch {0}: cash receipt {1}".format(
                     doc.name, pe.name),
                 "accounts": [
