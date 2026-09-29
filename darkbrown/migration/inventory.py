@@ -47,8 +47,33 @@ SAFE_SETTING_TYPES = {"Select", "Check", "Int", "Float", "Currency", "Percent",
                       "Date", "Datetime", "Time", "Duration", "Link", "Dynamic Link"}
 
 
+# UI containers / child tables have no column on their parent table.
+NON_COLUMN_TYPES = {"Section Break", "Column Break", "Tab Break", "HTML", "Button",
+                    "Table", "Table MultiSelect", "Fold", "Heading", "Image"}
+
+
+def stored_field(name, meta):
+    field = meta.get_field(name)
+    return not field or (field.fieldtype not in NON_COLUMN_TYPES and not getattr(field, "is_virtual", False))
+
+
+def reviewed_virtual(dt, links, versions):
+    rules = json.loads(Path(__file__).with_name("virtual_review.json").read_text(encoding="utf-8"))
+    rule = rules.get(dt.name)
+    if not rule or versions.get(rule["app"], {}).get("head") != rule["head"]:
+        return None
+    if digest(links) != rule["relationship_checksum"]:
+        return None
+    return {**rule, "disposition": "preserve_virtual_outside_business_cleanup",
+            "record_count": None, "controller_invoked": False}
+
+
 def safe_field(name, meta):
     field = meta.get_field(name)
+    # This exact field stores an Email Template name, never a password.
+    if (getattr(meta, "name", None) == "System Settings" and name == "reset_password_template"
+            and field and field.fieldtype == "Link" and field.options == "Email Template"):
+        return True
     return not any(part in name.lower() for part in SECRET_NAMES) and not (
         field and field.fieldtype == "Password")
 
@@ -63,7 +88,7 @@ def record_inventory(frappe, dt, meta, links):
         selected |= {"parent", "parenttype", "parentfield"}
     if dt.issingle:
         selected |= {f.fieldname for f in meta.fields if f.fieldtype in SAFE_SETTING_TYPES}
-    selected = {f for f in selected if safe_field(f, meta)}
+    selected = {f for f in selected if safe_field(f, meta) and stored_field(f, meta)}
     if dt.issingle:
         # Include the singleton as a retained record so normal link analysis
         # sees its references. Read only approved fields, not get_doc/get_password.
@@ -121,7 +146,7 @@ def capture(company=None, expected_site=None):
               "companies": companies, "versions": versions,
               "captured_at": str(frappe.utils.now_datetime()),
               "records": {}, "relationships": [], "errors": [],
-              "settings": {}, "cleanup_executable": False}
+              "settings": {}, "virtual_review": {}, "cleanup_executable": False}
     # Enumerate every installed table's identifiers and relationship fields so
     # links from other apps cannot be silently ignored. Never export passwords,
     # tokens, identity documents, email bodies or file contents.
@@ -132,9 +157,18 @@ def capture(company=None, expected_site=None):
             result["relationships"].extend({"doctype": dt.name, "field": f.fieldname,
                                              "type": f.fieldtype, "target": f.options} for f in links)
             if getattr(meta, "is_virtual", False):
-                result["errors"].append({"doctype": dt.name, "error": "virtual doctype: manual review"})
+                metadata = [r for r in result["relationships"] if r["doctype"] == dt.name]
+                review = reviewed_virtual(dt, metadata, versions)
+                if review:
+                    result["virtual_review"][dt.name] = review
+                else:
+                    result["errors"].append({"doctype": dt.name, "error": (
+                        "runtime queue inventory and drain evidence required" if dt.name in {"RQ Job", "RQ Worker"}
+                        else "virtual doctype: manual review")})
                 continue
             for f in links:
+                if f.fieldtype in ("Link", "Dynamic Link") and not stored_field(f.fieldname, meta):
+                    result["errors"].append({"doctype": dt.name, "error": "non-stored relationship requires manual review"})
                 if f.fieldtype in ("Link", "Dynamic Link") and (
                     not safe_field(f.fieldname, meta) or
                     (f.fieldtype == "Dynamic Link" and not safe_field(f.options, meta))):
@@ -143,6 +177,8 @@ def capture(company=None, expected_site=None):
         except Exception as exc:
             # Failure never becomes a fictitious zero count or a complete graph.
             result["errors"].append({"doctype": dt.name, "error": type(exc).__name__})
+    if "Bulk Transaction Log" in result["virtual_review"] and "Bulk Transaction Log Detail" not in result["records"]:
+        result["errors"].append({"doctype": "Bulk Transaction Log", "error": "backing log detail inventory missing"})
     for dt, fields in {
         "System Settings": ["time_zone", "enable_scheduler"],
         "Accounts Settings": ["acc_frozen_upto", "frozen_accounts_modifier", "backdated_transactions_authorized_role"],

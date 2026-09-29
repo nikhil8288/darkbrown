@@ -1,0 +1,92 @@
+{
+  "Bulk Transaction Log": {
+    "app": "erpnext",
+    "head": "4aee12e16c664897571457c007aaa95b8364bbbb",
+    "relationship_checksum": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "reason": "Derived view of Bulk Transaction Log Detail; underlying stored doctype captured separately."
+  },
+  "Payment Reconciliation": {
+    "app": "erpnext",
+    "head": "4aee12e16c664897571457c007aaa95b8364bbbb",
+    "relationship_checksum": "90953dd67db8797a9c98df70492ff304504732e2801055bf527092e4e41e95d8",
+    "reason": "Transient reconciliation form; financial effects reside in invoices, payments and ledger records."
+  },
+  "Payment Reconciliation Allocation": {
+    "app": "erpnext",
+    "head": "4aee12e16c664897571457c007aaa95b8364bbbb",
+    "relationship_checksum": "42814738845e28d52c5185e2789160b51f98f471d368f7dc7703c0dde8fd740a",
+    "reason": "Transient reconciliation form; financial effects reside in invoices, payments and ledger records."
+  },
+  "Payment Reconciliation Invoice": {
+    "app": "erpnext",
+    "head": "4aee12e16c664897571457c007aaa95b8364bbbb",
+    "relationship_checksum": "4476d962577b53d6fdc869091625ca05d8703ced91a30526eeeae6e1c12f51e3",
+    "reason": "Transient reconciliation form; financial effects reside in invoices, payments and ledger records."
+  },
+  "Payment Reconciliation Payment": {
+    "app": "erpnext",
+    "head": "4aee12e16c664897571457c007aaa95b8364bbbb",
+    "relationship_checksum": "f90c0adc5860b427d5bfae2c4ec7fea967f27bdaa2a2bed15adad7277ca7cb8b",
+    "reason": "Transient reconciliation form; financial effects reside in invoices, payments and ledger records."
+  },
+  "Permission Inspector": {
+    "app": "frappe",
+    "head": "8f801ade016078685c3165c96e38f84f249f5309",
+    "relationship_checksum": "eab6cc0eadef46567dc475ee13a804fe90c542a40a571876e8cc27fc33111a01",
+    "reason": "Transient permissions diagnostic; no stored business records."
+  },
+  "Recorder": {
+    "app": "frappe",
+    "head": "8f801ade016078685c3165c96e38f84f249f5309",
+    "relationship_checksum": "8dceed40e3ceffd44e82cd6a3b25574beaff69359a063277a9421ff500b07b34",
+    "reason": "Redis-backed diagnostics; retain outside business cleanup, never export request or query contents."
+  },
+  "Recorder Query": {
+    "app": "frappe",
+    "head": "8f801ade016078685c3165c96e38f84f249f5309",
+    "relationship_checksum": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "reason": "Redis-backed diagnostics; retain outside business cleanup, never export request or query contents."
+  },
+  "Recorder Suggested Index": {
+    "app": "frappe",
+    "head": "8f801ade016078685c3165c96e38f84f249f5309",
+    "relationship_checksum": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "reason": "Redis-backed diagnostics; retain outside business cleanup, never export request or query contents."
+  },
+  "System Health Report": {
+    "app": "frappe",
+    "head": "8f801ade016078685c3165c96e38f84f249f5309",
+    "relationship_checksum": "702f4a55e7ba340634446ba5eb87c79c9e5ee5d716b84ad02c46b7b70e14a4ba",
+    "reason": "Generated health diagnostics; do not invoke controller because it enqueues a test job."
+  },
+  "System Health Report Errors": {
+    "app": "frappe",
+    "head": "8f801ade016078685c3165c96e38f84f249f5309",
+    "relationship_checksum": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "reason": "Generated health diagnostics; do not invoke controller because it enqueues a test job."
+  },
+  "System Health Report Failing Jobs": {
+    "app": "frappe",
+    "head": "8f801ade016078685c3165c96e38f84f249f5309",
+    "relationship_checksum": "10b3e0684c0770d2b4869e2074b98e443581a42898f70c4b30a2ee08236a3456",
+    "reason": "Generated health diagnostics; do not invoke controller because it enqueues a test job."
+  },
+  "System Health Report Queue": {
+    "app": "frappe",
+    "head": "8f801ade016078685c3165c96e38f84f249f5309",
+    "relationship_checksum": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "reason": "Generated health diagnostics; do not invoke controller because it enqueues a test job."
+  },
+  "System Health Report Tables": {
+    "app": "frappe",
+    "head": "8f801ade016078685c3165c96e38f84f249f5309",
+    "relationship_checksum": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "reason": "Generated health diagnostics; do not invoke controller because it enqueues a test job."
+  },
+  "System Health Report Workers": {
+    "app": "frappe",
+    "head": "8f801ade016078685c3165c96e38f84f249f5309",
+    "relationship_checksum": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "reason": "Generated health diagnostics; do not invoke controller because it enqueues a test job."
+  }
+}
