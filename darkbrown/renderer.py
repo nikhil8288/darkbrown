@@ -46,13 +46,14 @@ def _html():
 
 def _boot():
     from darkbrown.api import app as api
+    from darkbrown.migration.inventory import can_export
 
     payload = {
         "seed": api.seed(),
         "role": api.role_code(),
         "user": frappe.db.get_value("User", frappe.session.user, "full_name"),
         "csrf": frappe.sessions.get_csrf_token(),
-        "inventory_admin": frappe.session.user == "Administrator",
+        "inventory_admin": can_export(frappe),
     }
     return (
         "<script>\n"

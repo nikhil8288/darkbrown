@@ -1,7 +1,7 @@
 // Synthetic DOM/fetch tests for the actual shipped inventory functions.
 const fs=require('fs'),vm=require('vm'),assert=require('assert');
 const source=fs.readFileSync('darkbrown/shell/index.html','utf8');
-const code=source.split('/* ---------------- Migration inventory (Administrator only) ---------------- */')[1].split('/* ---------------- Admin ---------------- */')[0];
+const code=source.split('/* ---------------- Migration inventory (authorized management accounts) ---------------- */')[1].split('/* ---------------- Admin ---------------- */')[0];
 let clicks=0, request;
 const status={textContent:''}, select={value:'',disabled:true,options:[],
   replaceChildren(option){this.options=[option];this.value='';},add(option){this.options.push(option);}};

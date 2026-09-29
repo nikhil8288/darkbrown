@@ -1,4 +1,4 @@
-"""Read-only Administrator inventory downloads; no File or financial writes."""
+"""Read-only authorized management inventory downloads; no File or financial writes."""
 import json
 
 import frappe

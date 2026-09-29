@@ -8,8 +8,8 @@ This update adds a browser alternative to the existing bench export.
 1. Extract the overlay ZIP at the repository root, preserving its directories.
 2. Commit/push the changed files to `main` and deploy through Frappe Cloud.
 3. Sign in to `https://erp.darkbrown.qa/darkbrown#/admin` as the actual
-   **Administrator** account. An MD/System Manager role on another user is
-   intentionally insufficient. Refresh with Ctrl+Shift+R after deployment.
+   **Administrator** account or an account holding **both System Manager and
+   Managing Director** roles. The verified owner account already holds both. Refresh with Ctrl+Shift+R after deployment.
 4. In **Migration inventory**, click **Load companies**, select the actual
    Company (a sole company is selected automatically), then click
    **Export migration inventory**. Keep the page open until it completes.
@@ -27,7 +27,7 @@ report the displayed error before changing the implementation.
 ## Boundaries
 
 Both endpoints are POST-only, use Frappe's normal session/CSRF handling and check
-`frappe.session.user == "Administrator"` before reading. The UI flag is only
+Administrator identity or BOTH management roles before reading. The UI flag is only
 for visibility. The download reuses the reviewed `capture()` site/company
 validation and field exclusions. JSON is returned directly as a no-store
 attachment: no File document, public URL, filesystem path parameter or stored
@@ -40,8 +40,8 @@ A snapshot does not pause concurrent writes or replace backup/restore testing.
 
 ## Verification
 
-53 Python synthetic checks passed:
-- `python verify/migration_inventory_download.py` — 7; needs Werkzeug (already
+55 Python synthetic checks passed:
+- `python verify/migration_inventory_download.py` — 9; needs Werkzeug (already
   supplied by Frappe; locally tested with Werkzeug 3.1.9 and stubbed Frappe).
 - `python verify/security_boundaries.py` — 8.
 - `python verify/migration_review_fixes.py` — 18.
@@ -53,3 +53,11 @@ synthetic DOM/fetch. Full shell JavaScript syntax and `git diff --check` passed.
 The Frappe handler at the installed source revision `8f801ad` was checked to
 accept returned Werkzeug Response objects. No actual ERP integration or browser
 runtime test occurred; verify the first download after deployment.
+
+## Management-account correction
+
+The initial browser release required the literal Administrator account. The
+read-only export now also accepts a user holding BOTH System Manager and Managing
+Director roles. UI visibility and server capture share the same check. Either
+role alone remains insufficient. No user roles are changed, and no legacy
+mutation, cleanup, posting or file-access permission is expanded.

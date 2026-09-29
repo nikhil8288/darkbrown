@@ -5377,7 +5377,7 @@ ROUTES.reports=()=>{
     cards);
 };
 
-/* ---------------- Migration inventory (Administrator only) ---------------- */
+/* ---------------- Migration inventory (authorized management accounts) ---------------- */
 function migrationInventoryCard(){
   if(!window.DB_LIVE||!window.DB_INVENTORY_ADMIN)return '';
   return `<div class="card"><h3>Migration inventory</h3>
@@ -5404,7 +5404,7 @@ async function migrationInventoryCompanies(button){
     select.disabled=false; download.disabled=!select.value;
     select.onchange=()=>{download.disabled=!select.value;};
     status.textContent=result.companies.length?'Choose your company, then export.':'No companies found.';
-  }catch(e){status.textContent='Unable to load companies. Check that you are signed in as Administrator.';}
+  }catch(e){status.textContent='Unable to load companies. Your account needs both System Manager and Managing Director roles, or Administrator access.';}
   finally{button.disabled=false;}
 }
 async function migrationInventoryDownload(button){

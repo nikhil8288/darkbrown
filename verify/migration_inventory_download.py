@@ -20,6 +20,7 @@ frappe.PermissionError = PermissionError
 frappe.session = types.SimpleNamespace(user='Administrator')
 frappe.local = types.SimpleNamespace(site='synthetic.invalid')
 frappe.get_all = Mock(return_value=['Synthetic Company'])
+frappe.get_roles = Mock(return_value=[])
 sys.modules['frappe'] = frappe
 api = importlib.import_module('darkbrown.api.migration_inventory')
 
@@ -27,6 +28,7 @@ class DownloadTests(unittest.TestCase):
     def setUp(self):
         frappe.session.user = 'Administrator'
         frappe.get_all.reset_mock()
+        frappe.get_roles.return_value = []
 
     def test_non_admin_denied_before_any_read(self):
         for user in ['Guest', 'manager@example.invalid', 'accounts@example.invalid']:
@@ -35,6 +37,26 @@ class DownloadTests(unittest.TestCase):
                 for fn in [api.context, api.download]:
                     with self.assertRaises(PermissionError): fn()
                 capture.assert_not_called()
+        frappe.get_all.assert_not_called()
+
+    def test_both_management_roles_allow_existing_account(self):
+        frappe.session.user = 'owner@example.invalid'
+        frappe.get_roles.return_value = ['System Manager', 'Managing Director']
+        self.assertEqual(json.loads(api.context().data)['message']['site'], 'synthetic.invalid')
+        with patch.object(api, 'capture', return_value={'schema_version': 2}) as capture:
+            self.assertEqual(api.download(company='Synthetic Company', expected_site='synthetic.invalid').status_code, 200)
+            capture.assert_called_once()
+        from darkbrown.migration.inventory import _admin
+        _admin(frappe)
+
+    def test_single_roles_never_grant_inventory_access(self):
+        frappe.session.user = 'owner@example.invalid'
+        from darkbrown.migration.inventory import _admin
+        for roles in [['Managing Director'], ['System Manager'], ['Accounts'], []]:
+            frappe.get_roles.return_value = roles
+            with self.assertRaises(PermissionError): api.context()
+            with self.assertRaises(PermissionError): api.download(company='Synthetic Company')
+            with self.assertRaises(PermissionError): _admin(frappe)
         frappe.get_all.assert_not_called()
 
     def test_post_only_no_guest(self):

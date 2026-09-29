@@ -1,4 +1,4 @@
-"""Administrator-only, bench-side, read-only site inventory. Not whitelisted.
+"""Permission-checked read-only site inventory. Capture itself is not whitelisted.
 
 No voucher/configuration writes, scheduler changes, cancellation or deletion.
 Private output includes identifiers; never add it to Git or a deployment ZIP.
@@ -82,9 +82,20 @@ def snapshot_checksum(snapshot):
     return digest({k: v for k, v in snapshot.items() if k not in {"captured_at", "snapshot_checksum"}})
 
 
+def can_export(frappe):
+    """Read-only export permission; never used to authorize cleanup or posting."""
+    user = frappe.session.user
+    if user == "Administrator":
+        return True
+    if not user or user == "Guest":
+        return False
+    return {"System Manager", "Managing Director"}.issubset(set(frappe.get_roles(user)))
+
+
 def _admin(frappe):
-    if frappe.session.user != "Administrator":
-        raise frappe.PermissionError("Migration inventory requires the Administrator account")
+    if not can_export(frappe):
+        raise frappe.PermissionError(
+            "Migration inventory requires Administrator or both System Manager and Managing Director roles")
 
 
 def capture(company=None, expected_site=None):
