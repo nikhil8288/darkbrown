@@ -1,13 +1,8 @@
-"""Data tools, driven from the application rather than a shell.
+"""Legacy Data API: count previews and cached job status only.
 
-Purging and reseeding is a thing the owner does, not a thing a developer does
-on his behalf, so it belongs on a screen with a button on it. These endpoints
-sit behind the Data screen at #/data.
-
-A rebuild takes minutes, which is longer than a web request should live. So
-the work is handed to a background worker and the screen polls for the log
-rather than waiting on the response. The log is kept in the cache under one
-key; starting a new run clears it.
+Only the audited stage0_check worker remains enabled. Legacy mutation and
+unaudited check/gate actions are denied at both request and worker dispatch.
+Complete migration inventory is available only through the private bench export.
 """
 
 import contextlib
@@ -20,11 +15,8 @@ LOG_KEY = "darkbrown:demo:log"
 STATE_KEY = "darkbrown:demo:state"
 WRITE_CONFIRM = "MODIFY DARKBROWN DATA"
 ACTIONS = ("purge", "seed", "verify", "rebuild",
-           # Stage 0 of the rebuild. check and gate write nothing; run is
-           # gated on the same confirmation phrase as purge.
+           # Historical action names are retained for explicit denial.
            "stage0_check", "stage0_run", "stage0_gate",
-           # Stages 1 and 2. check and gate write nothing; run writes but is
-           # refused unless check came back clean.
            "stage1_check", "stage1_run", "stage1_gate",
            "stage2_check", "stage2_run", "stage2_gate",
            "stage3_check", "stage3_run", "stage3_gate",
@@ -106,6 +98,7 @@ def residual_preview():
 def residual_sweep(confirm=None):
     """Remove the residue. Refuses on a live ledger or a loaded portfolio."""
     _guard()
+    frappe.throw(_("Legacy cleanup is retired. Use the private migration inventory and reviewed execution package."))
     from darkbrown.demo import residuals
     if confirm != residuals.CONFIRM:
         frappe.throw(_("Type the confirmation phrase exactly to go "
@@ -121,6 +114,7 @@ def residual_sweep(confirm=None):
 def start(action, confirm=None, wide=0):
     """Hand a long job to a background worker."""
     _guard()
+    _require_read_only_action(action)
     if action not in ACTIONS:
         frappe.throw(_("{0} is not a data action.").format(action))
 
@@ -167,63 +161,30 @@ def clear():
 
 # ----------------------------------------------------------------- the worker
 
+def _require_read_only_action(action):
+    # Audited call graph: stage_00_wipe.check only reads counts and links.
+    # In particular stage8/9_check create Overhead via _resolve. A suffix is
+    # not evidence that a job is read-only. No other legacy job is admitted.
+    if action != "stage0_check":
+        frappe.throw(_("This legacy action is disabled. Use the private migration inventory; only stage0_check remains supported."))
+
 def execute(action, confirm=None, wide=0, user=None):
-    """Runs in the background. Everything the demo scripts print is captured
-    line by line so the screen can show it as it happens."""
-    # Deliberately not the user who pressed the button. Seeding writes
-    # Payment Entries and Sales Invoices, and whether the MD happens to hold
-    # the ERPNext accounting roles is beside the point for a data tool. The
-    # gate is on start(), which is where it belongs.
+    """Run the one audited legacy inventory; never commit a data transaction."""
+    _require_read_only_action(action)
+    from darkbrown.load import stage_00_wipe
+    original_user = frappe.session.user
     frappe.set_user("Administrator")
-
-    from darkbrown.demo import run as run_mod
-
-    buf = _Tee()
     try:
-        with contextlib.redirect_stdout(buf):
-            if action == "purge":
-                run_mod.purge(confirm=confirm, wide=bool(wide))
-            elif action == "seed":
-                run_mod.seed()
-            elif action == "verify":
-                run_mod.verify()
-            elif action == "rebuild":
-                run_mod.rebuild(confirm=confirm, wide=bool(wide))
-            elif action.startswith("stage0_"):
-                from darkbrown.load import stage_00_wipe as w0
-                if action == "stage0_check":
-                    w0.check(wide=int(wide or 1))
-                elif action == "stage0_run":
-                    w0.run(confirm=confirm, wide=int(wide or 1))
-                else:
-                    w0.gate()
-            elif action.startswith(("stage1_", "stage2_", "stage3_",
-                                    "stage4_", "stage5_", "stage6_", "stage7_", "stage8_", "stage9_", "stage10_", "stage11_")):
-                from darkbrown.load import stage_01_landlords as s1
-                from darkbrown.load import stage_02_buildings as s2
-                from darkbrown.load import stage_03_units as s3
-                from darkbrown.load import stage_04_tenants as s4
-                from darkbrown.load import stage_05_tenancies as s5
-                from darkbrown.load import stage_06_portfolio_history as s6
-                from darkbrown.load import stage_07_owner_rent as s7
-                from darkbrown.load import stage_08_opex as s8
-                from darkbrown.load import stage_09_key_money as s9
-                from darkbrown.load import stage_10_arrears as s10
-                from darkbrown.load import stage_11_ledger as s11
-                mod = {"stage1": s1, "stage2": s2, "stage3": s3,
-                       "stage4": s4, "stage5": s5,
-                       "stage6": s6, "stage7": s7,
-                       "stage8": s8, "stage9": s9,
-                       "stage10": s10, "stage11": s11}[action.split("_", 1)[0]]
-                getattr(mod, action.split("_", 1)[1])()
-        _append("\n\nDone.\n")
+        with contextlib.redirect_stdout(_Tee()):
+            stage_00_wipe.check(wide=int(wide or 1))
         _finish("done")
     except Exception:
-        _append("\n\nSTOPPED\n" + frappe.get_traceback())
+        _append("Inventory failed; use the private migration inventory export.")
         _finish("failed")
-        frappe.log_error(frappe.get_traceback(), "darkbrown data tools")
+        raise
     finally:
-        frappe.db.commit()
+        frappe.db.rollback()
+        frappe.set_user(original_user)
 
 
 class _Tee(io.TextIOBase):

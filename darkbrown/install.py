@@ -57,10 +57,8 @@ def after_migrate():
     seed_document_requirements()
     seed_expense_chart()
     seed_accounting_foundation()
-    # Bring the current period's active agreements into Landlord Payments on
-    # deployment. The daily scheduler maintains later months idempotently.
-    from darkbrown.api.finance import generate_head_lease_bills
-    generate_head_lease_bills()
+    # Deployment is configuration-only. Financial posting belongs to the
+    # operational scheduler after cutover, never to an install/migrate hook.
     frappe.db.commit()
 
 

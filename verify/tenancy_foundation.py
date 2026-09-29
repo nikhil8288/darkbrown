@@ -119,7 +119,7 @@ def main():
     setup = Path("darkbrown/utils/accounting_setup.py").read_text()
     assert '"doctype": "GL Entry"' not in setup
     assert '"doctype": "Bank Account"' not in setup
-    assert '"account_type": "Cash"' in setup
+    assert 'account_type="Cash" if role == "petty_cash_asset" else None' in setup
     assert 'mapped.root_type == "Asset"' in setup
     shell = Path("darkbrown/shell/index.html").read_text()
     assert "end:a.end_iso" in shell

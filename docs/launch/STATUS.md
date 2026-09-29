@@ -1,5 +1,19 @@
 # DarkBrown launch status
 
+Migration preparation (2026-09-30): private static evidence extraction and rent
+preview completed; no site mutation or financial posting. Read-only inventory
+export and deterministic cleanup planning added. Execution package remains
+incomplete pending site inventory, remaining financial implementation and
+disposable ERP integration/recovery verification. See
+[migration preparation](migration-preparation.md). Do not treat this as October
+operational readiness or financial sign-off.
+
+Preparation review correction (2026-09-30): legacy check allowlist narrowed,
+parent/linked-record protections enforced, and singleton-safe inventory v2
+required. Focused synthetic regressions and preserved migrate/owner-nightly
+checks are documented in [review evidence](evidence/migration-review-fixes.md).
+Actual ERP integration and production inventory remain unavailable.
+
 | Step | Status | Evidence | Next gate |
 | --- | --- | --- | --- |
 | T00 baseline | PARTIAL | Exact Frappe 15.120.1, ERPNext 15.121.2, backup status, successful deploy/migrate and active pre-live site confirmed | Confirm individual worker/scheduler state and restore proof |

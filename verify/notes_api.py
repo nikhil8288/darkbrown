@@ -185,6 +185,15 @@ def t_decision_note_is_kept_on_approval():
     mandatory and calls it permanent; three of the five handlers discarded it
     on approve."""
     reset()
+    # Deposit approval now posts a refund journal; supply its synthetic setup
+    # so this note-persistence check reaches the approved handler behavior.
+    S.DB['Security Deposit'][0].update(company='SYN', receipt_method='Cash')
+    S.DB['Account'] = [
+        {'name': 'Deposits - SYN', 'account_name': 'Security Deposits Held',
+         'company': 'SYN', 'is_group': 0, 'root_type': 'Liability'},
+        {'name': 'Cash - SYN', 'account_name': 'Cash', 'company': 'SYN',
+         'is_group': 0, 'disabled': 0, 'root_type': 'Asset', 'account_type': 'Cash'},
+    ]
     notes_seen = {}
 
     def fake_record(dt, name, text):

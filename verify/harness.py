@@ -137,7 +137,7 @@ def t_imports():
     import importlib
     mods = []
     for f in glob.glob(REPO+'/darkbrown/**/*.py', recursive=True):
-        rel = os.path.relpath(f, REPO)[:-3].replace('/', '.')
+        rel = os.path.relpath(f, REPO)[:-3].replace(os.sep, '.')
         if rel.endswith('.__init__'): rel = rel[:-9]
         mods.append(rel)
     bad = []

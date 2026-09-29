@@ -73,9 +73,12 @@ def expect_denied(fn):
 def t_role_field_matrix():
     for role, allowed, forbidden in (
         ("Maintenance", {"buildings", "units", "jobs"}, {"tenants", "landlords", "bankAccounts"}),
-        ("Documentation", {"buildings", "units", "tenants", "agreements", "docs"}, {"landlords", "bankAccounts", "staff"}),
-        ("Accounts", {"invoices", "cheques", "bankAccounts"}, {"jobs", "staff", "docs"}),
-        ("General Manager", {"jobs", "tenants", "approvals"}, {"bankAccounts", "staff", "petty"}),
+        # Landlord document capture was added after the original launch matrix.
+        ("Documentation", {"buildings", "units", "tenants", "landlords", "agreements", "docs"}, {"bankAccounts", "staff"}),
+        # Match the current approved UI matrix also covered by harness.py;
+        # retain finance/instrument field denial and two-building tests below.
+        ("Accounts", {"invoices", "cheques", "bankAccounts", "staff", "docs"}, {"jobs", "approvals"}),
+        ("General Manager", {"jobs", "tenants", "approvals", "staff", "petty"}, {"bankAccounts", "batches", "closing"}),
     ):
         reset(role)
         got = app._allowed_sections()
@@ -164,7 +167,8 @@ def t_intake_template_escapes_stored_text_and_hides_ocr():
     shell = open(os.path.join(HERE, "..", "darkbrown", "shell", "index.html"),
                  encoding="utf-8").read()
     assert "window.DB_OCR_ENABLED" in shell
-    assert 'data-r="intake" style="display:none"' in shell
+    assert 'data-r="intake" data-feature="ocr" hidden' in shell
+    assert "n.dataset.feature==='ocr'&&window.DB_OCR_ENABLED!==true" in shell
 
 
 for name, fn in (
