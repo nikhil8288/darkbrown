@@ -52,6 +52,7 @@ def _boot():
         "role": api.role_code(),
         "user": frappe.db.get_value("User", frappe.session.user, "full_name"),
         "csrf": frappe.sessions.get_csrf_token(),
+        "inventory_admin": frappe.session.user == "Administrator",
     }
     return (
         "<script>\n"
@@ -59,6 +60,7 @@ def _boot():
         f"window.DB_ROLE={_script_json(payload['role'])};\n"
         f"window.DB_USER={_script_json(payload['user'])};\n"
         f"window.DB_CSRF={_script_json(payload['csrf'])};\n"
+        f"window.DB_INVENTORY_ADMIN={_script_json(payload['inventory_admin'])};\n"
         "window.DB_OCR_ENABLED=false;\n"
         "</script>"
     )

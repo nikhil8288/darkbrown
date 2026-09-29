@@ -5377,9 +5377,67 @@ ROUTES.reports=()=>{
     cards);
 };
 
+/* ---------------- Migration inventory (Administrator only) ---------------- */
+function migrationInventoryCard(){
+  if(!window.DB_LIVE||!window.DB_INVENTORY_ADMIN)return '';
+  return `<div class="card"><h3>Migration inventory</h3>
+    <p>Download a private inventory for migration review. This does not change accounting records.</p>
+    <button class="btn" onclick="migrationInventoryCompanies(this)">Load companies</button>
+    <select id="migration-company" aria-label="Company for migration inventory" disabled>
+      <option value="">Load companies first</option></select>
+    <button class="btn" id="migration-download" disabled onclick="migrationInventoryDownload(this)">Export migration inventory</button>
+    <p id="migration-inventory-status" role="status" aria-live="polite"></p></div>`;
+}
+let migrationInventorySite='';
+async function migrationInventoryCompanies(button){
+  const status=document.getElementById('migration-inventory-status');
+  const select=document.getElementById('migration-company');
+  const download=document.getElementById('migration-download');
+  button.disabled=true; select.disabled=true; download.disabled=true;
+  status.textContent='Loading companies…';
+  try{
+    const result=await dbCall('migration_inventory.context',{});
+    migrationInventorySite=result.site;
+    select.replaceChildren(new Option('Select company',''));
+    result.companies.forEach(name=>select.add(new Option(name,name)));
+    if(result.companies.length===1)select.value=result.companies[0];
+    select.disabled=false; download.disabled=!select.value;
+    select.onchange=()=>{download.disabled=!select.value;};
+    status.textContent=result.companies.length?'Choose your company, then export.':'No companies found.';
+  }catch(e){status.textContent='Unable to load companies. Check that you are signed in as Administrator.';}
+  finally{button.disabled=false;}
+}
+async function migrationInventoryDownload(button){
+  const select=document.getElementById('migration-company');
+  const status=document.getElementById('migration-inventory-status');
+  if(!select.value||!migrationInventorySite)return;
+  button.disabled=true; select.disabled=true;
+  status.textContent='Preparing inventory… Please keep this page open.';
+  try{
+    const response=await fetch('/api/method/darkbrown.api.migration_inventory.download',{
+      method:'POST',credentials:'same-origin',cache:'no-store',
+      headers:{'Content-Type':'application/json','X-Frappe-CSRF-Token':window.DB_CSRF||''},
+      body:JSON.stringify({company:select.value,expected_site:migrationInventorySite})
+    });
+    if(!response.ok)throw new Error('Export failed (HTTP '+response.status+').');
+    if(!(response.headers.get('Content-Disposition')||'').includes('attachment'))
+      throw new Error('The server did not return an inventory download.');
+    const blob=await response.blob();
+    const snapshot=JSON.parse(await blob.text());
+    if(snapshot.schema_version!==2||!snapshot.snapshot_checksum||!Array.isArray(snapshot.errors))
+      throw new Error('The server returned an invalid inventory.');
+    const url=URL.createObjectURL(blob), link=document.createElement('a');
+    link.href=url; link.download='darkbrown-migration-inventory.json';
+    document.body.appendChild(link); link.click(); link.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),10000);
+    status.textContent='Download ready. '+snapshot.errors.length+' inventory issues require review. Share the JSON privately with your migration reviewer.';
+  }catch(e){status.textContent=e.message+' No completed inventory was downloaded. Retry or share this error with your migration reviewer.';}
+  finally{select.disabled=false;button.disabled=!select.value;}
+}
+
 /* ---------------- Admin ---------------- */
 ROUTES.admin=()=>page('Admin','Users, roles and system rules','',
- `<div class="card"><h3>Users and roles</h3>${window.DB_LIVE
+ `${migrationInventoryCard()}<div class="card"><h3>Users and roles</h3>${window.DB_LIVE
   ?uw('These six rows are the prototype\'s cast, not your site. Real users, roles and '+
       'scopes live in Frappe and no endpoint reads them back to this screen.')
   :tbl([

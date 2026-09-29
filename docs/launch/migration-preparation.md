@@ -61,6 +61,9 @@ synthetic tests and this document, retaining repository-relative paths.
 
 ## Read-only production inventory using Frappe Cloud access
 
+For the browser alternative, see [Administrator inventory download](inventory-download.md).
+It produces the same v2 snapshot without SSH; the bench commands below remain supported.
+
 The user pushes/deploys. After deploying this preparation release, open the
 site's available SSH/bench terminal. Use the actual bench site identifier shown
 by the hosting environment; a custom domain may differ. If your Frappe Cloud

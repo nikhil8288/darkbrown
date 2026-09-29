@@ -84,7 +84,7 @@ def snapshot_checksum(snapshot):
 
 def _admin(frappe):
     if frappe.session.user != "Administrator":
-        raise frappe.PermissionError("Migration inventory requires Administrator via bench")
+        raise frappe.PermissionError("Migration inventory requires the Administrator account")
 
 
 def capture(company=None, expected_site=None):
