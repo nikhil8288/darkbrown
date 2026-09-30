@@ -29,6 +29,7 @@ import frappe
 from frappe.utils import (add_days, add_months, cint, flt, get_datetime,
                           get_first_day, get_last_day, getdate, today)
 from darkbrown.guards import guard, ACC, GM, MD
+from darkbrown.utils.portfolio_actuals import occupancy, amounts, snapshot
 
 def _k(v):
     """Money crosses to the shell in whole riyals. No scaling anywhere."""
@@ -60,8 +61,7 @@ def health():
         units = frappe.db.count("Unit", {"building": b.name})
         if not units:
             continue
-        occupied = frappe.db.count("Unit", {"building": b.name,
-                                            "status": "Occupied"})
+        occupied = sum(1 for u in occupancy().values() if u["building"] == b.name and u["status"] == "Occupied")
 
         rev = _billed(b.name, m0)
         prev = _billed(b.name, m1)
@@ -77,8 +77,7 @@ def health():
             "m": round(margin),
             "mp": (margin / rev * 100) if rev else None,
             "arr": round(_arrears(b.name)),
-            "vd": _void_days(m0, min(get_last_day(m0), getdate(today())),
-                             b.name),
+            "vd": None if snapshot() else _void_days(m0, min(get_last_day(m0), getdate(today())), b.name),
             "om": frappe.db.count("Maintenance Request", {
                 "building": b.name,
                 "status": ["in", ("Open", "Assigned", "Scheduled",
@@ -139,34 +138,15 @@ def _unissued(building, period_start):
 
 
 def _billed(building, period_start):
-    """What tenants were charged for that month in that building."""
-    return flt(frappe.db.sql("""
-        select sum(si.grand_total)
-        from `tabSales Invoice` si
-        join `tabInvoice Run Line` irl on irl.sales_invoice = si.name
-        join `tabInvoice Run` ir on ir.name = irl.parent
-        where si.docstatus = 1 and ir.building = %s and ir.period_start = %s
-    """, (building, period_start))[0][0])
+    return flt(amounts(period_start)["buildings"].get(building, {}).get("billed"))
 
 
 def _landlord_cost(building, period_start):
-    """One month of head-lease rent for leases live in that month."""
-    return flt(frappe.db.sql("""
-        select sum(round(annual_rent / 12, 2))
-        from `tabHead Lease`
-        where building = %s and status in ('Active', 'Expiring')
-          and start_date <= %s and end_date >= %s
-    """, (building, get_last_day(period_start), period_start))[0][0])
+    return flt(amounts(period_start)["buildings"].get(building, {}).get("owner_cost"))
 
 
 def _arrears(building):
-    return flt(frappe.db.sql("""
-        select sum(si.outstanding_amount)
-        from `tabSales Invoice` si
-        join `tabInvoice Run Line` irl on irl.sales_invoice = si.name
-        join `tabInvoice Run` ir on ir.name = irl.parent
-        where si.docstatus = 1 and ir.building = %s
-    """, (building,))[0][0])
+    return flt(amounts()["buildings"].get(building, {}).get("arrears"))
 
 
 def _expiry_risk(building):
@@ -261,7 +241,7 @@ def _period(months, label, compare=True):
 
     spread, pspread = billed - cost, pbilled - pcost
     units = frappe.db.count("Unit")
-    occupied = frappe.db.count("Unit", {"status": "Occupied"})
+    occupied = sum(1 for u in occupancy().values() if u["status"] == "Occupied")
 
     return {
         "spread": _k(spread),
@@ -308,27 +288,17 @@ def _billed_all(period_start):
 
 
 def _collected_all(period_start):
-    return flt(frappe.db.sql("""
-        select sum(grand_total - outstanding_amount) from `tabSales Invoice`
-        where docstatus = 1 and posting_date between %s and %s
-    """, (period_start, get_last_day(period_start)))[0][0])
+    historical = sum(flt(r.get("collected")) for r in amounts(period_start)["buildings"].values())
+    # amounts includes allocated native receipts. Add only their unallocated part.
+    unallocated = flt(frappe.db.sql("""SELECT SUM(unallocated_amount) FROM `tabPayment Entry`
+        WHERE company=%s AND docstatus=1 AND payment_type='Receive'
+          AND posting_date BETWEEN %s AND %s""",
+        (frappe.db.get_single_value('DBR Settings','default_company'),period_start,get_last_day(period_start)))[0][0])
+    return historical + unallocated
 
 
 def _landlord_all(period_start, exclude=None):
-    exclude = list(exclude or [])
-    if exclude:
-        placeholders = ", ".join(["%s"] * len(exclude))
-        return flt(frappe.db.sql(f"""
-            select sum(round(annual_rent / 12, 2)) from `tabHead Lease`
-            where status in ('Active', 'Expiring')
-              and start_date <= %s and end_date >= %s
-              and building not in ({placeholders})
-        """, [get_last_day(period_start), period_start] + exclude)[0][0])
-    return flt(frappe.db.sql("""
-        select sum(round(annual_rent / 12, 2)) from `tabHead Lease`
-        where status in ('Active', 'Expiring')
-          and start_date <= %s and end_date >= %s
-    """, (get_last_day(period_start), period_start))[0][0])
+    return sum(flt(r.get("owner_cost")) for b,r in amounts(period_start)["buildings"].items() if b not in (exclude or []))
 
 
 def _void_days(period_start, period_end, building=None):
@@ -366,6 +336,8 @@ def _void_days(period_start, period_end, building=None):
 def _void_days_months(months):
     """Void days summed over a list of month offsets, each month clipped at
     today — days that have not happened yet are not voids."""
+    if snapshot():
+        return None
     total = 0
     for m in months:
         ms = getdate(_months(m))
@@ -864,22 +836,8 @@ def _pdc_ladder():
 
 
 def _void_pipeline():
-    rows = frappe.get_all(
-        "Unit",
-        filters={"status": ["in", ("Vacant", "Not Ready", "Reserved",
-                                   "Under Maintenance")]},
-        fields=["name", "building", "status"])
-    out = []
-    for u in rows:
-        rent = flt(frappe.db.sql("""
-            select avg(monthly_rent) from `tabTenancy Agreement`
-            where building = %s and status in ('Active','Expiring')
-        """, (u.building,))[0][0])
-        out.append({"u": u.name, "b": u.building, "stage": u.status,
-                    "days": None,               # not tracked
-                    "bleed": _k(rent)})
-    out.sort(key=lambda x: -(x["bleed"] or 0))
-    return out
+    return [{"u":name,"b":u["building"],"stage":"Vacant","days":None,"bleed":None}
+            for name,u in occupancy().items() if u["status"]=="Vacant"]
 
 
 def _expiry_runway():

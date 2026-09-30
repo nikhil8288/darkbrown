@@ -94,6 +94,9 @@ def buildings():
     for u in frappe.get_all("Unit", fields=["name", "building", "status"]):
         units_by_b.setdefault(u.building, []).append(u)
 
+    from darkbrown.utils.portfolio_actuals import occupancy, amounts
+    observed = occupancy()
+    actual = amounts()
     rent_by_b, arrears_by_b = _tenancy_rollup()
     hl_by_b = _headlease_rollup()
 
@@ -101,12 +104,13 @@ def buildings():
     for b in rows:
         us = units_by_b.get(b.name, [])
         total = len(us) or (b.total_units or 0)
-        occupied = len([u for u in us if u.status == "Occupied"])
+        occupied = len([u for u in us if observed.get(u.name, {}).get("status") == "Occupied"])
         vacant = [u for u in us if u.status in ("Vacant", "Not Ready",
                                                 "Reserved")]
-        rev = _k(rent_by_b.get(b.name, 0))
+        money = actual["buildings"].get(b.name, {})
+        rev = _k(money.get("billed", 0))
         hl = hl_by_b.get(b.name, {})
-        cost = _k(hl.get("monthly", 0))
+        cost = _k(money.get("owner_cost", 0))
         margin = round(rev - cost, 1)
         out.append({
             "id": b.name,
@@ -119,8 +123,11 @@ def buildings():
             # Zero made a building losing its whole head-lease cost
             # read as break-even.
             "mp": round(margin / rev * 100, 1) if rev else None,
-            "arr": _k(arrears_by_b.get(b.name, 0)),
-            "vd": len(vacant),
+            "arr": _k(money.get("arrears", 0)),
+            "collected": _k(money.get("collected", 0)),
+            "actualPeriod": actual["period"],
+            "occupancyBasis": "Latest source observation; agreements pending",
+            "vd": None,
             "om": 0,
             "ex": 0,
             "occ": round(occupied / total * 100) if total else 0,
@@ -202,10 +209,15 @@ def units():
         filters={"status": ["in", ("Active", "Expiring")]},
         fields=["unit", "monthly_rent"])}
 
+    from darkbrown.utils.portfolio_actuals import occupancy, amounts
+    observed = occupancy()
+    actual = amounts()
     out = []
     for u in rows:
+        observation = observed.get(u.name, {})
+        money = actual["units"].get(u.name, {})
         vacant = u.status in ("Vacant", "Not Ready", "Reserved")
-        rent = _k(rent_by_unit.get(u.name, 0))
+        rent = observation.get("rent")
         out.append({
             "id": u.name,
             "b": u.building,
@@ -214,9 +226,15 @@ def units():
             "floor": u.floor or "—",
             "sqm": round(flt(u.area_sqm)) or 0,
             "rent": rent,
-            "llRent": round(rent * 0.78, 1),
-            "st": UNIT_STATE.get(u.status, u.status or "Vacant"),
-            "vd": date_diff(today(), u.modified) if vacant else 0,
+            "llRent": None,
+            "tenant": observation.get("tenant", ""),
+            "basis": observation.get("basis", ""),
+            "collected": _k(money.get("collected", 0)),
+            "billed": _k(money.get("billed", 0)),
+            "arrears": _k(money.get("arrears", 0)),
+            "actualPeriod": actual["period"],
+            "st": UNIT_STATE.get(observation.get("status"), observation.get("status", "Unknown")),
+            "vd": None,
         })
     return out
 
@@ -1645,11 +1663,9 @@ def _spread(s):
         "Sales Invoice",
         filters={"docstatus": 1, "posting_date": [">=", start]},
         fields=["grand_total"]))
-    cost = sum(flt(h.monthly_rent) for h in frappe.get_all(
-        "Head Lease",
-        filters={"status": ["in", ("Active", "Expiring")]},
-        fields=["building", "monthly_rent"])
-        if h.building not in pending)
+    from darkbrown.utils.portfolio_actuals import amounts
+    cost = sum(flt(v.get('owner_cost')) for b,v in amounts(start)['buildings'].items()
+               if b not in pending)
 
     if pending:
         names = _building_names(list(pending.keys()))

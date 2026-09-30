@@ -4325,6 +4325,7 @@ ROUTES.buildings=()=>{
  const f=qs().f||'';
  const rows=f==='exp90'?BUILDINGS.filter(b=>within(b.hlEnd,90)):BUILDINGS;
  return page('Buildings',`${BUILDINGS.length} buildings · ${UNITS.length} units · sublease portfolio`,'',
+ `<div class="note">Occupancy: latest supplied September records; agreement review pending. Money: posted documents for ${BUILDINGS[0]?.actualPeriod||'current month'}. Historical collections use the source month; bank dates remain unverified. Unknown units are not assumed vacant.</div>`+
  `<div class="card wiz"><div class="wz">
    <div><h3 style="margin-bottom:4px">Onboard a building</h3>
     <p class="pp">One pass captures the property, the landlord as a party, the documents, the head-lease terms and every unit number.
@@ -4339,7 +4340,8 @@ ROUTES.buildings=()=>{
  searchbox('bl','Search by building, area or landlord')+
  `<div class="card">${rows.length?tbl([
   {h:'Building',v:b=>b.n},{h:'Area',v:b=>b.area},{h:'Landlord',v:b=>b.ll},
-  {h:'Units',r:1,mono:1,v:b=>b.units},{h:'Revenue',r:1,mono:1,v:b=>k(b.rev)},
+  {h:'Units',r:1,mono:1,v:b=>b.units},{h:'Occupied %',r:1,v:b=>b.occ+'%'},
+  {h:'Billed',r:1,mono:1,v:b=>k(b.rev)},{h:'Collected',r:1,mono:1,v:b=>k(b.collected||0)},
   {h:'Head-lease',r:1,mono:1,v:b=>k(b.cost)},{h:'Margin',r:1,mono:1,v:b=>k(b.m)},
   {h:'Margin %',r:1,mono:1,v:b=>mpTxt(b),style:b=>mpBad(b,18)?'color:var(--red)':'color:var(--em)'},
   {h:'Lease ends',r:1,v:b=>b.hlEnd}],
@@ -4373,7 +4375,7 @@ ROUTES.building=id=>{const b=id?B(id):BUILDINGS[0]; if(!b) return notFound('Buil
   stat([['Status',chip(b.st||'—',b.st==='Active'?'g':b.st==='Onboarding'?'a':'n')],
    ['Handover',b.ho||'—'],
    ['Units',b.units],['Occupied',us.filter(u=>u.st==='Occupied').length+' / '+b.units],
-   ['Monthly revenue',n0(b.rev)],['Head-lease rent',n0(b.cost)],
+   ['Billed this month',n0(b.rev)],['Collected this month',n0(b.collected||0)],['Posted owner rent',n0(b.cost)],
    ['Margin',n0(b.m)+' · '+mpTxt(b),'',mpBad(b,14)?'r':'g'],['Arrears',n0(b.arr),'',b.arr>30000?'r':''],
    ['Vacant days',b.vd,'',b.vd>20?'a':''],['Head-lease ends',b.hlEnd]])+
   `<div class="grid2">
@@ -4382,7 +4384,7 @@ ROUTES.building=id=>{const b=id?B(id):BUILDINGS[0]; if(!b) return notFound('Buil
     /* The tenant and the expiry used to be readable here only from the
        agreements table underneath, which the files panel replaced. They are
        facts about the door, so they belong on the door's row. */
-    {h:'Tenant',v:u=>{const a=uAgr(u.id);return a?a.tn:'\u2014'}},
+    {h:'Tenant',v:u=>esc(u.tenant||'—')},
     {h:'Ends',r:1,v:u=>{const a=uAgr(u.id);return a?a.end:'\u2014'}},
     {h:'Rent',r:1,mono:1,v:u=>n0(u.rent)},{h:'Status',v:u=>chip(u.st,stChip(u.st))}],
     us.map(u=>({...u,__id:u.id})),{id:'bu',click:'openU'})}</div>
@@ -4397,16 +4399,19 @@ ROUTES.units=()=>{
  const f=qs().st||'';
  const rows=f?UNITS.filter(u=>u.st===f):UNITS;
  return page('Units',`${UNITS.length} units across ${BUILDINGS.length} buildings`,'',
+ `<div class="note">Occupancy: latest supplied September records; agreement review pending. Money: posted documents for ${BUILDINGS[0]?.actualPeriod||'current month'}. Historical collections use the source month; bank dates remain unverified. Unknown units are not assumed vacant.</div>`+
  stat([['Total',UNITS.length,'','',{k:'st',v:''}],
   ['Occupied',UNITS.filter(u=>u.st==='Occupied').length,'','',{k:'st',v:'Occupied'}],
+  ['Unknown',UNITS.filter(u=>u.st==='Unknown').length,'','a',{k:'st',v:'Unknown'}],
   ['Vacant',UNITS.filter(u=>u.st==='Vacant').length,'',
   'r',{k:'st',v:'Vacant'}],['On notice',UNITS.filter(u=>u.st==='Notice').length,'','a',{k:'st',v:'Notice'}]])+
  (f?fchip(f.toLowerCase()+' units only','st'):'')+
  `<div class="card">${rows.length?tbl([
   {h:'Unit',v:u=>u.id},{h:'Building',v:u=>u.bn},{h:'Type',v:u=>u.type},
   {h:'Floor',r:1,mono:1,v:u=>u.floor},{h:'Sqm',r:1,mono:1,v:u=>u.sqm},
-  {h:'Tenant rent',r:1,mono:1,v:u=>n0(u.rent)},{h:'Landlord cost',r:1,mono:1,v:u=>n0(u.llRent)},
-  {h:'Spread',r:1,mono:1,v:u=>'+'+n0((u.rent-u.llRent)),style:()=>'color:var(--em)'},
+  {h:'Tenant',v:u=>esc(u.tenant||'—')},{h:'Reported rent',r:1,mono:1,v:u=>u.rent==null?'—':n0(u.rent)},
+  {h:'Billed',r:1,mono:1,v:u=>n0(u.billed||0)},{h:'Collected',r:1,mono:1,v:u=>n0(u.collected||0)},
+  {h:'Outstanding',r:1,mono:1,v:u=>n0(u.arrears||0)},
   {h:'Status',v:u=>chip(u.st,stChip(u.st))},{h:'Vacant days',r:1,mono:1,v:u=>u.vd||'—'}],
   rows.map(u=>({...u,__id:u.id})),{id:'ul',click:'openU',
    foot:[f?rows.length+' of '+UNITS.length+' units':UNITS.length+' units',
@@ -4427,10 +4432,10 @@ ROUTES.unit=id=>{const u=id?U(id):UNITS[0]; if(!u) return notFound('Unit','#/uni
      than as a panel about a document. An occupied unit with no agreement on
      file says so — it does not print a dash and leave you to notice. */
   stat([['Status',chip(u.st,stChip(u.st))],
-   ['Tenant',ag?ag.tn:(u.st==='Occupied'?'not on file':'—'),'',
+   ['Tenant',esc(u.tenant||'—'),'',
     (!ag&&u.st==='Occupied')?'a':''],
-   ['Tenant rent',n0(u.rent)],['Landlord cost',n0(u.llRent)],
-   ['Monthly spread','+'+n0((u.rent-u.llRent)),'','g'],
+   ['Reported rent',u.rent==null?'—':n0(u.rent)],['Billed this month',n0(u.billed||0)],
+   ['Collected this month',n0(u.collected||0)],['Outstanding',n0(u.arrears||0)],['Occupancy basis',esc(u.basis||'—')],
    ['Agreement',ag?ag.id:'—'],['Started',ag?ag.start:'—'],
    ['Ends',ag?ag.end:'—','',ag&&ag.endD<90?'a':''],
    ['Deposit held',ag?n0(ag.dep):'—'],['Payment',ag?ag.freq+' · '+ag.mode:'—'],
@@ -7913,7 +7918,8 @@ ROUTES.portfolioplan=()=>page('Portfolio plan','Every building against the sprea
  `<div class="note">A building below the threshold for four consecutive quarters becomes an exit question for the MD.
    Filling a vacancy is the cheaper lever and is always tried first.</div>
  <div class="card" id="sec-b"><h3>Buildings against the 18% threshold</h3>${tbl([
-  {h:'Building',v:b=>b.n},{h:'Units',r:1,mono:1,v:b=>b.units},{h:'Revenue',r:1,mono:1,v:b=>k(b.rev)},
+  {h:'Building',v:b=>b.n},{h:'Units',r:1,mono:1,v:b=>b.units},{h:'Occupied %',r:1,v:b=>b.occ+'%'},
+  {h:'Billed',r:1,mono:1,v:b=>k(b.rev)},{h:'Collected',r:1,mono:1,v:b=>k(b.collected||0)},
   {h:'Head-lease',r:1,mono:1,v:b=>k(b.cost)},{h:'Margin',r:1,mono:1,v:b=>k(b.m)},
   {h:'Margin %',r:1,mono:1,v:b=>mpTxt(b),
    style:b=>mpBad(b,18)?'color:var(--red)':b.mp<24?'color:var(--amber)':'color:var(--em)'},
