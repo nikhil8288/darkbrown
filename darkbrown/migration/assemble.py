@@ -61,7 +61,7 @@ def contract_review(masters, rent_events):
             reason = 'no_september_rent'
         elif event['party'] != v['tenant']:
             reason = 'different_september_party'
-        elif Decimal(event['amount']) != Decimal(v['monthly_rent']):
+        elif Decimal(event['amount']) != Decimal(str(v['monthly_rent'])):
             reason = 'different_rent'
         elif not (v['start_date'] <= '2026-10-01' <= v['end_date']):
             reason = 'contract_not_current_at_cutover'
