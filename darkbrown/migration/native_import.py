@@ -156,6 +156,13 @@ def post_event(frappe,batch,event):
     return {'doctype':doctype,'name':doc.name,'created':True}
 
 
+def same_master_value(meta, field, actual, expected):
+    definition = meta.get_field(field)
+    if definition and definition.fieldtype in {'Currency', 'Float', 'Percent', 'Int', 'Check'}:
+        return Decimal(str(actual or 0)) == Decimal(str(expected or 0))
+    return str(actual or '') == str(expected or '')
+
+
 def import_batch(frappe,batch):
     """Run inside caller's approved transaction/lock. Caller MUST rollback errors."""
     validate_batch(batch)
@@ -171,7 +178,8 @@ def import_batch(frappe,batch):
     for master in batch.get('masters',[]):
         if frappe.db.exists(master['doctype'],master['name']):
             doc=frappe.get_doc(master['doctype'],master['name'])
-            if any(str(doc.get(k) or '')!=str(v or '') for k,v in master['values'].items()):
+            meta = frappe.get_meta(master['doctype'])
+            if any(not same_master_value(meta, k, doc.get(k), v) for k,v in master['values'].items()):
                 raise ValueError('Existing master differs; revision review required')
             continue
         doc=frappe.get_doc({'doctype':master['doctype'],**master['values']})

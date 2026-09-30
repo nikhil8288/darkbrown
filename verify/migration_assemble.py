@@ -28,6 +28,22 @@ class AssemblyTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             contract_review(masters, [event, event])
 
+class CorrectionTests(unittest.TestCase):
+    def test_private_override_binds_original_and_period(self):
+        from decimal import Decimal
+        from darkbrown.migration.expense_batch import approved_amount
+        rule = {'7:2026-07': {'original': '10', 'approved': '12', 'approval_reference': 'Synthetic approval'}}
+        self.assertTrue(approved_amount(7, '2026-07', Decimal('10'), Decimal('12'), rule))
+        self.assertFalse(approved_amount(7, '2026-08', Decimal('10'), Decimal('12'), rule))
+        self.assertFalse(approved_amount(7, '2026-07', Decimal('11'), Decimal('12'), rule))
+
+    def test_native_currency_round_trip_preserves_idempotency(self):
+        from types import SimpleNamespace
+        from darkbrown.migration.native_import import same_master_value
+        meta = SimpleNamespace(get_field=lambda field: SimpleNamespace(fieldtype='Currency'))
+        self.assertTrue(same_master_value(meta, 'monthly_rent', 100.0, '100.00'))
+        self.assertFalse(same_master_value(meta, 'monthly_rent', 101.0, '100.00'))
+
 
 if __name__ == '__main__':
     unittest.main()
