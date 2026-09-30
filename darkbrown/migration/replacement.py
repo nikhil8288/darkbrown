@@ -26,11 +26,13 @@ def load_approved(file_name, checksum, approval):
     if not doc.is_private:
         raise ValueError('Private rehearsal report required')
     report = json.loads(doc.get_content())
-    if (report.get('source_bundle_checksum') != checksum
-            or report.get('status') != 'PASSED_ROLLBACK_REHEARSAL'
-            or report.get('rollback_verified') is not True
-            or report.get('committed_business_data') is not False):
-        raise ValueError('Matching successful rollback rehearsal required')
+    if report.get('source_bundle_checksum') != checksum or report.get('committed_business_data') is not False:
+        raise ValueError('Matching non-committing rehearsal required')
+    if report.get('status') != 'PASSED_ROLLBACK_REHEARSAL' or report.get('rollback_verified') is not True:
+        from darkbrown.migration.recovery import verify as verify_recovery
+        recovery = verify_recovery(frappe, approval['rehearsal_report'], bundle, checksum)
+        if approval.get('recovery_checksum') != digest(recovery):
+            raise ValueError('Independent exact business recovery must be reviewed')
     plan = report['reset_plan']
     if approval.get('reset_checksum') != plan['reset_checksum']:
         raise ValueError('Exact reviewed deletion scope changed')
