@@ -1554,6 +1554,15 @@ def _cover(s):
     is not, so it is discounted by the collection rate actually achieved
     rather than taken at face value.
     """
+    from darkbrown.utils.reporting_status import status as reporting_status
+    company = frappe.get_single('DBR Settings').default_company
+    rs = reporting_status(company)
+    if rs['draft_leases'] or rs['reconstruction_pending']:
+        return {'id':'cover','label':'Obligation cover','value':'—','band':'grey',
+                'sub':'Unavailable: contract review and historical settlement reconciliation are pending.',
+                'means':'This is not a statement that no rent is owed.',
+                'why':'Open historical bills and draft agreements do not yet establish a complete payment forecast.',
+                'act':'Review landlord balances','go':'#/landlordpayments'}
     days = int(s.wall_cover_days or 60)
     horizon = add_days(today(), days)
 

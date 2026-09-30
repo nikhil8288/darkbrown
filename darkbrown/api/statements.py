@@ -47,6 +47,7 @@ statement that is correct and a statement that merely renders.
 import frappe
 from frappe.utils import flt, getdate, today, add_months, add_days
 from darkbrown.guards import guard, ACC, GM, MD
+from darkbrown.utils.reporting_status import status as reporting_status
 
 #: Ceiling on the accounts pulled for the tree. The chart is a few hundred.
 ACCOUNT_CAP = 2000
@@ -352,7 +353,8 @@ def profit_and_loss(frm=None, to=None):
         "expense": expense,
         "net": net,
         "margin": pct(net),
-        "frm": frm, "to": to, "company": company}
+        "frm": frm, "to": to, "company": company,
+        "notes": reporting_status(company)["notes"]}
 
 
 # ------------------------------------------------------------ balance sheet
@@ -397,7 +399,8 @@ def balance_sheet(as_on=None):
             "equity": equity["total"], "unclosed": unclosed,
             "difference": round(left - right, 2),
             "balanced": abs(left - right) < 0.01,
-            "as_on": as_on, "company": company}
+            "as_on": as_on, "company": company,
+            "notes": reporting_status(company)["notes"]}
 
 
 # ---------------------------------------------------------------- cash flow
@@ -475,6 +478,7 @@ def cash_flow(frm=None, to=None):
         return {"buckets": [], "opening": 0.0, "closing": 0.0, "net": 0.0,
                 "reconciled": True, "difference": 0.0, "frm": frm, "to": to,
                 "company": company, "accounts": [], "excluded": excluded,
+                "notes": reporting_status(company)["notes"],
                 "note": "No account on this company is typed Cash or Bank."}
 
     names = list(cash)
@@ -573,4 +577,5 @@ def cash_flow(frm=None, to=None):
             "vouchers": len(vouchers),
             "accounts": sorted(n["label"] for n in cash.values()),
             "excluded": excluded,
-            "frm": frm, "to": to, "company": company}
+            "frm": frm, "to": to, "company": company,
+        "notes": reporting_status(company)["notes"]}

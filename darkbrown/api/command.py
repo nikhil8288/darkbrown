@@ -29,7 +29,8 @@ import frappe
 from frappe.utils import (add_days, add_months, cint, flt, get_datetime,
                           get_first_day, get_last_day, getdate, today)
 from darkbrown.guards import guard, ACC, GM, MD
-from darkbrown.utils.portfolio_actuals import occupancy, amounts, snapshot
+from darkbrown.utils.portfolio_actuals import occupancy, amounts, snapshot, company
+from darkbrown.utils.reporting_status import status as reporting_status
 
 def _k(v):
     """Money crosses to the shell in whole riyals. No scaling anywhere."""
@@ -82,7 +83,7 @@ def health():
                 "building": b.name,
                 "status": ["in", ("Open", "Assigned", "Scheduled",
                                   "In Progress")]}),
-            "ex": _expiry_risk(b.name),
+            "ex": None if reporting_status(company())["draft_tenancies"] else _expiry_risk(b.name),
             "d": ((rev - prev) / prev * 100) if prev else 0.0,
             # Rent that is contracted and drafted but not yet issued.
             # Without this a building whose run is waiting on approval
@@ -174,7 +175,7 @@ def kpis():
     for key, months, label in (
             ("jul", [0], _label(0)),
             ("jun", [-1], _label(-1)),
-            ("q3", [-2, -1, 0], f"{_label(-2)} – {_label(0)}"),
+            ("q3", _quarter_months(), "Quarter to date"),
             ("ytd", _ytd_months(), "Year to date"),
             ("life", _lifetime_months(), "Lifetime")):
         # Lifetime has no prior period to move against - the window before the
@@ -205,6 +206,10 @@ def _lifetime_months():
     n = (now.year - start.year) * 12 + now.month - start.month
     n = max(0, min(n, LIFETIME_CAP))
     return list(range(-n, 1))
+
+
+def _quarter_months():
+    return list(range(-((getdate(today()).month - 1) % 3), 1))
 
 
 def _ytd_months():
@@ -256,11 +261,11 @@ def _period(months, label, compare=True):
                   - ((pcollected / pbilled * 100) if pbilled else 0.0))
                  if compare else None,
         "arr": _k(_arrears_all()),
-        "arrD": 0.0,
+        "arrD": None,
         "cash": _declared_cash(),     # a declared fact, or None — never the
         "cashD": None,                # swept bank balance (module note)
         "pdc30": _k(_pdc_due(30)),
-        "ll30": _k(_landlord_due(30)),
+        "ll30": None if reporting_status(company())["draft_leases"] else _k(_landlord_due(30)),
         "vd": _void_days_months(months),
         "vdD": None,                  # no prior-period delta until a full
                                       # comparison window exists — a fake
@@ -436,6 +441,8 @@ def panels():
         "overrides": _override_log(),
         "closing": _closing(),
         "unmatched": _unmatched_panel(),
+        "reportingStatus": reporting_status(company()),
+        "financialPeriods": _financial_periods(),
     }
 
 
@@ -588,54 +595,44 @@ def _runway_flows():
     return res
 
 
-def _waterfall():
-    """This month's spread bridge from recorded costs only. Bank-side costs
-    have no equity/operating split until Q21 is answered, so they are not
-    here and the end bar is named for what it is — the spread after recorded
-    costs, not a net margin."""
-    m0 = _months(0)
-    held = unbilled_buildings(m0)
-    gross = _billed_all(m0)
-    landlord = _landlord_all(m0, exclude=held)
-    mnt = frappe.db.sql("""
-        select ifnull(sum(cost),0) c,
-               ifnull(sum(case when rechargeable=1 then recharge_amount end),0) r
-        from `tabMaintenance Request`
-        where date(reported_on) between %s and %s
-    """, (m0, get_last_day(m0)), as_dict=True)[0]
-    utl = frappe.db.sql("""
-        select ifnull(sum(ub.amount),0) paid,
-               ifnull((select sum(uba.amount)
-                       from `tabUtility Bill Allocation` uba
-                       join `tabUtility Bill` ub2 on ub2.name = uba.parent
-                       where uba.sales_invoice is not null
-                         and ub2.period_end between %s and %s), 0) rec
-        from `tabUtility Bill` ub
-        where ub.period_end between %s and %s
-    """, (m0, get_last_day(m0), m0, get_last_day(m0)), as_dict=True)[0]
-    maint_net = flt(mnt.c) - flt(mnt.r)
-    util_net = flt(utl.paid) - flt(utl.rec)
-    # Staff and petty cash are portfolio overhead (D74, D79), so they land
-    # here rather than being pushed down into building margin. They share one
-    # bar: petty cash is small beside payroll and a separate bar for it would
-    # be a sliver against a seventh set of labels the box cannot fit. The
-    # split is returned alongside so the panel can name both.
-    from darkbrown.api.people import monthly_staff_cost
-    from darkbrown.api.pettycash import spend_between
-    staff = monthly_staff_cost(m0)
-    petty = spend_between(m0, get_last_day(m0))
-    overhead = staff + petty
-    return {
-        "gross": _k(gross),
-        "landlord": _k(landlord),
-        "maintNet": _k(maint_net),
-        "utilNet": _k(util_net),
-        "overhead": _k(overhead),
-        "staff": _k(staff),
-        "petty": _k(petty),
-        "spread": _k(gross - landlord - maint_net - util_net - overhead),
-        "held": len(held),
-    }
+def _waterfall(frm=None, to=None):
+    """The same trading ledger and grouping as the standalone P&L."""
+    from darkbrown.api.statements import profit_and_loss
+    frm = frm or _months(0)
+    to = to or min(get_last_day(frm), getdate(today()))
+    pl = profit_and_loss(frm=frm, to=to)
+    return {'gross':pl['income'], 'expense':pl['expense'], 'spread':pl['net'],
+            'groups':pl['groups'], 'frm':pl['frm'], 'to':pl['to'],
+            'notes':pl.get('notes', []), 'source':'general_ledger'}
+
+
+def _financial_periods():
+    """Period-specific trading; occupancy and open balances stay current."""
+    periods = {'jul':[0], 'jun':[-1], 'q3':_quarter_months(),
+               'ytd':_ytd_months(), 'life':_lifetime_months()}
+    out = {}
+    co = company()
+    for key, offsets in periods.items():
+        frm = _months(min(offsets))
+        to = min(get_last_day(_months(max(offsets))), getdate(today()))
+        totals = frappe.db.sql("""SELECT b.name building,
+            SUM(CASE WHEN a.root_type='Income' THEN g.credit-g.debit ELSE 0 END) revenue,
+            SUM(CASE WHEN a.account_name='Head Lease Rent' THEN g.debit-g.credit ELSE 0 END) owner_cost
+            FROM `tabGL Entry` g JOIN `tabAccount` a ON a.name=g.account
+            JOIN `tabBuilding` b ON b.cost_center=g.cost_center AND b.company=g.company
+            WHERE g.company=%s AND g.is_cancelled=0 AND g.posting_date BETWEEN %s AND %s
+              AND g.voucher_type!='Period Closing Voucher' GROUP BY b.name""", (co,frm,to),as_dict=True)
+        collections = frappe.db.sql("""SELECT
+            SUM(total_debit) total,
+            SUM(CASE WHEN db_migration_event LIKE '%%:previous_due_received'
+                THEN total_debit ELSE 0 END) undated_prior
+            FROM `tabJournal Entry` WHERE company=%s AND docstatus=1
+              AND db_migration_kind='collection' AND posting_date BETWEEN %s AND %s""", (co,frm,to),as_dict=True)[0]
+        out[key] = {'frm':str(frm), 'to':str(to), 'waterfall':_waterfall(frm,to),
+            'buildings':{r.building:{'rev':flt(r.revenue), 'cost':flt(r.owner_cost)} for r in totals},
+            'historical_collections':flt(collections.total),
+            'undated_prior_collections':flt(collections.undated_prior)}
+    return out
 
 
 def _renewal_uplift():
@@ -731,6 +728,11 @@ def _exceptions():
     exist. Nothing here is a new judgement — each line restates a fact the
     system holds somewhere less visible."""
     out = []
+    rs = reporting_status(company())
+    if rs["reconstruction_pending"]:
+        out.append({"s":"a", "t":"Historical accounts and opening balances remain under reconciliation", "w":"open", "go":"#/bs"})
+    if rs["draft_leases"] or rs["draft_tenancies"]:
+        out.append({"s":"a", "t":"Contract review pending; billing and obligation forecasts are incomplete", "w":"open", "go":"#/agreements"})
     for r in frappe.get_all(
             "Cheque",
             filters={"returned_on": [">=", add_days(today(), -7)]},
