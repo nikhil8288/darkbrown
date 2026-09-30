@@ -13,7 +13,7 @@ def verify_idle_site(frappe):
     if (current and frappe.session.user == 'Administrator'
             and current.kwargs.get('site') == site
             and current.kwargs.get('user') == 'Administrator'
-            and current.kwargs.get('method') == 'darkbrown.migration.rehearsal.run'):
+            and current.kwargs.get('method') in {'darkbrown.migration.rehearsal.run', 'darkbrown.migration.replacement.run'}):
         own_id = current.id
     def belongs(job):
         owner=job.kwargs.get('site')

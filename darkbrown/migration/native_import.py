@@ -163,10 +163,16 @@ def same_master_value(meta, field, actual, expected):
     return str(actual or '') == str(expected or '')
 
 
-def import_batch(frappe,batch):
+def approved_provisional_scope(batch, approval):
+    return bool(approval and approval.get("batch_checksum") == batch["batch_checksum"]
+        and approval.get("exception_checksum") == digest([batch.get("exceptions", []), batch.get("contract_review", []), batch.get("blocking_items", [])])
+        and approval.get("confirmation") == "IMPORT SUPPORTED HISTORY AS PROVISIONAL")
+
+
+def import_batch(frappe,batch, approved_scope=None):
     """Run inside caller's approved transaction/lock. Caller MUST rollback errors."""
     validate_batch(batch)
-    if batch.get('complete_replacement') is not True:
+    if batch.get('complete_replacement') is not True and not approved_provisional_scope(batch, approved_scope):
         raise ValueError('Replacement dataset is incomplete; resolve or explicitly approve its remaining scope before posting')
     if str(frappe.local.site)!=batch['site']:raise ValueError('Wrong site')
     if frappe.db.get_value('Company',batch['company'],'default_currency')!='QAR':raise ValueError('Wrong company currency')
