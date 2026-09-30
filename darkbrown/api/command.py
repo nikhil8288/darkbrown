@@ -56,9 +56,9 @@ def health():
     rows = []
     m0, m1 = _months(0), _months(-1)
 
-    for b in frappe.get_all("Building",
-                            filters={"status": ["!=", "Exited"]},
-                            fields=["name", "cost_center"]):
+    # Exited buildings retain historical trading and unpaid balances.
+    # Buildings without units are excluded below (including retained test references).
+    for b in frappe.get_all("Building", fields=["name", "cost_center", "status"]):
         units = frappe.db.count("Unit", {"building": b.name})
         if not units:
             continue
@@ -71,6 +71,7 @@ def health():
 
         rows.append({
             "n": b.name,
+            "exited": b.status == "Exited",
             "u": units,
             "occ": round(occupied / units * 100) if units else 0,
             "rev": round(rev),

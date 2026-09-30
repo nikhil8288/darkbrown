@@ -2577,7 +2577,7 @@ function renderPortfolio(){
    <th class="r" onclick="pfSort('d')">Δ MoM</th></tr>`;
   for(const b of PF_view){
     const un=(!b.rev&&b.unbilled)?b.unbilled:0;
-    h+=`<tr class="drill" onclick="go('#/buildings')"><td>${b.n}${un?` <span class="tag amb">NOT ISSUED</span>`:''}</td><td class="r num">${b.u}</td>
+    h+=`<tr class="drill" onclick="go('#/buildings')"><td>${b.n}${b.exited?' <span class="tag">EXITED</span>':''}${un?` <span class="tag amb">NOT ISSUED</span>`:''}</td><td class="r num">${b.u}</td>
      <td class="r num" ${un?`title="${n0(un)} raised but the invoice run has not been issued"`:''}>${un?`0 <span style="font:500 10px var(--mono);color:var(--amber)">${n0(un)} held</span>`:n0(b.rev)}</td>
      <td class="r num">${n0(b.cost)}</td><td class="r num">${n0(b.m)}</td>
      <td class="r num" style="color:${!b.rev?'var(--red)':b.mp<12?'var(--red)':b.mp<16?'var(--amber)':'var(--teal)'}">${mpTxt(b)}</td>
