@@ -1100,7 +1100,8 @@ def invoices():
         fields=_has("Sales Invoice", [
             "name", "customer", "grand_total", "outstanding_amount",
             "due_date", "status", "docstatus", "creation", "modified",
-            "custom_rental_agreement", "custom_billing_period"]),
+            "custom_rental_agreement", "custom_billing_period",
+            "db_migration_building", "db_migration_unit_label"]),
         order_by="due_date desc", limit=1000)
     if not rows:
         return []
@@ -1150,7 +1151,8 @@ def invoices():
             l.tenancy_agreement for l in link.values()
             if l.tenancy_agreement})]},
         fields=["name", "building", "unit"])} if (agreements or link) else {}
-    bnames = _building_names([t.building for t in ta_b.values()])
+    bnames = _building_names([t.building for t in ta_b.values()] +
+                            [r.get("db_migration_building") for r in rows if r.get("db_migration_building")])
 
     cancelled = [r.name for r in rows if r.docstatus == 2]
     cancel_reason = {}
@@ -1214,9 +1216,9 @@ def invoices():
             "tn": tnames.get(si.customer, si.customer),
             "a": l.tenancy_agreement if l else (si.get("custom_rental_agreement") or "—"),
             "run": l.parent if l else None,
-            "b": ta.building if ta else "—",
-            "bn": bnames.get(ta.building, "—") if ta else "—",
-            "u": (l.unit if l and l.unit else ta.unit if ta else "—"),
+            "b": ta.building if ta else (si.get("db_migration_building") or "—"),
+            "bn": bnames.get(ta.building if ta else si.get("db_migration_building"), "—"),
+            "u": (l.unit if l and l.unit else ta.unit if ta else si.get("db_migration_unit_label") or "—"),
             "amt": _k(si.grand_total),
             "paid": _k(paid),
             "balance": 0 if si.docstatus == 2 else _k(si.outstanding_amount),

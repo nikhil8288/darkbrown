@@ -1356,6 +1356,10 @@ def landlord_payments():
                     "amount": amount,
                     "status": "Needs review" if r.docstatus == 0 else "Outstanding",
                     "due_date": str(r.due_date or "")})
+    from darkbrown.migration.owner_view import rows as historical_owner_bills
+    existing_invoices = {r["invoice"] for r in out}
+    out.extend(r for r in historical_owner_bills(frappe, scope)
+               if r["invoice"] not in existing_invoices)
     # A landlord is visible even when no monthly bill has been generated.
     # Outstanding means submitted unpaid bills, not the monthly rent estimate.
     represented = {(r["building"], r["landlord"]) for r in out}
@@ -1408,9 +1412,15 @@ def record_landlord_payment(payload):
                   "FOR UPDATE", (invoice,))
     pi = frappe.get_doc("Purchase Invoice", invoice)
     lease_name = pi.get("custom_landlord_contract")
-    if pi.docstatus != 1 or not lease_name or flt(pi.outstanding_amount) <= 0:
+    if pi.docstatus != 1 or flt(pi.outstanding_amount) <= 0:
         frappe.throw(_("This landlord bill is not issued and outstanding."))
-    lease = frappe.get_doc("Head Lease", lease_name)
+    if lease_name:
+        lease = frappe.get_doc("Head Lease", lease_name)
+    else:
+        from darkbrown.migration.owner_view import context as historical_owner_context
+        lease = historical_owner_context(frappe, pi)
+        if not lease:
+            frappe.throw(_("This bill has no verified landlord agreement or historical source."))
     require_building_access(lease.building)
     if (pi.supplier != lease.landlord or pi.company != (lease.company or _company())
             or pi.company != _company()):
@@ -2192,14 +2202,11 @@ def receipts(q=None, limit=None):
         tenants = set(frappe.get_all(
             "Tenancy Agreement", filters={"building": ["in", sorted(allowed)]},
             pluck="tenant"))
-        if not tenants:
-            return {"rows": [], "total": 0, "value": 0,
-                    "unallocated": 0, "capped": False, "counts": {}}
         filters["party"] = ["in", sorted(tenants)]
 
     rows = []
     page_size = 500
-    while True:
+    while allowed is None or tenants:
         page = frappe.get_all(
             "Payment Entry", filters=filters,
             fields=["name", "party", "paid_amount", "posting_date",
@@ -2223,6 +2230,9 @@ def receipts(q=None, limit=None):
         "Cheque", filters={"name": ["in", list(refs)]}, pluck="name")) \
         if refs else set()
     out = [_receipt_row(r, names, cheque_refs) for r in rows]
+    from darkbrown.migration.receipts import rows as historical_receipts
+    out.extend(historical_receipts(frappe, allowed))
+    out.sort(key=lambda r: (r["date"], r["id"]), reverse=True)
     if q:
         needle = str(q).lower()
         out = [r for r in out if needle in " ".join(
@@ -2255,6 +2265,9 @@ def receipt(name):
     """
     guard(MD, GM, ACC)
     if not frappe.db.exists("Payment Entry", name):
+        if str(name).startswith("MIG-RCPT-") and frappe.db.exists("Journal Entry", name):
+            from darkbrown.migration.receipts import detail as historical_receipt
+            return historical_receipt(frappe, name)
         frappe.throw(_("No receipt with that reference."))
     pe = frappe.get_doc("Payment Entry", name)
     if pe.payment_type != "Receive":

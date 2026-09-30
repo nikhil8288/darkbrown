@@ -55,7 +55,8 @@ def building_for_record(doctype, name=None, doc=None):
     """Resolve a record's building without trusting a client-supplied value."""
     if doc is None:
         doc = frappe.get_doc(doctype, name)
-    building = getattr(doc, "building", None) or doc.get("building")
+    building = (getattr(doc, "building", None) or doc.get("building")
+                or doc.get("db_migration_building"))
     if building:
         return building
     unit = getattr(doc, "unit", None) or doc.get("unit")

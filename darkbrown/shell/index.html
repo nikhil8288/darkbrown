@@ -9530,8 +9530,9 @@ ROUTES.receipt=id=>{
     (d.st==='Cancelled'?`<div class="note" style="border-left-color:var(--red)"><b>Cancelled.</b>
       The number stays used so the sequence has no hole in it.</div>`:
      d.st==='Draft'?`<div class="note"><b>Draft.</b> This payment has not been posted and is not an issued receipt.</div>`:'')+
-    `<div class="card receipt"><h3>${d.st==='Draft'?'Draft payment':'Official receipt'}</h3>
-     <div class="kv">${[['Receipt number',d.id],['Date',d.date],['Received from',esc(String(d.party||'\u2014'))],
+    (d.reconstructed?`<div class="note"><b>Internal historical reconstruction.</b> ${esc(d.date_basis||'Actual collection date is unknown.')} This record does not establish a bank deposit.</div>`:'')+
+    `<div class="card receipt"><h3>${d.reconstructed?'Historical receipt':d.st==='Draft'?'Draft payment':'Official receipt'}</h3>
+     <div class="kv">${[['Receipt number',d.id],[d.reconstructed?'Posting date':'Date',d.date],['Received from',esc(String(d.party||'\u2014'))],
        ['Amount',qar(d.amt)],['Method',esc(d.mode)],['Paid into',esc(d.acct)],
        ...(d.ref&&d.ref!=='\u2014'?[['Reference',esc(d.ref)]]:[]),
        ...(d.cheque?[['Cheque',esc(d.cheque.id)+' \u00b7 '+esc(d.cheque.st)]]:[]),

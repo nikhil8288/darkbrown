@@ -87,7 +87,12 @@ def sync_after_rename(doc, method=None, old_name=None, new_name=None, merge=Fals
 
 
 def guard_cost_center_delete(doc, method=None):
-    """A cost centre with ledger entries against it must not disappear with the building."""
+    """Block active ledger history; retain the accounting dimension on deletion.
+
+    Cost centres are accounting setup, not owned child records of Building.
+    Keeping them preserves references from cancelled vouchers and allows a real
+    replacement building with the same label to reuse its existing dimension.
+    """
     if not doc.cost_center:
         return
     if frappe.db.exists("GL Entry", {"cost_center": doc.cost_center, "is_cancelled": 0}):
@@ -95,4 +100,5 @@ def guard_cost_center_delete(doc, method=None):
             _("{0} has ledger entries posted against it and cannot be removed. Mark the building Exited instead.")
             .format(doc.cost_center)
         )
-    frappe.delete_doc("Cost Center", doc.cost_center, ignore_permissions=True, force=False)
+    # Never cascade a Building deletion into accounting setup. Any separate
+    # cost-centre retirement is an explicit accounting administration operation.

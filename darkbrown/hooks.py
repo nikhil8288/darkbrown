@@ -39,7 +39,14 @@ doc_events = {
         "on_cancel": "darkbrown.utils.reconciliation.on_payment_cancel",
     },
     "Sales Invoice": {
+        "validate": "darkbrown.migration.metadata.validate_metadata",
         "on_cancel": "darkbrown.utils.invoice_run.on_sales_invoice_cancel",
+    },
+    "Purchase Invoice": {
+        "validate": "darkbrown.migration.metadata.validate_metadata",
+    },
+    "Journal Entry": {
+        "validate": "darkbrown.migration.metadata.validate_metadata",
     },
     # T1 and T5. utils.handoffs was written, then never referenced by anything:
     # not here, not in scheduler_events. A returned cheque raised no recovery

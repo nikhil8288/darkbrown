@@ -47,6 +47,8 @@ def after_install():
     seed_settings()
     seed_document_requirements()
     seed_expense_chart()
+    from darkbrown.migration.metadata import ensure_fields
+    ensure_fields()
     frappe.db.commit()
 
 
@@ -57,6 +59,8 @@ def after_migrate():
     seed_document_requirements()
     seed_expense_chart()
     seed_accounting_foundation()
+    from darkbrown.migration.metadata import ensure_fields
+    ensure_fields()
     # Deployment is configuration-only. Financial posting belongs to the
     # operational scheduler after cutover, never to an install/migrate hook.
     frappe.db.commit()
