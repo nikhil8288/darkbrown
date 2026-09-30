@@ -10,7 +10,7 @@ Sources
                           Head Lease        (populated now)
     Finance               Sales Invoice, Purchase Invoice, Cheque,
                           GL Entry                  (from 2026-07-01)
-    History               Historical Monthly PL     (imported from Excel)
+    History               GL Entry (native posted accounting)
     Maintenance           Maintenance Request       (new)
     Alerts                derived from all of the above
 
@@ -413,23 +413,29 @@ def get_finance(timeframe="month"):
     margin = income - headlease
     pct = (margin / income * 100) if income else 0
 
-    # Per-building P&L straight off the Cost Centers.
+    # Only trading accounts belong in building P&L; AR/AP are balance-sheet legs.
+    income_accounts = frappe.get_all('Account', filters={'company': _company(), 'root_type': 'Income', 'is_group': 0}, pluck='name')
+    expense_accounts = frappe.get_all('Account', filters={'company': _company(), 'root_type': 'Expense', 'is_group': 0}, pluck='name')
     per_building = []
     for cc in frappe.get_all("Cost Center",
-                             filters={"is_group": 0, "disabled": 0},
+                             filters={"company": _company(), "is_group": 0, "disabled": 0},
                              fields=["name", "cost_center_name"]):
         if cc.cost_center_name in ("Main", "Overhead / Admin"):
             continue
         inc = flt(frappe.db.get_value(
             "GL Entry",
-            {"cost_center": cc.name, "is_cancelled": 0,
+            {"company": _company(), "cost_center": cc.name, "is_cancelled": 0,
+             "account": ["in", income_accounts or ['']],
+             "voucher_type": ["!=", "Period Closing Voucher"],
              "posting_date": ["between", [start, end]]},
-            "sum(credit)") or 0)
+            "sum(credit - debit)") or 0)
         exp = flt(frappe.db.get_value(
             "GL Entry",
-            {"cost_center": cc.name, "is_cancelled": 0,
+            {"company": _company(), "cost_center": cc.name, "is_cancelled": 0,
+             "account": ["in", expense_accounts or ['']],
+             "voucher_type": ["!=", "Period Closing Voucher"],
              "posting_date": ["between", [start, end]]},
-            "sum(debit)") or 0)
+            "sum(debit - credit)") or 0)
         if inc or exp:
             per_building.append([cc.cost_center_name,
                                  round(inc / 1000.0, 1), round(exp / 1000.0, 1)])
@@ -527,49 +533,10 @@ def _recv_detail():
 
 @frappe.whitelist()
 def get_history():
-    """The 12 months of manual books, for trend charts. Kept out of the GL
-    on purpose: it is reference, not something to reconcile against."""
+    """Accrual history calculated from submitted native ledger entries."""
     _guard()
-    if not _has("Historical Monthly PL"):
-        return {"live": False, "months": [], "by_building": []}
-
-    rows = frappe.get_all(
-        "Historical Monthly PL",
-        fields=["period_end", "period_label", "is_lump_period", "building",
-                "rent_received", "owner_rent", "kahrama", "wifi", "profit"],
-        order_by="period_end asc",
-    )
-    if not rows:
-        return {"live": False, "months": [], "by_building": []}
-
-    months, order = {}, []
-    for r in rows:
-        k = r.period_label
-        if k not in months:
-            months[k] = {"label": k, "end": str(r.period_end),
-                         "lump": cint(r.is_lump_period),
-                         "income": 0.0, "owner": 0.0, "profit": 0.0}
-            order.append(k)
-        m = months[k]
-        m["income"] += flt(r.rent_received)
-        m["owner"] += flt(r.owner_rent)
-        m["profit"] += flt(r.profit)
-
-    by_b = {}
-    for r in rows:
-        b = by_b.setdefault(r.building, {"income": 0.0, "owner": 0.0, "profit": 0.0})
-        b["income"] += flt(r.rent_received)
-        b["owner"] += flt(r.owner_rent)
-        b["profit"] += flt(r.profit)
-
-    return {
-        "live": True,
-        "months": [months[k] for k in order],
-        "by_building": sorted(
-            ([k, round(v["income"] / 1000.0, 1), round(v["owner"] / 1000.0, 1),
-              round(v["profit"] / 1000.0, 1)] for k, v in by_b.items()),
-            key=lambda r: -r[3]),
-    }
+    from darkbrown.utils.ledger_history import load
+    return load(frappe, _company(), nowdate())
 
 
 # ------------------------------------------------------------ maintenance
