@@ -1120,10 +1120,23 @@ def invoices():
             "due_date", "status", "docstatus", "creation", "modified",
             "custom_rental_agreement", "custom_billing_period",
             "db_migration_building", "db_migration_unit_label"]),
-        order_by="due_date desc", limit=1000)
+        order_by="due_date desc, name asc", limit=0)
     if not rows:
         return []
 
+    # The shell filters and totals this complete register. Never truncate it
+    # before the existing building permission filter in seed(). Batch item
+    # reads so a complete register does not introduce one query per invoice.
+    item_lines = {}
+    for start in range(0, len(rows), 500):
+        for item in frappe.get_all(
+                "Sales Invoice Item",
+                filters={"parent": ["in", [r.name for r in rows[start:start + 500]]]},
+                fields=["parent", "item_name", "description", "amount", "income_account"],
+                order_by="parent asc, idx asc", limit=0):
+            item_lines.setdefault(item.parent, []).append([
+                item.item_name or item.description or "Rent",
+                _k(item.amount), item.income_account or "—"])
     tnames = _customer_names([r.customer for r in rows])
     link = {}
     for l in frappe.get_all(
@@ -1247,7 +1260,7 @@ def invoices():
             "cancel_reason": cancel_reason.get(si.name, ""),
             "replaces": replaces.get(si.name),
             "replaced_by": replaced_by.get(si.name),
-            "lines": _invoice_lines(si.name),
+            "lines": item_lines.get(si.name, []),
         })
     return out
 
