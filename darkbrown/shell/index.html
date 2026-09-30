@@ -5017,13 +5017,16 @@ ROUTES.invoices=()=>{
  const units=[...new Set(INV.filter(i=>!f.b||i.bn===f.b).map(i=>i.u).filter(x=>x&&x!=='—'))].sort();
  const rows=INV.filter(i=>(!f.b||i.bn===f.b)&&(!f.u||i.u===f.u)
    &&(!q||[i.id,i.tn,i.bn,i.u].some(v=>String(v||'').toLowerCase().includes(q))));
+ const pageSize=100, pages=Math.max(1,Math.ceil(rows.length/pageSize));
+ const current=Math.min(pages,Math.max(1,parseInt(f.p,10)||1));
+ const visible=rows.slice((current-1)*pageSize,current*pageSize);
  return page('Invoices','Raised by an invoice run, one building at a time',
  `<button class="btn" onclick="go('#/generate')">Generate invoices</button>`,
  stat([['Issued',INV.filter(i=>i.st!=='Draft'&&i.st!=='Cancelled').length],['Paid',INV.filter(i=>i.st==='Paid').length,'','g'],
   ['Part paid',INV.filter(i=>i.st==='Part paid').length,'','a'],
   ['Unpaid',INV.filter(i=>i.st==='Unpaid').length,'','r'],
   ['Cancelled',INV.filter(i=>i.st==='Cancelled').length,'','n'],
-  ['Outstanding',n0(INV.reduce((a,i)=>a+invBal(i),0)),'','r']])+
+  ['Outstanding',n0(INV.filter(i=>i.st!=='Draft'&&i.st!=='Cancelled').reduce((a,i)=>a+invBal(i),0)),'','r']])+
  `<div class="card"><div class="fg" style="margin-bottom:14px">
    <label class="fl"><span>Find invoice, tenant, building or unit</span><input value="${escA(f.q||'')}"
      onkeydown="if(event.key==='Enter')qsSet('q',this.value)" onchange="qsSet('q',this.value)"
@@ -5032,15 +5035,20 @@ ROUTES.invoices=()=>{
      ${['',...buildings].map(b=>`<option value="${escA(b)}" ${f.b===b?'selected':''}>${esc(b||'All buildings')}</option>`).join('')}</select></label>
    <label class="fl"><span>Unit</span><select onchange="qsSet('u',this.value)">
      ${['',...units].map(u=>`<option value="${escA(u)}" ${f.u===u?'selected':''}>${esc(u||'All units')}</option>`).join('')}</select></label>
-   <div class="fl"><span>Results</span><div class="rov">${rows.length} invoices${INV.length>=1000?' · latest 1,000 loaded':''}</div></div></div>${tbl([
+   <div class="fl"><span>Results</span><div class="rov">${rows.length} matching invoices · ${INV.length} total</div></div></div>${tbl([
   {h:'Invoice',v:i=>i.id},{h:'Tenant',v:i=>i.tn},{h:'Building',v:i=>i.bn},
   {h:'Unit',v:i=>i.u||'—'},
   {h:'Amount',r:1,mono:1,v:i=>n0(i.amt)},{h:'Paid',r:1,mono:1,v:i=>n0(i.paid)},
   {h:'Balance',r:1,mono:1,v:i=>n0(invBal(i)),style:i=>invBal(i)>0?'color:var(--red)':''},
   {h:'Due',r:1,v:i=>i.due},{h:'Status',v:i=>chip(i.st,stChip(i.st))},
   {h:'Audit',v:i=>i.replaced_by?'Replaced by '+i.replaced_by:i.replaces?'Replaces '+i.replaces:'—'}],
-  rows.map(i=>({...i,__id:i.id})),{id:'il',click:'openI',
-   foot:['active and cancelled invoices share one audit register','replacement lineage is preserved']})}</div>`+
+  visible.map(i=>({...i,__id:i.id})),{id:'il',click:'openI',
+   foot:['active and cancelled invoices share one audit register','replacement lineage is preserved']})}
+ <div class="fg" style="margin-top:14px">
+ <button class="btn" ${current<=1?'disabled':''} onclick="qsSet('p',${current-1})">Previous page</button>
+ <span>Page ${current} of ${pages} · ${rows.length?((current-1)*pageSize+1):0}-${Math.min(current*pageSize,rows.length)} of ${rows.length}</span>
+ <button class="btn" ${current>=pages?'disabled':''} onclick="qsSet('p',${current+1})">Next page</button>
+ </div></div>`+
  (AMEND.filter(a=>a.st==='Pending GM approval').length
   ?`<div class="card"><h3>Amendments waiting on the General Manager</h3>${tbl([
     {h:'Reference',v:a=>a.id},{h:'Invoice',v:a=>a.inv},{h:'Tenant',v:a=>a.tn},
