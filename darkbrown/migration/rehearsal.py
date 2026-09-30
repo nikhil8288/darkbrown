@@ -121,6 +121,7 @@ def run(file_name, checksum):
                 result['error'] = str(exc)
             finally:
                 frappe.db.rollback()
+                frappe.clear_cache()
             if 'original' in locals():
                 restored = capture(company=bundle['batch']['company'], expected_site=bundle['batch']['site'])
                 result['rollback_verified'] = digest(original['records']) == digest(restored['records'])
@@ -130,7 +131,8 @@ def run(file_name, checksum):
                     result['status'] = 'PASSED_ROLLBACK_REHEARSAL'
             frappe.db.rollback()
     # Store evidence only after the business transaction has been rolled back.
-    doc = frappe.get_doc({'doctype': 'File', 'file_name': 'darkbrown-rollback-rehearsal-' + checksum[:12] + '.json',
+    report_name = 'darkbrown-rollback-rehearsal-' + checksum[:12] + '-' + job.id[-12:] + '.json'
+    doc = frappe.get_doc({'doctype': 'File', 'file_name': report_name,
                           'is_private': 1, 'content': json.dumps(result, default=str)})
     doc.insert()
     return {'status': result['status'], 'report_file': doc.name,

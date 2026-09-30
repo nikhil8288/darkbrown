@@ -25,6 +25,7 @@ class RehearsalTests(unittest.TestCase):
         frappe.session = types.SimpleNamespace(user='Administrator')
         frappe.conf = {}; frappe.flags = Flags(); frappe.PermissionError = PermissionError
         frappe.db = types.SimpleNamespace(rollback=rollback)
+        frappe.clear_cache = lambda: None
         class Report:
             name = 'private-report'
             def __init__(self, values): self.values = values
@@ -40,7 +41,7 @@ class RehearsalTests(unittest.TestCase):
         jobs = types.ModuleType('frappe.utils.background_jobs')
         jobs.get_redis_conn = lambda: types.SimpleNamespace(lock=lambda *a, **k: nullcontext())
         rq = types.ModuleType('rq')
-        rq.get_current_job = lambda: types.SimpleNamespace(kwargs={
+        rq.get_current_job = lambda: types.SimpleNamespace(id='synthetic-job', kwargs={
             'site': 'test.invalid', 'user': 'Administrator', 'method': 'darkbrown.migration.rehearsal.run'})
         with patch.dict(sys.modules, {'frappe': frappe, 'frappe.installer': installer,
                                      'frappe.utils.background_jobs': jobs, 'rq': rq}):

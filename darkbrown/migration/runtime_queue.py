@@ -25,8 +25,11 @@ def verify_idle_site(frappe):
     for queue in get_queues(connection):
         ids=set(queue.get_job_ids())
         for registry in [StartedJobRegistry,DeferredJobRegistry,ScheduledJobRegistry,FailedJobRegistry]:
-            # cleanup=False avoids mutating RQ state during inspection.
-            ids.update(registry(name=queue.name,connection=connection).get_job_ids(cleanup=False))
+            # The installed RQ registry API has no cleanup=False option. Read
+            # its sorted set directly so inspection cannot clean/mutate jobs.
+            registered = registry(name=queue.name, connection=connection)
+            ids.update(value.decode('utf-8') if isinstance(value, bytes) else value
+                       for value in connection.zrange(registered.key, 0, -1))
         for job_id in ids:
             if job_id == own_id:
                 continue
