@@ -64,4 +64,22 @@ with patch.object(H,'today',return_value='2026-10-01'):
     d=H._occupancy_position({'A':{'status':'Occupied'},'B':{'status':'Unknown'},'C':{'status':'Vacant'}},'2026-09-30')
     assert (d['units'],d['occupied'],d['unknown'],d['pct'])==(3,1,1,33.3)
     assert d['source_as_of']=='2026-09-30' and 'not assumed vacant' in d['note']
+ledger_calls=[]
+def ledger_read(doctype, **kw):
+    ledger_calls.append(kw)
+    return [{'dr':0,'cr':10200,'entries':102}] if 'sum(debit) as dr' in kw['fields'] else [
+        {'name':'SYN-'+str(i),'voucher_no':'SYN-'+str(i),'voucher_type':'Journal Entry',
+         'posting_date':'2026-09-30','debit':0,'credit':100} for i in range(101)]
+with patch.object(H,'guard'),patch.object(H,'_access'),patch.object(H,'today',return_value='2026-10-01'), \
+     patch.object(H,'getdate',side_effect=date),patch.object(H.statements,'_company',return_value='SYN'), \
+     patch.object(H.statements,'_window',return_value=('2026-08-01','2026-09-30')), \
+     patch.object(H.statements,'_tree',return_value={'INC':{'acc':'INC','code':'Income','label':'Income','cls':'Income','nat':'Cr','group':False}}), \
+     patch.object(H.frappe,'get_all',side_effect=ledger_read):
+    d=H.account_ledger('Income',page=1)
+    assert d['entries']==102 and d['cr']==10200 and len(d['rows'])==100 and d['has_more']
+    assert ledger_calls[1]['limit_start']==100 and ledger_calls[1]['filters']['account']=='INC'
+    assert ledger_calls[1]['filters']['company']=='SYN' and ledger_calls[1]['filters']['is_cancelled']==0
+    try: H.account_ledger('Unknown')
+    except Exception: pass
+    else: raise AssertionError('unknown account must not fall back to the first account')
 print('PASS month boundaries, invalid ranges, dated/native ageing adapter, credits, signed losses, unassigned costs and scope denial')

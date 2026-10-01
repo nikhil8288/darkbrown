@@ -15,7 +15,7 @@ const seed={buildings:[],units:[],_failed:[]};
 html=html.replace('<!--DB_BOOT-->',`<script>window.DB_SEED=${JSON.stringify(seed)};window.DB_ROLE='ACC';window.DB_USER='Synthetic';window.DB_CSRF='c';</script>`);
 const dom=new JSDOM(html,{url:'https://erp.darkbrown.qa/darkbrown#/home?start=2026-08&end=2026-09',runScripts:'dangerously',
  virtualConsole:new VirtualConsole().on('jsdomError',e=>{if(!/Not implemented/.test(e.message))errors.push(e.message)}),
- beforeParse(w){w.scrollTo=()=>{};w.scrollBy=()=>{};w.fetch=async(url,opts)=>{calls.push([url,opts]);return {ok:true,json:async()=>({message:url.includes('reports.catalogue')?{packs:[{key:'arrears',title:'Synthetic ageing',description:'Synthetic',source:'Synthetic'}],buildings:[],default_from:'2026-10-01',default_to:'2026-10-01'}:url.includes('reports.run')?{title:'Synthetic ageing',columns:[],rows:[],count:0,from:JSON.parse(opts.body).frm,to:JSON.parse(opts.body).to}:url.includes('accounts_home.overview')?data:url.includes('statements.profit_and_loss')?{...data.pl,frm:data.frm,to:data.to,revenue:{rows:[],total:200},sections:[{rows:[],total:200},{rows:[],total:260}]}:url.includes('accounting.voucher')?{id:'SYN-EXACT',d:'2026-08-01',desc:'Requested source',vt:'Journal Entry',lines:[['A','Asset',1,0],['E','Equity',0,1]]}:url.includes('accounting.books')?{coa:[],jrn:[],groups:{}}:{}})}};}});
+ beforeParse(w){w.scrollTo=()=>{};w.scrollBy=()=>{};w.fetch=async(url,opts)=>{calls.push([url,opts]);return {ok:true,json:async()=>({message:url.includes('accounts_home.account_ledger')?{account:{code:'SYN-INC',label:'Requested account',cls:'Income',nat:'Cr'},entries:1000,dr:0,cr:200,rows:[{voucher_type:'Journal Entry',voucher_no:'SYN-EXACT',posting_date:'2026-09-30',debit:0,credit:200}],has_more:false}:url.includes('reports.catalogue')?{packs:[{key:'arrears',title:'Synthetic ageing',description:'Synthetic',source:'Synthetic'}],buildings:[],default_from:'2026-10-01',default_to:'2026-10-01'}:url.includes('reports.run')?{title:'Synthetic ageing',columns:[],rows:[],count:0,from:JSON.parse(opts.body).frm,to:JSON.parse(opts.body).to}:url.includes('accounts_home.overview')?data:url.includes('statements.profit_and_loss')?{...data.pl,frm:data.frm,to:data.to,revenue:{rows:[],total:200},sections:[{rows:[],total:200},{rows:[],total:260}]}:url.includes('accounting.voucher')?{id:'SYN-EXACT',d:'2026-08-01',desc:'Requested source',vt:'Journal Entry',lines:[['A','Asset',1,0],['E','Equity',0,1]]}:url.includes('accounting.books')?{coa:[],jrn:[],groups:{}}:{}})}};}});
 const w=dom.window,tick=()=>new Promise(r=>setTimeout(r,15));
 (async()=>{
  await tick();w.router();
@@ -36,6 +36,7 @@ const w=dom.window,tick=()=>new Promise(r=>setTimeout(r,15));
  w.appBack();await tick();assert.equal(w.location.hash,previous);
  assert.equal(w.qs().building,'SYN-B');
  assert.equal(w.document.querySelector('[aria-label="Building breakdown"]').value,'SYN-B');
+ w.go('#/account/SYN-INC');await tick();w.router();assert(view().textContent.includes('Requested account'));assert(view().textContent.includes('1000'));
  w.go('#/journal/SYN-EXACT');await tick();w.router();await tick();
  assert(view().textContent.includes('Requested source'));
  assert(calls.some(([u])=>u.includes('accounting.voucher')));

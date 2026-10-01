@@ -29,7 +29,9 @@ Month selections are carried into financial drilldowns. In-app Back uses
 browser history and restores the prior route, URL filters, ledger/report
 filter state and scroll. Standard report selections and date/building filters also
 use URL state and a range-specific cache. Encoded record names retain history. Journal detail reads the exact voucher from the
-server instead of falling back to the first cached posting.
+server instead of falling back to the first cached posting. Account detail now
+pages that account's GL entries directly, with complete totals independent of
+the 400-voucher company-wide journal cache.
 
 ## Verification before deployment
 

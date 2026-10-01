@@ -196,3 +196,41 @@ def ageing(kind="Receivable", start=None, end=None):
         frappe.throw("Unknown ageing report.")
     _frm, to = _window(start, end)
     return _ageing(kind, to, statements._company())
+
+
+@frappe.whitelist()
+def account_ledger(code, frm=None, to=None, page=0):
+    """A requested account's GL rows, independent of the global journal cap."""
+    guard(MD, GM, ACC)
+    _access()
+    company = statements._company()
+    if not company:
+        frappe.throw("Configure the reporting company.")
+    frm, to = statements._window(frm, to)
+    if getdate(frm) > getdate(to) or getdate(to) > getdate(today()):
+        frappe.throw("Choose a valid ledger date range ending no later than today.")
+    try:
+        page = int(page)
+    except (ValueError, TypeError):
+        frappe.throw("Choose a valid ledger page.")
+    if page < 0:
+        frappe.throw("Choose a valid ledger page.")
+    nodes = statements._tree(company)
+    matches = [n for n in nodes.values() if not n["group"] and str(n["code"]) == str(code)]
+    if len(matches) != 1:
+        frappe.throw("That posting account is unknown or its code is ambiguous.")
+    account = matches[0]
+    filters = {"company": company, "account": account["acc"], "is_cancelled": 0,
+               "posting_date": ["between", [frm, to]]}
+    totals = frappe.get_all("GL Entry", filters=filters,
+        fields=["sum(debit) as dr", "sum(credit) as cr", "count(name) as entries"], limit=1)
+    total = totals[0] if totals else {}
+    rows = frappe.get_all("GL Entry", filters=filters,
+        fields=["name", "posting_date", "voucher_type", "voucher_no", "debit", "credit"],
+        order_by="posting_date desc, creation desc, name desc",
+        limit_start=page * 100, limit_page_length=101)
+    return {"account": {"code": account["code"], "label": account["label"],
+                         "cls": account["cls"], "nat": account["nat"]},
+            "frm": frm, "to": to, "page": page, "has_more": len(rows) > 100,
+            "dr": round(flt(total.get("dr")), 2), "cr": round(flt(total.get("cr")), 2),
+            "entries": int(total.get("entries") or 0), "rows": rows[:100]}

@@ -1066,7 +1066,7 @@ function acctPeriod(){
   }
   return ps.find(p=>p.k===want)||ps[0];
 }
-window.acctPreset=k=>{const p=new URLSearchParams(qs());p.delete('start');p.delete('end');p.set('p',k);go((location.hash||'#/home').split('?')[0]+'?'+p.toString())};
+window.acctPreset=k=>{const p=new URLSearchParams(qs());p.delete('start');p.delete('end');p.delete('lp');p.delete('ep');p.set('p',k);go((location.hash||'#/home').split('?')[0]+'?'+p.toString())};
 function periodBar(){
   const cur=acctPeriod().k;
   return ahControls()+`<div class="ptoggle inline">${acctPeriods().map(p=>
@@ -5955,6 +5955,7 @@ ROUTES.ledger=()=>{
 window.openAcct=code=>go('#/account/'+code);
 
 ROUTES.account=code=>{
+  if(window.DB_LIVE)return accountLedgerLive(code);
   const rdy=books(); if(rdy!==true) return lazyPage('Account','Reads the ledger for one account',rdy);
   const a=acc(code)||COA[0], b=accBalance(a[0]);
   const rows=ledgerRows({acc:a[0]});
@@ -10368,6 +10369,20 @@ function applySeed(){
 function gatePayload(){ applySeed(); }
 window.applySeed=applySeed;
 window.gatePayload=gatePayload;
+function accountLedgerLive(code){
+ const P=acctPeriod(),pg=Math.max(0,parseInt(qs().lp||'0',10)||0);
+ const c=lazy('account-ledger:'+code+':'+P.k+':'+pg,'accounts_home.account_ledger',{code,frm:P.frm,to:P.to,page:pg});
+ if(c.state!=='ok')return lazyPage('Account ledger','Reads the selected account directly from ERPNext',c);
+ const d=c.data,a=d.account,net=d.dr-d.cr;
+ return page(esc(a.label),`${esc(a.code)} · ${esc(a.cls)} · ${periodSpan(P)}`,periodBar()+`<button class="btn" onclick="window.print()">Print</button>`,
+ stat([['Entries in range',d.entries],['Debits',money(d.dr)],['Credits',money(d.cr)],['Net movement',money(Math.abs(net))+' '+(net>=0?'Dr':'Cr')]])+
+ `<div class="card"><h3>Account postings <span class="plabel">most recent first</span></h3>`+
+ ahRows(['Source voucher','Date','Debit','Credit'],d.rows.map(r=>[ahOpen(r.voucher_type+' · '+r.voucher_no,'#/journal/'+encodeURIComponent(r.voucher_no)+'?vt='+encodeURIComponent(r.voucher_type)),esc(r.posting_date),money(r.debit),money(r.credit)]))+
+ `<div class="foot"><span>${d.rows.length?pg*100+1:0}–${pg*100+d.rows.length} of ${d.entries} GL entries</span><span>Totals include all entries in the selected window.</span></div>
+ <div class="pa"><button class="btn" ${pg===0?'disabled':''} onclick="qsSet('lp','${pg-1}')">Previous page</button><button class="btn" ${!d.has_more?'disabled':''} onclick="qsSet('lp','${pg+1}')">Next page</button></div>
+ <p class="ah-note">General ledger movement includes period-closing postings; the P&L excludes them. Every source link reads that exact voucher.</p></div>`);
+}
+
 /* Accounts Head: live report summaries and dated drilldowns. */
 function ahRange(){const p=acctPeriod();return {start:qs().start||p.frm.slice(0,7),end:qs().end||p.to.slice(0,7)}}
 function ahControls(){const r=ahRange();return `<div class="ah-controls">
@@ -10377,7 +10392,7 @@ function ahControls(){const r=ahRange();return `<div class="ah-controls">
 window.ahApplyRange=()=>{const start=el('#ah-start').value,end=el('#ah-end').value;
  if(!/^\d{4}-(0[1-9]|1[0-2])$/.test(start)||!/^\d{4}-(0[1-9]|1[0-2])$/.test(end)||start>end||end>ISO(TODAY).slice(0,7)){
   toast('Choose valid months, with the starting month before the ending month.');return}
- const p=new URLSearchParams(qs());p.set('start',start);p.set('end',end);p.delete('p');
+ const p=new URLSearchParams(qs());p.set('start',start);p.set('end',end);p.delete('p');p.delete('lp');p.delete('ep');
  go((location.hash||'#/home').split('?')[0]+'?'+p.toString());};
 function ahLink(route){const r=ahRange(),p=new URLSearchParams({start:r.start,end:r.end});const [base,q]=route.split('?');const query=new URLSearchParams(q||'');p.forEach((v,k)=>query.set(k,v));return base+'?'+query.toString()}
 function ahOpen(label,route){return `<a class="ah-open" href="${esc(ahLink(route))}">${esc(label)} <span aria-hidden="true">↗</span></a>`}
