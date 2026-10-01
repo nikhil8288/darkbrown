@@ -15,7 +15,7 @@ const seed={buildings:[],units:[],_failed:[]};
 html=html.replace('<!--DB_BOOT-->',`<script>window.DB_SEED=${JSON.stringify(seed)};window.DB_ROLE='ACC';window.DB_USER='Synthetic';window.DB_CSRF='c';</script>`);
 const dom=new JSDOM(html,{url:'https://erp.darkbrown.qa/darkbrown#/home?start=2026-08&end=2026-09',runScripts:'dangerously',
  virtualConsole:new VirtualConsole().on('jsdomError',e=>{if(!/Not implemented/.test(e.message))errors.push(e.message)}),
- beforeParse(w){w.scrollTo=()=>{};w.scrollBy=()=>{};w.fetch=async(url,opts)=>{calls.push([url,opts]);return {ok:true,json:async()=>({message:url.includes('accounts_home.overview')?data:url.includes('statements.profit_and_loss')?{...data.pl,frm:data.frm,to:data.to,revenue:{rows:[],total:200},sections:[{rows:[],total:200},{rows:[],total:260}]}:url.includes('accounting.voucher')?{id:'SYN-EXACT',d:'2026-08-01',desc:'Requested source',vt:'Journal Entry',lines:[['A','Asset',1,0],['E','Equity',0,1]]}:url.includes('accounting.books')?{coa:[],jrn:[],groups:{}}:{}})}};}});
+ beforeParse(w){w.scrollTo=()=>{};w.scrollBy=()=>{};w.fetch=async(url,opts)=>{calls.push([url,opts]);return {ok:true,json:async()=>({message:url.includes('reports.catalogue')?{packs:[{key:'arrears',title:'Synthetic ageing',description:'Synthetic',source:'Synthetic'}],buildings:[],default_from:'2026-10-01',default_to:'2026-10-01'}:url.includes('reports.run')?{title:'Synthetic ageing',columns:[],rows:[],count:0,from:JSON.parse(opts.body).frm,to:JSON.parse(opts.body).to}:url.includes('accounts_home.overview')?data:url.includes('statements.profit_and_loss')?{...data.pl,frm:data.frm,to:data.to,revenue:{rows:[],total:200},sections:[{rows:[],total:200},{rows:[],total:260}]}:url.includes('accounting.voucher')?{id:'SYN-EXACT',d:'2026-08-01',desc:'Requested source',vt:'Journal Entry',lines:[['A','Asset',1,0],['E','Equity',0,1]]}:url.includes('accounting.books')?{coa:[],jrn:[],groups:{}}:{}})}};}});
 const w=dom.window,tick=()=>new Promise(r=>setTimeout(r,15));
 (async()=>{
  await tick();w.router();
@@ -39,6 +39,13 @@ const w=dom.window,tick=()=>new Promise(r=>setTimeout(r,15));
  w.go('#/journal/SYN-EXACT');await tick();w.router();await tick();
  assert(view().textContent.includes('Requested source'));
  assert(calls.some(([u])=>u.includes('accounting.voucher')));
+ w.go('#/unit/Synthetic unit');assert.equal(w.history.state.dbNav.hash,w.location.hash);
+ w.go('#/home?start=2026-08&end=2026-09');await tick();
+ w.go('#/reports');await tick();w.rptRun('arrears');await tick();
+ const originalPack=w.location.hash;
+ w.rptSet('from','2026-07-01');await tick();assert.equal(w.RPT.from,'2026-07-01');
+ w.appBack();await tick();assert.equal(w.location.hash,originalPack);assert.equal(w.RPT.from,'2026-10-01');
+ assert(w.document.querySelector('#view').textContent.includes('Synthetic ageing'));
  w.go('#/home?start=2026-08&end=2026-09');await tick();
  w.acctPreset('m1');assert(!w.location.hash.includes('start='));
  w.go('#/home?start=2026-10&end=2026-10');assert.equal(w.acctPeriod().to,new Date().toISOString().slice(0,10));

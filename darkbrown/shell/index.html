@@ -1412,6 +1412,7 @@ function go(h){
     ['start','end'].forEach(k=>{if(cur[k]&&!p.has(k))p.set(k,cur[k])});
     h=parts[0]+(p.toString()?'?'+p.toString():'');
   }
+  h=new URL(h,location.href).hash;
   if((location.hash||'#/dash')===h){router();return}
   navCapture();
   const n=history.state&&history.state.dbNav;
@@ -5347,19 +5348,13 @@ ROUTES.approvals=()=>page('Approvals','Reserved MD categories cannot be delegate
 const RPT={key:null,from:null,to:null,building:''};
 window.RPT=RPT;
 
-function rptRun(key){
-  RPT.key=key;
-  delete DB_LAZY['rpt:'+key];
-  go('#/reports');
-  router();
-}
+function rptCacheKey(){return 'rpt:'+RPT.key+':'+RPT.from+':'+RPT.to+':'+RPT.building}
+function rptUrl(){const p=new URLSearchParams(qs());
+  [['report',RPT.key],['rfrom',RPT.from],['rto',RPT.to],['rbuilding',RPT.building]].forEach(([k,v])=>{if(v)p.set(k,v);else p.delete(k)});
+  return '#/reports'+(p.toString()?'?'+p.toString():'');}
+function rptRun(key){RPT.key=key;go(rptUrl());}
 window.rptRun=rptRun;
-
-function rptSet(k,v){
-  RPT[k]=v;
-  if(RPT.key) delete DB_LAZY['rpt:'+RPT.key];
-  router();
-}
+function rptSet(k,v){RPT[k]=v;go(rptUrl());}
 window.rptSet=rptSet;
 
 function rptFmt(v,type){
@@ -5374,7 +5369,7 @@ function rptFmt(v,type){
    reads one, which beats a generated workbook nobody can regenerate. The BOM
    is what stops Excel mangling Arabic tenant names. */
 function rptCsv(){
-  const d=(DB_LAZY['rpt:'+RPT.key]||{}).data; if(!d) return;
+  const d=(DB_LAZY[rptCacheKey()]||{}).data; if(!d) return;
   const esc2=v=>'"'+String(v===null||v===undefined?'':v).replace(/"/g,'""')+'"';
   const lines=[d.columns.map(c=>esc2(c.label)).join(',')];
   d.rows.forEach(r=>lines.push(d.columns.map(c=>esc2(r[c.key])).join(',')));
@@ -5405,7 +5400,12 @@ ROUTES.reports=()=>{
 
   const cat=lazy('rpt:catalogue','reports.catalogue');
   if(cat.state!=='ok') return lazyPage('Reports','Standard packs',cat);
-  if(RPT.from===null){RPT.from=cat.data.default_from;RPT.to=cat.data.default_to;}
+  const rq=qs();
+  RPT.key=rq.report||null;
+  const rp=(rq.start||rq.end)?acctPeriod():null;
+  RPT.from=rq.rfrom||(rp?rp.frm:cat.data.default_from);
+  RPT.to=rq.rto||(rp?rp.to:cat.data.default_to);
+  RPT.building=rq.rbuilding||'';
 
   const cards=`<div class="g3">${cat.data.packs.map(p=>`
     <div class="card rc${RPT.key===p.key?' on':''}" onclick="rptRun('${p.key}')">
@@ -5427,7 +5427,7 @@ ROUTES.reports=()=>{
       ${cat.data.buildings.map(b=>`<option value="${esc(b)}"${RPT.building===b?' selected':''}>${esc(b)}</option>`).join('')}
     </select></label></div></div>`;
 
-  const c=lazy('rpt:'+RPT.key,'reports.run',
+  const c=lazy(rptCacheKey(),'reports.run',
                {key:RPT.key,frm:RPT.from,to:RPT.to,building:RPT.building});
   if(c.state!=='ok') return page('Reports','',
     `<button class="btn" onclick="rptSet('key',null)">All reports</button>`,
@@ -7506,7 +7506,7 @@ function applyRole(){
     n.hidden=(n.dataset.feature==='planning'&&!PLANNING_ENABLED)||
       (n.dataset.feature==='data-tools'&&!DATA_TOOLS_ENABLED)||
       (n.dataset.feature==='ocr'&&window.DB_OCR_ENABLED!==true);
-    n.style.display=!n.hidden&&roleCan(r)?'':'none'});
+    n.style.display=!n.hidden&&roleCan(r)&&!(r==='accounts-home'&&ROLEV==='ACC')?'':'none'});
   document.querySelectorAll('.grp').forEach(g=>{
     let sib=g.nextElementSibling,any=false;
     while(sib&&!sib.classList.contains('grp')){if(sib.classList.contains('nv')&&sib.style.display!=='none')any=true;sib=sib.nextElementSibling}
@@ -10409,7 +10409,7 @@ function accountsHeadHome(){
  const d=c.data,p=d.pl,cf=d.cash_flow,bs=d.balance_sheet,ar=d.receivables,ap=d.payables,o=d.occupancy;
  const pos=k=>d.positions.filter(r=>r.kind===k),sum=k=>pos(k).reduce((s,r)=>s+r.amount,0);
  const range=fdate(d.frm)+' to '+fdate(d.to),asof='As at '+fdate(d.to);
- const summary=stat([['Units · latest',o.units],['Occupied · latest',o.occupied],['Occupancy · latest',o.pct===null?'—':o.pct+'%'],['Deposit liability',money(sum('deposits')),asof]]);
+ const summary=stat([['Units · latest',o.units],['Occupied · latest',o.occupied],['Occupancy · latest',o.pct===null?'—':o.pct+'%'],['Unknown status',o.unknown||0],['Deposit liability',money(sum('deposits')),asof]]);
  const tiles=[['Balance sheet','#/bs',bs.balanced?'Arithmetic balances':'Review balance difference'],['Trial balance','#/trial','Debits, credits and end-date balances'],['General ledger','#/ledger','Account movements across the selected range'],['Journal entries','#/journal','Postings and their original vouchers'],['Deposits held','#/accounts-report/deposits','Liability accounts at the end date'],['Bank reconciliation','#/recon','Current statement matching status'],['Landlord payments','#/landlordpayments','Current posted bills and payment records'],['Collection register','#/receipts','Recorded receipts and source transactions'],['Deposit batches','#/batches','Cash and cheques awaiting bank matching'],['All reports','#/reports','Standard report catalogue']];
  return page('Financial overview',`Accounts Head · ${esc(d.company)} · ${esc(d.currency)} · posted reports`,ahControls(),
  `<div class="ah-period">${range}<span>Balances and ageing ${asof.toLowerCase()}${d.to===ISO(TODAY)?' · current month to date':''}</span></div>`+reportNotes(d)+
@@ -10422,7 +10422,7 @@ function accountsHeadHome(){
  ahCard('Tenant receivables ageing','#/accounts-report/receivables',ahAgeing(ar),ar.note)+
  ahCard('Landlord & vendor payables','#/accounts-report/payables',ahAgeing(ap),ap.note)+
  ahCard('Expense breakdown','#/accounts-report/expenses',p.groups.map(g=>ahKV(g.label,g.total)).join(''),'Posted expenses across the selected months; includes cost of sales and operating costs.')+
- ahCard('Rent & tenancy position','#/accounts-report/tenancy',summary,o.note+' Status as at '+fdate(o.as_on)+'; the selected reporting months do not change this latest operational position.')+
+ ahCard('Rent & tenancy position','#/accounts-report/tenancy',summary,o.note+' Read on '+fdate(o.as_on)+'; the selected reporting months do not change this latest operational position.')+
  `</div><div class="band"><h2>Books & registers</h2><div class="rule"></div><span>DETAIL AND VERIFICATION</span></div><div class="ah-tiles">${tiles.map(([t,r,n])=>`<a class="card ah-tile" href="${esc(ahLink(r))}"><strong>${t}<span>↗</span></strong><small>${esc(n)}</small></a>`).join('')}</div>`);
 }
 ROUTES['accounts-home']=accountsHeadHome;
@@ -10440,7 +10440,7 @@ ROUTES['accounts-report']=key=>{
  }else if(key==='buildings'||key==='building')body=ahBuildings(d,true)+(key==='building'?ahOpen('Open general ledger','#/ledger'):'');
  else if(key==='expenses')body=d.pl.groups.map(g=>`<h3>${esc(g.label)}</h3>`+ahRows(['Account','Expense'],g.rows.filter(x=>!x.group).map(x=>[ahOpen(x.label,'#/account/'+encodeURIComponent(x.code)),money(x.amount)]))).join('')+ahKV('Total posted expenses',d.pl.expense);
  else if(key==='cash'||key==='deposits')body=ahRows(['Account','End-date balance'],d.positions.filter(x=>x.kind===(key==='cash'?'cash':'deposits')).map(x=>[ahOpen(x.label,'#/account/'+encodeURIComponent(x.code)),money(x.amount)]))+`<p class="ah-note">Balances as at ${fdate(d.to)}. ${key==='cash'?'Historical cutover clearing is excluded.':'Liability balances from deposit-named accounts; confirm the chart classification with Accounts.'}</p>`;
- else body=`<p>${esc(d.occupancy.note)} Latest status as at ${fdate(d.occupancy.as_on)}.</p>`+ahRows(['Building / unit','Latest status'],UNITS.map(u=>[ahOpen((u.bn||u.b)+' · '+u.id,'#/unit/'+encodeURIComponent(u.id)),esc(u.st)]));
+ else body=`<p>${esc(d.occupancy.note)} Read on ${fdate(d.occupancy.as_on)}.</p>`+ahRows(['Building / unit','Latest status'],UNITS.map(u=>[ahOpen((u.bn||u.b)+' · '+u.id,'#/unit/'+encodeURIComponent(u.id)),esc(u.st)]));
  return page(title,isAge?'As at '+fdate(d.as_on):periodSpan(),ahControls()+`<button class="btn" onclick="window.print()">Print</button>`,(!isAge?reportNotes(d):'')+`<div class="card">${body||empty('No posted rows for this report.')}</div>`);
 };
 

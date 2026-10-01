@@ -8,8 +8,9 @@ Building permissions is denied company-wide overview totals by the server.
 
 Starting and ending months are inclusive. The current month stops at today's
 date. P&L and movements span the selected range; cash, deposits, statements
-and ageing use its ending date. Latest unit occupancy is explicitly labelled
-as current operational status because historical occupancy is not inferred.
+and ageing use its ending date. Latest occupancy uses the shared source-observation projection, including newer
+operational changes and active agreements, rather than migration default unit
+statuses. Unknown units remain explicit. Historical occupancy is not inferred.
 
 The overview uses the existing P&L, balance sheet and cash-flow APIs. Monthly
 and building breakdowns aggregate non-cancelled trading GL entries, excluding
@@ -26,7 +27,8 @@ today's invoice outstanding_amount when a past date was requested.
 
 Month selections are carried into financial drilldowns. In-app Back uses
 browser history and restores the prior route, URL filters, ledger/report
-filter state and scroll. Journal detail reads the exact voucher from the
+filter state and scroll. Standard report selections and date/building filters also
+use URL state and a range-specific cache. Encoded record names retain history. Journal detail reads the exact voucher from the
 server instead of falling back to the first cached posting.
 
 ## Verification before deployment

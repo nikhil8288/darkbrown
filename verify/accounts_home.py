@@ -60,4 +60,8 @@ with patch.object(H,'guard'),patch.object(H,'allowed_buildings',return_value={'B
     try: H._access()
     except Exception: pass
     else: raise AssertionError('scoped login must not read company bank totals')
+with patch.object(H,'today',return_value='2026-10-01'):
+    d=H._occupancy_position({'A':{'status':'Occupied'},'B':{'status':'Unknown'},'C':{'status':'Vacant'}},'2026-09-30')
+    assert (d['units'],d['occupied'],d['unknown'],d['pct'])==(3,1,1,33.3)
+    assert d['source_as_of']=='2026-09-30' and 'not assumed vacant' in d['note']
 print('PASS month boundaries, invalid ranges, dated/native ageing adapter, credits, signed losses, unassigned costs and scope denial')

@@ -122,6 +122,20 @@ def _performance(company, frm, to, nodes):
     return {"monthly": pack(monthly, "month"), "buildings": pack(buildings, "building")}
 
 
+def _occupancy_position(observed, source_date):
+    if len(observed) > 5000:
+        frappe.throw("Unit register exceeds overview capacity.")
+    occupied = sum(u.get("status") == "Occupied" for u in observed.values())
+    unknown = sum(u.get("status") == "Unknown" for u in observed.values())
+    return {"units": len(observed), "occupied": occupied, "unknown": unknown,
+            "pct": round(occupied / len(observed) * 100, 1) if observed else None,
+            "as_on": str(today()), "source_as_of": source_date,
+            "note": ("Latest supplied occupancy" + (" from " + str(source_date) if source_date else "") +
+                     "; newer operational status and active agreements take precedence. "
+                     "Unknown units are not assumed vacant. Contract review may be incomplete; "
+                     "historical occupancy is not inferred.")}
+
+
 @frappe.whitelist()
 def overview(start=None, end=None):
     guard(MD, GM, ACC)
@@ -144,10 +158,8 @@ def overview(start=None, end=None):
             dr, cr = sums.get(name, (0, 0))
             positions.append({"kind": kind, "code": node["code"], "label": node["label"],
                               "amount": round(dr - cr if node["nat"] == "Dr" else cr - dr, 2)})
-    units = frappe.get_all("Unit", fields=["name", "building", "status"], limit=5001)
-    if len(units) > 5000:
-        frappe.throw("Unit register exceeds overview capacity.")
-    occupied = sum(u.status == "Occupied" for u in units)
+    from darkbrown.utils.portfolio_actuals import occupancy, snapshot
+    occupancy_position = _occupancy_position(occupancy(), snapshot().get("as_of"))
     pl = statements.profit_and_loss(frm=frm, to=to)
     performance = _performance(company, frm, to, nodes)
     # A missing account or incomplete aggregation must not become a plausible total.
@@ -173,10 +185,7 @@ def overview(start=None, end=None):
             "pl": pl, "cash_flow": statements.cash_flow(frm=frm, to=to),
             "balance_sheet": statements.balance_sheet(as_on=to),
             "positions": positions, **performance, "receivables": ar, "payables": ap,
-            "occupancy": {"units": len(units), "occupied": occupied,
-                "pct": round(occupied / len(units) * 100, 1) if units else None,
-                "as_on": str(today()), "note": "Latest unit status; historical occupancy is not inferred. "
-                    "Agreement review may be incomplete."}, "notes": notes}
+            "occupancy": occupancy_position, "notes": notes}
 
 
 @frappe.whitelist()
