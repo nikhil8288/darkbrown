@@ -54,3 +54,33 @@ verify the actual overview against P&L and cash flow for a multi-month range,
 check positive/credit ageing and any control difference, and retrace report →
 source → report → overview using Back. No synthetic records are created on the
 operational site for these checks.
+
+## Post-deployment verification (2026-10-02 IST)
+
+The deployed UI was checked read-only using the existing administrator session.
+The Accounts role preview opens the financial overview from Home; this is UI
+routing evidence, not a separate Accounts user's permission acceptance test.
+
+- Multi-month overview income, expenses and net result agree with the live P&L.
+- The rental-income account has more postings than the former global voucher
+  cache limit. Its complete totals agree with the statement; pagination keeps
+  those totals and displays the next distinct page of source postings.
+- A source link from the second ledger page opens the requested Sales Invoice,
+  with matching identity and balanced debit/credit lines.
+- Back retraces source, second ledger page, first ledger page, P&L and overview;
+  the month range, pagination and previous scroll position are restored.
+- Live payables detail agrees with its overview and due-date ageing buckets.
+  Dated receivables and occupancy agreement were also checked during release.
+- Live cash-flow opening plus movement equals closing and agrees with the
+  overview. Posted Cash/Bank balances currently contain no historical cash
+  position; the existing opening-balance/settlement qualification stays visible.
+- Desktop styling uses the existing brown sidebar, ivory background, beige
+  panels, white summary cards and emerald links.
+- Focused Python overview/period and security checks pass. Focused JS overview
+  and period checks pass; all 30 route/role/data combinations pass.
+
+No operational transactions or user permissions were changed during these
+checks. The Accounts Head UI release is complete. Imported historical accounts
+remain provisional; UI agreement with posted reports is not source-data or
+financial-close sign-off. Accounts Support and the six-role user setup remain
+outside this approved UI release.
