@@ -586,6 +586,10 @@ body.focus main{max-width:none}
 .unwired .uw-note{margin-top:14px;font-size:11.5px;opacity:.7;font-style:italic}
 .card.is-unwired{opacity:.72}
 .notrack{opacity:.45;cursor:help;letter-spacing:.05em}
+
+/* Accounts overview uses the existing ERP palette. */
+.ah-controls{display:flex;align-items:end;gap:10px;flex-wrap:wrap}.ah-controls .fl{min-width:145px;font-size:10px}.ah-controls input{padding:9px;color:var(--ink);background:var(--bg2);border:1px solid var(--line2);border-radius:5px;font-family:var(--sans);color-scheme:light}.ah-period{display:flex;justify-content:space-between;gap:12px;margin:4px 0 18px;font-size:11px;color:var(--mut)}.ah-stats{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:12px;margin-bottom:24px}.ah-metric{display:flex;flex-direction:column;text-decoration:none;color:var(--ink);min-width:0;background:var(--bg2)}.ah-metric .v{display:block;font-size:23px;margin:12px 0;overflow-wrap:anywhere}.ah-metric .s{display:block;font-size:9px;line-height:1.6}.ah-metric:hover,.ah-tile:hover{border-color:var(--gold);box-shadow:0 3px 12px #3e27230a}.ah-card h3{display:flex;justify-content:space-between;gap:12px;align-items:center}.ah-open{color:var(--em);font-size:10px;font-weight:600;text-decoration:none;line-height:1.6}.ah-open:hover{text-decoration:underline}.ah-grid{align-items:stretch;margin:16px 0 26px}.ah-note{font-size:10px;line-height:1.7;color:var(--mut);margin-top:12px}.ah-kv{display:flex;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid var(--line);font-size:11px}.ah-total{font-size:29px;color:var(--ink);margin:10px 0}.ah-age{display:grid;grid-template-columns:88px 1fr 106px;align-items:center;gap:10px;margin:15px 0;font-size:10px}.ah-age strong{text-align:right}.ah-track{height:6px;background:var(--bg3);border-radius:6px;overflow:hidden}.ah-track span{display:block;height:100%;background:var(--em)}.ah-chart{width:100%;height:auto;min-height:140px}.ah-chart text{font:10px var(--mono);fill:var(--mut)}.ah-legend{display:flex;gap:16px;font-size:9px;margin:14px 0}.ah-legend span:nth-child(1){color:var(--db3)}.ah-legend span:nth-child(2){color:#9d793a}.ah-legend span:nth-child(3){color:var(--em)}.ah-building{margin:12px 0;max-width:290px}.ah-tiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}.ah-tile{text-decoration:none;color:var(--ink)}.ah-tile strong{display:flex;justify-content:space-between;gap:8px;font-size:12px}.ah-tile strong span{color:var(--em)}.ah-tile small{display:block;font-size:10px;line-height:1.7;margin-top:10px;color:var(--mut)}.ah-back{margin-bottom:15px}@media(max-width:1400px){.ah-stats{grid-template-columns:repeat(3,minmax(0,1fr))}.ah-tiles{grid-template-columns:repeat(3,minmax(0,1fr))}}@media(max-width:760px){.ah-stats,.ah-tiles{grid-template-columns:repeat(2,minmax(0,1fr))}.ah-period{flex-direction:column}.ah-grid{grid-template-columns:1fr}.ah-age{grid-template-columns:80px 1fr 95px}}
+
 </style>
 
 </head>
@@ -596,6 +600,7 @@ body.focus main{max-width:none}
   <nav id="nav">
     <div class="grp">Overview</div>
     <div class="nv" data-r="home">Home</div>
+    <div class="nv" data-r="accounts-home">Accounts overview</div>
     <div class="nv on" data-r="dash">MD Command Centre</div>
     <div class="grp">Portfolio</div>
     <div class="nv" data-r="buildings">Buildings</div>
@@ -1007,7 +1012,7 @@ function qsSet(k,v){
   let p; try{ p=new URLSearchParams(i<0?'':h.slice(i+1)); }catch(e){ p=new URLSearchParams(); }
   if(v===null||v===undefined||v==='') p.delete(k); else p.set(k,v);
   const q=p.toString();
-  location.hash=base+(q?'?'+q:'');
+  go(base+(q?'?'+q:''));
 }
 /* Clicking the box that is already on clears it, which is the only behaviour
    that does not need a second control to undo the first. */
@@ -1051,13 +1056,21 @@ function acctPeriods(){
     {k:'life',l:'Lifetime',           frm:'2000-01-01',       to:cap(last(y,11))}];
 }
 function acctPeriod(){
-  const ps=acctPeriods(), want=qs().p||'m0';
+  const ps=acctPeriods(), query=qs(), want=query.p||'m0';
+  if(query.start||query.end){
+    const start=query.start||query.end,end=query.end||query.start;
+    if(!/^\d{4}-(0[1-9]|1[0-2])$/.test(start)||!/^\d{4}-(0[1-9]|1[0-2])$/.test(end)||start>end||end>ISO(TODAY).slice(0,7))throw Error('Invalid reporting month range');
+    const [y,m]=end.split('-').map(Number);
+    const to=ISO(new Date(Math.min(Date.UTC(y,m,0),TODAY.getTime())));
+    return {k:'range:'+start+':'+end+':'+to,l:'Selected range',frm:start+'-01',to};
+  }
   return ps.find(p=>p.k===want)||ps[0];
 }
+window.acctPreset=k=>{const p=new URLSearchParams(qs());p.delete('start');p.delete('end');p.set('p',k);go((location.hash||'#/home').split('?')[0]+'?'+p.toString())};
 function periodBar(){
   const cur=acctPeriod().k;
-  return `<div class="ptoggle inline">${acctPeriods().map(p=>
-    `<button class="${p.k===cur?'on':''}" onclick="qsSet('p','${p.k}')">${p.l}</button>`).join('')}</div>`;
+  return ahControls()+`<div class="ptoggle inline">${acctPeriods().map(p=>
+    `<button class="${p.k===cur?'on':''}" onclick="acctPreset('${p.k}')">${p.l}</button>`).join('')}</div>`;
 }
 /* What the window actually was, said out loud. "Q3" means nothing on its own
    to the person checking a figure against a bank statement. */
@@ -1350,13 +1363,60 @@ function unwiredPage(r){
     it shows you nothing.</p></div></div>`;
 }
 
+/* History belongs to the path taken, including filters and scroll position. */
+const DB_NAV_TOKEN=String(Date.now())+Math.random().toString(36).slice(2);
+let DB_NAV_RENDERED='';
+history.scrollRestoration='manual';
+function navCapture(){
+ const n=history.state&&history.state.dbNav;
+ if(!n||n.hash!==location.hash)return;
+ const shared={};
+ if(typeof LF!=='undefined')shared.LF={...LF};
+ if(typeof RPT!=='undefined')shared.RPT={...RPT};
+ history.replaceState({...history.state,dbNav:{...n,scroll:window.scrollY,shared}},'',location.href);
+}
+function navPrepare(){
+ let n=history.state&&history.state.dbNav;
+ if(!n||n.hash!==location.hash){
+  n={token:DB_NAV_TOKEN,index:0,hash:location.hash,scroll:0,controls:[],shared:{}};
+  history.replaceState({...history.state,dbNav:n},'',location.href);
+ }
+ if(DB_NAV_RENDERED!==location.hash){
+  if(n.shared&&n.shared.LF&&typeof LF!=='undefined')Object.assign(LF,n.shared.LF);
+  if(n.shared&&n.shared.RPT&&typeof RPT!=='undefined')Object.assign(RPT,n.shared.RPT);
+ }
+ DB_NAV_RENDERED=location.hash;
+ return n;
+}
+function navRestore(n){
+ if(n.index>0){const head=document.querySelector('#view .ph');if(head)head.insertAdjacentHTML('beforebegin',
+  '<button class="btn ah-back" onclick="appBack()" aria-label="Back to previous page">← Back</button>');}
+ window.scrollTo(0,n.scroll||0);
+}
+window.appBack=()=>{const n=history.state&&history.state.dbNav;if(n&&n.index>0)history.back();else go(ROLE_HOME(ROLEV))};
+window.addEventListener('popstate',()=>router());
+window.addEventListener('scroll',()=>navCapture(),{passive:true});
+document.addEventListener('input',()=>navCapture());
+document.addEventListener('change',()=>navCapture());
+
 /* Assigning the hash it already holds fires no hashchange, so a button that
    navigates to the screen you are already on did nothing at all. Generate was
    one of those: it set up the run and asked for #/generate from #/generate.
    Same route means re-render, not ignore. */
 function go(h){
-  if((location.hash||'#/dash')===h) router();
-  else location.hash=h;
+  if(!h.startsWith('#/'))return;
+  const route=h.slice(2).split(/[/?]/)[0];
+  const financial=['accounts-home','accounts-report','pl','bs','cf','trial','ledger','account','coa','journal','expenses'];
+  if(financial.includes(route)&&h.split('?')[0]!==location.hash.split('?')[0]){
+    const cur=qs(), parts=h.split('?'), p=new URLSearchParams(parts[1]||'');
+    ['start','end'].forEach(k=>{if(cur[k]&&!p.has(k))p.set(k,cur[k])});
+    h=parts[0]+(p.toString()?'?'+p.toString():'');
+  }
+  if((location.hash||'#/dash')===h){router();return}
+  navCapture();
+  const n=history.state&&history.state.dbNav;
+  history.pushState({dbNav:{token:DB_NAV_TOKEN,index:(n?n.index:0)+1,hash:h,scroll:0,controls:[],shared:{}}},'',h);
+  router();
 }
 window.go=go;
 /* A route that threw never reached the assignment below, so #view kept the
@@ -1375,6 +1435,7 @@ function routeError(r,e){
      unaffected \u2014 this is one route, not the application.</p></div></div>`);
 }
 function router(){
+  const nav=navPrepare();
   /* The empty hash used to mean the MD Command Centre for everybody, which
      four of the five roles cannot open. It now means whatever that role's
      home is, and the unknown-route fallback goes there too rather than to a
@@ -1428,7 +1489,7 @@ function router(){
   }catch(e){ out=routeError(r,e); }
   el('#view').innerHTML=out;
   try{ if(typeof emptyBanner==='function') emptyBanner(r); }catch(e){console.error(e)}
-  window.scrollTo(0,0);
+  navRestore(nav);
   document.querySelectorAll('.nv').forEach(n=>n.classList.toggle('on',n.dataset.r===r));
   el('#ptoggle').style.display=r==='dash'?'flex':'none';
   /* the chrome is drawn after the screen and must not be able to take it
@@ -1445,7 +1506,7 @@ function router(){
   if(fc) fc.textContent = window.DB_LIVE
     ? `${BUILDINGS.length} buildings · ${UNITS.length} units · live data`
     : `V2 prototype — dummy data · ${BUILDINGS.length} buildings · ${UNITS.length} units`;
-  el('#ptop').textContent=({dash:DASH_TITLE(),home:HOME_TITLE(),mywork:HOME_TITLE(),buildings:'Buildings',building:'Building',
+  el('#ptop').textContent=({'accounts-home':'Accounts overview','accounts-report':'Financial report',dash:DASH_TITLE(),home:HOME_TITLE(),mywork:HOME_TITLE(),buildings:'Buildings',building:'Building',
    units:'Units',unit:'Unit',tenants:'Tenants',tenant:'Tenant',landlords:'Landlords',landlord:'Landlord',
    agreements:'Agreements',agreement:'Agreement',cases:'Collection cases',case:'Collection case',
    moveout:'Move-out',maint:'Maintenance',job:'Maintenance job',utilities:'Utilities',intake:'Document intake',
@@ -1473,7 +1534,7 @@ addEventListener('resize',()=>{if(innerWidth>1100)closeNav()});
 window.addEventListener('hashchange',router);
 document.addEventListener('click',e=>{
   const n=e.target.closest('.nv'); if(n&&n.dataset.r){go('#/'+n.dataset.r);closeNav();return;}
-  const a=e.target.closest('.crumb a'); if(a&&a.getAttribute('href')?.startsWith('#')){e.preventDefault();go(a.getAttribute('href'));}
+  const a=e.target.closest('a[href^="#"]'); if(a&&a.getAttribute('href')?.startsWith('#')){e.preventDefault();go(a.getAttribute('href'));}
 });
 
 /* ============ notes, alerts, cash receipts, ledger ============ */
@@ -4082,6 +4143,7 @@ ROUTES.home=()=>{
      is authority, not information, so the screen is shared and the couple of
      places that would misstate a GM's standing are the only things that turn
      on the role. */
+  if(role==='ACC'&&window.DB_LIVE)return accountsHeadHome();
   const build=({MD:homeMD,GM:homeMD,ACC:homeACC,DOC:homeDOC,MNT:homeMNT}[role])||homeMD;
   const h=build();
   return page(HOME_TITLE(), h.sub, h.act||'', stat(h.tiles)+h.body);
@@ -6720,7 +6782,7 @@ ROUTES.trial=()=>{
 function stRows(rows){
   return rows.map(r=>`<tr${r.group?' class="grp2"':''}>
     <td style="padding-left:${8+(r.depth||0)*18}px">${r.code
-      ?`<span class="num" style="opacity:.55">${esc(String(r.code))}</span> `:''}${esc(r.label)}</td>
+      ?`<span class="num" style="opacity:.55">${esc(String(r.code))}</span> `:''}${!r.group&&r.code?ahOpen(r.label,'#/account/'+encodeURIComponent(r.code)):esc(r.label)}</td>
     <td class="r num">${money(r.amount)}</td></tr>`).join('');
 }
 function stTable(rows,label,tot,emptyMsg){
@@ -6959,7 +7021,14 @@ ROUTES.expenses=()=>{
      shows how the common pool divided.</p></div></div>`);
 };
 
-function journalDetail(id){const j=JRN.find(x=>x.id===id)||JRN[0];
+function journalDetail(id){
+  let j=JRN.find(x=>x.id===id);
+  if(window.DB_LIVE){
+    const c=lazy('voucher:'+id,'accounting.voucher',{voucher_no:id,voucher_type:qs().vt||undefined});
+    if(c.state!=='ok')return lazyPage('Source voucher','Reads the requested original posting',c);
+    const v=c.data;j={...v,lines:v.lines.map(l=>[l[0],l[2],l[3]]),accountNames:Object.fromEntries(v.lines.map(l=>[l[0],l[1]]))};
+  }
+  if(!j)return empty('No posting with that reference');
   const dr=j.lines.reduce((a,l)=>a+(l[1]||0),0), cr=j.lines.reduce((a,l)=>a+(l[2]||0),0);
   const dep=String(j.desc||'').match(/Security deposit settlement (SD-[A-Za-z0-9-]+)/);
   const correction={
@@ -6968,21 +7037,21 @@ function journalDetail(id){const j=JRN.find(x=>x.id===id)||JRN[0];
    'Payment Entry':'Cancel the source Payment Entry; ERPNext keeps the reversing ledger trail',
    'Journal Entry':'Cancel or reverse the source Journal Entry in ERPNext'
   }[j.vt]||'Correct or cancel the source document in ERPNext';
-  return crumb([['Journal entries','#/journal'],[j.id,'']])+page(j.id,`${j.desc} · ${j.d}`,
+  return crumb([['Journal entries','#/journal'],[j.id,'']])+page(esc(j.id),`${esc(j.desc)} · ${esc(j.d)}`,
    actbtn('Print')+(dep?fbtn('Correct deposit settlement','reopen-deposit-release',
      {deposit:dep[1],journal:j.id}):''),
    stat([['Date',j.d],['Type',j.ty],['Reference',j.ref],['Debits',money(dr)],['Credits',money(cr)],
      ['Balanced',Math.abs(dr-cr)<0.01?'Yes':'No','',Math.abs(dr-cr)<0.01?'g':'r'],['Posted by',j.by||'\u2014']])+
    `<div class="card"><h3>Journal lines</h3>
     <div class="tw"><table><thead><tr><th>Code</th><th>Account</th><th>Class</th><th class="r">Debit</th><th class="r">Credit</th></tr></thead><tbody>
-    ${j.lines.map(l=>`<tr class="drill" onclick="go('#/account/'+'${l[0]}')"><td>${l[0]}</td>
-      <td>${(acc(l[0])||[])[1]||l[0]}</td><td>${(acc(l[0])||[])[2]||''}</td>
+    ${j.lines.map(l=>`<tr class="drill" onclick="go('#/account/'+'${encodeURIComponent(l[0])}')"><td>${esc(l[0])}</td>
+      <td>${esc((j.accountNames||{})[l[0]]||(acc(l[0])||[])[1]||l[0])}</td><td>${(acc(l[0])||[])[2]||''}</td>
       <td class="r num">${l[1]?money(l[1]):'—'}</td><td class="r num">${l[2]?money(l[2]):'—'}</td></tr>`).join('')}
     <tr class="grp2"><td></td><td>Total</td><td></td><td class="r num">${money(dr)}</td><td class="r num">${money(cr)}</td></tr>
     </tbody></table></div></div>
    ${noteThread(j.id)}
    <div class="card"><h3>Audit</h3><div class="kv">
-    ${[['Posted by',j.by||'\u2014'],['Posted on',j.d],['Source document',j.ref],
+    ${[['Posted by',j.by||'\u2014'],['Posted on',j.d],['Source document',esc(j.ref)],
        ['Correction path',correction],['Edited after posting','no']]
      .map(r=>`<div><span>${r[0]}</span><b>${r[1]}</b></div>`).join('')}</div></div>`)}
 
@@ -7359,7 +7428,7 @@ const PLANONLY=['planning','capacity','forecast','fva','scenarios','scenario','c
    accGroup() found no `.groups` on it and silently fell back to the prototype
    account codes, which is why Cash at bank, Receivables and Deposits held all
    read 0 on a ledger holding 255,800. */
-const LEDGER_ROUTES=['coa','ledger','journal','trial','account','pl','bs','cf','expenses'];
+const LEDGER_ROUTES=['accounts-home','accounts-report','coa','ledger','journal','trial','account','pl','bs','cf','expenses'];
 window.cycleRole=()=>{const o=Object.keys(ROLES);
   if(DB_REAL_ROLE!=='MD'){toast('Your role is set by your login');return}
   ROLEV=o[(Math.max(0,o.indexOf(ROLEV))+1)%o.length];applyRole();
@@ -10299,6 +10368,82 @@ function applySeed(){
 function gatePayload(){ applySeed(); }
 window.applySeed=applySeed;
 window.gatePayload=gatePayload;
+/* Accounts Head: live report summaries and dated drilldowns. */
+function ahRange(){const p=acctPeriod();return {start:qs().start||p.frm.slice(0,7),end:qs().end||p.to.slice(0,7)}}
+function ahControls(){const r=ahRange();return `<div class="ah-controls">
+ <label class="fl">Starting month<input id="ah-start" type="month" max="${ISO(TODAY).slice(0,7)}" value="${esc(r.start)}"></label>
+ <label class="fl">Ending month<input id="ah-end" type="month" max="${ISO(TODAY).slice(0,7)}" value="${esc(r.end)}"></label>
+ <button class="btn pri" onclick="ahApplyRange()">Apply range</button></div>`}
+window.ahApplyRange=()=>{const start=el('#ah-start').value,end=el('#ah-end').value;
+ if(!/^\d{4}-(0[1-9]|1[0-2])$/.test(start)||!/^\d{4}-(0[1-9]|1[0-2])$/.test(end)||start>end||end>ISO(TODAY).slice(0,7)){
+  toast('Choose valid months, with the starting month before the ending month.');return}
+ const p=new URLSearchParams(qs());p.set('start',start);p.set('end',end);p.delete('p');
+ go((location.hash||'#/home').split('?')[0]+'?'+p.toString());};
+function ahLink(route){const r=ahRange(),p=new URLSearchParams({start:r.start,end:r.end});const [base,q]=route.split('?');const query=new URLSearchParams(q||'');p.forEach((v,k)=>query.set(k,v));return base+'?'+query.toString()}
+function ahOpen(label,route){return `<a class="ah-open" href="${esc(ahLink(route))}">${esc(label)} <span aria-hidden="true">↗</span></a>`}
+function ahCard(title,route,body,note=''){return `<section class="card ah-card"><h3>${esc(title)}${ahOpen('Open report',route)}</h3>${body}${note?`<p class="ah-note">${esc(note)}</p>`:''}</section>`}
+function ahMetric(label,value,note,route){return `<a class="st ah-metric" href="${esc(ahLink(route))}"><span class="l">${esc(label)}</span><strong class="v">${money(value)}</strong><span class="s">${esc(note)} <span aria-hidden="true">↗</span></span></a>`}
+function ahRows(headers,rows){return `<div class="tw"><table><thead><tr>${headers.map((h,i)=>`<th class="${i?'r':''}">${esc(h)}</th>`).join('')}</tr></thead><tbody>${rows.map(row=>`<tr>${row.map((v,i)=>`<td class="${i?'r num':''}">${v}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`}
+function ahKV(label,value){return `<div class="ah-kv"><span>${esc(label)}</span><strong class="num">${money(value)}</strong></div>`}
+function ahAgeing(d){return `<div class="ah-total num">${money(d.gross)}</div><div class="ah-note">Positive outstanding · as at ${fdate(d.as_on)}</div>`+
+ [['current','Not yet due'],['b30','1–30 days'],['b60','31–60 days'],['b90','61–90 days'],['b90p','90+ days']].map(([k,l])=>
+ `<div class="ah-age"><span>${l}</span><div class="ah-track"><span style="width:${d.gross?Math.min(100,d.buckets[k]/d.gross*100):0}%"></span></div><strong class="num">${money(d.buckets[k])}</strong></div>`).join('')+
+ ahKV('Credits / advances',d.credits)+ahKV('Net outstanding',d.net)+(d.difference?`<p class="ah-note">Review: ageing differs from the ledger control by ${money(d.difference)}.</p>`:'')}
+function ahChart(rows){const W=700,H=180,L=55,R=10,T=12,B=30,vs=rows.flatMap(r=>[r.income,r.expense,r.net]);
+ const lo=Math.min(0,...vs),hi=Math.max(1,...vs),span=hi-lo,y=v=>T+(hi-v)/span*(H-T-B),zero=y(0),step=(W-L-R)/Math.max(rows.length,1),bw=Math.min(17,step/4);
+ return `<div class="ah-legend"><span>● Income</span><span>● Expenses</span><span>● Net result</span></div><svg class="ah-chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Monthly income, expenses and signed net result in company currency">
+ ${[lo,hi,(lo+hi)/2].map(v=>`<line x1="${L}" x2="${W-R}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)"/><text x="${L-8}" y="${y(v)+4}" text-anchor="end">${n0(v/1000)}k</text>`).join('')}
+ <line x1="${L}" x2="${W-R}" y1="${zero}" y2="${zero}" stroke="var(--mut)"/>
+ ${rows.map((r,i)=>{const x=L+step*(i+.5);return ['income','expense','net'].map((k,j)=>`<rect x="${x+(j-1.5)*bw}" y="${Math.min(y(r[k]),zero)}" width="${Math.max(1,bw-2)}" height="${Math.abs(y(r[k])-zero)}" rx="1" fill="${['var(--db3)','var(--gold)','var(--em)'][j]}"><title>${esc(r.month)} · ${k}: ${money(r[k])}</title></rect>`).join('')+
+ (i%Math.max(1,Math.ceil(rows.length/8))===0||i===rows.length-1?`<text x="${x}" y="${H-8}" text-anchor="middle">${esc(r.month)}</text>`:'')}).join('')}</svg>`}
+function ahBuildings(d,full=false){const b=qs().building||'',rows=d.buildings.filter(r=>!b||r.building===b);
+ return `<label class="fl ah-building">Building breakdown<select aria-label="Building breakdown" onchange="qsSet('building',this.value)"><option value="">All buildings + company costs</option>${d.buildings.map(r=>`<option value="${esc(r.building)}" ${r.building===b?'selected':''}>${esc(r.building)}</option>`).join('')}</select></label>`+
+ ahRows(['Building','Income','Direct expenses','Posted result','Margin'],rows.slice(0,full?rows.length:6).map(r=>[
+ ahOpen(r.building,'#/accounts-report/building?building='+encodeURIComponent(r.building)),money(r.income),money(r.expense),money(r.net),r.margin===null?'—':r.margin+'%']))+
+ `<p class="ah-note">${rows.length} rows. Company costs stay in Unassigned; no overhead allocation is invented. Posted results remain provisional where source costs are missing.</p>`}
+function ahData(){const r=ahRange();return lazy('accounts:'+r.start+':'+r.end,'accounts_home.overview',r)}
+function accountsHeadHome(){
+ const c=ahData();
+ if(c.state!=='ok')return page('Financial overview','Accounts Head · company reports',ahControls(),
+  c.state==='load'?'<div class="card">Reading posted reports and end-date balances…</div>':`<div class="card"><div class="unwired"><span class="uw-tag">${c.state==='demo'?'LIVE DATA REQUIRED':'SERVER ERROR'}</span><p>${esc(c.msg||'This overview reads real ERP reports.')}</p></div></div>`);
+ const d=c.data,p=d.pl,cf=d.cash_flow,bs=d.balance_sheet,ar=d.receivables,ap=d.payables,o=d.occupancy;
+ const pos=k=>d.positions.filter(r=>r.kind===k),sum=k=>pos(k).reduce((s,r)=>s+r.amount,0);
+ const range=fdate(d.frm)+' to '+fdate(d.to),asof='As at '+fdate(d.to);
+ const summary=stat([['Units · latest',o.units],['Occupied · latest',o.occupied],['Occupancy · latest',o.pct===null?'—':o.pct+'%'],['Deposit liability',money(sum('deposits')),asof]]);
+ const tiles=[['Balance sheet','#/bs',bs.balanced?'Arithmetic balances':'Review balance difference'],['Trial balance','#/trial','Debits, credits and end-date balances'],['General ledger','#/ledger','Account movements across the selected range'],['Journal entries','#/journal','Postings and their original vouchers'],['Deposits held','#/accounts-report/deposits','Liability accounts at the end date'],['Bank reconciliation','#/recon','Current statement matching status'],['Landlord payments','#/landlordpayments','Current posted bills and payment records'],['Collection register','#/receipts','Recorded receipts and source transactions'],['Deposit batches','#/batches','Cash and cheques awaiting bank matching'],['All reports','#/reports','Standard report catalogue']];
+ return page('Financial overview',`Accounts Head · ${esc(d.company)} · ${esc(d.currency)} · posted reports`,ahControls(),
+ `<div class="ah-period">${range}<span>Balances and ageing ${asof.toLowerCase()}${d.to===ISO(TODAY)?' · current month to date':''}</span></div>`+reportNotes(d)+
+ `<div class="ah-stats">${ahMetric('Total income',p.income,range,'#/pl')}${ahMetric('Total expenses',p.expense,range,'#/accounts-report/expenses')}${ahMetric('Net result',p.net,p.margin===null?'No income for margin':p.margin+'% margin','#/pl')}${ahMetric('Cash & bank',sum('cash'),asof,'#/accounts-report/cash')}${ahMetric('Tenant receivables',ar.gross,asof+' · before credits','#/accounts-report/receivables')}${ahMetric('Landlord & vendor payables',ap.gross,asof+' · before advances','#/accounts-report/payables')}</div>`+
+ `<div class="band"><h2>Financial reports</h2><div class="rule"></div><span>OVERVIEW → REPORT → SOURCE</span></div><div class="grid2 ah-grid">`+
+ ahCard('Monthly profit & loss','#/pl',ahChart(d.monthly)+ahKV('Income',p.income)+ahKV('Expenses',p.expense)+ahKV('Net result',p.net),'The same ledger window as the Profit & Loss statement. Closing vouchers are excluded.')+
+ ahCard('Building-wise P&L','#/accounts-report/buildings',ahBuildings(d))+
+ ahCard('Cash flow','#/cf',ahKV('Opening cash',cf.opening)+cf.buckets.map(b=>ahKV(b.label,b.total)).join('')+(cf.unallocated?ahKV('Unallocated',cf.unallocated):'')+ahKV('Net movement',cf.net)+ahKV('Closing cash',cf.closing),cf.reconciled?'Arithmetic balances: opening + movement = closing. Cutover clearing is excluded.':'Review required: cash flow does not reconcile.')+
+ ahCard('Cash & bank position','#/accounts-report/cash',pos('cash').length?ahRows(['Account','End-date balance'],pos('cash').map(r=>[ahOpen(r.label,'#/account/'+encodeURIComponent(r.code)),money(r.amount)])):empty('No Cash or Bank accounts configured.'),'Company balances; imported receipts are not assumed to be verified cash.')+
+ ahCard('Tenant receivables ageing','#/accounts-report/receivables',ahAgeing(ar),ar.note)+
+ ahCard('Landlord & vendor payables','#/accounts-report/payables',ahAgeing(ap),ap.note)+
+ ahCard('Expense breakdown','#/accounts-report/expenses',p.groups.map(g=>ahKV(g.label,g.total)).join(''),'Posted expenses across the selected months; includes cost of sales and operating costs.')+
+ ahCard('Rent & tenancy position','#/accounts-report/tenancy',summary,o.note+' Status as at '+fdate(o.as_on)+'; the selected reporting months do not change this latest operational position.')+
+ `</div><div class="band"><h2>Books & registers</h2><div class="rule"></div><span>DETAIL AND VERIFICATION</span></div><div class="ah-tiles">${tiles.map(([t,r,n])=>`<a class="card ah-tile" href="${esc(ahLink(r))}"><strong>${t}<span>↗</span></strong><small>${esc(n)}</small></a>`).join('')}</div>`);
+}
+ROUTES['accounts-home']=accountsHeadHome;
+ROUTES['accounts-report']=key=>{
+ const r=ahRange(),isAge=key==='receivables'||key==='payables';
+ const c=isAge?lazy('ageing:'+key+':'+r.start+':'+r.end,'accounts_home.ageing',{...r,kind:key==='receivables'?'Receivable':'Payable'}):ahData();
+ if(c.state!=='ok')return page('Financial report','Accounts Head',ahControls(),c.state==='load'?'<div class="card">Reading the report…</div>':`<div class="card">${esc(c.msg||'Live data is required.')}</div>`);
+ const d=c.data,title={buildings:'Building-wise P&L',building:'Building P&L',cash:'Cash & bank position',deposits:'Deposit liability',expenses:'Expense detail',receivables:'Tenant receivables ageing',payables:'Landlord & vendor payables',tenancy:'Rent & tenancy position'}[key];
+ if(!title)return empty('Unknown financial report');
+ let body='';
+ if(isAge){const term=qs().q||'',bucket=qs().bucket||'',rows=d.rows.filter(x=>(!bucket||x.bucket===bucket)&&(!term||[x.party,x.voucher].join(' ').toLowerCase().includes(term.toLowerCase())));
+  body=ahAgeing(d)+`<div class="vfilters"><label class="fl">Search party or voucher<input aria-label="Search party or voucher" value="${esc(term)}" onchange="qsSet('q',this.value)"></label><label class="fl">Ageing bucket<select aria-label="Ageing bucket" onchange="qsSet('bucket',this.value)">${[['','All balances'],['current','Not due'],['b30','1–30'],['b60','31–60'],['b90','61–90'],['b90p','90+']].map(([v,t])=>`<option value="${v}" ${v===bucket?'selected':''}>${t}</option>`).join('')}</select></label></div>`+
+   ahRows(['Party / source voucher','Due','Days overdue','Balance'],rows.map(x=>[ahOpen(x.party+' · '+x.voucher,'#/journal/'+encodeURIComponent(x.voucher)+'?vt='+encodeURIComponent(x.voucher_type||'')),esc(x.due),x.age,money(x.amount)]))+
+   `<p class="ah-note">${rows.length} of ${d.rows.length} balances shown. ${esc(d.note)}</p>`;
+ }else if(key==='buildings'||key==='building')body=ahBuildings(d,true)+(key==='building'?ahOpen('Open general ledger','#/ledger'):'');
+ else if(key==='expenses')body=d.pl.groups.map(g=>`<h3>${esc(g.label)}</h3>`+ahRows(['Account','Expense'],g.rows.filter(x=>!x.group).map(x=>[ahOpen(x.label,'#/account/'+encodeURIComponent(x.code)),money(x.amount)]))).join('')+ahKV('Total posted expenses',d.pl.expense);
+ else if(key==='cash'||key==='deposits')body=ahRows(['Account','End-date balance'],d.positions.filter(x=>x.kind===(key==='cash'?'cash':'deposits')).map(x=>[ahOpen(x.label,'#/account/'+encodeURIComponent(x.code)),money(x.amount)]))+`<p class="ah-note">Balances as at ${fdate(d.to)}. ${key==='cash'?'Historical cutover clearing is excluded.':'Liability balances from deposit-named accounts; confirm the chart classification with Accounts.'}</p>`;
+ else body=`<p>${esc(d.occupancy.note)} Latest status as at ${fdate(d.occupancy.as_on)}.</p>`+ahRows(['Building / unit','Latest status'],UNITS.map(u=>[ahOpen((u.bn||u.b)+' · '+u.id,'#/unit/'+encodeURIComponent(u.id)),esc(u.st)]));
+ return page(title,isAge?'As at '+fdate(d.as_on):periodSpan(),ahControls()+`<button class="btn" onclick="window.print()">Print</button>`,(!isAge?reportNotes(d):'')+`<div class="card">${body||empty('No posted rows for this report.')}</div>`);
+};
+
 applySeed();
 
 router();

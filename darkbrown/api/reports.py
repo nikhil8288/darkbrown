@@ -134,7 +134,8 @@ def _pl_by_building(frm, to, building=None):
     gl = frappe.get_all(
         "GL Entry",
         filters={"is_cancelled": 0, "company": company,
-                 "posting_date": ["between", [frm, to]]},
+                 "posting_date": ["between", [frm, to]],
+                 "voucher_type": ["!=", "Period Closing Voucher"]},
         fields=["account", "cost_center", "debit", "credit", "posting_date"],
         limit=50000)
     accounts = frappe.get_all(
@@ -368,23 +369,25 @@ def _spread(frm, to, building=None):
 def _arrears(frm, to, building=None):
     as_on = getdate(to)
     buildings = _buildings()
-    filters = {"docstatus": 1, "outstanding_amount": [">", 0],
-               "posting_date": ["<=", str(as_on)]}
+    cost_center = None
     if building:
         cost_center = frappe.db.get_value("Building", building, "cost_center")
         if not cost_center:
-            return _pack(
-                "arrears", [], [], {},
-                "%s has no cost centre, so its receivables cannot be scoped."
-                % building)
-        filters["cost_center"] = cost_center
+            return _pack("arrears", [], [], {},
+                         "%s has no cost centre, so its receivables cannot be scoped." % building)
+    from darkbrown.api.accounts_home import _ageing
+    dated = _ageing("Receivable", str(as_on), _company(), cost_center=cost_center)
     rows = []
-    for si in frappe.get_all(
-            "Sales Invoice",
-            filters=filters,
-            fields=["name", "customer", "posting_date", "due_date",
-                    "outstanding_amount", "grand_total", "cost_center",
-                    "remarks", "custom_rental_agreement"], limit=20000):
+    for entry in dated["rows"]:
+        # Credits/advances remain signed rather than disappearing from the total.
+        info = (frappe.db.get_value("Sales Invoice", entry["voucher"],
+            ["name", "customer", "posting_date", "due_date", "remarks",
+             "custom_rental_agreement"], as_dict=True)
+            if entry["voucher_type"] == "Sales Invoice" else None)
+        si = info or frappe._dict(name=entry["voucher"], customer=entry["party_id"],
+            posting_date=entry["due"], due_date=entry["due"], remarks="",
+            custom_rental_agreement=None)
+        si.outstanding_amount = entry["amount"]
         due = getdate(si.due_date or si.posting_date)
         age = (as_on - due).days
         bucket = ("current" if age <= 0 else "b30" if age <= 30
@@ -428,7 +431,7 @@ def _arrears(frm, to, building=None):
             _col("total", "Total", "money")]
     totals = {k: round(sum(r[k] for r in rows), 2)
               for k in ("current", "b30", "b60", "b90", "b90p", "total")}
-    note = (("Point-in-time receivables as at %s; the From date does not "
+    note = (("Point-in-time receivables as at %s, reconstructed from dated payments and credits; the From date does not "
              "exclude older unpaid invoices." % as_on) if rows else
             "Nothing is outstanding as at %s." % as_on)
     return _pack("arrears", cols, rows, totals, note)

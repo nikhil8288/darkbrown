@@ -155,12 +155,12 @@ for (const [role, want] of [['MD','MD Command Centre'],['GM','GM Command Centre'
 (() => {
   const {win} = boot('ACC');
   const h = draw(win, '#/home');
-  t('Accounts home: cheques due, returned, and what is past due', () => {
-    has(h, '64632', 'the cheque maturing in two days');
-    hasnt(h, '64634', 'a cheque 80 days out');
-    has(h, 'Insufficient Funds');
-    has(h, 'INV-1', 'the overdue invoice');
-    hasnt(h, 'INV-2', 'an invoice already paid');
+  t('Accounts home requests real reports without falling back to sample invoices', () => {
+    has(h, 'Financial overview');
+    has(h, 'Starting month');
+    has(h, 'Ending month');
+    has(h, 'Reading posted reports');
+    hasnt(h, 'INV-1');
   });
 })();
 
@@ -255,7 +255,7 @@ for (const [role, routes] of Object.entries(DENIED)) {
   t('an unknown hash lands on the home, not on a refused Command Centre', () => {
     const h = draw(win, '#/nosuchroute');
     hasnt(h, 'cannot open this area');
-    has(h, 'Cheques due this week');
+    has(h, 'Financial overview');
   });
 })();
 
