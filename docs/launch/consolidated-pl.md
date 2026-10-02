@@ -44,3 +44,30 @@ users and nonfinancial roles cannot read this company report.
 These synthetic checks do not establish source expense completeness. Live
 deployment and ledger reconciliation evidence is recorded separately without
 posting confidential amounts or party identities into this repository.
+
+## Live verification — 2026-10-02
+
+DarkBrown code revision `ce1292360ff142e09273ed5e1d3e2cd915dfe3a2`
+was deployed successfully to the existing production bench. The site is active
+on `bench-42102-000293-f2-uae`. Frappe and ERPNext revisions were retained.
+
+A fresh authenticated browser reload verified the August–September matrix
+against Standard P&L for revenue, cost-of-sales split, gross, every remaining
+expense group and net result. Each monthly total also matched its cell ledger.
+Negative building results retained signed account contributions. September
+company costs selected their separate postings. Head rent selected its exact
+Purchase Invoice; another cell opened its exact Journal Entry. Back returned
+to the original building and month. Full-month pagination advanced beyond the
+first 100 entries while retaining the complete total and entry count. Bank
+charges selected their own account and source postings. Horizontal position
+was retained on Back.
+
+Applying a new range from a cell returned to the matrix and recalculated the
+selected months. Current-month reporting ended on today's date and a zero
+cell showed no matching source postings. The redundant period preset buttons
+were absent from both P&L views. The live desktop screenshot was saved outside
+the repository. Verification used the existing administrator session; role and
+scope denials were tested synthetically. No financial records were changed.
+
+Source history remains provisional; reconciliation to posted books does not
+establish complete historical source expenses or settle opening balances.
