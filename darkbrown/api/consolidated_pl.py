@@ -155,7 +155,10 @@ def _selection(company, nodes, building, bucket, frm, to):
         if owners:
             or_filters = [["cost_center", "not in", list(owners)], ["cost_center", "is", "not set"]]
     elif building != "__all__":
-        filters["cost_center"] = ["in", [c for c, b in owners.items() if b == building]]
+        owned = [c for c, b in owners.items() if b == building]
+        filters["cost_center"] = ["in", owned]
+        if not owned:
+            accounts = {}  # An unmapped building's zero cell must not read company costs.
     return accounts, filters, or_filters
 
 

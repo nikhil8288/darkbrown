@@ -104,6 +104,10 @@ with patch.object(C,'guard'),patch.object(C,'_access'),patch.object(H,'today',re
     assert ors==[['cost_center','not in',['CC','CHILD']],['cost_center','is','not set']]
     _,filters,ors=C._selection('SYN',nodes,'__all__','gross','2026-08-01','2026-08-31')
     assert set(filters['account'][1])=={'I','H','C'} and ors is None and 'cost_center' not in filters
+    before=len(cell_calls)
+    zero=C.cell('2026-08','SYN-ZERO','net')
+    assert (zero['total'],zero['entries'],zero['rows'])==(0,0,[])
+    assert len(cell_calls)==before
     for args in [('bad','net'),('SYN-B','bad')]:
         try: C._selection('SYN',nodes,*args,'2026-08-01','2026-08-31')
         except S.ValidationError: pass
