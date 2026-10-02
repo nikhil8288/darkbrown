@@ -251,6 +251,23 @@ def _section(nodes, root_type, label):
 
 # --------------------------------------------------------- profit and loss
 
+def _expense_group(node, nodes):
+    """One authoritative classification for statements and their drilldowns."""
+    from darkbrown.utils.chart_of_accounts import GROUPS, group_of
+    known = group_of(node["label"])
+    if known:
+        return known
+    labels = dict(GROUPS)
+    parent = nodes.get(node.get("parent"))
+    seen = set()
+    while parent and parent["acc"] not in seen:
+        seen.add(parent["acc"])
+        if parent["label"] in labels:
+            return parent["label"]
+        parent = nodes.get(parent.get("parent"))
+    return "Other"
+
+
 def _expense_groups(nodes):
     """The five P&L groups, in order, each with the accounts beneath it.
 
@@ -261,21 +278,10 @@ def _expense_groups(nodes):
     both the management classification and the statement total honest without
     silently reparenting an account that already has ledger entries.
     """
-    from darkbrown.utils.chart_of_accounts import GROUPS, group_of
+    from darkbrown.utils.chart_of_accounts import GROUPS
 
-    labels = dict(GROUPS)
     grouped = {key: [] for key, _label in GROUPS}
     grouped["Other"] = []
-
-    def inherited_group(node):
-        parent = nodes.get(node.get("parent"))
-        seen = set()
-        while parent and parent["acc"] not in seen:
-            seen.add(parent["acc"])
-            if parent["label"] in labels:
-                return parent["label"]
-            parent = nodes.get(parent.get("parent"))
-        return None
 
     for n in nodes.values():
         if n["cls"] != "Expense" or n["group"]:
@@ -283,7 +289,7 @@ def _expense_groups(nodes):
         own = round(_signed(n), 2)
         if not own:
             continue
-        key = group_of(n["label"]) or inherited_group(n) or "Other"
+        key = _expense_group(n, nodes)
         if key not in grouped:
             key = "Other"
         grouped[key].append({

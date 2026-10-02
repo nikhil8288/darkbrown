@@ -10,7 +10,7 @@
 :root{
   --db1:#3E2723; --db2:#4E342E; --db3:#5D4037;
   --ne1:#F4EDE6; --ne2:#FAF8F5; --ne3:#D7C8B6;
-  --gold:#C9A86A; --em:#2E6B57;
+  --gold:#C9A86A; --em:#2E6B57; --goldL:#F7F0E2; --emL:#EAF2ED;
   --bg0:var(--ne2); --bg1:var(--ne1); --bg2:#FFFFFF; --bg3:#EFE6DA;
   --line:#E7DCCD; --line2:var(--ne3);
   --ink:var(--db1); --body:var(--db3); --mut:#75634F; --dim:#8A7A6B;
@@ -590,6 +590,7 @@ body.focus main{max-width:none}
 /* Accounts overview uses the existing ERP palette. */
 .ah-controls{display:flex;align-items:end;gap:10px;flex-wrap:wrap}.ah-controls .fl{min-width:145px;font-size:10px}.ah-controls input{padding:9px;color:var(--ink);background:var(--bg2);border:1px solid var(--line2);border-radius:5px;font-family:var(--sans);color-scheme:light}.ah-period{display:flex;justify-content:space-between;gap:12px;margin:4px 0 18px;font-size:11px;color:var(--mut)}.ah-stats{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:12px;margin-bottom:24px}.ah-metric{display:flex;flex-direction:column;text-decoration:none;color:var(--ink);min-width:0;background:var(--bg2)}.ah-metric .v{display:block;font-size:23px;margin:12px 0;overflow-wrap:anywhere}.ah-metric .s{display:block;font-size:9px;line-height:1.6}.ah-metric:hover,.ah-tile:hover{border-color:var(--gold);box-shadow:0 3px 12px #3e27230a}.ah-card h3{display:flex;justify-content:space-between;gap:12px;align-items:center}.ah-open{color:var(--em);font-size:10px;font-weight:600;text-decoration:none;line-height:1.6}.ah-open:hover{text-decoration:underline}.ah-grid{align-items:stretch;margin:16px 0 26px}.ah-note{font-size:10px;line-height:1.7;color:var(--mut);margin-top:12px}.ah-kv{display:flex;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid var(--line);font-size:11px}.ah-total{font-size:29px;color:var(--ink);margin:10px 0}.ah-age{display:grid;grid-template-columns:88px 1fr 106px;align-items:center;gap:10px;margin:15px 0;font-size:10px}.ah-age strong{text-align:right}.ah-track{height:6px;background:var(--bg3);border-radius:6px;overflow:hidden}.ah-track span{display:block;height:100%;background:var(--em)}.ah-chart{width:100%;height:auto;min-height:140px}.ah-chart text{font:10px var(--mono);fill:var(--mut)}.ah-legend{display:flex;gap:16px;font-size:9px;margin:14px 0}.ah-legend span:nth-child(1){color:var(--db3)}.ah-legend span:nth-child(2){color:#9d793a}.ah-legend span:nth-child(3){color:var(--em)}.ah-building{margin:12px 0;max-width:290px}.ah-tiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}.ah-tile{text-decoration:none;color:var(--ink)}.ah-tile strong{display:flex;justify-content:space-between;gap:8px;font-size:12px}.ah-tile strong span{color:var(--em)}.ah-tile small{display:block;font-size:10px;line-height:1.7;margin-top:10px;color:var(--mut)}.ah-back{margin-bottom:15px}@media(max-width:1400px){.ah-stats{grid-template-columns:repeat(3,minmax(0,1fr))}.ah-tiles{grid-template-columns:repeat(3,minmax(0,1fr))}}@media(max-width:760px){.ah-stats,.ah-tiles{grid-template-columns:repeat(2,minmax(0,1fr))}.ah-period{flex-direction:column}.ah-grid{grid-template-columns:1fr}.ah-age{grid-template-columns:80px 1fr 95px}}
 
+.cpl-tabs{display:flex;gap:0;flex-wrap:wrap;border-bottom:1px solid var(--line);margin-bottom:18px}.cpl-tabs a{padding:11px 15px;text-decoration:none;color:var(--mut);border-bottom:2px solid transparent;font-size:12px}.cpl-tabs a[aria-current="page"]{color:var(--em);border-bottom-color:var(--em);font-weight:600}.cpl-status{color:var(--mut);font-size:11px;margin:12px 0}.cpl-wrap{background:var(--bg2);border:1px solid var(--line);border-radius:8px;overflow:auto}.cpl-table{min-width:1470px;width:100%;border-collapse:separate;border-spacing:0}.cpl-table th,.cpl-table td{padding:12px 10px;border-bottom:1px solid var(--line)}.cpl-table thead th{white-space:normal;background:var(--bg3);font-size:10px;min-width:112px;max-width:146px}.cpl-table thead small{display:block;font-weight:400;font-size:9px;margin-top:4px}.cpl-table th:first-child{min-width:190px;text-align:left;position:sticky;left:0;background:var(--bg2);z-index:1}.cpl-table td{font-size:11px;background:var(--bg2)}.cpl-table td:last-child,.cpl-table thead th:last-child{position:sticky;right:0;z-index:1;background:var(--emL);border-left:1px solid var(--line)}.cpl-table .cpl-gross{background:var(--goldL)}.cpl-table .cpl-month th{background:var(--db2);color:var(--bg2);position:static;font-size:12px;letter-spacing:.4px;padding:10px 12px}.cpl-table .cpl-total th,.cpl-table .cpl-total td{background:var(--bg3);font-weight:600}.cpl-table .cpl-range-total th,.cpl-table .cpl-range-total td{background:var(--goldL);border-top:2px solid var(--gold);font-weight:600}.cpl-amount{color:var(--ink);text-decoration:none;white-space:nowrap}.cpl-amount:hover{color:var(--em);text-decoration:underline}.cpl-loss{color:var(--red)}@media print{.cpl-tabs,.cpl-status{display:none}.cpl-wrap{overflow:visible}.cpl-table{min-width:0;font-size:8px}.cpl-table th:first-child,.cpl-table td:last-child,.cpl-table thead th:last-child{position:static}.cpl-table th,.cpl-table td{padding:5px;min-width:0!important}.cpl-table thead th{font-size:8px}}
 </style>
 
 </head>
@@ -631,6 +632,7 @@ body.focus main{max-width:none}
     <div class="nv" data-r="journal">Journal Entries</div>
     <div class="nv" data-r="trial">Trial Balance</div>
     <div class="nv" data-r="pl">Profit &amp; Loss</div>
+    <div class="nv" data-r="consolidated">Consolidated P&amp;L</div>
     <div class="nv" data-r="bs">Balance Sheet</div>
     <div class="nv" data-r="cf">Cash Flow</div>
     <div class="grp" data-feature="planning" hidden>Planning</div>
@@ -1068,9 +1070,7 @@ function acctPeriod(){
 }
 window.acctPreset=k=>{const p=new URLSearchParams(qs());p.delete('start');p.delete('end');p.delete('lp');p.delete('ep');p.set('p',k);go((location.hash||'#/home').split('?')[0]+'?'+p.toString())};
 function periodBar(){
-  const cur=acctPeriod().k;
-  return ahControls()+`<div class="ptoggle inline">${acctPeriods().map(p=>
-    `<button class="${p.k===cur?'on':''}" onclick="acctPreset('${p.k}')">${p.l}</button>`).join('')}</div>`;
+  return ahControls();
 }
 /* What the window actually was, said out loud. "Q3" means nothing on its own
    to the person checking a figure against a bank statement. */
@@ -1370,7 +1370,7 @@ history.scrollRestoration='manual';
 function navCapture(){
  const n=history.state&&history.state.dbNav;
  if(!n||n.hash!==location.hash)return;
- const shared={};
+ const shared={...(n.shared||{})};
  if(typeof LF!=='undefined')shared.LF={...LF};
  if(typeof RPT!=='undefined')shared.RPT={...RPT};
  history.replaceState({...history.state,dbNav:{...n,scroll:window.scrollY,shared}},'',location.href);
@@ -1406,7 +1406,7 @@ document.addEventListener('change',()=>navCapture());
 function go(h){
   if(!h.startsWith('#/'))return;
   const route=h.slice(2).split(/[/?]/)[0];
-  const financial=['accounts-home','accounts-report','pl','bs','cf','trial','ledger','account','coa','journal','expenses'];
+  const financial=['accounts-home','accounts-report','consolidated','plcell','pl','bs','cf','trial','ledger','account','coa','journal','expenses'];
   if(financial.includes(route)&&h.split('?')[0]!==location.hash.split('?')[0]){
     const cur=qs(), parts=h.split('?'), p=new URLSearchParams(parts[1]||'');
     ['start','end'].forEach(k=>{if(cur[k]&&!p.has(k))p.set(k,cur[k])});
@@ -1515,7 +1515,7 @@ function router(){
    batches:'Deposit batches',landlordpayments:'Landlord Payments',recon:'Reconciliation',closing:'Weekly closing',approvals:'Approvals',
    approval:'Approval',reports:'Reports',admin:'Admin',ledger:'General ledger',coa:'Chart of accounts',
    journal:'Journal entries',trial:'Trial balance',account:'Account ledger',
-   pl:'Profit and loss',bs:'Balance sheet',cf:'Cash flow',expenses:'Expenses',
+   pl:'Profit and loss',consolidated:'Consolidated P&L',plcell:'P&L detail',bs:'Balance sheet',cf:'Cash flow',expenses:'Expenses',
    generate:'Generate invoices',billrun:'Invoice run',receipts:'Receipts',receipt:'Receipt',amendment:'Invoice amendment',
    owners:'Owners & shareholders',shareholder:'Shareholder',policy:'Distribution policy',
    runs:'Distribution runs',run:'Distribution run',memo:'Approval memo',
@@ -6814,7 +6814,7 @@ function plLive(d){
   return page('Profit and loss',
    `${fdate(d.frm)} to ${fdate(d.to)} \u00b7 period closing entries excluded`,
    periodBar()+actbtn('Print'),
-   reportNotes(d)+stat([['Revenue',money(d.income)],
+   cplTabs('standard')+reportNotes(d)+stat([['Revenue',money(d.income)],
      ...(cos===null?[]:[['Gross margin',money(d.gross),pct(d.gross_margin),
        d.gross>=0?'g':'r']]),
      ['Expenses',money(d.expense)],
@@ -7429,7 +7429,7 @@ const PLANONLY=['planning','capacity','forecast','fva','scenarios','scenario','c
    accGroup() found no `.groups` on it and silently fell back to the prototype
    account codes, which is why Cash at bank, Receivables and Deposits held all
    read 0 on a ledger holding 255,800. */
-const LEDGER_ROUTES=['accounts-home','accounts-report','coa','ledger','journal','trial','account','pl','bs','cf','expenses'];
+const LEDGER_ROUTES=['accounts-home','accounts-report','consolidated','plcell','coa','ledger','journal','trial','account','pl','bs','cf','expenses'];
 window.cycleRole=()=>{const o=Object.keys(ROLES);
   if(DB_REAL_ROLE!=='MD'){toast('Your role is set by your login');return}
   ROLEV=o[(Math.max(0,o.indexOf(ROLEV))+1)%o.length];applyRole();
@@ -10388,11 +10388,12 @@ function ahRange(){const p=acctPeriod();return {start:qs().start||p.frm.slice(0,
 function ahControls(){const r=ahRange();return `<div class="ah-controls">
  <label class="fl">Starting month<input id="ah-start" type="month" max="${ISO(TODAY).slice(0,7)}" value="${esc(r.start)}"></label>
  <label class="fl">Ending month<input id="ah-end" type="month" max="${ISO(TODAY).slice(0,7)}" value="${esc(r.end)}"></label>
- <button class="btn pri" onclick="ahApplyRange()">Apply range</button></div>`}
+ <button class="btn pri" onclick="ahApplyRange()">Apply filters</button></div>`}
 window.ahApplyRange=()=>{const start=el('#ah-start').value,end=el('#ah-end').value;
  if(!/^\d{4}-(0[1-9]|1[0-2])$/.test(start)||!/^\d{4}-(0[1-9]|1[0-2])$/.test(end)||start>end||end>ISO(TODAY).slice(0,7)){
   toast('Choose valid months, with the starting month before the ending month.');return}
  const p=new URLSearchParams(qs());p.set('start',start);p.set('end',end);p.delete('p');p.delete('lp');p.delete('ep');
+ if(location.hash.startsWith('#/plcell')){go('#/consolidated?'+new URLSearchParams({start,end}).toString());return}
  go((location.hash||'#/home').split('?')[0]+'?'+p.toString());};
 function ahLink(route){const r=ahRange(),p=new URLSearchParams({start:r.start,end:r.end});const [base,q]=route.split('?');const query=new URLSearchParams(q||'');p.forEach((v,k)=>query.set(k,v));return base+'?'+query.toString()}
 function ahOpen(label,route){return `<a class="ah-open" href="${esc(ahLink(route))}">${esc(label)} <span aria-hidden="true">↗</span></a>`}
@@ -10425,7 +10426,7 @@ function accountsHeadHome(){
  const pos=k=>d.positions.filter(r=>r.kind===k),sum=k=>pos(k).reduce((s,r)=>s+r.amount,0);
  const range=fdate(d.frm)+' to '+fdate(d.to),asof='As at '+fdate(d.to);
  const summary=stat([['Units · latest',o.units],['Occupied · latest',o.occupied],['Occupancy · latest',o.pct===null?'—':o.pct+'%'],['Unknown status',o.unknown||0],['Deposit liability',money(sum('deposits')),asof]]);
- const tiles=[['Balance sheet','#/bs',bs.balanced?'Arithmetic balances':'Review balance difference'],['Trial balance','#/trial','Debits, credits and end-date balances'],['General ledger','#/ledger','Account movements across the selected range'],['Journal entries','#/journal','Postings and their original vouchers'],['Deposits held','#/accounts-report/deposits','Liability accounts at the end date'],['Bank reconciliation','#/recon','Current statement matching status'],['Landlord payments','#/landlordpayments','Current posted bills and payment records'],['Collection register','#/receipts','Recorded receipts and source transactions'],['Deposit batches','#/batches','Cash and cheques awaiting bank matching'],['All reports','#/reports','Standard report catalogue']];
+ const tiles=[['Consolidated P&L','#/consolidated','Monthly building rows and P&L columns'],['Balance sheet','#/bs',bs.balanced?'Arithmetic balances':'Review balance difference'],['Trial balance','#/trial','Debits, credits and end-date balances'],['General ledger','#/ledger','Account movements across the selected range'],['Journal entries','#/journal','Postings and their original vouchers'],['Deposits held','#/accounts-report/deposits','Liability accounts at the end date'],['Bank reconciliation','#/recon','Current statement matching status'],['Landlord payments','#/landlordpayments','Current posted bills and payment records'],['Collection register','#/receipts','Recorded receipts and source transactions'],['Deposit batches','#/batches','Cash and cheques awaiting bank matching'],['All reports','#/reports','Standard report catalogue']];
  return page('Financial overview',`Accounts Head · ${esc(d.company)} · ${esc(d.currency)} · posted reports`,ahControls(),
  `<div class="ah-period">${range}<span>Balances and ageing ${asof.toLowerCase()}${d.to===ISO(TODAY)?' · current month to date':''}</span></div>`+reportNotes(d)+
  `<div class="ah-stats">${ahMetric('Total income',p.income,range,'#/pl')}${ahMetric('Total expenses',p.expense,range,'#/accounts-report/expenses')}${ahMetric('Net result',p.net,p.margin===null?'No income for margin':p.margin+'% margin','#/pl')}${ahMetric('Cash & bank',sum('cash'),asof,'#/accounts-report/cash')}${ahMetric('Tenant receivables',ar.gross,asof+' · before credits','#/accounts-report/receivables')}${ahMetric('Landlord & vendor payables',ap.gross,asof+' · before advances','#/accounts-report/payables')}</div>`+
@@ -10457,6 +10458,43 @@ ROUTES['accounts-report']=key=>{
  else if(key==='cash'||key==='deposits')body=ahRows(['Account','End-date balance'],d.positions.filter(x=>x.kind===(key==='cash'?'cash':'deposits')).map(x=>[ahOpen(x.label,'#/account/'+encodeURIComponent(x.code)),money(x.amount)]))+`<p class="ah-note">Balances as at ${fdate(d.to)}. ${key==='cash'?'Historical cutover clearing is excluded.':'Liability balances from deposit-named accounts; confirm the chart classification with Accounts.'}</p>`;
  else body=`<p>${esc(d.occupancy.note)} Read on ${fdate(d.occupancy.as_on)}.</p>`+ahRows(['Building / unit','Latest status'],UNITS.map(u=>[ahOpen((u.bn||u.b)+' · '+u.id,'#/unit/'+encodeURIComponent(u.id)),esc(u.st)]));
  return page(title,isAge?'As at '+fdate(d.as_on):periodSpan(),ahControls()+`<button class="btn" onclick="window.print()">Print</button>`,(!isAge?reportNotes(d):'')+`<div class="card">${body||empty('No posted rows for this report.')}</div>`);
+};
+
+/* Consolidated P&L: no prototype values, only reconciled ledger reads. */
+function cplTabs(selected){return `<div class="cpl-tabs" aria-label="Profit and loss views"><a href="${esc(ahLink('#/pl'))}" ${selected==='standard'?'aria-current="page"':''}>Standard P&amp;L</a><a href="${esc(ahLink('#/consolidated'))}" ${selected==='consolidated'?'aria-current="page"':''}>Consolidated P&amp;L</a></div>`}
+function cplMonth(month){return new Date(month+'-01T12:00:00Z').toLocaleDateString('en',{month:'long',year:'numeric',timeZone:'UTC'})}
+function cplCellLink(month,building,bucket){return ahLink('#/plcell?'+new URLSearchParams({month,building,bucket}).toString())}
+window.cplRememberX=x=>{const s=history.state;if(s&&s.dbNav){s.dbNav.shared.cplX=x;history.replaceState(s,'',location.href)}};
+function cplRestoreX(){const n=history.state&&history.state.dbNav;const x=n&&n.shared&&n.shared.cplX||0;setTimeout(()=>{const t=el('#cpl-table-scroll');if(t)t.scrollLeft=x},0)}
+ROUTES.consolidated=()=>{
+ const r=ahRange(),c=lazy('consolidated:'+r.start+':'+r.end,'consolidated_pl.report',r);
+ const controls=ahControls()+`<button class="btn" onclick="window.print()">Print</button>`;
+ if(c.state!=='ok')return page('Consolidated P&L','Building-wise monthly statement',controls,cplTabs('consolidated')+`<div class="card">${c.state==='load'?'Reading posted P&L by building and month…':esc(c.msg||'Live ledger data is required.')}</div>`);
+ const d=c.data,cols=d.columns;
+ if(!d.reconciled)return page('Consolidated P&L','Review required',controls,empty('Building totals have not reconciled to the P&L.'));
+ const values=(row,month)=>cols.map(col=>`<td class="r num ${col.key==='gross'?'cpl-gross':''}"><a class="cpl-amount ${row[col.key]<0?'cpl-loss':''}" href="${esc(cplCellLink(month,row.building,col.key))}" aria-label="${esc(row.label+', '+cplMonth(month)+', '+col.label+': '+money(row[col.key]))}">${money(row[col.key])}</a></td>`).join('');
+ const monthTotal=m=>`<tr class="cpl-total"><th scope="row">Total · ${esc(cplMonth(m.month))}</th>${values({...m.total,building:'__all__',label:'All buildings + company costs'},m.month)}</tr>`;
+ cplRestoreX();
+ return page('Consolidated P&L',`${esc(d.company)} · ${esc(d.currency)} · ${fdate(d.frm)} to ${fdate(d.to)}`,controls,
+ cplTabs('consolidated')+reportNotes(d)+`<div class="cpl-status">Posted ledger · monthly and range totals reconcile to Standard P&amp;L</div>`+
+ `<div id="cpl-table-scroll" class="tw cpl-wrap" onscroll="cplRememberX(this.scrollLeft)"><table class="cpl-table"><thead><tr><th scope="col">Building</th>${cols.map(col=>`<th scope="col" class="r ${col.key==='gross'?'cpl-gross':''}">${esc(col.label)}${col.key==='cos'?'<small>excl. Head Lease Rent</small>':''}</th>`).join('')}</tr></thead><tbody>`+
+ d.months.map(m=>`<tr class="cpl-month"><th colspan="${cols.length+1}" scope="rowgroup">${esc(cplMonth(m.month))}</th></tr>`+m.rows.map(row=>`<tr><th scope="row">${esc(row.label)}</th>${values(row,m.month)}</tr>`).join('')+monthTotal(m)).join('')+
+ (d.months.length>1?`<tr class="cpl-range-total"><th scope="row">Selected range total</th>${cols.map(col=>`<td class="r num">${money(d.total[col.key])}</td>`).join('')}</tr>`:'')+
+ `</tbody></table></div><div class="note">Gross Profit = Revenue − Head Lease Rent − Cost of Sales. Net Profit / Loss subtracts the remaining expense columns. Company / unassigned costs stay separate. Zero means no net ledger amount in this window; missing source expenses remain provisional.</div>`);
+};
+ROUTES.plcell=()=>{
+ const q=qs(),pg=Math.max(0,parseInt(q.lp||'0',10)||0),args={month:q.month||'',building:q.building||'',bucket:q.bucket||'',page:pg};
+ const c=lazy('plcell:'+JSON.stringify(args),'consolidated_pl.cell',args);
+ if(c.state!=='ok')return page('P&L detail','Selected building, month and column',ahControls(),`<div class="card">${c.state==='load'?'Reading the underlying postings…':esc(c.msg||'Live ledger data is required.')}</div>`);
+ const d=c.data,net=['gross','net'].includes(d.bucket),labels=Object.fromEntries(d.accounts.map(a=>[a.account,a.label]));
+ return page(esc(d.label),`${esc(d.building_label)} · ${esc(cplMonth(d.month))} · ${fdate(d.frm)} to ${fdate(d.to)}`,ahControls()+`<button class="btn" onclick="window.print()">Print</button>`,
+ reportNotes(d)+stat([['Selected amount',money(d.total),'Posted ledger'],['Entries in month',d.entries]])+
+ `<div class="card"><h3>Account breakdown</h3>${d.accounts.length?ahRows(['Account',net?'Contribution to result':'Amount'],d.accounts.map(a=>[esc(a.label),money(a.amount)])):empty('No postings match this building, month and column.')}</div>`+
+ `<div class="card" style="margin-top:14px"><h3>Source postings <span class="plabel">${esc(d.building_label)} · ${esc(cplMonth(d.month))}</span></h3>`+
+ (d.rows.length?ahRows(['Source voucher','Account','Date','Debit','Credit'],d.rows.map(row=>[ahOpen(row.voucher_type+' · '+row.voucher_no,'#/journal/'+encodeURIComponent(row.voucher_no)+'?vt='+encodeURIComponent(row.voucher_type)),esc(labels[row.account]||row.account),esc(row.posting_date),money(row.debit),money(row.credit)])):empty('No source postings in this selection.'))+
+ `<div class="foot"><span>${d.rows.length?pg*100+1:0}–${pg*100+d.rows.length} of ${d.entries} GL entries · totals include every matching posting</span><span><button class="btn" ${pg?'':'disabled'} onclick="qsSet('lp',${pg-1})">Previous page</button> <button class="btn" ${d.has_more?'':'disabled'} onclick="qsSet('lp',${pg+1})">Next page</button></span></div></div>`+
+ (net?'<div class="note">Income contributes positively; expense debits contribute negatively. Credits and reversals keep their original sign.</div>':'')+
+ '<div class="note">Source postings exclude cancelled and period-closing entries. Each source link reads that exact voucher.</div>');
 };
 
 applySeed();
