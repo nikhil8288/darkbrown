@@ -8347,14 +8347,14 @@ function reconLive(){
  if(!d.imports) return page('Bank reconciliation',
    'Statement lines matched to cheques, collection slips and payments',
    fbtn('Validate PDF','import-statement'),
-   `<div class="card">${empty('No bank statement has ever been imported. '+
+   statementReviewCard()+`<div class="card">${empty('No bank statement has ever been imported. '+
      'Reconciliation has nothing to read until one is \u2014 and it has never '+
      'been run against a real statement, which is a go-live gate.')}</div>`);
  const flagged=d.flagged||[], classified=d.classified||[];
  return page('Bank reconciliation',
   `${sm.lines} line${sm.lines===1?'':'s'} across ${d.imports} import${d.imports===1?'':'s'} \u00b7 last ${sm.last}`,
   fbtn('Validate PDF','import-statement'),
-  stat([['Statement lines',sm.lines],['Matched',sm.matched,'','g'],
+  statementReviewCard()+stat([['Statement lines',sm.lines],['Matched',sm.matched,'','g'],
    ['Open',sm.unmatched,sm.aged?sm.aged+' over five days':'none aged',sm.unmatched?'r':'g'],
    ['Value open',n0(sm.value||0),'',sm.value?'a':'g'],
    ['Classified',sm.classified],
@@ -8401,6 +8401,35 @@ function reconLive(){
    {h:'When',r:1,v:r=>r.when}],
    (d.runs||[]).map(r=>({...r,__id:r.id})),{id:'rci'})}</div>`)}
 window.reconLive=reconLive;
+
+function statementReviewCard(){
+ const r=window.STATEMENT_REVIEW;
+ if(!r)return '';
+ const unresolved=r.unresolved||[];
+ const proposed=(r.review||[]).filter(x=>x.status==='Proposed');
+ return `<div class="card"><h3>PDF review session · ${esc(r.bank||'Bank')} · account ending ${esc(r.account_suffix||'—')}</h3>
+  ${stat([['Transactions',r.rows.length],['Proposed ERP links',r.proposed||0],
+    ['Needs review',unresolved.length,'','a'],['Historical',r.historical||0]])}
+  <div class="note">${r.ocr_pages&&r.ocr_pages.length?esc(r.ocr_pages.length+' scanned page(s) read with OCR. '):''}
+   These links are proposals only. No import, cheque clearing or ledger posting occurred.
+   This review is held in this browser session. Record decisions through the approved accounting process.</div>
+  ${(r.exceptions||[]).map(x=>`<div class="note">${esc(x)}</div>`).join('')}
+  <h3>Items needing a decision</h3>
+  ${unresolved.length?tbl([
+   {h:'Page / row',v:x=>esc(String(x.page||'—')+' / '+x.index)},
+   {h:'Date',v:x=>esc(x.date)},{h:'Reference',v:x=>esc(x.ref)},
+   {h:'Narrative',v:x=>esc(x.narrative)},
+   {h:'Amount',r:1,mono:1,v:x=>esc(x.direction+' '+x.amount)},
+   {h:'Why review',v:x=>esc(x.reason)}],
+   unresolved.map(x=>({...x,__id:x.index})),{id:'pdf-review'})
+   :'<div class="note">No eligible line needs an exception decision in this preview.</div>'}
+  ${proposed.length?`<h3>Proposed ERP links · review before reconciliation</h3>${tbl([
+   {h:'Page / row',v:x=>esc(String(x.page||'—')+' / '+x.index)},
+   {h:'Date',v:x=>esc(x.date)},{h:'Reference',v:x=>esc(x.ref)},
+   {h:'Amount',r:1,mono:1,v:x=>esc(x.direction+' '+x.amount)},
+   {h:'ERP record',v:x=>esc(x.candidate.doctype+' · '+x.candidate.name)}],
+   proposed.map(x=>({...x,__id:x.index})),{id:'pdf-proposals'})}`:''}</div>`;
+}
 
 ROUTES.recon=()=>{
  const live=!!window.DB_LIVE;
@@ -9816,11 +9845,12 @@ const WIRE={
    /\.pdf$/i.test(FFILES.statement[0].name)?null:'Choose one complete PDF statement.',
  pre:1,
  calls:d=>dbCall('cashdesk.preview_statement_file',{file_url:d.__url}),
- ok:r=>({title:'Statement validated',
+ ok:r=>{window.STATEMENT_REVIEW=r;return {title:'Statement reviewed',
    msg:r.pages+' pages · '+r.rows.length+' transactions · '+r.eligible+' from 1 Oct 2026',
    detail:(r.bank_account?'Bank account identified. ':'Bank account needs mapping. ')+
-     (r.exceptions.length?r.exceptions.join(' '):'No extraction exceptions.')+
-     ' No transactions were imported or posted.'})},
+     (r.proposed||0)+' proposed ERP links; '+(r.unresolved||[]).length+
+     ' eligible exceptions. Close this dialog to see the exception list on Reconciliation. '+
+     'No transactions were imported or posted.'}}},
 
 'deposit-batch':{
  guard:d=>d.id?null:'Open the batch first \u2014 this banks a specific slip.',
