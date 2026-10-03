@@ -8430,12 +8430,12 @@ window.openSavedStatement=openSavedStatement;
 function statementReviewCard(){
  const r=window.STATEMENT_REVIEW;
  if(!r)return '';
- if(r.recorded_import)return `<div class="card" id="statement-review-card"><h3>Recorded PDF · ${esc(r.bank||'Bank')} · account ending ${esc(r.account_suffix||'—')}</h3>
+ if(r.recorded_import)return `<div class="card" id="statement-review-card" style="scroll-margin-top:72px"><h3>Recorded PDF · ${esc(r.bank||'Bank')} · account ending ${esc(r.account_suffix||'—')}</h3>
   ${stat([['Transactions',r.rows.length],['Matched',r.matched],['Open',r.unmatched,'','a']])}
   <div class="note">Recorded as ${esc(r.recorded_import)}. Every line and its private source are shown below.</div></div>`;
  const unresolved=(r.rows||[]).filter(x=>x.status==='Unmatched');
  const proposed=(r.rows||[]).filter(x=>x.status==='Matched');
- return `<div class="card" id="statement-review-card"><h3>PDF review session · ${esc(r.bank||'Bank')} · account ending ${esc(r.account_suffix||'—')}</h3>
+ return `<div class="card" id="statement-review-card" style="scroll-margin-top:72px"><h3>PDF review session · ${esc(r.bank||'Bank')} · account ending ${esc(r.account_suffix||'—')}</h3>
   ${stat([['Transactions',r.rows.length],['Exact GL links',proposed.length],
     ['Needs review',unresolved.length,'','a'],['Overlaps',r.overlaps||0]])}
   <div class="note">Printed opening ${esc(r.opening)} · closing ${esc(r.closing)}. All ${r.pages} pages and running balances validated.
@@ -8485,7 +8485,7 @@ window.openStatement=openStatement;
 function statementDetailCard(){
  const d=window.STATEMENT_DETAIL;
  if(!d)return '';
- return `<div class="card" id="statement-detail-card"><h3>${esc(d.name)} · ${esc(d.bank_account)}</h3>
+ return `<div class="card" id="statement-detail-card" style="scroll-margin-top:72px"><h3>${esc(d.name)} · ${esc(d.bank_account)}</h3>
   <div class="note">${esc(d.from_date)} to ${esc(d.to_date)} · printed opening ${esc(d.opening)} · closing ${esc(d.closing)} · ${d.lines.length} lines. <a href="${esc(d.source_file||'#')}" target="_blank" rel="noopener">Private source PDF</a></div>
   ${tbl([{h:'Page / row',v:x=>esc((x.page||'—')+' / '+(x.index||'—'))},
    {h:'Date',v:x=>esc(x.date)},{h:'Bank ref',v:x=>esc(x.ref||'')},
