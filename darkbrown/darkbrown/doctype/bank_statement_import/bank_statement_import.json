@@ -19,6 +19,10 @@
   "from_date",
   "to_date",
   "source",
+  "source_file",
+  "source_sha256",
+  "opening_balance",
+  "closing_balance",
   "status",
   "lines",
   "total_lines",
@@ -53,11 +57,15 @@
    "fieldtype": "Data",
    "label": "Source"
   },
+  {"fieldname":"source_file","fieldtype":"Attach","label":"Private source PDF","read_only":1},
+  {"fieldname":"source_sha256","fieldtype":"Data","label":"Source SHA-256","unique":1,"read_only":1},
+  {"fieldname":"opening_balance","fieldtype":"Currency","label":"Printed opening balance","read_only":1},
+  {"fieldname":"closing_balance","fieldtype":"Currency","label":"Printed closing balance","read_only":1},
   {
    "fieldname": "status",
    "fieldtype": "Select",
    "label": "Status",
-   "options": "Draft\nPosted",
+   "options": "Draft\nPosted\nReviewed",
    "default": "Posted",
    "in_list_view": 1
   },

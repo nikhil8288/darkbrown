@@ -16,13 +16,18 @@
  "istable": 1,
  "field_order": [
   "txn_date",
+  "value_date",
+  "row_number",
+  "page_number",
   "bank_ref",
   "narrative",
   "amount",
+  "running_balance",
   "direction",
   "status",
   "matched_type",
   "matched_ref",
+  "review_reason",
   "sec_classify",
   "classification",
   "classify_note",
@@ -38,6 +43,9 @@
    "reqd": 1,
    "in_list_view": 1
   },
+  {"fieldname":"value_date","fieldtype":"Date","label":"Value date"},
+  {"fieldname":"row_number","fieldtype":"Int","label":"Statement row","read_only":1},
+  {"fieldname":"page_number","fieldtype":"Int","label":"PDF page","read_only":1},
   {
    "fieldname": "bank_ref",
    "fieldtype": "Data",
@@ -46,7 +54,7 @@
   },
   {
    "fieldname": "narrative",
-   "fieldtype": "Data",
+   "fieldtype": "Small Text",
    "label": "Narrative",
    "in_list_view": 1
   },
@@ -57,6 +65,7 @@
    "reqd": 1,
    "in_list_view": 1
   },
+  {"fieldname":"running_balance","fieldtype":"Currency","label":"Printed running balance","read_only":1},
   {
    "fieldname": "direction",
    "fieldtype": "Select",
@@ -83,6 +92,7 @@
    "fieldtype": "Data",
    "label": "Matched Ref"
   },
+  {"fieldname":"review_reason","fieldtype":"Small Text","label":"Reconciliation evidence or exception","read_only":1},
   {
    "fieldname": "sec_classify",
    "fieldtype": "Section Break",
