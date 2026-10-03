@@ -312,7 +312,7 @@ def preview_statement_file(file_url):
 
     company = frappe.get_single("DBR Settings").default_company
     accounts = frappe.get_all("Bank Account", filters={
-        "company": company, "is_company_account": 1},
+        "company": company, "is_company_account": 1, "disabled": 0},
         fields=["name", "bank_account_no"])
     digits = lambda value: "".join(c for c in str(value or "") if c.isalnum()).upper()
     matches = [a.name for a in accounts if a.bank_account_no and
@@ -433,6 +433,7 @@ def import_statement(payload):
     """Creates the import with its lines and runs the conservative matcher.
     Matched deposit cheques are cleared; unmatched lines remain for review."""
     guard(MD, ACC)
+    frappe.throw("Legacy statement posting is disabled. Use the validated PDF review workflow; financial posting is not enabled.")
     p = _payload(payload)
     lines = p.get("lines") or []
     if not lines:
@@ -893,3 +894,4 @@ def post_reconciled_batch(batch):
     return {"batch": doc.name, "statement": match.parent,
             "posted": posted, "existing": existing,
             "receipts": len(posted), "already_posted": len(existing)}
+

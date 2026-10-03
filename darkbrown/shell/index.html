@@ -3560,7 +3560,7 @@ const FORMS={
   {n:'Statement',body:d=>`<p class="pp">Upload the complete QNB or Doha Bank PDF. The server checks every page, each running balance and the bank account identity.</p>
     <div class="fg">${fld({k:'statement',l:'Complete bank statement',t:'file',accept:'.pdf,.PDF',req:1,
       hint:'One private PDF · all pages · up to 20 MB'},d.statement)}</div>
-    <div class="note">Validation only. This does not import transactions, clear cheques or post to the ledger. Reconciliation starts on 1 October 2026; earlier rows stay historical.</div>`,
+    <div class="note">Saves a private review that you can reopen later. This does not import transactions, clear cheques or post to the ledger. Reconciliation starts on 1 October 2026; earlier rows stay historical.</div>`,
    fields:[{k:'statement',req:1}],
    check:()=>!!(window.FFILES&&FFILES.statement&&FFILES.statement.length===1),
    msg:'Choose one complete PDF statement.'}],
@@ -8347,14 +8347,13 @@ function reconLive(){
  if(!d.imports) return page('Bank reconciliation',
    'Statement lines matched to cheques, collection slips and payments',
    fbtn('Validate PDF','import-statement'),
-   statementReviewCard()+`<div class="card">${empty('No bank statement has ever been imported. '+
-     'Reconciliation has nothing to read until one is \u2014 and it has never '+
-     'been run against a real statement, which is a go-live gate.')}</div>`);
+   savedStatementReviews()+statementReviewCard()+`<div class="card">${empty('No financial statement import has been posted. Saved PDF reviews are available above. '+
+     'Historical rows are retained for reference; validation does not change the ledger.')}</div>`);
  const flagged=d.flagged||[], classified=d.classified||[];
  return page('Bank reconciliation',
   `${sm.lines} line${sm.lines===1?'':'s'} across ${d.imports} import${d.imports===1?'':'s'} \u00b7 last ${sm.last}`,
   fbtn('Validate PDF','import-statement'),
-  statementReviewCard()+stat([['Statement lines',sm.lines],['Matched',sm.matched,'','g'],
+  savedStatementReviews()+statementReviewCard()+stat([['Statement lines',sm.lines],['Matched',sm.matched,'','g'],
    ['Open',sm.unmatched,sm.aged?sm.aged+' over five days':'none aged',sm.unmatched?'r':'g'],
    ['Value open',n0(sm.value||0),'',sm.value?'a':'g'],
    ['Classified',sm.classified],
@@ -8402,18 +8401,41 @@ function reconLive(){
    (d.runs||[]).map(r=>({...r,__id:r.id})),{id:'rci'})}</div>`)}
 window.reconLive=reconLive;
 
+function savedStatementReviews(){
+ const c=lazy('statement-reviews','statement_review.list_reviews');
+ if(c.state==='load')return '<div class="card">Loading saved statement reviews…</div>';
+ if(c.state!=='ok')return '<div class="card">Saved reviews unavailable: '+esc(c.msg||'Please refresh')+'</div>';
+ const rows=c.data||[];
+ return '<div class="card"><h3>Saved statement reviews</h3><div class="note">Private to your login. Review only: no ledger posting or bank clearing.</div>'+
+ (rows.length?rows.map(r=>`<div style="padding:10px 0;border-bottom:1px solid var(--line)">
+ <b>${esc(r.bank.toUpperCase())}</b> · ${esc(r.from_date)} to ${esc(r.to_date)} · ${r.rows} rows · closing QAR ${esc(r.closing)}
+ <button class="btn" onclick="openSavedStatement('${escA(r.id)}')">Open review</button></div>`).join(''):empty('No saved reviews yet. Use Validate PDF.'))+'</div>';
+}
+async function openSavedStatement(id){
+ try{window.STATEMENT_REVIEW=await dbCall('statement_review.load_review',{name:id});router();}
+ catch(e){toast('Could not open review: '+e.message);}
+}
+window.openSavedStatement=openSavedStatement;
+
 function statementReviewCard(){
  const r=window.STATEMENT_REVIEW;
  if(!r)return '';
  const unresolved=r.unresolved||[];
  const proposed=(r.review||[]).filter(x=>x.status==='Proposed');
- return `<div class="card"><h3>PDF review session · ${esc(r.bank||'Bank')} · account ending ${esc(r.account_suffix||'—')}</h3>
+ return `<div class="card"><h3>Saved PDF review · ${esc(r.bank||'Bank')} · account ending ${esc(r.account_suffix||'—')}</h3>
   ${stat([['Transactions',r.rows.length],['Proposed ERP links',r.proposed||0],
     ['Needs review',unresolved.length,'','a'],['Historical',r.historical||0]])}
   <div class="note">${r.ocr_pages&&r.ocr_pages.length?esc(r.ocr_pages.length+' scanned page(s) read with OCR. '):''}
    These links are proposals only. No import, cheque clearing or ledger posting occurred.
-   This review is held in this browser session. Record decisions through the approved accounting process.</div>
+   Saved ${esc(r.saved_on||'')} · proposals reflect that review time. Reopen from Saved statement reviews after refreshing. Record decisions through the approved accounting process.</div>
   ${(r.exceptions||[]).map(x=>`<div class="note">${esc(x)}</div>`).join('')}
+  <details><summary>All original statement rows (${r.rows.length})</summary>
+  ${tbl([{h:'Row',v:x=>x.__id},{h:'Date',v:x=>esc(x.date)},
+    {h:'Reference',v:x=>esc(x.ref)},{h:'Narrative',v:x=>esc(x.narrative||'')},
+    {h:'Movement',r:1,v:x=>esc(x.direction+' '+x.amount)},
+    {h:'Balance',r:1,v:x=>esc(x.balance)},
+    {h:'Period',v:x=>x.date<'2026-10-01'?'Historical — review only':'From Oct 1'}],
+    r.rows.map((x,i)=>({...x,__id:i+1})),{id:'pdf-original-rows'})}</details>
   <h3>Items needing a decision</h3>
   ${unresolved.length?tbl([
    {h:'Page / row',v:x=>esc(String(x.page||'—')+' / '+x.index)},
@@ -9844,8 +9866,8 @@ const WIRE={
  guard:d=>(window.FFILES&&FFILES.statement||[]).length===1&&
    /\.pdf$/i.test(FFILES.statement[0].name)?null:'Choose one complete PDF statement.',
  pre:1,
- calls:d=>dbCall('cashdesk.preview_statement_file',{file_url:d.__url}),
- ok:r=>{window.STATEMENT_REVIEW=r;return {title:'Statement reviewed',
+ calls:d=>dbCall('statement_review.save_review',{file_url:d.__url}),
+ ok:r=>{window.STATEMENT_REVIEW=r;delete DB_LAZY['statement-reviews'];return {title:r.duplicate_file?'Existing saved review reopened':'Statement review saved',
    msg:r.pages+' pages · '+r.rows.length+' transactions · '+r.eligible+' from 1 Oct 2026',
    detail:(r.bank_account?'Bank account identified. ':'Bank account needs mapping. ')+
      (r.proposed||0)+' proposed ERP links; '+(r.unresolved||[]).length+
@@ -10536,3 +10558,4 @@ window.emptyBanner=emptyBanner;
 </script>
 </body>
 </html>
+
