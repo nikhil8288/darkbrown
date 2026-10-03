@@ -2705,8 +2705,8 @@ function renderUnmatched(){
   const LP=livePanel('unmatched');
   if(LP!==undefined){
     if(!LP.imports){
-      $('#unmatched').innerHTML=liveEmpty('No bank statement imported yet. Paste one from the bank portal to start matching deposits to slips.')+
-       `<div style="margin-top:8px">${fbtn('Import statement','import-statement')}</div>`;
+      $('#unmatched').innerHTML=liveEmpty('No bank statement imported yet. Upload a PDF to validate its pages and balances.')+
+       `<div style="margin-top:8px">${fbtn('Validate PDF','import-statement')}</div>`;
       return;}
     const v=(LP.weeks||[]).map(x=>x.n||0);
     const W=380,H=130,L=26,step=(W-L-10)/Math.max(v.length-1,1);
@@ -2915,10 +2915,10 @@ function fld(f,v){
       ondragleave="this.classList.remove('over')"
       ondrop="fileDropped(event,'${f.k}',this)">
       <div class="di">${has?'✓':'⇪'}</div>
-      <div><b>${has?names:'Choose a file'}</b>${has?`<span class="fx" onclick="clearFile('${f.k}')">remove</span>`:' or drag it here'}</div>
+      <div><b>${has?esc(names):'Choose a file'}</b>${has?`<span class="fx" onclick="clearFile('${f.k}')">remove</span>`:' or drag it here'}</div>
       <div class="dh">${has?fSize(picked)+' · click to replace':(f.hint||'PDF, JPG or PNG · max 10 MB')}</div>
       <div class="dp" id="${id}_p">${has?chip(picked.length+' file'+(picked.length===1?'':'s')+' chosen · '+(window.DB_LIVE?'uploads when you save':'not uploaded — no server'),'n'):''}</div></div>
-    <input type="hidden" id="${id}" data-k="${f.k}" value="${names}"></div>`;}
+    <input type="hidden" id="${id}" data-k="${f.k}" value="${escA(names)}"></div>`;}
   const type=f.t==='num'?'number':f.t==='date'?'date':'text';
   return `<label class="fl ${f.full?'full':''}"><span>${f.l}${req}</span>
     <input type="${type}" id="${id}" data-k="${f.k}" value="${val}" placeholder="${f.p||''}" ${f.step?`step="${f.step}"`:''}
@@ -3555,34 +3555,16 @@ const FORMS={
  submit:()=>({msg:'Declared'})},
 
 
-'import-statement':{t:'Import bank statement',s:'Reconciliation · workflow 2C',cta:'Import and match',
+'import-statement':{t:'Read bank statement',s:'Reconciliation · PDF validation',cta:'Validate statement',
  steps:[
-  {n:'Statement',body:d=>{
-    const b=BANKS();
-    return `<p class="pp">Paste the lines from the bank export — one transaction per line as
-      <b class="num">date,ref,narrative,amount,direction</b> (date YYYY-MM-DD, direction Credit or Debit).
-      Matching identifies lines against deposit batches, deposited cheques and scheduled landlord payments;
-      it never posts money. Clearing stays in the cheque workflow.</p>
-     <div class="fg">
-      ${fld({k:'bank',l:'Bank account',t:'sel',o:b.length?b.map(x=>x.label):['— no company bank accounts —'],req:1},d.bank)}
-      ${fld({k:'from',l:'Period from',t:'date',req:1},d.from)}
-      ${fld({k:'to',l:'Period to',t:'date',req:1},d.to)}
-      ${fld({k:'lines',l:'Statement lines',t:'ta',p:'2026-07-28,8871,CASH DEP BRANCH 12,6800,Credit',req:1},d.lines)}</div>`},
-   fields:[{k:'bank',req:1},{k:'from',req:1},{k:'to',req:1},{k:'lines',req:1}],
-   check:d=>parseStmt(d.lines).length>0,
-   msg:'No usable lines. Each needs date (YYYY-MM-DD), an amount and Credit or Debit at the end.'},
-  {n:'Preview',body:d=>{
-    const rows=parseStmt(d.lines);
-    const cr=rows.filter(r=>r.direction==='Credit').reduce((a,r)=>a+r.amount,0);
-    const dr=rows.filter(r=>r.direction==='Debit').reduce((a,r)=>a+r.amount,0);
-    return `<p class="pp">Parsed <b>${rows.length}</b> line${rows.length===1?'':'s'} for ${esc(d.bank||'')} covering ${d.from} to ${d.to}.
-      Nothing is posted — matched lines are identified, unmatched ones surface on the Command Centre.</p>
-     ${stat([['Lines',rows.length],['Credits',n0(cr),'','g'],['Debits',n0(dr),'','a']])}
-     <div class="tw"><table><tr><th>Date</th><th>Ref</th><th>Narrative</th><th class="r">Amount</th><th>Dir</th></tr>
-     ${rows.slice(0,8).map(r=>`<tr><td>${r.date}</td><td>${esc(r.ref)}</td><td>${esc(r.narrative)}</td>
-       <td class="r num">${n0(r.amount)}</td><td>${chip(r.direction,r.direction==='Credit'?'g':'n')}</td></tr>`).join('')}</table></div>
-     ${rows.length>8?`<div class="foot"><span>showing 8 of ${rows.length}</span><span></span></div>`:''}`}}],
- submit:d=>({msg:'Imported'})},
+  {n:'Statement',body:d=>`<p class="pp">Upload the complete QNB or Doha Bank PDF. The server checks every page, each running balance and the bank account identity.</p>
+    <div class="fg">${fld({k:'statement',l:'Complete bank statement',t:'file',accept:'.pdf,.PDF',req:1,
+      hint:'One private PDF · all pages · up to 20 MB'},d.statement)}</div>
+    <div class="note">Validation only. This does not import transactions, clear cheques or post to the ledger. Reconciliation starts on 1 October 2026; earlier rows stay historical.</div>`,
+   fields:[{k:'statement',req:1}],
+   check:()=>!!(window.FFILES&&FFILES.statement&&FFILES.statement.length===1),
+   msg:'Choose one complete PDF statement.'}],
+ submit:()=>({msg:'Statement checked'})},
 
 'raise-job':{t:'Raise maintenance job',s:'Workflow 2D',cta:'Raise job',
  init:c=>({building:c&&c.bn?c.bn:'',unit:c&&c.u?c.u:'',pr:'Planned',assigned:''}),
@@ -8364,21 +8346,22 @@ function reconLive(){
  const d=c.data, sm=d.summary||{};
  if(!d.imports) return page('Bank reconciliation',
    'Statement lines matched to cheques, collection slips and payments',
-   fbtn('Import statement','import-statement'),
+   fbtn('Validate PDF','import-statement'),
    `<div class="card">${empty('No bank statement has ever been imported. '+
      'Reconciliation has nothing to read until one is \u2014 and it has never '+
      'been run against a real statement, which is a go-live gate.')}</div>`);
  const flagged=d.flagged||[], classified=d.classified||[];
  return page('Bank reconciliation',
   `${sm.lines} line${sm.lines===1?'':'s'} across ${d.imports} import${d.imports===1?'':'s'} \u00b7 last ${sm.last}`,
-  fbtn('Import statement','import-statement'),
+  fbtn('Validate PDF','import-statement'),
   stat([['Statement lines',sm.lines],['Matched',sm.matched,'','g'],
    ['Open',sm.unmatched,sm.aged?sm.aged+' over five days':'none aged',sm.unmatched?'r':'g'],
    ['Value open',n0(sm.value||0),'',sm.value?'a':'g'],
    ['Classified',sm.classified],
    ['Equity movement',n0(sm.drawings||0),'out of the cost base',sm.drawings?'g':'']])+
   `<div class="card"><h3>Reconciliation workflow \u2014 2C</h3>
-   ${steps(['Import statement','Auto-match','Review exceptions','Post entries','Close period'],2)}</div>
+   ${steps(['Upload PDF','Validate pages','Review exceptions'],1)}</div>
+  <div class="note">PDF validation is read-only. Automatic ERP matching and posting are not active for this upload path yet.</div>
   <div class="note"><b>Three quarters of inflow value carries no payer identity.</b> Matching therefore runs
    deposit to collection slip, and the slip carries the tenant attribution. Value date is used for matching,
    posting date for the ledger \u2014 Doha Bank runs up to two days apart.</div>
@@ -9829,13 +9812,15 @@ const WIRE={
    goto:'#/recon'})},
 
 'import-statement':{
- guard:d=>BANKS().length?null:'No company Bank Account records exist yet.',
- m:'cashdesk.import_statement',
- a:d=>({payload:{bank_account:bankName(d.bank),from_date:d.from,to_date:d.to,
-   source:'pasted',lines:parseStmt(d.lines)}}),
- ok:r=>({title:'Statement imported',msg:r.matched+' of '+r.total+' lines matched',
-   detail:(r.unmatched?r.unmatched+' unmatched — visible on the Command Centre and in '+r.name
-     :'Fully matched · '+r.name),goto:'#/recon'})},
+ guard:d=>(window.FFILES&&FFILES.statement||[]).length===1&&
+   /\.pdf$/i.test(FFILES.statement[0].name)?null:'Choose one complete PDF statement.',
+ pre:1,
+ calls:d=>dbCall('cashdesk.preview_statement_file',{file_url:d.__url}),
+ ok:r=>({title:'Statement validated',
+   msg:r.pages+' pages · '+r.rows.length+' transactions · '+r.eligible+' from 1 Oct 2026',
+   detail:(r.bank_account?'Bank account identified. ':'Bank account needs mapping. ')+
+     (r.exceptions.length?r.exceptions.join(' '):'No extraction exceptions.')+
+     ' No transactions were imported or posted.'})},
 
 'deposit-batch':{
  guard:d=>d.id?null:'Open the batch first \u2014 this banks a specific slip.',
