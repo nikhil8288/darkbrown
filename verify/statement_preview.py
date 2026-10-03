@@ -18,7 +18,7 @@ class PrivateFile:
     file_name = "synthetic.pdf"
 
     def get_content(self):
-        return b"synthetic"
+        return "synthetic"
 
 
 file = PrivateFile()
@@ -40,6 +40,7 @@ with patch.object(cashdesk, "guard"), \
     assert (result["historical"], result["eligible"]) == (1, 1)
     assert result["rows"] == parsed["rows"]
     assert result["account_suffix"] == "1234"
+    statement_pdf.parse_statement.assert_called_once_with(b"synthetic")
 
 with patch.object(cashdesk, "guard"), \
      patch.object(permissions, "require_file_access", return_value=file), \

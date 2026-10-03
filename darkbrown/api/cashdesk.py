@@ -306,7 +306,8 @@ def preview_statement_file(file_url):
     if not source.is_private or not (source.file_name or "").lower().endswith(".pdf"):
         frappe.throw("Upload the bank statement as a private PDF.")
     try:
-        statement = parse_statement(source.get_content())
+        content = source.get_content()
+        statement = parse_statement(content.encode('utf-8') if isinstance(content, str) else content)
     except StatementError as exc:
         frappe.throw("Bank statement needs review: {0}".format(exc))
 
@@ -894,4 +895,3 @@ def post_reconciled_batch(batch):
     return {"batch": doc.name, "statement": match.parent,
             "posted": posted, "existing": existing,
             "receipts": len(posted), "already_posted": len(existing)}
-
