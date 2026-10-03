@@ -127,6 +127,18 @@ def _review(parsed, account, company, digest):
 def preview_real_statement(file_url):
     guard(MD, ACC)
     _, parsed, account, company, digest = _statement(file_url)
+    recorded = frappe.db.get_value("Bank Statement Import", {
+        "bank_account": account.name, "source_sha256": digest}, "name")
+    if recorded:
+        detail = statement_detail(recorded)
+        return {"recorded_import": recorded, "bank": parsed["bank"],
+                "pages": parsed["pages"], "bank_account": account.name,
+                "account_suffix": parsed["account_number"][-4:],
+                "opening": parsed["opening"], "closing": parsed["closing"],
+                "rows": detail["lines"], "matched": sum(
+                    r["status"] == "Matched" for r in detail["lines"]),
+                "unmatched": sum(r["status"] == "Unmatched" for r in detail["lines"]),
+                "overlaps": 0, "source_file": file_url, "digest": digest}
     review = _review(parsed, account, company, digest)
     return {"bank": parsed["bank"], "pages": parsed["pages"],
             "ocr_pages": parsed["ocr_pages"], "bank_account": account.name,

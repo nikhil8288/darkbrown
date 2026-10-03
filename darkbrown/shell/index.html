@@ -8367,7 +8367,7 @@ function reconLive(){
    <b>Classification fields are not on the site yet.</b> Run <b>bench migrate</b> and this queue becomes
    writable. Until then the lines below can be read but not classified.</div>`}
   <div class="card"><h3>Open lines \u2014 needs classification
-   ${flagged.length?`<span class="tag red">${flagged.length}</span>`:''}</h3>
+   ${flagged.length?`<span class="tag red">${flagged.length} shown of ${sm.unmatched}</span>`:''}</h3>
    ${flagged.length?tbl([
     {h:'Bank ref',v:l=>esc(l.ref)},{h:'Date',r:1,v:l=>l.d},
     {h:'Amount',r:1,mono:1,v:l=>n0(l.amt)},
@@ -8421,6 +8421,10 @@ window.openSavedStatement=openSavedStatement;
 function statementReviewCard(){
  const r=window.STATEMENT_REVIEW;
  if(!r)return '';
+ if(r.recorded_import)return `<div class="card"><h3>Recorded PDF · ${esc(r.bank||'Bank')} · account ending ${esc(r.account_suffix||'—')}</h3>
+  ${stat([['Transactions',r.rows.length],['Matched',r.matched],['Open',r.unmatched,'','a']])}
+  <div class="note">This exact PDF is already recorded as ${esc(r.recorded_import)}. Open the import to review every line and its private source.</div>
+  <button class="btn" onclick='openStatement(${JSON.stringify(r.recorded_import)})'>Open recorded statement</button></div>`;
  const unresolved=(r.rows||[]).filter(x=>x.status==='Unmatched');
  const proposed=(r.rows||[]).filter(x=>x.status==='Matched');
  return `<div class="card"><h3>PDF review session · ${esc(r.bank||'Bank')} · account ending ${esc(r.account_suffix||'—')}</h3>
@@ -8449,7 +8453,7 @@ function statementReviewCard(){
 
 async function recordStatement(){
  const r=window.STATEMENT_REVIEW;
- if(!r||r.overlaps)return;
+ if(!r||r.overlaps||r.recorded_import)return;
  const btn=document.querySelector('.card button[onclick="recordStatement()"]');
  if(btn){btn.disabled=true;btn.textContent='Recording…'}
  try{
