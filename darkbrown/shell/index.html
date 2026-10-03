@@ -8347,12 +8347,12 @@ function reconLive(){
  if(!d.imports) return page('Bank reconciliation',
    'Statement lines matched to cheques, collection slips and payments',
    fbtn('Read bank PDF','import-statement'),
-   savedStatementReviews()+statementReviewCard()+`<div class="card">${empty('No bank statement is recorded yet.')}</div>`);
+   savedStatementReviews()+statementReviewCard()+statementDetailCard()+`<div class="card">${empty('No bank statement is recorded yet.')}</div>`);
  const flagged=d.flagged||[], classified=d.classified||[];
  return page('Bank reconciliation',
   `${sm.lines} line${sm.lines===1?'':'s'} across ${d.imports} import${d.imports===1?'':'s'} \u00b7 last ${sm.last}`,
   fbtn('Read bank PDF','import-statement'),
-  savedStatementReviews()+statementReviewCard()+stat([['Statement lines',sm.lines],['Matched',sm.matched,'','g'],
+  savedStatementReviews()+statementReviewCard()+statementDetailCard()+stat([['Statement lines',sm.lines],['Matched',sm.matched,'','g'],
    ['Open',sm.unmatched,sm.aged?sm.aged+' over five days':'none aged',sm.unmatched?'r':'g'],
    ['Value open',n0(sm.value||0),'',sm.value?'a':'g'],
    ['Classified',sm.classified],
@@ -8397,7 +8397,7 @@ function reconLive(){
    {h:'Matched',r:1,mono:1,v:r=>r.matched},
    {h:'Unmatched',r:1,mono:1,v:r=>r.unmatched,style:r=>r.unmatched?'color:var(--red)':''},
    {h:'When',r:1,v:r=>r.when}],
-   (d.runs||[]).map(r=>({...r,__id:r.id})),{id:'rci'})}</div>${statementDetailCard()}`)}
+   (d.runs||[]).map(r=>({...r,__id:r.id})),{id:'rci'})}</div>`)}
 window.reconLive=reconLive;
 
 function savedStatementReviews(){
@@ -8408,26 +8408,34 @@ function savedStatementReviews(){
  return '<div class="card"><h3>Saved statement reviews</h3><div class="note">Private to your login. Review only: no ledger posting or bank clearing.</div>'+
  (rows.length?rows.map(r=>`<div style="padding:10px 0;border-bottom:1px solid var(--line)">
  <b>${esc(r.bank.toUpperCase())}</b> · ${esc(r.from_date)} to ${esc(r.to_date)} · ${r.rows} rows · closing QAR ${esc(r.closing)}
- <button class="btn" onclick="openSavedStatement('${escA(r.id)}')">Open review</button></div>`).join(''):empty('No saved reviews yet. Use Validate PDF.'))+'</div>';
+ <button class="btn${window.STATEMENT_REVIEW_ID===r.id?' pri':''}" aria-pressed="${window.STATEMENT_REVIEW_ID===r.id?'true':'false'}" onclick="openSavedStatement('${escA(r.id)}')">${window.STATEMENT_REVIEW_LOADING===r.id?'Opening…':window.STATEMENT_REVIEW_ID===r.id?'Review open':'Open review'}</button></div>`).join(''):empty('No saved reviews yet. Use Validate PDF.'))+'</div>';
 }
 async function openSavedStatement(id){
+ const previous=window.STATEMENT_REVIEW_ID;
+ window.STATEMENT_REVIEW_LOADING=id;router();
  try{const saved=await dbCall('statement_review.load_review',{name:id});
-  window.STATEMENT_REVIEW=await dbCall('statement_reconcile.preview_real_statement',
-   {file_url:saved.source_file});router();}
- catch(e){toast('Could not open review: '+e.message);}
+  const review=await dbCall('statement_reconcile.preview_real_statement',
+   {file_url:saved.source_file});
+  const detail=review.recorded_import?await dbCall('statement_reconcile.statement_detail',
+   {name:review.recorded_import}):null;
+  window.STATEMENT_REVIEW=review;window.STATEMENT_DETAIL=detail;
+  window.STATEMENT_REVIEW_ID=id;window.STATEMENT_REVIEW_LOADING=null;
+  router();
+  document.getElementById(detail?'statement-detail-card':'statement-review-card')?.scrollIntoView({block:'start'});
+ }catch(e){window.STATEMENT_REVIEW_ID=previous;window.STATEMENT_REVIEW_LOADING=null;
+  router();toast('Could not open review: '+e.message);}
 }
 window.openSavedStatement=openSavedStatement;
 
 function statementReviewCard(){
  const r=window.STATEMENT_REVIEW;
  if(!r)return '';
- if(r.recorded_import)return `<div class="card"><h3>Recorded PDF · ${esc(r.bank||'Bank')} · account ending ${esc(r.account_suffix||'—')}</h3>
+ if(r.recorded_import)return `<div class="card" id="statement-review-card"><h3>Recorded PDF · ${esc(r.bank||'Bank')} · account ending ${esc(r.account_suffix||'—')}</h3>
   ${stat([['Transactions',r.rows.length],['Matched',r.matched],['Open',r.unmatched,'','a']])}
-  <div class="note">This exact PDF is already recorded as ${esc(r.recorded_import)}. Open the import to review every line and its private source.</div>
-  <button class="btn" onclick='openStatement(${JSON.stringify(r.recorded_import)})'>Open recorded statement</button></div>`;
+  <div class="note">Recorded as ${esc(r.recorded_import)}. Every line and its private source are shown below.</div></div>`;
  const unresolved=(r.rows||[]).filter(x=>x.status==='Unmatched');
  const proposed=(r.rows||[]).filter(x=>x.status==='Matched');
- return `<div class="card"><h3>PDF review session · ${esc(r.bank||'Bank')} · account ending ${esc(r.account_suffix||'—')}</h3>
+ return `<div class="card" id="statement-review-card"><h3>PDF review session · ${esc(r.bank||'Bank')} · account ending ${esc(r.account_suffix||'—')}</h3>
   ${stat([['Transactions',r.rows.length],['Exact GL links',proposed.length],
     ['Needs review',unresolved.length,'','a'],['Overlaps',r.overlaps||0]])}
   <div class="note">Printed opening ${esc(r.opening)} · closing ${esc(r.closing)}. All ${r.pages} pages and running balances validated.
@@ -8468,7 +8476,8 @@ async function recordStatement(){
 window.recordStatement=recordStatement;
 
 async function openStatement(name){
- try{window.STATEMENT_DETAIL=await dbCall('statement_reconcile.statement_detail',{name});go('#/recon')}
+ try{window.STATEMENT_DETAIL=await dbCall('statement_reconcile.statement_detail',{name});go('#/recon');
+  document.getElementById('statement-detail-card')?.scrollIntoView({block:'start'});}
  catch(e){toast(e.message||'Could not read statement')}
 }
 window.openStatement=openStatement;
@@ -8476,7 +8485,7 @@ window.openStatement=openStatement;
 function statementDetailCard(){
  const d=window.STATEMENT_DETAIL;
  if(!d)return '';
- return `<div class="card"><h3>${esc(d.name)} · ${esc(d.bank_account)}</h3>
+ return `<div class="card" id="statement-detail-card"><h3>${esc(d.name)} · ${esc(d.bank_account)}</h3>
   <div class="note">${esc(d.from_date)} to ${esc(d.to_date)} · printed opening ${esc(d.opening)} · closing ${esc(d.closing)} · ${d.lines.length} lines. <a href="${esc(d.source_file||'#')}" target="_blank" rel="noopener">Private source PDF</a></div>
   ${tbl([{h:'Page / row',v:x=>esc((x.page||'—')+' / '+(x.index||'—'))},
    {h:'Date',v:x=>esc(x.date)},{h:'Bank ref',v:x=>esc(x.ref||'')},
