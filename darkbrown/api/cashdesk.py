@@ -289,6 +289,71 @@ def closing(period_end=None):
 
 # --------------------------------------------------------- statement import
 
+@frappe.whitelist()
+def preview_statement_file(file_url):
+    """Validate a private bank PDF and show its rows before any import/posting.
+
+    Account identity must resolve uniquely against the company's configured
+    Bank Accounts. Historic rows are visible for audit, never offered as new
+    transactions in this preview.
+    """
+    guard(MD, ACC)
+    from darkbrown.permissions import require_file_access
+    from darkbrown.api.statement_pdf import parse_statement, StatementError
+
+    source = require_file_access(file_url)
+    if not source.is_private or not (source.file_name or "").lower().endswith(".pdf"):
+        frappe.throw("Upload the bank statement as a private PDF.")
+    try:
+        statement = parse_statement(source.get_content())
+    except StatementError as exc:
+        frappe.throw("Bank statement needs review: {0}".format(exc))
+
+    company = frappe.get_single("DBR Settings").default_company
+    accounts = frappe.get_all("Bank Account", filters={
+        "company": company, "is_company_account": 1},
+        fields=["name", "bank_account_no"])
+    digits = lambda value: "".join(c for c in str(value or "") if c.isalnum()).upper()
+    matches = [a.name for a in accounts if a.bank_account_no and
+               digits(a.bank_account_no) == digits(statement["account_number"])]
+    cutoff = "2026-10-01"
+    rows = statement.pop("rows")
+    account_number = statement.pop("account_number")
+    historical = sum(row["date"] < cutoff for row in rows)
+    exceptions = []
+    if len(matches) != 1:
+        exceptions.append("Statement account needs a unique company Bank Account mapping.")
+    if historical:
+        exceptions.append("Earlier reconciled transactions are excluded from new imports.")
+    overlap_candidates = 0
+    if len(matches) == 1 and historical < len(rows):
+        eligible_rows = [row for row in rows if row["date"] >= cutoff]
+        prior_imports = frappe.get_all("Bank Statement Import", filters={
+            "bank_account": matches[0]}, pluck="name")
+        if prior_imports:
+            from decimal import Decimal
+
+            prior = frappe.get_all("Bank Statement Line", filters={
+                "parent": ["in", prior_imports],
+                "txn_date": ["between", [eligible_rows[0]["date"], eligible_rows[-1]["date"]]]},
+                fields=["txn_date", "bank_ref", "amount", "direction"])
+            def key(date, ref, amount, direction):
+                return (str(date), (ref or "").strip(),
+                        Decimal(str(amount)).quantize(Decimal("0.01")), direction)
+
+            old_keys = {key(p.txn_date, p.bank_ref, p.amount, p.direction)
+                        for p in prior}
+            overlap_candidates = sum(
+                key(row["date"], row["ref"], row["amount"], row["direction"])
+                in old_keys for row in eligible_rows)
+            if overlap_candidates:
+                exceptions.append("Some lines may overlap earlier ERP imports; review required.")
+    return {**statement, "bank_account": matches[0] if len(matches) == 1 else None,
+            "account_suffix": account_number[-4:], "historical": historical,
+            "eligible": len(rows) - historical,
+            "overlap_candidates": overlap_candidates, "exceptions": exceptions,
+            "rows": rows, "source_file": file_url}
+
 MATCH_TOL = 1.0       # QAR — amounts must agree to within one riyal
 MATCH_DAYS = 5        # calendar days either side
 
