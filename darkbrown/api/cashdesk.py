@@ -291,7 +291,7 @@ def closing(period_end=None):
 
 @frappe.whitelist()
 def preview_statement_file(file_url):
-    """Validate a private bank PDF and show its rows before any import/posting.
+    """Validate a private bank PDF and propose read-only ERP links.
 
     Account identity must resolve uniquely against the company's configured
     Bank Accounts. Historic rows are visible for audit, never offered as new
@@ -300,6 +300,7 @@ def preview_statement_file(file_url):
     guard(MD, ACC)
     from darkbrown.permissions import require_file_access
     from darkbrown.api.statement_pdf import parse_statement, StatementError
+    from darkbrown.api.statement_match import plan_links
 
     source = require_file_access(file_url)
     if not source.is_private or not (source.file_name or "").lower().endswith(".pdf"):
@@ -326,8 +327,9 @@ def preview_statement_file(file_url):
     if historical:
         exceptions.append("Earlier reconciled transactions are excluded from new imports.")
     overlap_candidates = 0
+    overlap_indices = set()
+    eligible_rows = [row for row in rows if row["date"] >= cutoff]
     if len(matches) == 1 and historical < len(rows):
-        eligible_rows = [row for row in rows if row["date"] >= cutoff]
         prior_imports = frappe.get_all("Bank Statement Import", filters={
             "bank_account": matches[0]}, pluck="name")
         if prior_imports:
@@ -343,16 +345,78 @@ def preview_statement_file(file_url):
 
             old_keys = {key(p.txn_date, p.bank_ref, p.amount, p.direction)
                         for p in prior}
-            overlap_candidates = sum(
-                key(row["date"], row["ref"], row["amount"], row["direction"])
-                in old_keys for row in eligible_rows)
+            overlap_indices = {index for index, row in enumerate(rows, 1)
+                               if row["date"] >= cutoff and key(row["date"], row["ref"],
+                               row["amount"], row["direction"]) in old_keys}
+            overlap_candidates = len(overlap_indices)
             if overlap_candidates:
                 exceptions.append("Some lines may overlap earlier ERP imports; review required.")
+    indexed = [dict(row, index=index, ocr_review=row.get("page") in statement.get("ocr_pages", []))
+               for index, row in enumerate(rows, 1)]
+    used = {(kind, name) for kind in ("Deposit Batch", "Cheque", "Head Lease Payment")
+            for name in _already_matched(kind)} if eligible_rows and len(matches) == 1 else set()
+    bank_gl = (frappe.db.get_value("Bank Account", matches[0], "account")
+               if eligible_rows and len(matches) == 1 else None)
+    review = plan_links(indexed, matches[0] if len(matches) == 1 else None,
+                        lambda row, bank: _statement_candidates(row, bank, bank_gl),
+                        used=used, overlaps=overlap_indices, cutoff=cutoff)
+    proposed = sum(item["status"] == "Proposed" for item in review)
+    unresolved = [item for item in review if item["status"] == "Exception"]
     return {**statement, "bank_account": matches[0] if len(matches) == 1 else None,
             "account_suffix": account_number[-4:], "historical": historical,
             "eligible": len(rows) - historical,
             "overlap_candidates": overlap_candidates, "exceptions": exceptions,
+            "proposed": proposed, "unresolved": unresolved, "review": review,
             "rows": rows, "source_file": file_url}
+
+
+def _statement_candidates(row, bank_account, bank_gl):
+    """Read existing source records; never call the legacy mutating matcher."""
+    amount, date = row["amount"], row["date"]
+    evidence = ((row.get("ref") or "") + " " + (row.get("narrative") or "")).strip()
+    candidates = []
+    def add(kind, sql, args):
+        candidates.extend((kind, name) for name, in frappe.db.sql(sql, args))
+    if row["direction"] == "Credit":
+        add("Deposit Batch", """select name from `tabDeposit Batch`
+            where bank_account=%s and status in ('Deposited','Reconciled')
+              and abs(total_amount-%s)<=0.01
+              and abs(datediff(deposit_date,%s))<=5""",
+            (bank_account, amount, date))
+        add("Cheque", """select name from `tabCheque`
+            where direction='Incoming' and bank_account=%s
+              and (deposit_batch is null or deposit_batch='')
+              and status in ('Deposited','Cleared') and abs(amount-%s)<=1
+              and abs(datediff(coalesce(presented_on,cheque_date),%s))<=5""",
+            (bank_account, amount, date))
+    else:
+        add("Head Lease Payment", """select hp.name from `tabHead Lease Payment` hp
+            join `tabCheque` c on c.name=hp.cheque
+            where hp.status='Cleared' and c.bank_account=%s
+              and abs(hp.amount-%s)<=1
+              and abs(datediff(coalesce(c.cleared_on,c.presented_on,hp.due_date),%s))<=5""",
+            (bank_account, amount, date))
+        if evidence:
+            add("Cheque", """select name from `tabCheque`
+                where direction='Outgoing' and bank_account=%s
+                  and status in ('Issued','Presented')
+                  and payment_entry is not null and payment_entry!=''
+                  and abs(amount-%s)<=0.01 and cheque_no!=''
+                  and locate(cheque_no,%s)>0""",
+                (bank_account, amount, evidence))
+    # A direct bank transfer needs its exact ERP reference; amount/date alone
+    # cannot identify a payer or an expense. Exclude those from candidate links.
+    if bank_gl and row["ref"]:
+        column = "paid_to" if row["direction"] == "Credit" else "paid_from"
+        amount_column = "received_amount" if row["direction"] == "Credit" else "paid_amount"
+        payment_type = "Receive" if row["direction"] == "Credit" else "Pay"
+        add("Payment Entry", """select name from `tabPayment Entry`
+            where docstatus=1 and payment_type=%s and {column}=%s
+              and reference_no=%s and abs({amount_column}-%s)<=0.01
+              and abs(datediff(posting_date,%s))<=5""".format(
+                  column=column, amount_column=amount_column),
+            (payment_type, bank_gl, row["ref"], amount, date))
+    return candidates
 
 MATCH_TOL = 1.0       # QAR — amounts must agree to within one riyal
 MATCH_DAYS = 5        # calendar days either side
