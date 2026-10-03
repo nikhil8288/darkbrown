@@ -52,6 +52,24 @@ if len(sys.argv) == 3:
         else:
             raise AssertionError("Removing a page must fail validation")
         print(f"{expected_bank}: {expected_pages} pages, {expected_rows} rows, balance and coverage verified")
+        # Turn the first page into a genuine image-only scan. This also tests
+        # account/header OCR while the remaining original pages prove continuity.
+        scan = fitz.open()
+        for page_index, original in enumerate(fitz.open(stream=data, filetype="pdf")):
+            if page_index == 0:
+                jpg = original.get_pixmap(dpi=200).tobytes("jpeg", jpg_quality=75)
+                raster = scan.new_page(width=original.rect.width, height=original.rect.height)
+                raster.insert_image(raster.rect, stream=jpg)
+            else:
+                source = original.parent
+                scan.insert_pdf(source, from_page=page_index, to_page=page_index)
+        scanned = parse_statement(scan.tobytes(deflate=True))
+        assert scanned["ocr_pages"] == [1]
+        assert len(scanned["rows"]) == len(result["rows"])
+        financial = ("date", "value_date", "ref", "amount", "direction", "balance", "page")
+        assert all(tuple(a[k] for k in financial) == tuple(b[k] for k in financial)
+                   for a, b in zip(scanned["rows"], result["rows"]))
+        print(f"{expected_bank}: scanned first page OCR matched all financial fields")
 else:
     assert len(sys.argv) == 1, "Pass QNB PDF then Doha Bank PDF"
     print("Synthetic amount checks passed; supply private PDFs for full coverage")
