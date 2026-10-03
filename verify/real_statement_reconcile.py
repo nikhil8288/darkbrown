@@ -104,4 +104,16 @@ with patch.object(subject, "guard"), \
     assert source.attachments == [("attached_to_doctype", "Bank Statement Import"),
                                   ("attached_to_name", "BSI-SYN")]
 
+with patch.object(subject, "guard"), \
+     patch.object(subject, "_statement", return_value=(
+         source, copy.deepcopy(parsed), Item(name="BANK-SYN", account="GL-BANK"),
+         "SYN", "sha-syn")), \
+     patch.object(subject.frappe.db, "get_value", return_value="BSI-SYN"), \
+     patch.object(subject, "statement_detail", return_value={"lines": [
+         {"status": "Matched"}, {"status": "Unmatched"}]}), \
+     patch.object(subject, "_review", side_effect=AssertionError("duplicate must not rematch")):
+    reopened = subject.preview_real_statement(source.file_url)
+    assert reopened["recorded_import"] == "BSI-SYN"
+    assert (reopened["matched"], reopened["unmatched"]) == (1, 1)
+
 print("PASS complete statement, exact posted voucher, open exception, no posting")
